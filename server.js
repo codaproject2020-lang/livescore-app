@@ -154,6 +154,40 @@ app.get('/api/predict', async (req, res) => {
 });
 
 // ============================================================
+//  커뮤니티 게시판 (자유 / 수익인증 / 손실인증)
+//  ※ 메모리 저장(서버 재시작 시 초기화). DB 붙이면 영구 저장 가능.
+// ============================================================
+const BOARDS = ['free', 'profit', 'loss'];
+const posts = { free: [], profit: [], loss: [] };
+let postSeq = 1;
+// 시작 시 예시 글 몇 개
+posts.free.push({ id: postSeq++, name: '운영자', title: '커뮤니티가 열렸습니다 🎉', text: '자유롭게 이야기 나눠주세요. 서로 존중하는 매너 채팅 부탁드립니다.', ts: Date.now(), up: 3 });
+posts.profit.push({ id: postSeq++, name: '고수픽', title: '오늘 야구 3연승 인증', text: 'AI 답픽 그대로 따라가서 수익 봤습니다. 다들 성투하세요!', ts: Date.now(), up: 12 });
+posts.loss.push({ id: postSeq++, name: '초보', title: '막판 역전패 손실…', text: '다 이긴 경기였는데 9회에 뒤집혔네요. 다음엔 언더로 갑니다.', ts: Date.now(), up: 5 });
+
+app.get('/api/posts', (req, res) => {
+  const b = BOARDS.includes(req.query.board) ? req.query.board : 'free';
+  res.json({ board: b, posts: posts[b].slice(-200).reverse() });
+});
+app.post('/api/posts', (req, res) => {
+  const { board = 'free', name = '익명', title = '', text = '' } = req.body || {};
+  if (!BOARDS.includes(board)) return res.status(400).json({ error: 'bad board' });
+  const t = String(title).trim().slice(0, 80), x = String(text).trim().slice(0, 1000);
+  if (!t && !x) return res.status(400).json({ error: 'empty' });
+  const p = { id: postSeq++, name: String(name).slice(0, 20) || '익명', title: t || '(제목 없음)', text: x, ts: Date.now(), up: 0 };
+  posts[board].push(p);
+  if (posts[board].length > 1000) posts[board].shift();
+  res.json({ ok: true, post: p });
+});
+app.post('/api/posts/like', (req, res) => {
+  const { board, id } = req.body || {};
+  const arr = posts[board] || [];
+  const p = arr.find(x => x.id === Number(id));
+  if (p) p.up++;
+  res.json({ ok: true, up: p ? p.up : 0 });
+});
+
+// ============================================================
 //  WebSocket · 채팅 + 접속인원(presence)
 // ============================================================
 const wss = new WebSocketServer({ server, path: '/ws' });
