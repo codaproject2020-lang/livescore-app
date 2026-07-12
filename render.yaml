@@ -1,0 +1,10 @@
+services:
+  - type: web
+    name: livescore-ai
+    runtime: node
+    plan: free
+    buildCommand: npm install
+    startCommand: npm start
+    envVars:
+      - key: THESPORTSDB_KEY
+        value: "3"        # 무료 테스트 키. 유료 키가 있으면 값 교체.

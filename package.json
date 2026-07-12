@@ -1,0 +1,18 @@
+{
+  "name": "livescore-ai-app",
+  "version": "1.0.0",
+  "description": "실시간 라이브스코어 + AI 분석 + 채팅/접속인원 (TheSportsDB + WebSocket)",
+  "type": "module",
+  "main": "server.js",
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js"
+  },
+  "dependencies": {
+    "express": "^4.19.2",
+    "ws": "^8.18.0"
+  }
+}
