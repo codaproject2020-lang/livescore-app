@@ -258,7 +258,14 @@ function buildChatUI(container) {
   chatUIs.push(ui);
   return ui;
 }
+const seenMsgs = new Set();
 function addMsg(m) {
+  // 중복 방지(소켓 재연결 등으로 같은 메시지가 두 번 오는 것 차단)
+  if (m.type === 'chat') {
+    const key = (m.ts || '') + '|' + m.name + '|' + m.text;
+    if (seenMsgs.has(key)) return;
+    seenMsgs.add(key);
+  }
   chatUIs.forEach(ui => {
     const div = document.createElement('div');
     if (m.type === 'sys') { div.className = 'cmsg'; div.innerHTML = `<span class="sys">${esc(m.text)}</span>`; }
@@ -267,7 +274,7 @@ function addMsg(m) {
     ui.msgs.scrollTop = ui.msgs.scrollHeight;
   });
 }
-function clearMsgs() { chatUIs.forEach(ui => ui.msgs.innerHTML = ''); }
+function clearMsgs() { chatUIs.forEach(ui => ui.msgs.innerHTML = ''); seenMsgs.clear(); }
 function setOnline(total) { ['#onlineAll', '#onlineR', '#onlineD'].forEach(s => { const el = $(s); if (el) el.textContent = total; }); }
 
 function joinRoom(room, label) {
@@ -279,6 +286,8 @@ function joinRoom(room, label) {
 }
 
 function connectWS() {
+  // 이미 연결(또는 연결 중)이면 새로 만들지 않음 → 소켓 중복 방지
+  if (ws && (ws.readyState === 0 || ws.readyState === 1)) return;
   const proto = location.protocol === 'https:' ? 'wss' : 'ws';
   ws = new WebSocket(`${proto}://${location.host}/ws`);
   ws.onmessage = ev => {
