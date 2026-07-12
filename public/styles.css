@@ -115,6 +115,60 @@ table.rank td.pt{font-weight:900;color:var(--blue)}
 .chat-input .cs{background:var(--blue);color:#fff;border:none;border-radius:20px;padding:0 16px;font-weight:800;cursor:pointer}
 #view-comm .chatpane{height:calc(100vh - 260px)}
 
+/* ===== 로그인 버튼/모달 ===== */
+.loginbtn{margin:0 16px 6px;padding:11px;border:none;border-radius:12px;background:linear-gradient(135deg,#2b3a4d,#1c2634);color:#fff;font-weight:800;font-size:14px;cursor:pointer;width:calc(100% - 32px);box-shadow:0 4px 12px rgba(28,38,52,.25);transition:transform .12s}
+.loginbtn:hover{transform:translateY(-1px)}
+.topnav{border-bottom:1px solid var(--line);padding-bottom:6px}
+.topnav a{border-bottom:none!important;font-weight:800}
+.loginmodal{position:fixed;left:50%;top:50%;transform:translate(-50%,-46%) scale(.96);width:90%;max-width:360px;background:#fff;border-radius:20px;z-index:90;opacity:0;pointer-events:none;transition:.22s;box-shadow:0 24px 70px rgba(0,0,0,.45);padding:26px 22px 20px;text-align:center}
+.loginmodal.on{opacity:1;pointer-events:auto;transform:translate(-50%,-50%) scale(1)}
+.loginmodal .lm-x{position:absolute;top:14px;right:16px;color:var(--sub);cursor:pointer;font-size:15px}
+.lm-logo{margin:0 auto 12px;filter:drop-shadow(0 0 6px rgba(224,169,46,.4))}
+.lm-title{font-size:20px;font-weight:900}
+.lm-sub{font-size:12px;color:var(--sub);margin:6px 0 18px;line-height:1.5}
+.lgn{display:flex;align-items:center;justify-content:center;gap:10px;width:100%;padding:13px;border-radius:12px;font-size:14px;font-weight:800;cursor:pointer;margin-bottom:9px;border:1px solid transparent;transition:transform .1s,box-shadow .1s}
+.lgn:hover{transform:translateY(-1px);box-shadow:0 5px 14px rgba(0,0,0,.12)}
+.lgn .gi{width:22px;height:22px;border-radius:50%;display:grid;place-items:center;font-weight:900;font-size:13px}
+.lgn.google{background:#fff;color:#3c4043;border-color:#dadce0}
+.lgn.google .gi{background:#fff;border:1px solid #eee;color:#4285F4}
+.lgn.naver{background:#03C75A;color:#fff}
+.lgn.naver .gi{background:#fff;color:#03C75A}
+.lgn.kakao{background:#FEE500;color:#191600}
+.lgn.kakao .gi{background:#191600;color:#FEE500}
+.lm-note{font-size:10px;color:var(--dim);margin-top:10px}
+
+/* ===== 커뮤니티 게시판 ===== */
+.boardtabs{display:flex;border-bottom:1px solid var(--line);background:#fff;position:sticky;top:0;z-index:5}
+.boardtabs .bt{flex:1;text-align:center;padding:13px 6px;font-size:13px;font-weight:800;color:var(--sub);cursor:pointer;position:relative}
+.boardtabs .bt.on{color:var(--txt)}
+.boardtabs .bt.on::after{content:"";position:absolute;bottom:0;left:16%;right:16%;height:3px;background:#e6b422;border-radius:2px}
+.writebar{display:flex;align-items:center;gap:10px;padding:11px 14px;border-bottom:6px solid var(--page);background:#fff}
+.writebar #boardDesc{font-size:12px;color:var(--sub)}
+.writebar #btnWrite{margin-left:auto;background:linear-gradient(135deg,#f0c14e,#d89a1e);color:#3a2a05;border:none;border-radius:10px;padding:9px 15px;font-weight:800;font-size:13px;cursor:pointer;box-shadow:0 3px 10px rgba(216,154,30,.3)}
+.postlist{padding:10px 12px 24px}
+.post{background:#fff;border:1px solid var(--line);border-radius:14px;padding:13px 15px;margin-bottom:10px;box-shadow:0 1px 6px rgba(0,0,0,.04);transition:transform .12s,box-shadow .12s}
+.post:hover{transform:translateY(-1px);box-shadow:0 5px 16px rgba(0,0,0,.08)}
+.post-hd{display:flex;align-items:center;gap:8px;font-size:11px;color:var(--dim);margin-bottom:5px}
+.post-hd .pu{font-weight:800;color:var(--txt)}
+.post-title{font-size:14px;font-weight:800;line-height:1.4;margin-bottom:5px}
+.post-text{font-size:13px;color:#555;line-height:1.6;white-space:pre-wrap}
+.post-ft{display:flex;gap:14px;margin-top:9px;font-size:12px;color:var(--sub)}
+.post-ft .like{cursor:pointer;font-weight:700;user-select:none}
+.post-ft .like:active{transform:scale(.92)}
+.winput{width:100%;border:1px solid var(--line);border-radius:10px;padding:11px 13px;font-size:14px;font-family:inherit;margin-bottom:10px;outline:none}
+.winput:focus{border-color:#e6b422}
+.wtext{min-height:150px;resize:vertical;line-height:1.6}
+.wsubmit{width:100%;background:linear-gradient(135deg,#f0c14e,#d89a1e);color:#3a2a05;border:none;border-radius:11px;padding:13px;font-weight:900;font-size:15px;cursor:pointer}
+
+/* ===== 디자인 폼나게: 라이브 펄스 · 카드 리프트 ===== */
+.mid .badge-state.live{animation:livePulse 1.5s ease-in-out infinite}
+@keyframes livePulse{0%,100%{opacity:1}50%{opacity:.6}}
+.match{transition:background .15s,box-shadow .15s}
+.pick{box-shadow:0 2px 6px rgba(226,59,47,.28)}
+.datenav .refresh{transition:transform .1s}.datenav .refresh:active{transform:scale(.94)}
+/* 라이브 외 화면에선 날짜/뉴스/대화방 바 숨김 */
+.center.notlive .datenav,.center.notlive .ticker,.center.notlive .chatban,.center.notlive .sportrow{display:none}
+
 /* ===== 모달 ===== */
 .scrim{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:80;opacity:0;pointer-events:none;transition:.2s}
 .scrim.on{opacity:1;pointer-events:auto}

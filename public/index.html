@@ -28,6 +28,12 @@
       </svg>
       <span class="wm">LIVE<b>SCORE</b></span>
     </a>
+    <button class="loginbtn" id="btnLogin">🔑 로그인</button>
+    <div class="sidenav topnav">
+      <a data-tab="live" class="on"><span class="em">⚡</span>라이브</a>
+      <a data-tab="table"><span class="em">📊</span>순위</a>
+      <a data-tab="board"><span class="em">📋</span>커뮤니티</a>
+    </div>
     <div class="side-hd">종목</div>
     <div id="sportNav" class="sidenav"></div>
     <div class="side-hd">관심 리그</div>
@@ -42,8 +48,8 @@
       <div class="tt icon" id="btnMenu">☰</div>
       <div class="tt on" data-tab="live">LIVE</div>
       <div class="tt" data-tab="table">순위</div>
-      <div class="tt" data-tab="comm">💬<span style="font-size:11px;margin-left:2px">채팅</span></div>
-      <div class="tt icon" id="btnBell">🔔</div>
+      <div class="tt" data-tab="comm">💬</div>
+      <div class="tt" data-tab="board">📋</div>
       <div class="tt icon" id="btnUser">👤</div>
     </div>
 
@@ -89,9 +95,23 @@
       <div id="tableWrap" class="tablewrap"><div class="loading">리그를 선택하세요.</div></div>
     </section>
 
-    <!-- ===== 커뮤니티/채팅 뷰 (모바일) ===== -->
+    <!-- ===== 채팅 뷰 (모바일) ===== -->
     <section class="view hidden" id="view-comm">
       <div id="chatMobile" class="chatpane"></div>
+    </section>
+
+    <!-- ===== 커뮤니티 게시판 뷰 ===== -->
+    <section class="view hidden" id="view-board">
+      <div class="boardtabs">
+        <div class="bt on" data-board="free">📝 자유게시판</div>
+        <div class="bt" data-board="profit">💰 수익인증</div>
+        <div class="bt" data-board="loss">📉 손실인증</div>
+      </div>
+      <div class="writebar">
+        <span id="boardDesc">자유롭게 이야기를 나눠보세요</span>
+        <button id="btnWrite">✏️ 글쓰기</button>
+      </div>
+      <div id="postList" class="postlist"><div class="loading">불러오는 중…</div></div>
     </section>
 
     <div class="ad">
@@ -115,6 +135,37 @@
 <div class="modal" id="modal">
   <div class="mhd"><span id="mTitle">경기 상세</span><span class="x" id="mClose">✕</span></div>
   <div class="mbody" id="mBody"></div>
+</div>
+
+<!-- ===== 로그인 모달 ===== -->
+<div class="scrim" id="scrimL"></div>
+<div class="loginmodal" id="loginModal">
+  <div class="lm-x" id="lmClose">✕</div>
+  <svg viewBox="0 0 46 46" width="52" height="52" class="lm-logo" aria-hidden="true">
+    <defs><linearGradient id="lg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#fdeaa6"/><stop offset=".5" stop-color="#f0c14e"/><stop offset="1" stop-color="#c78a1e"/></linearGradient></defs>
+    <rect x="1" y="1" width="44" height="44" rx="12" fill="#1a140b" stroke="#4a3a1c"/>
+    <circle cx="23" cy="24" r="15.5" fill="none" stroke="url(#lg)" stroke-width="2.3"/>
+    <circle cx="37" cy="11.5" r="2.7" fill="url(#lg)"/>
+    <text x="23" y="25" text-anchor="middle" font-family="Arial Black,Arial" font-weight="900" font-style="italic" font-size="12.5" fill="url(#lg)">LIVE</text>
+    <text x="23" y="34" text-anchor="middle" font-family="Arial" font-weight="800" font-size="6" letter-spacing="1.5" fill="url(#lg)">SCORE</text>
+  </svg>
+  <div class="lm-title">로그인</div>
+  <div class="lm-sub">간편하게 로그인하고 채팅·픽·커뮤니티에 참여하세요</div>
+  <button class="lgn google" data-p="google"><span class="gi">G</span>구글로 로그인</button>
+  <button class="lgn naver" data-p="naver"><span class="gi">N</span>네이버로 로그인</button>
+  <button class="lgn kakao" data-p="kakao"><span class="gi">K</span>카카오톡 로그인</button>
+  <div class="lm-note">테스트 단계 · 실제 소셜 인증 연동은 다음 단계에서</div>
+</div>
+
+<!-- ===== 글쓰기 모달 ===== -->
+<div class="scrim" id="scrimW"></div>
+<div class="modal" id="writeModal">
+  <div class="mhd"><span id="wmTitle">글쓰기</span><span class="x" id="wmClose">✕</span></div>
+  <div class="mbody">
+    <input type="text" id="wPostTitle" class="winput" placeholder="제목" maxlength="80">
+    <textarea id="wPostText" class="winput wtext" placeholder="내용을 입력하세요" maxlength="1000"></textarea>
+    <button id="wSubmit" class="wsubmit">등록하기</button>
+  </div>
 </div>
 
 <!-- ===== 드로어(모바일 메뉴) ===== -->

@@ -31,16 +31,98 @@ function badge(url, fallback) {
 // ============================================================
 //  탭 전환
 // ============================================================
-const views = { live: 'view-live', table: 'view-table', comm: 'view-comm' };
+const views = { live: 'view-live', table: 'view-table', comm: 'view-comm', board: 'view-board' };
 function setTab(t) {
   Object.values(views).forEach(id => $('#' + id)?.classList.add('hidden'));
   $('#' + views[t])?.classList.remove('hidden');
   $$('.topbar .tt[data-tab]').forEach(x => x.classList.toggle('on', x.dataset.tab === t));
+  $$('.topnav a[data-tab]').forEach(x => x.classList.toggle('on', x.dataset.tab === t));
   if (t === 'table' && !$('#tblLeague').options.length) buildTableControls();
+  if (t === 'board') loadPosts();
+  $('.center')?.classList.toggle('notlive', t !== 'live');
+  window.scrollTo({ top: 0 });
 }
 $$('.topbar .tt[data-tab]').forEach(b => b.addEventListener('click', () => setTab(b.dataset.tab)));
+$$('.topnav a[data-tab]').forEach(b => b.addEventListener('click', () => setTab(b.dataset.tab)));
 // 전경기 대화방 배너 탭 → 모바일에서 채팅방 열기 (PC는 우측에 항상 표시)
 $('#chatbanBtn')?.addEventListener('click', () => { if (window.innerWidth < 960) setTab('comm'); });
+
+// ============================================================
+//  로그인 (구글 / 네이버 / 카카오) — 테스트 단계: 대화명 설정
+// ============================================================
+let loggedIn = false;
+function openLogin() { $('#scrimL').classList.add('on'); $('#loginModal').classList.add('on'); }
+function closeLogin() { $('#scrimL').classList.remove('on'); $('#loginModal').classList.remove('on'); }
+$('#btnLogin')?.addEventListener('click', openLogin);
+$('#lmClose')?.addEventListener('click', closeLogin);
+$('#scrimL')?.addEventListener('click', closeLogin);
+$$('.lgn').forEach(b => b.addEventListener('click', () => {
+  const p = b.dataset.p;
+  const label = { google: '구글', naver: '네이버', kakao: '카카오' }[p];
+  const nick = (prompt(`${label} 로그인 · 사용할 대화명을 입력하세요`, '') || '').trim();
+  const name = nick ? nick.slice(0, 20) : `${label}사용자${Math.floor(Math.random() * 900 + 100)}`;
+  myName = name; loggedIn = true;
+  if (ws && ws.readyState === 1) ws.send(JSON.stringify({ type: 'name', name }));
+  const btn = $('#btnLogin'); if (btn) btn.innerHTML = `👤 ${esc(name)}`;
+  const dn = $('#drawerName'); if (dn) dn.textContent = name;
+  closeLogin();
+}));
+
+// ============================================================
+//  커뮤니티 게시판
+// ============================================================
+const BOARD_DESC = { free: '자유롭게 이야기를 나눠보세요', profit: '수익 인증글을 공유해요 💰', loss: '손실 경험을 나누고 복기해요 📉' };
+let curBoard = 'free';
+function timeAgo(ts) {
+  const s = (Date.now() - ts) / 1000;
+  if (s < 60) return '방금'; if (s < 3600) return Math.floor(s / 60) + '분 전';
+  if (s < 86400) return Math.floor(s / 3600) + '시간 전'; return Math.floor(s / 86400) + '일 전';
+}
+async function loadPosts() {
+  const list = $('#postList'); if (!list) return;
+  list.innerHTML = `<div class="loading">불러오는 중…</div>`;
+  $('#boardDesc') && ($('#boardDesc').textContent = BOARD_DESC[curBoard]);
+  try {
+    const d = await fetchJSON(`/api/posts?board=${curBoard}`, { tries: 12, delay: 3500, onWait: n => { list.innerHTML = `<div class="loading">⏳ 서버 깨우는 중… (${n})</div>`; } });
+    const ps = d.posts || [];
+    if (!ps.length) { list.innerHTML = `<div class="loading">아직 글이 없어요. 첫 글을 남겨보세요!</div>`; return; }
+    list.innerHTML = ps.map(p => `<div class="post">
+      <div class="post-hd"><span class="pu">${esc(p.name)}</span><span class="pt">${timeAgo(p.ts)}</span></div>
+      <div class="post-title">${esc(p.title)}</div>
+      ${p.text ? `<div class="post-text">${esc(p.text)}</div>` : ''}
+      <div class="post-ft"><span class="like" data-id="${p.id}">👍 <b>${p.up}</b></span></div>
+    </div>`).join('');
+    $$('#postList .like').forEach(el => el.addEventListener('click', async () => {
+      const id = el.dataset.id;
+      const r = await fetch('/api/posts/like', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ board: curBoard, id: Number(id) }) }).then(r => r.json()).catch(() => null);
+      if (r && r.ok) el.querySelector('b').textContent = r.up;
+    }));
+  } catch (e) {
+    list.innerHTML = `<div class="loading">불러오지 못했습니다.<br><button onclick="loadPosts()" style="margin-top:10px;padding:9px 18px;border:none;border-radius:8px;background:#2f6fed;color:#fff;font-weight:800">다시 시도</button></div>`;
+  }
+}
+$$('.boardtabs .bt').forEach(b => b.addEventListener('click', () => {
+  $$('.boardtabs .bt').forEach(x => x.classList.remove('on')); b.classList.add('on');
+  curBoard = b.dataset.board; loadPosts();
+}));
+// 글쓰기
+function openWrite() {
+  $('#wmTitle').textContent = { free: '자유게시판', profit: '수익인증', loss: '손실인증' }[curBoard] + ' 글쓰기';
+  $('#wPostTitle').value = ''; $('#wPostText').value = '';
+  $('#scrimW').classList.add('on'); $('#writeModal').classList.add('on');
+}
+function closeWrite() { $('#scrimW').classList.remove('on'); $('#writeModal').classList.remove('on'); }
+$('#btnWrite')?.addEventListener('click', openWrite);
+$('#wmClose')?.addEventListener('click', closeWrite);
+$('#scrimW')?.addEventListener('click', closeWrite);
+$('#wSubmit')?.addEventListener('click', async () => {
+  const title = $('#wPostTitle').value.trim(), text = $('#wPostText').value.trim();
+  if (!title && !text) { alert('제목이나 내용을 입력하세요'); return; }
+  try {
+    await fetch('/api/posts', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ board: curBoard, name: myName, title, text }) });
+    closeWrite(); loadPosts();
+  } catch { alert('등록에 실패했어요. 잠시 후 다시 시도해주세요.'); }
+});
 
 // ============================================================
 //  종목 / 리그 네비 구성
@@ -316,8 +398,7 @@ $('#dateNext').addEventListener('click', () => shiftDate(1));
 $('#dateToday').addEventListener('click', () => { state.date = new Date().toISOString().slice(0, 10); $('#datePick').value = state.date; $('#dateToday').textContent = '오늘'; loadEvents(); });
 $('#datePick').addEventListener('change', e => { state.date = e.target.value; $('#dateToday').textContent = (state.date === new Date().toISOString().slice(0,10)) ? '오늘' : state.date.slice(5); loadEvents(); });
 $('#btnRefresh').addEventListener('click', () => loadEvents());
-$('#btnBell').addEventListener('click', () => alert('알림 (데모)'));
-$('#btnUser').addEventListener('click', openDrawer);
+$('#btnUser')?.addEventListener('click', openLogin);
 $('#btnMenu').addEventListener('click', openDrawer);
 function openDrawer() { $('#drawer').classList.add('on'); $('#scrimD').classList.add('on'); }
 function closeDrawer() { $('#drawer').classList.remove('on'); $('#scrimD').classList.remove('on'); }
