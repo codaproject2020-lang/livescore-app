@@ -1,8 +1,10 @@
 :root{
-  --app:#fff; --page:#e9edf1; --top:#a7bccf; --line:#e4e8ec; --line2:#eef1f4;
-  --txt:#23272e; --sub:#8b93a0; --dim:#aeb6c0;
-  --red:#e2231a; --blue:#2f6fed; --blueDark:#3b6fb5;
-  --up:#159a45; --down:#e2231a; --pick:#e23b2f; --answer:#4a9d5b; --gold:#e0a92e;
+  --app:#fff; --page:#eaedf2; --top:#16243d; --line:#e6e9ee; --line2:#eff2f6;
+  --txt:#1b2333; --sub:#7c8698; --dim:#aeb6c0;
+  --red:#e2231a; --blue:#24568f; --blueDark:#1c3f6b;
+  --navy:#16243d; --navy2:#233c63;
+  --up:#159a45; --down:#e2231a; --pick:#e23b2f; --answer:#3f8f56;
+  --gold:#d9a72b; --goldL:#e8c24a; --goldLine:#ead9a8;
   --maxw:1240px;
 }
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
@@ -17,9 +19,10 @@ a{color:inherit;text-decoration:none}
 .center{background:var(--app);min-height:100vh;position:relative;padding-bottom:60px}
 
 /* ===== TOP BAR (mobile) ===== */
-.topbar{position:sticky;top:0;z-index:40;background:var(--top);display:flex;height:48px;border-top:3px solid #e6b422}
-.tt{flex:1;display:flex;align-items:center;justify-content:center;color:#33465a;font-weight:800;font-size:15px;cursor:pointer}
-.tt.on{background:#fff;color:var(--txt)}
+.topbar{position:sticky;top:0;z-index:40;background:linear-gradient(180deg,#1e3252,#16243d);display:flex;height:50px;border-top:3px solid var(--gold)}
+.tt{flex:1;display:flex;align-items:center;justify-content:center;color:#aab8cf;font-weight:800;font-size:15px;cursor:pointer;transition:background .15s}
+.tt.on{background:#fff;color:var(--navy)}
+.tt:not(.on):active{background:rgba(255,255,255,.08)}
 .tt.icon{flex:0 0 46px;font-size:18px}
 
 /* ===== SPORT ROW ===== */
@@ -45,11 +48,12 @@ a{color:inherit;text-decoration:none}
 .chatban .all{background:var(--red);color:#fff;font-size:11px;font-weight:800;padding:3px 7px;border-radius:4px}
 .chatban .nm{font-weight:800}
 .chatban .cnt{color:var(--sub);font-size:12px}.chatban .cnt b{color:var(--red)}
-.chatban .prize{margin-left:auto;background:linear-gradient(135deg,#ff6b5e,#e2231a);color:#fff;font-weight:800;font-size:11px;padding:5px 10px;border-radius:8px;text-align:center;line-height:1.2}
+.chatban .prize{margin-left:auto;background:linear-gradient(135deg,#233c63,#16243d);color:var(--goldL);font-weight:800;font-size:11px;padding:6px 11px;border-radius:8px;text-align:center;line-height:1.25;border:1px solid #2e4a75}
 
 /* ===== FEED / LEAGUE GROUP ===== */
 .lg{border-bottom:6px solid var(--page)}
-.lghd{display:flex;align-items:center;gap:8px;padding:9px 12px;background:#f3f6f9;border-bottom:1px solid var(--line);cursor:pointer}
+.lghd{display:flex;align-items:center;gap:8px;padding:10px 12px;background:linear-gradient(90deg,#f6f3ea,#f5f7fa);border-bottom:1px solid var(--line);border-left:3px solid var(--gold);cursor:pointer}
+.lghd .nm{color:var(--navy)}
 .lghd img{width:18px;height:18px;object-fit:contain}
 .lghd .flag{font-size:15px}
 .lghd .nm{font-weight:800}
@@ -141,7 +145,7 @@ table.rank td.pt{font-weight:900;color:var(--blue)}
 .boardtabs{display:flex;border-bottom:1px solid var(--line);background:#fff;position:sticky;top:0;z-index:5}
 .boardtabs .bt{flex:1;text-align:center;padding:13px 6px;font-size:13px;font-weight:800;color:var(--sub);cursor:pointer;position:relative}
 .boardtabs .bt.on{color:var(--txt)}
-.boardtabs .bt.on::after{content:"";position:absolute;bottom:0;left:16%;right:16%;height:3px;background:#e6b422;border-radius:2px}
+.boardtabs .bt.on::after{content:"";position:absolute;bottom:0;left:16%;right:16%;height:3px;background:var(--gold);border-radius:2px}
 .writebar{display:flex;align-items:center;gap:10px;padding:11px 14px;border-bottom:6px solid var(--page);background:#fff}
 .writebar #boardDesc{font-size:12px;color:var(--sub)}
 .writebar #btnWrite{margin-left:auto;background:linear-gradient(135deg,#f0c14e,#d89a1e);color:#3a2a05;border:none;border-radius:10px;padding:9px 15px;font-weight:800;font-size:13px;cursor:pointer;box-shadow:0 3px 10px rgba(216,154,30,.3)}
@@ -156,7 +160,7 @@ table.rank td.pt{font-weight:900;color:var(--blue)}
 .post-ft .like{cursor:pointer;font-weight:700;user-select:none}
 .post-ft .like:active{transform:scale(.92)}
 .winput{width:100%;border:1px solid var(--line);border-radius:10px;padding:11px 13px;font-size:14px;font-family:inherit;margin-bottom:10px;outline:none}
-.winput:focus{border-color:#e6b422}
+.winput:focus{border-color:var(--gold)}
 .wtext{min-height:150px;resize:vertical;line-height:1.6}
 .wsubmit{width:100%;background:linear-gradient(135deg,#f0c14e,#d89a1e);color:#3a2a05;border:none;border-radius:11px;padding:13px;font-weight:900;font-size:15px;cursor:pointer}
 
@@ -209,13 +213,13 @@ table.rank td.pt{font-weight:900;color:var(--blue)}
 /* ===== 사이드 네비 공통 ===== */
 .side-hd{font-size:11px;font-weight:800;color:var(--dim);letter-spacing:.4px;padding:14px 16px 8px}
 .sidenav{display:flex;flex-direction:column}
-.sidenav a{display:flex;align-items:center;gap:10px;padding:12px 16px;font-size:14px;font-weight:600;color:var(--txt);cursor:pointer;border-left:3px solid transparent;border-bottom:1px solid #f2e4bd}
+.sidenav a{display:flex;align-items:center;gap:10px;padding:12px 16px;font-size:14px;font-weight:600;color:var(--txt);cursor:pointer;border-left:3px solid transparent;border-bottom:1px solid var(--goldLine)}
 .sidenav a:last-child{border-bottom:none}
 .sidenav a:hover{background:#f3f6f9}
 .sidenav a.on{border-left-color:var(--blue);background:#eef4ff;color:var(--blue);font-weight:800}
 .sidenav a .em{font-size:16px;width:20px;text-align:center}
 .sidenav a .live-dot{margin-left:auto;font-size:10px;color:var(--red);font-weight:800}
-.brand{display:flex;align-items:center;gap:11px;padding:16px;font-style:italic;font-weight:900;font-size:20px;border-bottom:1px solid #f0e2bf}
+.brand{display:flex;align-items:center;gap:11px;padding:16px;font-style:italic;font-weight:900;font-size:20px;border-bottom:1px solid var(--goldLine)}
 .brand .blogo{flex:0 0 auto;filter:drop-shadow(0 0 5px rgba(224,169,46,.45))}
 .brand .wm{background:linear-gradient(135deg,#e8be3f,#b8860b);-webkit-background-clip:text;background-clip:text;color:transparent;letter-spacing:.3px}
 .brand .wm b{-webkit-text-fill-color:transparent}
@@ -226,12 +230,12 @@ table.rank td.pt{font-weight:900;color:var(--blue)}
 @media(min-width:960px){
   body{padding:18px 0}
   .shell{grid-template-columns:230px minmax(0,1fr) 320px;gap:16px;padding:0 16px;align-items:start}
-  .side-l,.side-r{display:block;background:#fff;border-radius:14px;overflow:hidden auto;position:sticky;top:18px;box-shadow:0 2px 14px rgba(0,0,0,.06);max-height:calc(100vh - 36px);border-top:3px solid #e6b422}
+  .side-l,.side-r{display:block;background:#fff;border-radius:14px;overflow:hidden auto;position:sticky;top:18px;box-shadow:0 2px 14px rgba(0,0,0,.06);max-height:calc(100vh - 36px);border-top:3px solid var(--gold)}
   .side-l::-webkit-scrollbar,.side-r::-webkit-scrollbar{width:6px}
   .side-l::-webkit-scrollbar-thumb,.side-r::-webkit-scrollbar-thumb{background:#d8dde4;border-radius:3px}
   .side-r{display:flex;flex-direction:column;height:calc(100vh - 36px)}
   .side-r .chatpane{flex:1;min-height:0}
-  .center{border-radius:14px;overflow:hidden;box-shadow:0 2px 14px rgba(0,0,0,.06);min-height:auto;padding-bottom:0;border-top:3px solid #e6b422}
+  .center{border-radius:14px;overflow:hidden;box-shadow:0 2px 14px rgba(0,0,0,.06);min-height:auto;padding-bottom:0;border-top:3px solid var(--gold)}
   .topbar,.sportrow{display:none}          /* PC는 좌측 네비 사용 */
   #view-comm{display:none!important}         /* PC는 우측 채팅 사용 */
   .datenav{border-radius:14px 14px 0 0}
