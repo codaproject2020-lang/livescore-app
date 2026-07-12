@@ -62,19 +62,39 @@ function buildLeagueNav() {
 }
 
 // ============================================================
+//  fetch + 자동 재시도 (무료 서버 콜드스타트 대응)
+// ============================================================
+async function fetchJSON(url, { tries = 15, delay = 4000, onWait } = {}) {
+  for (let i = 0; i < tries; i++) {
+    try {
+      const r = await fetch(url, { cache: 'no-store' });
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      const ct = r.headers.get('content-type') || '';
+      if (!ct.includes('json')) throw new Error('not-json');
+      return await r.json();
+    } catch (e) {
+      if (i === tries - 1) throw e;
+      if (onWait) onWait(i + 1);
+      await new Promise(res => setTimeout(res, delay));
+    }
+  }
+}
+
+// ============================================================
 //  이벤트 로드 & 렌더
 // ============================================================
 async function loadEvents(focusLeague) {
   const feed = $('#feed');
   feed.innerHTML = `<div class="loading">경기 불러오는 중…</div>`;
   try {
-    const r = await fetch(`/api/events?date=${state.date}&sport=${encodeURIComponent(state.sport)}`);
-    const d = await r.json();
+    const d = await fetchJSON(`/api/events?date=${state.date}&sport=${encodeURIComponent(state.sport)}`, {
+      onWait: (n) => { feed.innerHTML = `<div class="loading">⏳ 무료 서버를 깨우는 중이에요…<br>최초 접속은 최대 1분 정도 걸릴 수 있어요.<br><span style="color:#aeb6c0">(자동 재시도 ${n})</span></div>`; }
+    });
     let events = d.events || [];
     if (focusLeague) events = events.filter(e => e.leagueId === focusLeague);
     renderFeed(events);
   } catch (e) {
-    feed.innerHTML = `<div class="loading">데이터를 불러오지 못했습니다. (${esc(e.message)})</div>`;
+    feed.innerHTML = `<div class="loading">데이터를 불러오지 못했습니다.<br><button onclick="loadEvents()" style="margin-top:10px;padding:9px 18px;border:none;border-radius:8px;background:#2f6fed;color:#fff;font-weight:800;cursor:pointer">다시 시도</button></div>`;
   }
 }
 
@@ -300,9 +320,12 @@ async function init() {
   buildChatUI($('#chatDesk'));
   buildChatUI($('#chatMobile'));
   connectWS();
-  try { const d = await fetch('/api/leagues').then(r => r.json()); state.leagues = d.leagues || []; } catch {}
-  buildSportNav(); buildLeagueNav();
-  loadEvents();
+  buildSportNav();          // 종목 메뉴 즉시 표시(네트워크 불필요)
+  loadEvents();             // 경기 즉시 로드(자체 자동 재시도 내장)
+  // 관심 리그는 백그라운드로, 서버 깰 때까지 재시도
+  fetchJSON('/api/leagues', { tries: 15, delay: 4000 })
+    .then(d => { state.leagues = d.leagues || []; buildLeagueNav(); })
+    .catch(() => {});
   // 라이브 자동 갱신 (30초)
   setInterval(() => { if (!$('#view-live').classList.contains('hidden')) loadEvents(); }, 30000);
 }

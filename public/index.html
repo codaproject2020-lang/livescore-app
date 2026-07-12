@@ -12,7 +12,22 @@
 
   <!-- ================= 좌측 사이드(PC 전용) ================= -->
   <aside class="side-l">
-    <a class="brand" href="/"><span class="ring"></span><span class="wm">LIVE<b>SCORE</b><i>AI</i></span></a>
+    <a class="brand" href="/">
+      <svg class="blogo" viewBox="0 0 46 46" width="40" height="40" aria-hidden="true">
+        <defs>
+          <linearGradient id="g1" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0" stop-color="#fdeaa6"/><stop offset=".5" stop-color="#f0c14e"/><stop offset="1" stop-color="#c78a1e"/>
+          </linearGradient>
+          <filter id="gl"><feGaussianBlur stdDeviation="1" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+        </defs>
+        <rect x="1" y="1" width="44" height="44" rx="12" fill="#1a140b" stroke="#4a3a1c"/>
+        <circle cx="23" cy="24" r="15.5" fill="none" stroke="url(#g1)" stroke-width="2.3" filter="url(#gl)"/>
+        <circle cx="37" cy="11.5" r="2.7" fill="url(#g1)" filter="url(#gl)"/>
+        <text x="23" y="25" text-anchor="middle" font-family="Arial Black,Arial" font-weight="900" font-style="italic" font-size="12.5" fill="url(#g1)">LIVE</text>
+        <text x="23" y="34" text-anchor="middle" font-family="Arial" font-weight="800" font-size="6" letter-spacing="1.5" fill="url(#g1)">SCORE</text>
+      </svg>
+      <span class="wm">LIVE<b>SCORE</b></span>
+    </a>
     <div class="side-hd">종목</div>
     <div id="sportNav" class="sidenav"></div>
     <div class="side-hd">관심 리그</div>
