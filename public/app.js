@@ -39,6 +39,8 @@ function setTab(t) {
   if (t === 'table' && !$('#tblLeague').options.length) buildTableControls();
 }
 $$('.topbar .tt[data-tab]').forEach(b => b.addEventListener('click', () => setTab(b.dataset.tab)));
+// 전경기 대화방 배너 탭 → 모바일에서 채팅방 열기 (PC는 우측에 항상 표시)
+$('#chatbanBtn')?.addEventListener('click', () => { if (window.innerWidth < 960) setTab('comm'); });
 
 // ============================================================
 //  종목 / 리그 네비 구성
