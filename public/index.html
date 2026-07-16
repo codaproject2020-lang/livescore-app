@@ -32,6 +32,7 @@
     <div class="sidenav topnav">
       <a data-tab="live" class="on"><span class="em">⚡</span>라이브</a>
       <a data-tab="table"><span class="em">📊</span>순위</a>
+      <a data-tab="odds"><span class="em">💰</span>배당</a>
       <a data-tab="board"><span class="em">📋</span>커뮤니티</a>
     </div>
     <div class="side-hd">종목</div>
@@ -48,6 +49,7 @@
       <div class="tt icon" id="btnMenu">☰</div>
       <div class="tt on" data-tab="live">LIVE</div>
       <div class="tt" data-tab="table">순위</div>
+      <div class="tt" data-tab="odds">💰</div>
       <div class="tt" data-tab="comm">💬</div>
       <div class="tt" data-tab="board">📋</div>
       <div class="tt icon" id="btnUser">👤</div>
@@ -98,6 +100,13 @@
     <!-- ===== 채팅 뷰 (모바일) ===== -->
     <section class="view hidden" id="view-comm">
       <div id="chatMobile" class="chatpane"></div>
+    </section>
+
+    <!-- ===== 배당 뷰 ===== -->
+    <section class="view hidden" id="view-odds">
+      <div class="oddshd">💰 실시간 해외 배당 <span class="obk">bet365·Pinnacle 등 종합</span></div>
+      <div class="oddschips" id="oddsChips"></div>
+      <div id="oddsBoard" class="oddsboard"><div class="loading">불러오는 중…</div></div>
     </section>
 
     <!-- ===== 커뮤니티 게시판 뷰 ===== -->

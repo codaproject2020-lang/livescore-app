@@ -164,6 +164,40 @@ table.rank td.pt{font-weight:900;color:var(--blue)}
 .wtext{min-height:150px;resize:vertical;line-height:1.6}
 .wsubmit{width:100%;background:linear-gradient(135deg,#f0c14e,#d89a1e);color:#3a2a05;border:none;border-radius:11px;padding:13px;font-weight:900;font-size:15px;cursor:pointer}
 
+/* ===== 배당 보드 ===== */
+.oddshd{padding:12px 14px 8px;font-weight:900;font-size:15px;color:var(--navy);display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.oddshd .obk{font-size:10px;color:var(--sub);font-weight:600;background:#f3f6f9;padding:3px 8px;border-radius:6px}
+.oddschips{display:flex;gap:7px;overflow-x:auto;padding:0 14px 12px;scrollbar-width:none;border-bottom:6px solid var(--page)}
+.oddschips::-webkit-scrollbar{display:none}
+.ochip{flex:0 0 auto;padding:8px 13px;border-radius:20px;border:1px solid var(--line);background:#fff;font-size:12px;font-weight:700;color:var(--sub);cursor:pointer}
+.ochip.on{background:var(--navy);color:#fff;border-color:var(--navy)}
+.oddsboard{padding:0 0 24px}
+.ocols{display:grid;grid-template-columns:1fr 168px;gap:0;padding:8px 14px;font-size:11px;color:var(--sub);font-weight:700;background:#f3f6f9;border-bottom:1px solid var(--line)}
+.ocols span:first-child{grid-column:1}
+.ocols span:not(:first-child){text-align:center}
+.ocols{grid-template-columns:1fr repeat(3,56px)}
+.orow2{display:grid;grid-template-columns:26px 1fr auto;gap:8px;align-items:center;padding:11px 14px;border-bottom:1px solid var(--line)}
+.orow2:hover{background:#fafbfc}
+.onum{font-size:12px;font-weight:800;color:var(--gold)}
+.og{min-width:0}
+.ogl{font-size:10px;color:var(--dim);margin-bottom:3px}
+.ogl .obks{color:var(--sub)}
+.ogt{font-size:13px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ogt b{font-weight:800}
+.ogt .ovs{color:var(--dim);font-weight:600;font-size:11px;margin:0 3px}
+.oodds{display:grid;gap:5px}
+.oodds.s{grid-template-columns:repeat(3,52px)}
+.oodds.b{grid-template-columns:repeat(2,52px)}
+.ov{background:#f3f6f9;border:1px solid var(--line);border-radius:6px;padding:7px 0;text-align:center;font-size:13px;font-weight:800;color:var(--navy)}
+.ov.hot{background:#eaf1fb;border-color:#b9d0f0;color:var(--blue)}
+.ov.dash{color:var(--dim);font-weight:600}
+.oddskey{text-align:center;padding:40px 24px}
+.oddskey .ok-ic{font-size:40px;margin-bottom:12px}
+.oddskey .ok-t{font-size:17px;font-weight:900;margin-bottom:8px}
+.oddskey .ok-s{font-size:13px;color:var(--sub);line-height:1.7;margin-bottom:18px}
+.oddskey .ok-b{display:inline-block;background:linear-gradient(135deg,var(--goldL),var(--gold));color:#3a2a05;font-weight:800;padding:12px 20px;border-radius:12px;font-size:14px}
+.oddskey .ok-n{font-size:11px;color:var(--dim);margin-top:14px;line-height:1.6}
+
 /* ===== 디자인 폼나게: 라이브 펄스 · 카드 리프트 ===== */
 .mid .badge-state.live{animation:livePulse 1.5s ease-in-out infinite}
 @keyframes livePulse{0%,100%{opacity:1}50%{opacity:.6}}

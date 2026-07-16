@@ -31,7 +31,7 @@ function badge(url, fallback) {
 // ============================================================
 //  탭 전환
 // ============================================================
-const views = { live: 'view-live', table: 'view-table', comm: 'view-comm', board: 'view-board' };
+const views = { live: 'view-live', table: 'view-table', odds: 'view-odds', comm: 'view-comm', board: 'view-board' };
 function setTab(t) {
   Object.values(views).forEach(id => $('#' + id)?.classList.add('hidden'));
   $('#' + views[t])?.classList.remove('hidden');
@@ -39,6 +39,7 @@ function setTab(t) {
   $$('.topnav a[data-tab]').forEach(x => x.classList.toggle('on', x.dataset.tab === t));
   if (t === 'table' && !$('#tblLeague').options.length) buildTableControls();
   if (t === 'board') loadPosts();
+  if (t === 'odds') initOdds();
   $('.center')?.classList.toggle('notlive', t !== 'live');
   window.scrollTo({ top: 0 });
 }
@@ -321,6 +322,72 @@ async function loadTable() {
     }</tbody></table>`;
   } catch (e) {
     wrap.innerHTML = `<div class="loading">순위를 불러오지 못했습니다.</div>`;
+  }
+}
+
+// ============================================================
+//  배당 (The Odds API)
+// ============================================================
+let oddsSport = 'soccer_epl', oddsChipsBuilt = false, oddsHasKey = null;
+async function initOdds() {
+  if (!oddsChipsBuilt) {
+    try {
+      const d = await fetchJSON('/api/odds/sports', { tries: 12, delay: 3500 });
+      oddsHasKey = d.hasKey;
+      $('#oddsChips').innerHTML = (d.sports || []).map((s, i) =>
+        `<div class="ochip ${i === 0 ? 'on' : ''}" data-sport="${s.key}">${s.em} ${s.ko}</div>`).join('');
+      $$('#oddsChips .ochip').forEach(c => c.addEventListener('click', () => {
+        $$('#oddsChips .ochip').forEach(x => x.classList.remove('on')); c.classList.add('on');
+        oddsSport = c.dataset.sport; loadOdds();
+      }));
+      oddsChipsBuilt = true;
+    } catch { }
+  }
+  loadOdds();
+}
+function oddsCell(v, hot) {
+  if (v == null) return `<div class="ov dash">-</div>`;
+  return `<div class="ov${hot ? ' hot' : ''}">${Number(v).toFixed(2)}</div>`;
+}
+async function loadOdds() {
+  const board = $('#oddsBoard'); if (!board) return;
+  board.innerHTML = `<div class="loading">배당 불러오는 중…</div>`;
+  try {
+    const d = await fetchJSON(`/api/odds?sport=${encodeURIComponent(oddsSport)}`, { tries: 12, delay: 3500, onWait: n => { board.innerHTML = `<div class="loading">⏳ 서버 깨우는 중… (${n})</div>`; } });
+    if (d.needKey) {
+      board.innerHTML = `<div class="oddskey">
+        <div class="ok-ic">🔑</div>
+        <div class="ok-t">배당 API 키가 아직 없어요</div>
+        <div class="ok-s">무료로 키를 발급받아 Render 환경변수 <b>ODDS_API_KEY</b> 에 넣으면<br>여기에 <b>실제 해외 배당(bet365·Pinnacle 등)</b>이 표시됩니다.</div>
+        <a class="ok-b" href="https://the-odds-api.com/" target="_blank" rel="noopener">무료 키 발급받기 (the-odds-api.com) ↗</a>
+        <div class="ok-n">월 500회 무료 · 국내(Betman) 배당은 공개 API가 없어 미지원</div>
+      </div>`;
+      return;
+    }
+    const gs = d.games || [];
+    if (!gs.length) { board.innerHTML = `<div class="loading">예정 경기가 없어요. 다른 리그를 선택해보세요.</div>`; return; }
+    const isSoccer = oddsSport.startsWith('soccer');
+    board.innerHTML = `<div class="ocols"><span>경기</span><span>승${isSoccer ? '' : '(홈)'}</span>${isSoccer ? '<span>무</span>' : ''}<span>패${isSoccer ? '' : '(원정)'}</span></div>` +
+      gs.map((g, i) => {
+        const lo = Math.min(...[g.homeOdds, g.awayOdds, g.drawOdds].filter(x => x));
+        const d2 = new Date(g.time);
+        const dt = `${d2.getMonth() + 1}/${d2.getDate()} ${String(d2.getHours()).padStart(2, '0')}:${String(d2.getMinutes()).padStart(2, '0')}`;
+        return `<div class="orow2">
+          <div class="onum">${1001 + i}</div>
+          <div class="og">
+            <div class="ogl">${esc(g.league)} · ${dt} · <span class="obks">${g.books}개사</span></div>
+            <div class="ogt"><b>${esc(g.home)}</b> <span class="ovs">vs</span> ${esc(g.away)}</div>
+          </div>
+          <div class="oodds ${isSoccer ? 's' : 'b'}">
+            ${oddsCell(g.homeOdds, g.homeOdds === lo)}
+            ${isSoccer ? oddsCell(g.drawOdds, g.drawOdds === lo) : ''}
+            ${oddsCell(g.awayOdds, g.awayOdds === lo)}
+          </div>
+        </div>`;
+      }).join('') +
+      `<div class="foot">배당은 The Odds API 실시간 종합값(최고 배당 기준)입니다. 참고용이며 베팅 판단의 책임은 본인에게 있습니다.</div>`;
+  } catch (e) {
+    board.innerHTML = `<div class="loading">배당을 불러오지 못했습니다.<br><button onclick="loadOdds()" style="margin-top:10px;padding:9px 18px;border:none;border-radius:8px;background:#24568f;color:#fff;font-weight:800">다시 시도</button></div>`;
   }
 }
 
