@@ -31,20 +31,24 @@ function badge(url, fallback) {
 // ============================================================
 //  탭 전환
 // ============================================================
-const views = { live: 'view-live', table: 'view-table', odds: 'view-odds', comm: 'view-comm', board: 'view-board' };
+const views = { live: 'view-live', table: 'view-table', odds: 'view-odds', info: 'view-info', comm: 'view-comm', board: 'view-board' };
 function setTab(t) {
   Object.values(views).forEach(id => $('#' + id)?.classList.add('hidden'));
   $('#' + views[t])?.classList.remove('hidden');
   $$('.topbar .tt[data-tab]').forEach(x => x.classList.toggle('on', x.dataset.tab === t));
   $$('.topnav a[data-tab]').forEach(x => x.classList.toggle('on', x.dataset.tab === t));
+  $$('.dmenu a[data-tab]').forEach(x => x.classList.toggle('on', x.dataset.tab === t));
   if (t === 'table' && !$('#tblLeague').options.length) buildTableControls();
   if (t === 'board') loadPosts();
   if (t === 'odds') initOdds();
+  if (t === 'info') initInfo();
   $('.center')?.classList.toggle('notlive', t !== 'live');
   window.scrollTo({ top: 0 });
 }
 $$('.topbar .tt[data-tab]').forEach(b => b.addEventListener('click', () => setTab(b.dataset.tab)));
 $$('.topnav a[data-tab]').forEach(b => b.addEventListener('click', () => setTab(b.dataset.tab)));
+$$('.dmenu a[data-tab]').forEach(b => b.addEventListener('click', () => { setTab(b.dataset.tab); closeDrawer(); }));
+$('#drawerLogin')?.addEventListener('click', () => { closeDrawer(); openLogin(); });
 // 전경기 대화방 배너 탭 → 모바일에서 채팅방 열기 (PC는 우측에 항상 표시)
 $('#chatbanBtn')?.addEventListener('click', () => { if (window.innerWidth < 960) setTab('comm'); });
 
@@ -465,6 +469,116 @@ async function loadRecent(sel, teamName) {
       return `<div class="rec-row"><span class="rb ${r}">${rk}</span><span class="ro">${esc(opp)}</span><span class="rs">${esc(e.hs ?? '-')}:${esc(e.as ?? '-')}</span></div>`;
     }).join('');
   } catch { box.innerHTML = `<div class="rec-hd">${esc(teamName)}</div><div class="rec-empty">불러오기 실패</div>`; }
+}
+
+// ============================================================
+//  경기 정보방 (샘플 데이터 · 폼 미리보기)
+//  ※ 라인업/선수기록/국내배당은 예시값입니다.
+// ============================================================
+const P = (nm, h, era, g, w, l, sv, ip) => ({ nm, h, era, g, w, l, sv, ip });   // 투수
+const B = (nm, h, avg, g, ab, hit, hr) => ({ nm, h, avg, g, ab, hit, hr });      // 타자
+const INFO = [
+  {
+    no: 7021, league: 'KBO', date: '오늘 18:30', venue: '서울잠실야구장',
+    home: {
+      name: 'LG 트윈스', logo: 'LG', color: '#c30452',
+      lineup: ['(중)홍창기', '(우)박해민', '(지)오스틴', '(1)오지환', '(포)박동원', '(3)문보경', '(좌)문성주', '(2)신민재', '(유)구본혁'],
+      pit: [P('임찬규', 'R', 3.79, 18, 8, 2, 0, 99.0), P('손주영', 'L', 2.98, 17, 7, 5, 0, 96.2), P('디트리히', 'R', 3.44, 14, 5, 4, 0, 88.0), P('조원태', 'L', 9.00, 8, 1, 0, 0, 12.0), P('김대현', 'R', 5.11, 22, 2, 1, 3, 24.1), P('정우영', 'R', 3.20, 40, 3, 2, 5, 45.0)],
+      bat: [B('오스틴', 'R', .339, 85, 327, 111, 21), B('박해민', 'L', .291, 85, 282, 82, 3), B('홍창기', 'L', .259, 78, 263, 68, 2), B('오지환', 'L', .252, 78, 234, 59, 6), B('박동원', 'R', .240, 76, 217, 52, 9), B('문보경', 'L', .254, 59, 201, 51, 7), B('천성호', 'L', .281, 74, 199, 56, 1), B('구본혁', 'R', .271, 83, 188, 51, 0), B('문성주', 'L', .296, 54, 169, 50, 1)]
+    },
+    away: {
+      name: 'KT 위즈', logo: 'KT', color: '#000',
+      lineup: ['(지)최원준', '(좌)김민혁', '(우)안현민', '(1)김현수', '(3)허경민', '(2)김상수', '(중)배정대', '(포)조대현', '(유)권동진'],
+      pit: [P('소형준', 'R', 2.71, 16, 9, 3, 0, 98.1), P('고영표', 'R', 3.05, 15, 7, 5, 0, 92.0), P('벤자민', 'L', 3.33, 15, 8, 4, 0, 94.2), P('전용주', 'L', 4.20, 20, 2, 1, 0, 30.0), P('박영현', 'R', 2.10, 42, 3, 2, 22, 47.0), P('스기모토', 'R', 3.90, 18, 1, 1, 1, 20.0)],
+      bat: [B('최원준', 'R', .310, 80, 300, 93, 8), B('김상수', 'R', .285, 78, 270, 77, 5), B('배정대', 'R', .276, 75, 255, 70, 9), B('안현민', 'R', .299, 60, 210, 63, 6), B('김현수', 'L', .263, 82, 240, 63, 4), B('허경민', 'R', .271, 70, 220, 60, 2), B('장성우', 'R', .258, 66, 200, 52, 8), B('권동진', 'R', .240, 55, 150, 36, 1), B('조대현', 'R', .233, 40, 90, 21, 2)]
+    },
+    box: { home: [0, 1, 0, 2, 0, 0, 1, 0, 0], away: [0, 0, 3, 0, 0, 0, 0, 0, 0] },
+    odds: { dom: { win: 1.71, lose: 1.81, handi: 'H -1.5  2.35 / 1.55', ou: 'U/O 8.5  1.90 / 1.85' }, intl: { win: 1.80, lose: 1.86, handi: 'H -1.5  2.40 / 1.58', ou: 'U/O 8.5  1.93 / 1.89' } },
+    recent: { home: [['승', 'KT', '3:0'], ['승', '롯데', '4:2'], ['패', '롯데', '1:4'], ['패', '삼성', '2:5'], ['승', '한화', '7:4']], away: [['패', 'LG', '0:3'], ['승', '두산', '5:3'], ['승', 'NC', '6:2'], ['패', 'SSG', '3:4'], ['승', '키움', '8:1']] }
+  },
+  {
+    no: 7022, league: 'KBO', date: '오늘 18:30', venue: '고척스카이돔',
+    home: { name: '키움 히어로즈', logo: '키움', color: '#570514', lineup: ['(중)이주형', '(2)김혜성', '(지)최주환', '(우)이형종', '(1)최주환', '(3)송성문', '(좌)임지열', '(포)김재현', '(유)김휘집'], pit: [P('안우진', 'R', 2.31, 16, 7, 4, 0, 95.0), P('하영민', 'R', 3.55, 15, 6, 5, 0, 89.0), P('헤이수스', 'R', 3.10, 14, 7, 3, 0, 88.2), P('조영건', 'R', 4.00, 25, 2, 2, 1, 33.0)], bat: [B('김혜성', 'R', .326, 82, 310, 101, 7), B('이주형', 'L', .289, 70, 260, 75, 5), B('송성문', 'L', .340, 80, 300, 102, 12), B('최주환', 'R', .265, 78, 250, 66, 8)] },
+    away: { name: '삼성 라이온즈', logo: '삼성', color: '#074ca1', lineup: ['(중)김지찬', '(2)김성윤', '(지)구자욱', '(1)맥키넌', '(우)디아즈', '(3)김영웅', '(포)강민호', '(좌)이성규', '(유)이재현'], pit: [P('원태인', 'R', 3.20, 16, 10, 4, 0, 100.0), P('레예스', 'R', 3.45, 15, 8, 5, 0, 93.0), P('후라도', 'R', 2.90, 15, 9, 3, 0, 96.0), P('김재윤', 'R', 3.10, 40, 2, 3, 20, 44.0)], bat: [B('구자욱', 'L', .341, 84, 330, 113, 18), B('디아즈', 'R', .307, 85, 320, 98, 25), B('김영웅', 'L', .258, 80, 290, 75, 20), B('강민호', 'R', .296, 75, 260, 77, 15)] },
+    box: { home: [1, 0, 0, 0, 2, 0, 0, 1, 0], away: [0, 2, 0, 1, 0, 0, 0, 0, 0] },
+    odds: { dom: { win: 2.05, lose: 1.72, handi: 'H +1.5  1.55 / 2.35', ou: 'U/O 9.5  1.88 / 1.90' }, intl: { win: 2.10, lose: 1.75, handi: 'H +1.5  1.58 / 2.40', ou: 'U/O 9.5  1.90 / 1.92' } },
+    recent: { home: [['승', 'SSG', '5:2'], ['패', '두산', '2:6'], ['승', 'KIA', '4:1'], ['무', 'NC', '3:3'], ['패', '롯데', '1:5']], away: [['승', 'LG', '6:3'], ['승', '한화', '8:4'], ['패', 'KT', '2:5'], ['승', 'NC', '5:1'], ['승', '롯데', '7:2']] }
+  }
+];
+
+let infoBuilt = false;
+function initInfo() {
+  const list = $('#infoList'); if (!list) return;
+  list.innerHTML = INFO.map((m, i) => `<div class="infocard" data-i="${i}">
+    <div class="ic-no">${m.no}</div>
+    <div class="ic-mid">
+      <div class="ic-lg">⚾ ${m.league} · ${m.date} · ${m.venue}</div>
+      <div class="ic-tm"><span class="ic-b" style="background:${m.home.color}">${m.home.logo}</span> ${esc(m.home.name)} <span class="ic-vs">vs</span> ${esc(m.away.name)} <span class="ic-b" style="background:${m.away.color}">${m.away.logo}</span></div>
+    </div>
+    <div class="ic-go">상세 ›</div>
+  </div>`).join('');
+  $$('#infoList .infocard').forEach(c => c.addEventListener('click', () => openInfoDetail(+c.dataset.i)));
+}
+function pitTable(team) {
+  return `<table class="stt"><thead><tr><th>투수</th><th></th><th>방어율</th><th>경기</th><th>승</th><th>패</th><th>세</th><th>이닝</th></tr></thead><tbody>${
+    team.pit.map(p => `<tr><td class="nm">${esc(p.nm)}</td><td class="lr ${p.h === 'L' ? 'l' : 'r'}">${p.h}</td><td>${p.era.toFixed(2)}</td><td>${p.g}</td><td>${p.w}</td><td>${p.l}</td><td>${p.sv}</td><td>${p.ip.toFixed(1)}</td></tr>`).join('')
+    }</tbody></table>`;
+}
+function batTable(team) {
+  return `<table class="stt"><thead><tr><th>타자</th><th></th><th>타율</th><th>경기</th><th>타수</th><th>안타</th><th>홈런</th></tr></thead><tbody>${
+    team.bat.map(b => `<tr><td class="nm">${esc(b.nm)}</td><td class="lr ${b.h === 'L' ? 'l' : 'r'}">${b.h}</td><td>${b.avg.toFixed(3).replace(/^0/, '')}</td><td>${b.g}</td><td>${b.ab}</td><td>${b.hit}</td><td>${b.hr}</td></tr>`).join('')
+    }</tbody></table>`;
+}
+function recentRows(arr) {
+  return arr.map(r => `<div class="rec-row"><span class="rb ${r[0] === '승' ? 'W' : r[0] === '패' ? 'L' : 'D'}">${r[0]}</span><span class="ro">${esc(r[1])}</span><span class="rs">${esc(r[2])}</span></div>`).join('');
+}
+function openInfoDetail(i) {
+  const m = INFO[i];
+  $('#scrim').classList.add('on'); $('#modal').classList.add('on');
+  $('#mTitle').textContent = `경기 정보 · ${m.league}`;
+  const innings = n => Array.from({ length: 9 }, (_, k) => `<td>${m.box[n][k] ?? ''}</td>`).join('');
+  const sum = n => m.box[n].reduce((a, b) => a + b, 0);
+  $('#mBody').innerHTML = `
+    <div class="ii-hd"><span class="ii-no">${m.no}</span> <b>${esc(m.home.name)}</b> <span class="ii-vs">vs</span> <b>${esc(m.away.name)}</b></div>
+    <div class="ii-sub">${m.date} · ${m.venue} · ${m.league} <span class="sample-badge">샘플</span></div>
+
+    <div class="ii-odds">
+      <div class="ii-otab"><div class="oth on" data-o="dom">🇰🇷 국내배당</div><div class="oth" data-o="intl">🌍 해외배당</div></div>
+      <div class="ii-obody" id="iiOdds"></div>
+    </div>
+
+    <div class="odsec">📋 선발 라인업</div>
+    <div class="lineup2">
+      <div class="lu"><div class="lu-hd" style="border-color:${m.home.color}">${esc(m.home.name)}</div>${m.home.lineup.map((p, n) => `<div class="lu-row"><span class="lu-n">${n + 1}</span>${esc(p)}</div>`).join('')}</div>
+      <div class="lu"><div class="lu-hd" style="border-color:${m.away.color}">${esc(m.away.name)}</div>${m.away.lineup.map((p, n) => `<div class="lu-row"><span class="lu-n">${n + 1}</span>${esc(p)}</div>`).join('')}</div>
+    </div>
+
+    <div class="odsec">🧢 선수 정보 <span class="teamtog"><span class="tg on" data-t="home">${esc(m.home.name)}</span><span class="tg" data-t="away">${esc(m.away.name)}</span></span></div>
+    <div id="iiPit">${pitTable(m.home)}</div>
+    <div id="iiBat" style="margin-top:8px">${batTable(m.home)}</div>
+
+    <div class="odsec">📊 이닝별 스코어</div>
+    <table class="boxsc"><thead><tr><th></th><th>1</th><th>2</th><th>3</th><th>4</th><th>5</th><th>6</th><th>7</th><th>8</th><th>9</th><th class="r">R</th></tr></thead>
+      <tbody><tr><td class="tn">${esc(m.home.name)}</td>${innings('home')}<td class="r">${sum('home')}</td></tr>
+      <tr><td class="tn">${esc(m.away.name)}</td>${innings('away')}<td class="r">${sum('away')}</td></tr></tbody></table>
+
+    <div class="odsec">📅 최근 경기</div>
+    <div class="recent2"><div class="recol"><div class="rec-hd">${esc(m.home.name)}</div>${recentRows(m.recent.home)}</div><div class="recol"><div class="rec-hd">${esc(m.away.name)}</div>${recentRows(m.recent.away)}</div></div>
+    <div class="foot" style="padding:12px 0 0">라인업·선수기록·국내배당은 <b>샘플 데이터</b>입니다. 실제 연동은 유료 스포츠데이터가 필요합니다.</div>
+  `;
+  // 배당 탭
+  const renderOdds = (o) => {
+    const d = m.odds[o];
+    $('#iiOdds').innerHTML = `<div class="ii-orow"><span>승</span><b>${d.win}</b></div><div class="ii-orow"><span>패</span><b>${d.lose}</b></div><div class="ii-orow"><span>핸디캡</span><b>${esc(d.handi)}</b></div><div class="ii-orow"><span>오버언더</span><b>${esc(d.ou)}</b></div>`;
+  };
+  renderOdds('dom');
+  $$('#mBody .ii-otab .oth').forEach(t => t.addEventListener('click', () => { $$('#mBody .ii-otab .oth').forEach(x => x.classList.remove('on')); t.classList.add('on'); renderOdds(t.dataset.o); }));
+  // 팀 토글
+  $$('#mBody .teamtog .tg').forEach(t => t.addEventListener('click', () => {
+    $$('#mBody .teamtog .tg').forEach(x => x.classList.remove('on')); t.classList.add('on');
+    const team = t.dataset.t === 'home' ? m.home : m.away;
+    $('#iiPit').innerHTML = pitTable(team); $('#iiBat').innerHTML = batTable(team);
+  }));
 }
 
 // ============================================================

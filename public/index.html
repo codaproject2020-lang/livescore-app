@@ -31,7 +31,8 @@
     <button class="loginbtn" id="btnLogin">🔑 로그인</button>
     <div class="sidenav topnav">
       <a data-tab="live" class="on"><span class="em">⚡</span>라이브</a>
-      <a data-tab="table"><span class="em">📊</span>순위</a>
+      <a data-tab="info"><span class="em">📊</span>경기 정보방</a>
+      <a data-tab="table"><span class="em">🏆</span>순위</a>
       <a data-tab="odds"><span class="em">💰</span>배당</a>
       <a data-tab="board"><span class="em">📋</span>커뮤니티</a>
     </div>
@@ -48,7 +49,7 @@
     <div class="topbar">
       <div class="tt icon" id="btnMenu">☰</div>
       <div class="tt on" data-tab="live">LIVE</div>
-      <div class="tt" data-tab="table">순위</div>
+      <div class="tt" data-tab="info">📊</div>
       <div class="tt" data-tab="odds">💰</div>
       <div class="tt" data-tab="comm">💬</div>
       <div class="tt" data-tab="board">📋</div>
@@ -107,6 +108,13 @@
       <div class="oddshd">💰 실시간 해외 배당 <span class="obk">bet365·Pinnacle 등 종합</span></div>
       <div class="oddschips" id="oddsChips"></div>
       <div id="oddsBoard" class="oddsboard"><div class="loading">불러오는 중…</div></div>
+    </section>
+
+    <!-- ===== 경기 정보방 뷰 ===== -->
+    <section class="view hidden" id="view-info">
+      <div class="infohd">📊 경기 정보방 <span class="sample-badge">샘플 데이터</span></div>
+      <div class="infonote">라인업·투수/타자 기록·국내배당은 <b>샘플(예시) 데이터</b>입니다. 실데이터는 유료 스포츠데이터 연동이 필요해요.</div>
+      <div id="infoList" class="infolist"></div>
     </section>
 
     <!-- ===== 커뮤니티 게시판 뷰 ===== -->
@@ -181,6 +189,15 @@
 <div class="scrim" id="scrimD"></div>
 <aside class="drawer" id="drawer">
   <div class="dprof"><div class="av">👤</div><div><div class="who" id="drawerName">손님</div><div class="blog">실시간 접속 <b id="onlineD">0</b>명</div></div></div>
+  <div class="sidenav dmenu">
+    <a data-tab="live"><span class="em">⚡</span>라이브</a>
+    <a data-tab="info"><span class="em">📊</span>경기 정보방</a>
+    <a data-tab="table"><span class="em">🏆</span>순위</a>
+    <a data-tab="odds"><span class="em">💰</span>배당</a>
+    <a data-tab="comm"><span class="em">💬</span>채팅</a>
+    <a data-tab="board"><span class="em">📋</span>커뮤니티</a>
+    <a id="drawerLogin"><span class="em">🔑</span>로그인</a>
+  </div>
   <div class="side-hd" style="padding:12px 16px 6px">종목</div>
   <div id="sportNavD" class="sidenav"></div>
   <div class="side-hd" style="padding:12px 16px 6px">관심 리그</div>
