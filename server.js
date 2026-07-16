@@ -154,6 +154,57 @@ app.get('/api/predict', async (req, res) => {
 });
 
 // ============================================================
+//  배당 (The Odds API · 실제 해외 북메이커 배당)
+//  ※ 무료키를 환경변수 ODDS_API_KEY 에 넣으면 실제 배당 표시.
+//    키 없으면 needKey:true 로 안내.
+// ============================================================
+const ODDS_KEY = process.env.ODDS_API_KEY || '';
+const ODDS_SPORTS = [
+  { key: 'baseball_kbo', ko: 'KBO', em: '⚾' },
+  { key: 'baseball_mlb', ko: 'MLB', em: '⚾' },
+  { key: 'baseball_npb', ko: 'NPB', em: '⚾' },
+  { key: 'soccer_korea_kleague1', ko: 'K리그1', em: '⚽' },
+  { key: 'soccer_epl', ko: 'EPL', em: '⚽' },
+  { key: 'soccer_spain_la_liga', ko: '라리가', em: '⚽' },
+  { key: 'soccer_usa_mls', ko: 'MLS', em: '⚽' },
+  { key: 'basketball_wnba', ko: 'WNBA', em: '🏀' }
+];
+
+app.get('/api/odds/sports', (req, res) => res.json({ sports: ODDS_SPORTS, hasKey: !!ODDS_KEY }));
+
+app.get('/api/odds', async (req, res) => {
+  if (!ODDS_KEY) return res.json({ needKey: true, games: [] });
+  try {
+    const sport = req.query.sport || 'soccer_epl';
+    const url = `https://api.the-odds-api.com/v4/sports/${encodeURIComponent(sport)}/odds/?apiKey=${ODDS_KEY}&regions=uk,eu&markets=h2h&oddsFormat=decimal`;
+    const data = await cachedJSON(url, 90000);
+    const arr = Array.isArray(data) ? data : [];
+    const games = arr.map(g => {
+      // 여러 북메이커의 h2h 배당 중 최고값(사용자에게 유리) 집계
+      let hi = { home: 0, draw: 0, away: 0 }, books = 0, sample = null;
+      (g.bookmakers || []).forEach(bk => {
+        const m = (bk.markets || []).find(x => x.key === 'h2h'); if (!m) return;
+        books++; if (!sample) sample = bk.title;
+        (m.outcomes || []).forEach(o => {
+          if (o.name === g.home_team) hi.home = Math.max(hi.home, o.price);
+          else if (o.name === g.away_team) hi.away = Math.max(hi.away, o.price);
+          else if (o.name === 'Draw') hi.draw = Math.max(hi.draw, o.price);
+        });
+      });
+      return {
+        id: g.id, league: g.sport_title, home: g.home_team, away: g.away_team,
+        time: g.commence_time,
+        homeOdds: hi.home || null, drawOdds: hi.draw || null, awayOdds: hi.away || null,
+        books, sample
+      };
+    }).sort((a, b) => new Date(a.time) - new Date(b.time));
+    res.json({ needKey: false, sport, count: games.length, games });
+  } catch (e) {
+    res.status(502).json({ error: String(e.message || e) });
+  }
+});
+
+// ============================================================
 //  커뮤니티 게시판 (자유 / 수익인증 / 손실인증)
 //  ※ 메모리 저장(서버 재시작 시 초기화). DB 붙이면 영구 저장 가능.
 // ============================================================
