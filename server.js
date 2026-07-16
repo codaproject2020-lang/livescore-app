@@ -204,6 +204,60 @@ app.get('/api/odds', async (req, res) => {
   }
 });
 
+// 단일 경기 상세 배당 (승무패 + 핸디캡 + 오버언더, 업체별)
+app.get('/api/odds/event', async (req, res) => {
+  if (!ODDS_KEY) return res.json({ needKey: true });
+  try {
+    const { id, sport } = req.query;
+    if (!id || !sport) return res.status(400).json({ error: 'id/sport required' });
+    const url = `https://api.the-odds-api.com/v4/sports/${encodeURIComponent(sport)}/events/${encodeURIComponent(id)}/odds/?apiKey=${ODDS_KEY}&regions=uk,eu&markets=h2h,spreads,totals&oddsFormat=decimal`;
+    const g = await cachedJSON(url, 60000);
+    if (!g || !g.id) return res.json({ event: null });
+    const books = (g.bookmakers || []).map(bk => {
+      const h2h = (bk.markets || []).find(m => m.key === 'h2h');
+      const get = n => { const o = ((h2h && h2h.outcomes) || []).find(x => x.name === n); return o ? o.price : null; };
+      const spreads = (bk.markets || []).find(m => m.key === 'spreads');
+      const totals = (bk.markets || []).find(m => m.key === 'totals');
+      return {
+        title: bk.title,
+        home: get(g.home_team), away: get(g.away_team), draw: get('Draw'),
+        spread: spreads ? (spreads.outcomes || []).map(o => ({ name: o.name, price: o.price, point: o.point })) : [],
+        total: totals ? (totals.outcomes || []).map(o => ({ name: o.name, price: o.price, point: o.point })) : []
+      };
+    });
+    const hi = { home: 0, draw: 0, away: 0 };
+    books.forEach(b => { if (b.home) hi.home = Math.max(hi.home, b.home); if (b.away) hi.away = Math.max(hi.away, b.away); if (b.draw) hi.draw = Math.max(hi.draw, b.draw); });
+    // 대표 핸디/오버언더(첫 업체 값)
+    const sampleSpread = (books.find(b => b.spread.length) || {}).spread || [];
+    const sampleTotal = (books.find(b => b.total.length) || {}).total || [];
+    res.json({
+      event: { id: g.id, home: g.home_team, away: g.away_team, time: g.commence_time, league: g.sport_title },
+      best: hi, books, sampleSpread, sampleTotal
+    });
+  } catch (e) {
+    res.status(502).json({ error: String(e.message || e) });
+  }
+});
+
+// 팀 최근 경기 (TheSportsDB · 팀명 검색 → 최근 5경기)
+app.get('/api/team/recent', async (req, res) => {
+  try {
+    const name = req.query.name;
+    if (!name) return res.status(400).json({ error: 'name' });
+    const s = await cachedJSON(`${TSDB}/searchteams.php?t=${encodeURIComponent(name)}`, 86400000);
+    const team = (s.teams || [])[0];
+    if (!team) return res.json({ team: null, events: [] });
+    const d = await cachedJSON(`${TSDB}/eventslast.php?id=${team.idTeam}`, 300000);
+    const events = (d.results || []).slice(0, 6).map(e => ({
+      date: e.dateEvent, home: e.strHomeTeam, away: e.strAwayTeam,
+      hs: e.intHomeScore, as: e.intAwayScore, league: e.strLeague
+    }));
+    res.json({ team: { id: team.idTeam, name: team.strTeam, badge: team.strTeamBadge }, events });
+  } catch (e) {
+    res.json({ team: null, events: [] });
+  }
+});
+
 // ============================================================
 //  커뮤니티 게시판 (자유 / 수익인증 / 손실인증)
 //  ※ 메모리 저장(서버 재시작 시 초기화). DB 붙이면 영구 저장 가능.
