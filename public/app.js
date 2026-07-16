@@ -372,11 +372,11 @@ async function loadOdds() {
         const lo = Math.min(...[g.homeOdds, g.awayOdds, g.drawOdds].filter(x => x));
         const d2 = new Date(g.time);
         const dt = `${d2.getMonth() + 1}/${d2.getDate()} ${String(d2.getHours()).padStart(2, '0')}:${String(d2.getMinutes()).padStart(2, '0')}`;
-        return `<div class="orow2">
+        return `<div class="orow2 clk" data-oid="${esc(g.id)}" data-home="${esc(g.home)}" data-away="${esc(g.away)}">
           <div class="onum">${1001 + i}</div>
           <div class="og">
             <div class="ogl">${esc(g.league)} · ${dt} · <span class="obks">${g.books}개사</span></div>
-            <div class="ogt"><b>${esc(g.home)}</b> <span class="ovs">vs</span> ${esc(g.away)}</div>
+            <div class="ogt"><b>${esc(g.home)}</b> <span class="ovs">vs</span> ${esc(g.away)} <span class="odet">상세 ›</span></div>
           </div>
           <div class="oodds ${isSoccer ? 's' : 'b'}">
             ${oddsCell(g.homeOdds, g.homeOdds === lo)}
@@ -386,9 +386,85 @@ async function loadOdds() {
         </div>`;
       }).join('') +
       `<div class="foot">배당은 The Odds API 실시간 종합값(최고 배당 기준)입니다. 참고용이며 베팅 판단의 책임은 본인에게 있습니다.</div>`;
+    $$('#oddsBoard .orow2.clk').forEach(el => el.addEventListener('click', () => openOddsDetail(el.dataset.oid, el.dataset.home, el.dataset.away)));
   } catch (e) {
     board.innerHTML = `<div class="loading">배당을 불러오지 못했습니다.<br><button onclick="loadOdds()" style="margin-top:10px;padding:9px 18px;border:none;border-radius:8px;background:#24568f;color:#fff;font-weight:800">다시 시도</button></div>`;
   }
+}
+
+// ---------- 배당 경기 상세 (계산기 + 업체비교 + 최근경기) ----------
+function won(n) { return Math.round(n).toLocaleString('ko-KR'); }
+async function openOddsDetail(id, home, away) {
+  $('#scrim').classList.add('on'); $('#modal').classList.add('on');
+  $('#mTitle').textContent = '배당 상세';
+  $('#mBody').innerHTML = `<div class="loading">배당 불러오는 중…</div>`;
+  try {
+    const d = await fetchJSON(`/api/odds/event?id=${encodeURIComponent(id)}&sport=${encodeURIComponent(oddsSport)}`, { tries: 10, delay: 3500 });
+    if (d.needKey) { $('#mBody').innerHTML = `<div class="loading">배당 API 키가 필요합니다.</div>`; return; }
+    const ev = d.event; if (!ev) { $('#mBody').innerHTML = `<div class="loading">상세 배당이 없어요.</div>`; return; }
+    const best = d.best || {}, books = d.books || [];
+    const isSoccer = oddsSport.startsWith('soccer');
+    const oh = best.home || 0, od = best.draw || 0, oa = best.away || 0;
+    // 핸디/오버언더 대표값
+    const sp = d.sampleSpread || [], to = d.sampleTotal || [];
+    const spTxt = sp.length ? sp.map(s => `${esc(s.name)} ${s.point > 0 ? '+' : ''}${s.point} <b>${s.price}</b>`).join(' / ') : '-';
+    const toTxt = to.length ? to.map(t => `${t.name === 'Over' ? '오버' : '언더'} ${t.point} <b>${t.price}</b>`).join(' / ') : '-';
+
+    $('#mBody').innerHTML = `
+      <div class="odh"><b>${esc(ev.home)}</b> <span>vs</span> <b>${esc(ev.away)}</b></div>
+      <div class="odsub">${esc(ev.league)} · ${new Date(ev.time).toLocaleString('ko-KR', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })} · ${books.length}개 업체</div>
+
+      <div class="calc">
+        <div class="calc-hd">💰 배팅 계산기</div>
+        <div class="calc-in"><input id="stake" type="number" inputmode="numeric" value="10000"> <span>원 배팅 시 예상 수령액</span></div>
+        <div class="calc-row"><span class="ck">${esc(ev.home)} 승</span><span class="cod">@${oh || '-'}</span><b class="cpay" data-odd="${oh}">-</b></div>
+        ${isSoccer ? `<div class="calc-row"><span class="ck">무승부</span><span class="cod">@${od || '-'}</span><b class="cpay" data-odd="${od}">-</b></div>` : ''}
+        <div class="calc-row"><span class="ck">${esc(ev.away)} 승</span><span class="cod">@${oa || '-'}</span><b class="cpay" data-odd="${oa}">-</b></div>
+        <div class="calc-note">수령액 = 배팅금액 × 배당 (적중 시). 순수익은 수령액−배팅금액.</div>
+      </div>
+
+      <div class="odsec">📊 핸디캡 / 오버언더</div>
+      <div class="odline"><span>핸디캡</span> ${spTxt}</div>
+      <div class="odline"><span>오버언더</span> ${toTxt}</div>
+
+      <div class="odsec">🏦 업체별 배당 비교 (승${isSoccer ? '·무' : ''}·패)</div>
+      <div class="bookcmp">
+        <div class="bc-hd"><span>업체</span><span>${isSoccer ? '홈' : '홈'}</span>${isSoccer ? '<span>무</span>' : ''}<span>원정</span></div>
+        ${books.slice(0, 12).map(b => `<div class="bc-row"><span class="bkn">${esc(b.title)}</span><span>${b.home ? b.home.toFixed(2) : '-'}</span>${isSoccer ? `<span>${b.draw ? b.draw.toFixed(2) : '-'}</span>` : ''}<span>${b.away ? b.away.toFixed(2) : '-'}</span></div>`).join('')}
+      </div>
+
+      <div class="odsec">📅 최근 경기</div>
+      <div class="recent2"><div id="recH" class="recol"><div class="loading" style="padding:14px">불러오는 중…</div></div><div id="recA" class="recol"><div class="loading" style="padding:14px">불러오는 중…</div></div></div>
+      <div class="foot" style="padding:12px 0 0">배당·수익은 참고용입니다. 무리한 베팅은 삼가세요.</div>
+    `;
+    // 계산기 작동
+    const calc = () => {
+      const s = Number($('#stake').value) || 0;
+      $$('#mBody .cpay').forEach(el => {
+        const odd = Number(el.dataset.odd) || 0;
+        el.textContent = odd ? won(s * odd) + '원' : '-';
+      });
+    };
+    $('#stake').addEventListener('input', calc); calc();
+    // 최근 경기 로드
+    loadRecent('#recH', ev.home); loadRecent('#recA', ev.away);
+  } catch (e) {
+    $('#mBody').innerHTML = `<div class="loading">상세를 불러오지 못했습니다.</div>`;
+  }
+}
+async function loadRecent(sel, teamName) {
+  const box = $(sel); if (!box) return;
+  try {
+    const d = await fetchJSON(`/api/team/recent?name=${encodeURIComponent(teamName)}`, { tries: 6, delay: 3000 });
+    if (!d.team || !d.events.length) { box.innerHTML = `<div class="rec-hd">${esc(teamName)}</div><div class="rec-empty">최근 경기 정보 없음</div>`; return; }
+    box.innerHTML = `<div class="rec-hd">${esc(d.team.name)}</div>` + d.events.map(e => {
+      const isHome = e.home === d.team.name || (d.team.name && e.home.includes(d.team.name.split(' ')[0]));
+      const my = isHome ? e.hs : e.as, op = isHome ? e.as : e.hs;
+      let r = 'D', rk = '무'; if (my != null && op != null) { if (+my > +op) { r = 'W'; rk = '승'; } else if (+my < +op) { r = 'L'; rk = '패'; } }
+      const opp = isHome ? e.away : e.home;
+      return `<div class="rec-row"><span class="rb ${r}">${rk}</span><span class="ro">${esc(opp)}</span><span class="rs">${esc(e.hs ?? '-')}:${esc(e.as ?? '-')}</span></div>`;
+    }).join('');
+  } catch { box.innerHTML = `<div class="rec-hd">${esc(teamName)}</div><div class="rec-empty">불러오기 실패</div>`; }
 }
 
 // ============================================================

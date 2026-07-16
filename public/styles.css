@@ -198,6 +198,42 @@ table.rank td.pt{font-weight:900;color:var(--blue)}
 .oddskey .ok-b{display:inline-block;background:linear-gradient(135deg,var(--goldL),var(--gold));color:#3a2a05;font-weight:800;padding:12px 20px;border-radius:12px;font-size:14px}
 .oddskey .ok-n{font-size:11px;color:var(--dim);margin-top:14px;line-height:1.6}
 
+/* ===== 배당 상세 모달 ===== */
+.odet{font-size:10px;color:var(--gold);font-weight:800;margin-left:4px}
+.odh{text-align:center;font-size:16px;font-weight:900;margin-bottom:2px}
+.odh span{color:var(--dim);font-weight:600;font-size:12px;margin:0 6px}
+.odsub{text-align:center;font-size:11px;color:var(--sub);margin-bottom:14px}
+.calc{background:linear-gradient(135deg,#f7f3e8,#f4f7fb);border:1px solid var(--goldLine);border-radius:14px;padding:14px;margin-bottom:14px}
+.calc-hd{font-weight:900;font-size:14px;margin-bottom:10px;color:var(--navy)}
+.calc-in{display:flex;align-items:center;gap:8px;margin-bottom:10px;font-size:12px;color:var(--sub)}
+.calc-in input{flex:0 0 130px;border:1px solid var(--line);border-radius:9px;padding:9px 11px;font-size:15px;font-weight:800;font-family:inherit;text-align:right;outline:none}
+.calc-in input:focus{border-color:var(--gold)}
+.calc-row{display:grid;grid-template-columns:1fr auto auto;align-items:center;gap:10px;padding:9px 4px;border-top:1px dashed var(--line)}
+.calc-row .ck{font-size:13px;font-weight:700}
+.calc-row .cod{font-size:12px;color:var(--sub);font-weight:700}
+.calc-row .cpay{font-size:15px;font-weight:900;color:var(--blue);min-width:80px;text-align:right}
+.calc-note{font-size:10px;color:var(--dim);margin-top:8px;line-height:1.5}
+.odsec{font-weight:800;font-size:13px;margin:16px 0 8px;color:var(--navy)}
+.odline{display:flex;gap:8px;font-size:12px;color:var(--sub);padding:7px 10px;background:#f7f9fb;border-radius:8px;margin-bottom:6px;flex-wrap:wrap}
+.odline span:first-child{font-weight:800;color:var(--txt);flex:0 0 60px}
+.odline b{color:var(--navy)}
+.bookcmp{border:1px solid var(--line);border-radius:10px;overflow:hidden;font-size:12px}
+.bc-hd,.bc-row{display:grid;grid-template-columns:1fr 52px 52px 52px;align-items:center}
+.bookcmp.s3 .bc-hd,.bookcmp.s3 .bc-row{grid-template-columns:1fr 46px 46px 46px}
+.bc-hd{background:#f3f6f9;color:var(--sub);font-weight:700;font-size:11px;padding:7px 10px}
+.bc-hd span:not(:first-child),.bc-row span:not(:first-child){text-align:center;font-weight:800}
+.bc-row{padding:8px 10px;border-top:1px solid var(--line2)}
+.bc-row .bkn{font-weight:700;color:var(--txt);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.recent2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.recol{border:1px solid var(--line);border-radius:10px;overflow:hidden}
+.rec-hd{background:#f3f6f9;padding:8px 10px;font-size:12px;font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.rec-empty{padding:14px 10px;font-size:11px;color:var(--dim);text-align:center}
+.rec-row{display:flex;align-items:center;gap:6px;padding:7px 8px;border-top:1px solid var(--line2);font-size:11px}
+.rec-row .rb{width:18px;height:18px;border-radius:4px;display:grid;place-items:center;font-size:10px;font-weight:800;color:#fff;flex:0 0 auto}
+.rec-row .rb.W{background:var(--up)}.rec-row .rb.L{background:var(--red)}.rec-row .rb.D{background:var(--dim)}
+.rec-row .ro{flex:1;color:var(--sub);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.rec-row .rs{font-weight:800;color:var(--txt)}
+
 /* ===== 디자인 폼나게: 라이브 펄스 · 카드 리프트 ===== */
 .mid .badge-state.live{animation:livePulse 1.5s ease-in-out infinite}
 @keyframes livePulse{0%,100%{opacity:1}50%{opacity:.6}}
