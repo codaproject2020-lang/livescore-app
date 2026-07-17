@@ -1,6 +1,6 @@
 // LIVE UP · 최소 서비스워커 (PWA 설치 가능 조건 충족)
 const CACHE = 'liveup-v1';
-const CORE = ['/', '/index.html', '/styles.css', '/app.js', '/logo.png', '/manifest.json'];
+const CORE = ['/', '/index.html', '/styles.css', '/app.js', '/logo.png.jpg', '/manifest.json'];
 
 self.addEventListener('install', (e) => {
   self.skipWaiting();
