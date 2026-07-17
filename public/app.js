@@ -98,6 +98,11 @@ function finishDownload() {
 $('#btnDownload')?.addEventListener('click', openDownload);
 $('#btnDownloadM')?.addEventListener('click', openDownload);
 $('#dlClose')?.addEventListener('click', () => $('#dlOverlay').classList.remove('on'));
+
+// 설치된 앱(홈 화면)으로 실행 중이면 다운로드 버튼 숨김
+function hideDownloadUI() { ['#btnDownload', '#btnDownloadM'].forEach(s => { const el = $(s); if (el) el.style.display = 'none'; }); }
+if (isStandalone) hideDownloadUI();
+window.addEventListener('appinstalled', () => { hideDownloadUI(); $('#dlOverlay')?.classList.remove('on'); deferredPrompt = null; });
 // 전경기 대화방 배너 탭 → 모바일에서 채팅방 열기 (PC는 우측에 항상 표시)
 $('#chatbanBtn')?.addEventListener('click', () => { if (window.innerWidth < 960) setTab('comm'); });
 
