@@ -49,6 +49,55 @@ $$('.topbar .tt[data-tab]').forEach(b => b.addEventListener('click', () => setTa
 $$('.topnav a[data-tab]').forEach(b => b.addEventListener('click', () => setTab(b.dataset.tab)));
 $$('.dmenu a[data-tab]').forEach(b => b.addEventListener('click', () => { setTab(b.dataset.tab); closeDrawer(); }));
 $('#drawerLogin')?.addEventListener('click', () => { closeDrawer(); openLogin(); });
+
+// ============================================================
+//  앱 다운로드 / 설치 (PWA) + 고급 로딩 화면
+// ============================================================
+let deferredPrompt = null;
+window.addEventListener('beforeinstallprompt', (e) => { e.preventDefault(); deferredPrompt = e; });
+const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
+const isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
+
+function openDownload() {
+  const ov = $('#dlOverlay'); if (!ov) return;
+  ov.classList.add('on');
+  const fill = $('#dlFill'), pct = $('#dlPct'), msg = $('#dlMsg'), guide = $('#dlGuide'), close = $('#dlClose');
+  guide.style.display = 'none'; close.style.display = 'none';
+  $('#dlTitle').textContent = 'LIVE UP 설치 중…';
+  const labels = [[0, '서버 연결 중…'], [25, '앱 리소스 받는 중…'], [55, '실시간 데이터 동기화…'], [80, '설치 구성 중…'], [97, '거의 다 됐어요!']];
+  let p = 0;
+  fill.style.width = '0%'; pct.textContent = '0%';
+  const t = setInterval(() => {
+    p += Math.random() * 7 + 3; if (p >= 100) p = 100;
+    fill.style.width = p + '%'; pct.textContent = Math.round(p) + '%';
+    const lb = labels.filter(l => p >= l[0]).pop(); if (lb) msg.textContent = lb[1];
+    if (p >= 100) { clearInterval(t); setTimeout(finishDownload, 450); }
+  }, 140);
+}
+function finishDownload() {
+  const guide = $('#dlGuide'), close = $('#dlClose');
+  $('#dlMsg').textContent = '';
+  if (isStandalone) {
+    $('#dlTitle').textContent = '이미 설치됨 🎉';
+    guide.innerHTML = '이미 홈 화면에 설치된 <b>LIVE UP</b> 앱으로 실행 중이에요.';
+  } else if (deferredPrompt) {
+    $('#dlTitle').textContent = '설치하기';
+    guide.innerHTML = '화면에 뜨는 <b>"설치"</b> 버튼을 누르면 홈 화면에 <b>LIVE UP</b> 앱이 추가돼요.';
+    deferredPrompt.prompt();
+    deferredPrompt.userChoice.finally(() => { deferredPrompt = null; });
+  } else if (isIOS) {
+    $('#dlTitle').textContent = '홈 화면에 추가';
+    guide.innerHTML = 'Safari 하단 <b>공유 ⬆️</b> → <b>"홈 화면에 추가"</b> 를 누르면 앱처럼 설치돼요.';
+  } else {
+    $('#dlTitle').textContent = '홈 화면에 추가';
+    guide.innerHTML = '주소창 오른쪽 <b>설치 ⊕</b> 아이콘, 또는 브라우저 메뉴 <b>⋮ → 앱 설치</b> 를 누르면 돼요.';
+  }
+  guide.style.display = 'block';
+  close.style.display = 'inline-block';
+}
+$('#btnDownload')?.addEventListener('click', openDownload);
+$('#btnDownloadM')?.addEventListener('click', openDownload);
+$('#dlClose')?.addEventListener('click', () => $('#dlOverlay').classList.remove('on'));
 // 전경기 대화방 배너 탭 → 모바일에서 채팅방 열기 (PC는 우측에 항상 표시)
 $('#chatbanBtn')?.addEventListener('click', () => { if (window.innerWidth < 960) setTab('comm'); });
 

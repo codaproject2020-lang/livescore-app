@@ -3,8 +3,11 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<meta name="theme-color" content="#a7bccf">
-<title>라이브스코어 · LIVE SCORE AI</title>
+<meta name="theme-color" content="#16243d">
+<title>LIVE UP · 실시간 스코어</title>
+<link rel="manifest" href="/manifest.json">
+<link rel="apple-touch-icon" href="/logo.png">
+<link rel="icon" href="/logo.png">
 <link rel="stylesheet" href="styles.css">
 </head>
 <body>
@@ -12,22 +15,10 @@
 
   <!-- ================= 좌측 사이드(PC 전용) ================= -->
   <aside class="side-l">
-    <a class="brand" href="/">
-      <svg class="blogo" viewBox="0 0 46 46" width="40" height="40" aria-hidden="true">
-        <defs>
-          <linearGradient id="g1" x1="0" y1="0" x2="1" y2="1">
-            <stop offset="0" stop-color="#fdeaa6"/><stop offset=".5" stop-color="#f0c14e"/><stop offset="1" stop-color="#c78a1e"/>
-          </linearGradient>
-          <filter id="gl"><feGaussianBlur stdDeviation="1" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
-        </defs>
-        <rect x="1" y="1" width="44" height="44" rx="12" fill="#1a140b" stroke="#4a3a1c"/>
-        <circle cx="23" cy="24" r="15.5" fill="none" stroke="url(#g1)" stroke-width="2.3" filter="url(#gl)"/>
-        <circle cx="37" cy="11.5" r="2.7" fill="url(#g1)" filter="url(#gl)"/>
-        <text x="23" y="25" text-anchor="middle" font-family="Arial Black,Arial" font-weight="900" font-style="italic" font-size="12.5" fill="url(#g1)">LIVE</text>
-        <text x="23" y="34" text-anchor="middle" font-family="Arial" font-weight="800" font-size="6" letter-spacing="1.5" fill="url(#g1)">SCORE</text>
-      </svg>
-      <span class="wm">LIVE<b>SCORE</b></span>
+    <a class="brand brand-logo" href="/">
+      <img src="/logo.png" alt="LIVE UP" class="brandimg" onerror="this.replaceWith(Object.assign(document.createElement('span'),{className:'wm',innerHTML:'LIVE<b>UP</b>'}))">
     </a>
+    <button class="dlbtn" id="btnDownload">⬇ 앱 다운로드</button>
     <button class="loginbtn" id="btnLogin">🔑 로그인</button>
     <div class="sidenav topnav">
       <a data-tab="live" class="on"><span class="em">⚡</span>라이브</a>
@@ -45,6 +36,11 @@
 
   <!-- ================= 중앙(경기 피드) ================= -->
   <main class="center">
+    <!-- 모바일 브랜드 바 (로고 + 다운로드) -->
+    <div class="mbrand">
+      <a href="/" class="mbrand-logo"><img src="/logo.png" alt="LIVE UP" onerror="this.replaceWith(Object.assign(document.createElement('span'),{className:'mbrand-txt',innerHTML:'LIVE<b>UP</b>'}))"></a>
+      <button class="dlbtn sm" id="btnDownloadM">⬇ 앱 다운로드</button>
+    </div>
     <!-- 상단 아이콘 탭바 (모바일) -->
     <div class="topbar">
       <div class="tt icon" id="btnMenu">☰</div>
@@ -213,6 +209,25 @@
   </div>
 </template>
 
+<!-- ===== 앱 다운로드 로딩 오버레이 ===== -->
+<div class="dloverlay" id="dlOverlay">
+  <div class="dlbox">
+    <div class="dl-glow"></div>
+    <img src="/logo.png" alt="LIVE UP" class="dllogo" onerror="this.style.display='none'">
+    <div class="dltitle" id="dlTitle">LIVE UP 설치 중…</div>
+    <div class="dlbar"><div class="dlfill" id="dlFill"></div></div>
+    <div class="dlrow"><span class="dlpct" id="dlPct">0%</span><span class="dlmsg" id="dlMsg">다운로드 준비 중…</span></div>
+    <div class="dlguide" id="dlGuide"></div>
+    <button class="dlx" id="dlClose">닫기</button>
+  </div>
+</div>
+
+<script>
+  // PWA 서비스워커 등록
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => navigator.serviceWorker.register('/sw.js').catch(() => {}));
+  }
+</script>
 <script src="app.js"></script>
 </body>
 </html>
