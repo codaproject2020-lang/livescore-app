@@ -58,29 +58,50 @@ window.addEventListener('beforeinstallprompt', (e) => { e.preventDefault(); defe
 const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
 const isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
 
-function openDownload() {
-  const ov = $('#dlOverlay'); if (!ov) return;
-  ov.classList.add('on');
+function runProgress(done) {
   const fill = $('#dlFill'), pct = $('#dlPct'), msg = $('#dlMsg'), guide = $('#dlGuide'), close = $('#dlClose');
   guide.style.display = 'none'; close.style.display = 'none';
   $('#dlTitle').textContent = 'LIVE UP 설치 중…';
   const labels = [[0, '서버 연결 중…'], [25, '앱 리소스 받는 중…'], [55, '실시간 데이터 동기화…'], [80, '설치 구성 중…'], [97, '거의 다 됐어요!']];
-  let p = 0;
-  fill.style.width = '0%'; pct.textContent = '0%';
+  let p = 0; fill.style.width = '0%'; pct.textContent = '0%';
   const t = setInterval(() => {
     p += Math.random() * 7 + 3; if (p >= 100) p = 100;
     fill.style.width = p + '%'; pct.textContent = Math.round(p) + '%';
     const lb = labels.filter(l => p >= l[0]).pop(); if (lb) msg.textContent = lb[1];
-    if (p >= 100) { clearInterval(t); setTimeout(finishDownload, 450); }
+    if (p >= 100) { clearInterval(t); setTimeout(done, 450); }
   }, 140);
+}
+async function isAppInstalled() {
+  if (isStandalone) return true;
+  if (navigator.getInstalledRelatedApps) {
+    try { const apps = await navigator.getInstalledRelatedApps(); if (apps && apps.length) return true; } catch { }
+  }
+  try { if (localStorage.getItem('liveup_installed') === '1' && !deferredPrompt) return true; } catch { }
+  return false;
+}
+function showAlreadyInstalled() {
+  $('#dlTitle').innerHTML = '이미 설치되어 있어요 ✓';
+  $('#dlFill').style.width = '100%'; $('#dlPct').textContent = '100%'; $('#dlMsg').textContent = '';
+  const guide = $('#dlGuide');
+  guide.innerHTML = '<b>LIVE UP</b> 앱이 이 기기에 이미 설치돼 있어요.<br>홈 화면의 <b>LIVE UP</b> 아이콘으로 실행하면 앱처럼 쓸 수 있어요. 🎉';
+  guide.style.display = 'block'; $('#dlClose').style.display = 'inline-block';
+}
+async function openDownload() {
+  const ov = $('#dlOverlay'); if (!ov) return;
+  ov.classList.add('on');
+  $('#dlGuide').style.display = 'none'; $('#dlClose').style.display = 'none';
+  if (await isAppInstalled()) {
+    $('#dlTitle').textContent = '확인 중…'; $('#dlMsg').textContent = '';
+    let p = 0; $('#dlFill').style.width = '0%';
+    const t = setInterval(() => { p += 14; const v = Math.min(p, 100); $('#dlFill').style.width = v + '%'; $('#dlPct').textContent = v + '%'; if (p >= 100) { clearInterval(t); setTimeout(showAlreadyInstalled, 280); } }, 60);
+    return;
+  }
+  runProgress(finishDownload);
 }
 function finishDownload() {
   const guide = $('#dlGuide'), close = $('#dlClose');
   $('#dlMsg').textContent = '';
-  if (isStandalone) {
-    $('#dlTitle').textContent = '이미 설치됨 🎉';
-    guide.innerHTML = '이미 홈 화면에 설치된 <b>LIVE UP</b> 앱으로 실행 중이에요.';
-  } else if (deferredPrompt) {
+  if (deferredPrompt) {
     $('#dlTitle').textContent = '설치하기';
     guide.innerHTML = '화면에 뜨는 <b>"설치"</b> 버튼을 누르면 홈 화면에 <b>LIVE UP</b> 앱이 추가돼요.';
     deferredPrompt.prompt();
@@ -102,7 +123,7 @@ $('#dlClose')?.addEventListener('click', () => $('#dlOverlay').classList.remove(
 // 설치된 앱(홈 화면)으로 실행 중이면 다운로드 버튼 숨김
 function hideDownloadUI() { ['#btnDownload', '#btnDownloadM'].forEach(s => { const el = $(s); if (el) el.style.display = 'none'; }); }
 if (isStandalone) hideDownloadUI();
-window.addEventListener('appinstalled', () => { hideDownloadUI(); $('#dlOverlay')?.classList.remove('on'); deferredPrompt = null; });
+window.addEventListener('appinstalled', () => { try { localStorage.setItem('liveup_installed', '1'); } catch { } hideDownloadUI(); $('#dlOverlay')?.classList.remove('on'); deferredPrompt = null; });
 // 전경기 대화방 배너 탭 → 모바일에서 채팅방 열기 (PC는 우측에 항상 표시)
 $('#chatbanBtn')?.addEventListener('click', () => { if (window.innerWidth < 960) setTab('comm'); });
 
