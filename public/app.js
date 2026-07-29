@@ -508,6 +508,85 @@ async function updateEvents(e) {
     box.innerHTML = log.slice().reverse().map(x => `<div class="evrow"><span class="evm">${esc(x.t)}</span><span class="evi">${x.icon}</span><span class="evt">${x.text}</span></div>`).join('');
   }
 }
+// ===== 선발 라인업 (축구=포메이션 배치도 / MLB=타순·선수 최근경기) =====
+function shortName(n) { const p = String(n || '').trim().split(' '); return p.length > 1 ? p[p.length - 1] : n; }
+function teamShort(n) { return shortName(n); }
+function renderPitch(t) {
+  const xi = (t.startXI || []).filter(p => p.grid);
+  if (!xi.length) return `<div class="pitch"><div class="pitch-hd">${esc(t.team)} · ${esc(t.formation)}</div><div class="lu-note">배치 좌표 없음</div></div>`;
+  const rows = {};
+  xi.forEach(p => { const g = String(p.grid).split(':'); const r = +g[0], c = +g[1]; (rows[r] = rows[r] || []).push({ ...p, c }); });
+  const rk = Object.keys(rows).map(Number).sort((a, b) => a - b);
+  const R = rk.length || 1;
+  const dots = [];
+  rk.forEach((r, ri) => {
+    const line = rows[r].sort((a, b) => a.c - b.c), n = line.length;
+    line.forEach((p, ci) => {
+      const top = ((ri + 1) / (R + 1)) * 100, left = ((ci + 1) / (n + 1)) * 100;
+      dots.push(`<div class="lu-dot" data-pid="${esc(p.id)}" data-name="${esc(p.name)}" data-pos="${esc(p.pos || '')}" data-num="${esc(p.number || '')}" style="top:${top}%;left:${left}%"><span class="lu-num">${esc(p.number || '')}</span><span class="lu-nm">${esc(shortName(p.name))}</span></div>`);
+    });
+  });
+  return `<div class="pitch"><div class="pitch-hd">${esc(t.team)} · <b>${esc(t.formation)}</b>${t.coach ? ` · 감독 ${esc(t.coach)}` : ''}</div><div class="pitch-field">${dots.join('')}</div></div>`;
+}
+function mlbCol(side, teamName) {
+  const rows = (side.lineup || []).map(p => `<div class="mlb-p" data-pid="${esc(p.id)}" data-name="${esc(p.name)}" data-group="hitting"><span class="mlb-o">${esc(p.order)}</span><span class="mlb-pos">${esc(p.pos)}</span><span class="mlb-nm">${esc(p.name)}</span></div>`).join('');
+  const pit = side.pitcher ? `<div class="mlb-p pit" data-pid="${esc(side.pitcher.id)}" data-name="${esc(side.pitcher.name)}" data-group="pitching"><span class="mlb-o">P</span><span class="mlb-pos">선발</span><span class="mlb-nm">${esc(side.pitcher.name)}</span></div>` : '';
+  return `<div class="mlb-side"><div class="mlb-hd">${esc(teamName)}</div>${rows || '<div class="lu-note">라인업 미확정</div>'}${pit}</div>`;
+}
+async function showMlbPlayer(id, name, group) {
+  const box = $('#mPlayer'); if (!box) return;
+  box.innerHTML = `<div class="pl-card"><div class="pl-hd">${esc(name)} · 최근 경기</div><div class="loading" style="padding:10px">불러오는 중…</div></div>`;
+  try {
+    const d = await fetchJSON(`/api/mlb/player?id=${encodeURIComponent(id)}&group=${group || 'hitting'}`, { tries: 1 });
+    const gs = d.games || [];
+    if (!gs.length) { box.innerHTML = `<div class="pl-card"><div class="pl-hd">${esc(name)}</div><div class="lu-note">최근 경기 기록이 없어요.</div></div>`; return; }
+    const isPit = (group === 'pitching');
+    const head = isPit ? `<th>날짜</th><th>상대</th><th>IP</th><th>실점</th><th>K</th><th>ERA</th>` : `<th>날짜</th><th>상대</th><th>타수</th><th>안타</th><th>HR</th><th>타점</th>`;
+    const rows = gs.map(g => {
+      const s = g.stat || {}, md = (g.date || '').slice(5);
+      if (isPit) return `<tr><td>${esc(md)}</td><td>${esc(teamShort(g.opp))}</td><td>${esc(s.inningsPitched ?? '-')}</td><td>${esc(s.earnedRuns ?? '-')}</td><td>${esc(s.strikeOuts ?? '-')}</td><td>${esc(s.era ?? '-')}</td></tr>`;
+      return `<tr><td>${esc(md)}</td><td>${esc(teamShort(g.opp))}</td><td>${esc(s.atBats ?? '-')}</td><td>${esc(s.hits ?? '-')}</td><td>${esc(s.homeRuns ?? '-')}</td><td>${esc(s.rbi ?? '-')}</td></tr>`;
+    }).join('');
+    box.innerHTML = `<div class="pl-card"><div class="pl-hd">🧢 ${esc(name)} · 최근 ${gs.length}경기</div><table class="pllog"><thead><tr>${head}</tr></thead><tbody>${rows}</tbody></table></div>`;
+    box.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  } catch { box.innerHTML = `<div class="pl-card"><div class="lu-note">불러오기 실패</div></div>`; }
+}
+function wirePlayerClicks(kind) {
+  if (kind === 'mlb') {
+    $$('#mLineupWrap .mlb-p').forEach(el => el.addEventListener('click', () => showMlbPlayer(el.dataset.pid, el.dataset.name, el.dataset.group || 'hitting')));
+  } else {
+    $$('#mLineupWrap .lu-dot').forEach(el => el.addEventListener('click', () => {
+      const box = $('#mPlayer'); if (!box) return;
+      box.innerHTML = `<div class="pl-card"><div class="pl-hd">⚽ ${esc(el.dataset.name)}</div><div class="pl-meta">등번호 <b>${esc(el.dataset.num || '-')}</b> · 포지션 <b>${esc(el.dataset.pos || '-')}</b></div><div class="lu-note">축구는 선수별 최근 경기 로그를 데이터 소스가 제공하지 않아, 이름·등번호·포지션까지 표시돼요.</div></div>`;
+      box.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }));
+  }
+}
+async function updateLineup(e) {
+  const box = $('#mLineupWrap'); if (!box) return;
+  const sp = state.sport;
+  if (sp === 'football') {
+    box.innerHTML = `<div class="odsec">📋 선발 라인업</div><div class="lineupbox"><div class="loading" style="padding:12px">라인업 불러오는 중…</div></div>`;
+    try {
+      const d = await fetchJSON(`/api/asports/lineups?fixture=${encodeURIComponent(e.id)}`, { tries: 1 });
+      const teams = d.teams || [];
+      if (teams.length < 2 || !(teams[0].startXI || []).length) { box.innerHTML = `<div class="odsec">📋 선발 라인업</div><div class="lu-note">라인업은 보통 <b>킥오프 20~40분 전</b>에 공개돼요.</div>`; return; }
+      box.innerHTML = `<div class="odsec">📋 선발 라인업 <span class="rhe">${esc(teams[0].formation)} · ${esc(teams[1].formation)} · 선수 탭</span></div>${teams.map(renderPitch).join('')}<div id="mPlayer"></div>`;
+      wirePlayerClicks('football');
+    } catch { box.innerHTML = `<div class="odsec">📋 선발 라인업</div><div class="lu-note">라인업을 불러오지 못했어요.</div>`; }
+  } else if (e.league === 'MLB') {
+    box.innerHTML = `<div class="odsec">📋 선발 라인업 (타순)</div><div class="lineupbox"><div class="loading" style="padding:12px">MLB 라인업 불러오는 중…</div></div>`;
+    try {
+      const d = await fetchJSON(`/api/mlb/game?home=${encodeURIComponent(e.home)}&away=${encodeURIComponent(e.away)}&date=${state.date}`, { tries: 1 });
+      if (!d.found || (!(d.home.lineup || []).length && !(d.away.lineup || []).length)) { box.innerHTML = `<div class="odsec">📋 선발 라인업 (타순)</div><div class="lu-note">MLB 라인업은 보통 <b>경기 2~4시간 전</b> 확정돼요.</div>`; return; }
+      box.innerHTML = `<div class="odsec">📋 선발 라인업 (타순) <span class="rhe">선수 누르면 최근 10경기</span></div><div class="mlb-lu">${mlbCol(d.home, e.home)}${mlbCol(d.away, e.away)}</div><div id="mPlayer"></div>`;
+      wirePlayerClicks('mlb');
+    } catch { box.innerHTML = `<div class="odsec">📋 선발 라인업</div><div class="lu-note">불러오기 실패</div>`; }
+  } else {
+    const ko = (SPORTS.find(s => s.key === sp) || {}).ko || sp;
+    box.innerHTML = `<div class="odsec">📋 선발 라인업</div><div class="lu-note">⚾ ${esc(ko)} 실시간 라인업은 현재 데이터 소스에서 제공되지 않아요. (KBO·NPB는 유료 계약 필요)</div>`;
+  }
+}
 // 야구 이닝별 라인스코어(R·H·E) 표
 function lineScoreTable(e) {
   if (state.sport !== 'baseball' || !e.box) return '';
@@ -569,6 +648,7 @@ async function openEvent(id) {
   $('#mTitle').textContent = e.league || '경기 상세';
   $('#mBody').innerHTML = `
     <div id="mDetail"><div class="loading">불러오는 중…</div></div>
+    <div id="mLineupWrap"></div>
     <div class="mchat-embed">
       <div class="mce-hd">💬 <b>${esc(e.home)} vs ${esc(e.away)}</b> 대화방 <span class="mce-tag">보면서 채팅</span> <span class="mce-on">🟢 <b id="onlineM">0</b></span></div>
       <div id="mChatPane" class="chatpane embed"></div>
@@ -580,6 +660,7 @@ async function openEvent(id) {
   modalPredict = pr;
   logChanges(id, feedGames[id] || e);   // 스냅샷 시드 (이후 변화만 이벤트로 기록)
   renderDetail(feedGames[id] || e, pr);
+  updateLineup(feedGames[id] || e);     // 라인업은 한 번만 로드 (10초 갱신 때 초기화 방지)
 }
 function closeModal() {
   $('#scrim').classList.remove('on'); $('#modal').classList.remove('on');
