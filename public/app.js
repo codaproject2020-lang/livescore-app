@@ -274,11 +274,18 @@ function stateBadge(e) {
   return `<span class="badge-state sched">${hhmm(e.date)}</span>`;
 }
 function scoreBlock(e) {
-  if (e.state === 'scheduled' || (e.hs == null && e.as == null)) {
+  const hasScore = e.hs != null || e.as != null;
+  if (!hasScore) {
     return `<div class="mid">${stateBadge(e)}<div class="vs">VS</div></div>`;
   }
   const cls = e.state === 'live' ? 'score live' : 'score';
   return `<div class="mid">${stateBadge(e)}<div class="scores"><span class="${cls}">${esc(e.hs ?? 0)}</span><span class="vs">:</span><span class="${cls}">${esc(e.as ?? 0)}</span></div></div>`;
+}
+function oddsLine(e) {
+  if (!e.odds) return '';
+  const o = e.odds, c = (v, l) => v ? `<span>${l} <b>${Number(v).toFixed(2)}</b></span>` : '';
+  const parts = [c(o.home, '승'), o.draw ? c(o.draw, '무') : '', c(o.away, '패')].filter(Boolean).join('');
+  return parts ? `<div class="modds">🌍 해외 ${parts}</div>` : '';
 }
 function predictBanner(e) {
   const h = Number(e.hs), a = Number(e.as);
@@ -295,6 +302,7 @@ function matchCard(e) {
       ${scoreBlock(e)}
       <div class="side"><div class="ph">${badge(e.awayLogo, '🏟')}</div><div class="team">${esc(e.away)}</div></div>
     </div>
+    ${oddsLine(e)}
     <span class="pick">픽</span>
   </div>`;
 }
