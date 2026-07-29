@@ -268,10 +268,58 @@ function hhmm(dateStr) {
   const t = dateStr ? new Date(dateStr) : null;
   return t ? `${String(t.getHours()).padStart(2, '0')}:${String(t.getMinutes()).padStart(2, '0')}` : '예정';
 }
+// 라이브 상태를 한국어로 (회차/쿼터/분)
+function koStatus(e) {
+  const sp = state.sport;
+  const s = String(e.status || '').toUpperCase();
+  const long = String(e.statusLong || '');
+  const L = long.toLowerCase();
+  if (sp === 'football') {
+    if (s === 'HT') return '하프타임';
+    if (s === '1H') return `전반 ${e.elapsed || ''}'`;
+    if (s === '2H') return `후반 ${e.elapsed || ''}'`;
+    if (s === 'ET') return `연장 ${e.elapsed || ''}'`;
+    if (s === 'P' || s === 'PEN') return '승부차기';
+    if (e.elapsed != null) return `${e.elapsed}'`;
+    return long || '진행 중';
+  }
+  if (sp === 'baseball') {
+    const inn = e.period || (long.match(/(\d+)/) || [])[1] || (s.match(/(\d+)/) || [])[1];
+    let half = '';
+    if (/top|초/.test(L) || /^T/.test(s)) half = '초';
+    else if (/bot|말/.test(L) || /^B/.test(s)) half = '말';
+    if (inn) return `${inn}회${half}`;
+    return long || '진행 중';
+  }
+  if (sp === 'basketball') {
+    if (s === 'HT') return '하프타임';
+    const q = (s.match(/Q?(\d)/) || [])[1];
+    if (q) return `${q}쿼터`;
+    return long || '진행 중';
+  }
+  const p = e.period || (s.match(/(\d+)/) || [])[1];
+  if (p) return `${p}${sp === 'volleyball' ? '세트' : sp === 'hockey' ? '피리어드' : '기'}`;
+  return long || e.status || '진행 중';
+}
 function stateBadge(e) {
-  if (e.state === 'live') return `<span class="badge-state live">● ${esc(e.elapsed ? e.elapsed + "'" : (e.status || 'LIVE'))}</span>`;
+  if (e.state === 'live') return `<span class="badge-state live">● ${esc(koStatus(e))}</span>`;
   if (e.state === 'finished') return `<span class="badge-state ft">종료</span>`;
   return `<span class="badge-state sched">${hhmm(e.date)}</span>`;
+}
+// AI 실시간 해설 (라이브 경기)
+function aiLive(e) {
+  if (e.state !== 'live') return '';
+  const h = Number(e.hs), a = Number(e.as);
+  if (isNaN(h) || isNaN(a)) return '';
+  const st = koStatus(e), diff = h - a;
+  let msg;
+  if (diff === 0) msg = `${st}, <b>${esc(e.home)}</b> vs <b>${esc(e.away)}</b> ${h}:${a} 팽팽한 접전이에요.`;
+  else {
+    const lead = diff > 0 ? e.home : e.away, ld = Math.abs(diff);
+    const tone = ld >= 5 ? '크게 앞서며 승기를 잡은' : ld >= 3 ? '리드를 벌리는' : '한 발 앞선';
+    msg = `${st} · <b>${esc(lead)}</b>이(가) ${ld}점 차로 ${tone} 흐름 (${h}:${a}).`;
+  }
+  return `<div class="ailive">🤖 <b>AI 해설</b> ${msg}</div>`;
 }
 function scoreBlock(e) {
   const hasScore = e.hs != null || e.as != null;
@@ -302,6 +350,7 @@ function matchCard(e) {
       ${scoreBlock(e)}
       <div class="side"><div class="ph">${badge(e.awayLogo, '🏟')}</div><div class="team">${esc(e.away)}</div></div>
     </div>
+    ${aiLive(e)}
     ${oddsLine(e)}
     <span class="pick">픽</span>
   </div>`;
@@ -344,7 +393,7 @@ async function openEvent(id) {
   $('#scrim').classList.add('on'); $('#modal').classList.add('on');
   $('#mTitle').textContent = e.league || '경기 상세';
   const pr = await fetch(`/api/predict?h=${e.hs ?? ''}&a=${e.as ?? ''}`).then(r => r.json()).catch(() => ({ home: 40, draw: 25, away: 35, confidence: 60 }));
-  const st = e.state === 'live' ? (e.elapsed ? `● ${e.elapsed}'` : '● LIVE') : (e.state === 'finished' ? '종료' : hhmm(e.date));
+  const st = e.state === 'live' ? ('● ' + koStatus(e)) : (e.state === 'finished' ? '종료' : hhmm(e.date));
   const scoreTxt = (e.state === 'scheduled' || (e.hs == null && e.as == null)) ? 'VS' : `${esc(e.hs ?? 0)} : ${esc(e.as ?? 0)}`;
   const t = e.date ? new Date(e.date) : null;
   const when = t ? `${t.getMonth() + 1}/${t.getDate()} ${hhmm(e.date)}` : '';
@@ -354,6 +403,7 @@ async function openEvent(id) {
       <div class="msc"><div class="n">${scoreTxt}</div><div class="st" style="color:${e.state === 'live' ? '#e2231a' : '#8b93a0'}">${esc(st)}</div></div>
       <div class="mt"><div class="ph">${badge(e.awayLogo, '🏟')}</div><div class="nm">${esc(e.away)}</div></div>
     </div>
+    ${aiLive(e)}
     <div class="probwrap">
       <div class="probttl"><span>🤖 AI 승부 예측</span><span>신뢰도 ${pr.confidence}%</span></div>
       <div class="probbar"><div class="pw" style="width:${pr.home}%">${pr.home}%</div><div class="pd" style="width:${pr.draw}%">${pr.draw}%</div><div class="pl" style="width:${pr.away}%">${pr.away}%</div></div>
