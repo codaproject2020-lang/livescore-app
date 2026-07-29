@@ -259,6 +259,91 @@ app.get('/api/team/recent', async (req, res) => {
 });
 
 // ============================================================
+//  API-Sports (정식 다종목 실시간) · 프록시 + 캐싱
+//  키: 환경변수 APISPORTS_KEY (헤더 x-apisports-key)
+// ============================================================
+const APISPORTS_KEY = process.env.APISPORTS_KEY || '';
+const AS = {
+  football: { host: 'v3.football.api-sports.io', ko: '축구', em: '⚽', path: '/fixtures' },
+  baseball: { host: 'v1.baseball.api-sports.io', ko: '야구', em: '⚾', path: '/games' },
+  basketball: { host: 'v1.basketball.api-sports.io', ko: '농구', em: '🏀', path: '/games' },
+  volleyball: { host: 'v1.volleyball.api-sports.io', ko: '배구', em: '🏐', path: '/games' },
+  hockey: { host: 'v1.hockey.api-sports.io', ko: '하키', em: '🏒', path: '/games' },
+  handball: { host: 'v1.handball.api-sports.io', ko: '핸드볼', em: '🤾', path: '/games' },
+  rugby: { host: 'v1.rugby.api-sports.io', ko: '럭비', em: '🏉', path: '/games' },
+  mma: { host: 'v1.mma.api-sports.io', ko: '격투기', em: '🥊', path: '/fights' }
+};
+
+async function asRaw(sport, path, ttl = 30000) {
+  const cfg = AS[sport]; if (!cfg) throw new Error('bad sport');
+  const url = `https://${cfg.host}${path}`;
+  const hit = cache.get(url), now = Date.now();
+  if (hit && now - hit.t < ttl) return hit.v;
+  const r = await fetch(url, { headers: { 'x-apisports-key': APISPORTS_KEY } });
+  if (!r.ok) throw new Error('upstream ' + r.status);
+  const v = await r.json();
+  cache.set(url, { t: now, v });
+  return v;
+}
+function asState(short, score) {
+  const s = String(short || '').toUpperCase();
+  if (['NS', 'TBD', 'PST', 'CANC', 'ABD', 'SUSP', 'AWD', 'WO'].includes(s)) return 'scheduled';
+  if (['FT', 'AET', 'PEN', 'AOT', 'AH', 'END', 'FINISHED', 'AP', 'POST'].includes(s)) return 'finished';
+  if (s === '' ) return score == null ? 'scheduled' : 'live';
+  return 'live';
+}
+function normAS(sport, g) {
+  try {
+    if (sport === 'football') {
+      const f = g.fixture, l = g.league, t = g.teams, go = g.goals;
+      return {
+        id: f.id, league: l.name, leagueLogo: l.logo, country: l.country, round: l.round,
+        home: t.home.name, homeLogo: t.home.logo, away: t.away.name, awayLogo: t.away.logo,
+        hs: go.home, as: go.away, status: f.status.short, elapsed: f.status.elapsed,
+        date: f.date, state: asState(f.status.short, go.home)
+      };
+    }
+    const l = g.league, t = g.teams, s = g.scores || {};
+    const hs = s.home && typeof s.home === 'object' ? (s.home.total ?? s.home.points ?? null) : (s.home ?? null);
+    const as = s.away && typeof s.away === 'object' ? (s.away.total ?? s.away.points ?? null) : (s.away ?? null);
+    const short = (g.status && (g.status.short || g.status.long)) || '';
+    return {
+      id: g.id, league: l ? l.name : '', leagueLogo: l ? l.logo : '', country: l ? (l.country ? (l.country.name || l.country) : '') : '',
+      home: t.home.name, homeLogo: t.home.logo, away: t.away.name, awayLogo: t.away.logo,
+      hs, as, status: short, date: g.date || g.time || (g.timestamp ? new Date(g.timestamp * 1000).toISOString() : null),
+      state: asState(short, hs)
+    };
+  } catch { return null; }
+}
+
+// 키/쿼터 상태 확인 (배포 후 검증용)
+app.get('/api/asports/status', async (req, res) => {
+  if (!APISPORTS_KEY) return res.json({ key: false, msg: 'APISPORTS_KEY 미설정' });
+  try { const j = await asRaw('football', '/status', 10000); res.json({ key: true, status: j.response || j }); }
+  catch (e) { res.status(502).json({ key: true, error: String(e.message || e) }); }
+});
+// 종목 목록
+app.get('/api/asports/sports', (req, res) => {
+  res.json({ hasKey: !!APISPORTS_KEY, sports: Object.entries(AS).map(([k, v]) => ({ key: k, ko: v.ko, em: v.em })) });
+});
+// 날짜별 경기 (정규화)
+app.get('/api/asports/games', async (req, res) => {
+  if (!APISPORTS_KEY) return res.json({ needKey: true, games: [] });
+  const sport = req.query.sport || 'football';
+  const date = req.query.date || new Date().toISOString().slice(0, 10);
+  const cfg = AS[sport]; if (!cfg) return res.status(400).json({ error: 'bad sport' });
+  try {
+    const path = `${cfg.path}?date=${date}&timezone=Asia/Seoul`;
+    const j = await asRaw(sport, path, 20000);
+    let games = (j.response || []).map(g => normAS(sport, g)).filter(Boolean);
+    games.sort((a, b) => (b.state === 'live') - (a.state === 'live'));
+    res.json({ sport, date, count: games.length, apiErrors: j.errors || null, results: j.results, games });
+  } catch (e) {
+    res.status(502).json({ error: String(e.message || e) });
+  }
+});
+
+// ============================================================
 //  커뮤니티 게시판 (자유 / 수익인증 / 손실인증)
 //  ※ 메모리 저장(서버 재시작 시 초기화). DB 붙이면 영구 저장 가능.
 // ============================================================
