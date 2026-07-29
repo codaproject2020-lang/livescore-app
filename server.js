@@ -325,18 +325,50 @@ function normAS(sport, g) {
         if (p && typeof p === 'object' && (p.home != null || p.away != null)) { livePts = { home: p.home, away: p.away }; break; }
       }
     }
+    // 야구: 라인스코어(이닝별 득점)·안타(H)·실책(E) + 초/말 추론
+    let box = null, curInning = null, inningHalf = null;
+    if (sport === 'baseball') {
+      const hi = (s.home && s.home.innings) || {}, ai = (s.away && s.away.innings) || {};
+      const nums = [];
+      Object.keys(hi).forEach(k => { const n = +k; if (n) nums.push(n); });
+      Object.keys(ai).forEach(k => { const n = +k; if (n) nums.push(n); });
+      curInning = nums.length ? Math.max.apply(null, nums) : (parseInt(String(short).replace(/\D/g, '')) || null);
+      if (curInning != null) {
+        const hv = hi[curInning];
+        // 홈팀이 해당 이닝 득점칸을 가지면 말(공격 종료/진행), 아니면 초
+        inningHalf = (hv != null && hv !== '') ? 'bottom' : 'top';
+      }
+      box = {
+        home: { r: (s.home && s.home.total != null ? s.home.total : hs), h: (s.home && s.home.hits != null ? s.home.hits : null), e: (s.home && s.home.errors != null ? s.home.errors : null), innings: hi },
+        away: { r: (s.away && s.away.total != null ? s.away.total : as), h: (s.away && s.away.hits != null ? s.away.hits : null), e: (s.away && s.away.errors != null ? s.away.errors : null), innings: ai }
+      };
+    }
     return {
       id: g.id, league: l ? l.name : '', leagueLogo: l ? l.logo : '', country: l ? (l.country ? (l.country.name || l.country) : '') : '',
       home: t.home.name, homeLogo: t.home.logo, away: t.away.name, awayLogo: t.away.logo,
       hs, as, status: short || long, statusLong: long,
-      period: g.period || g.inning || null, timer: g.timer || (g.status && g.status.timer) || null,
-      livePts,
+      period: g.period || g.inning || curInning || null, timer: g.timer || (g.status && g.status.timer) || null,
+      livePts, box, curInning, inningHalf,
       date: g.date || g.time || (g.timestamp ? new Date(g.timestamp * 1000).toISOString() : null),
       state: asState(short || long, hs)
     };
   } catch { return null; }
 }
 
+// 진단: 라이브 경기의 원시 응답 구조 확인 (초/말·히트·실책·타석 데이터 유무 파악)
+app.get('/api/asports/raw', async (req, res) => {
+  if (!APISPORTS_KEY) return res.json({ needKey: true });
+  const sport = req.query.sport || 'baseball';
+  const date = req.query.date || new Date().toISOString().slice(0, 10);
+  const cfg = AS[sport]; if (!cfg) return res.status(400).json({ error: 'bad sport' });
+  try {
+    const j = await asRaw(sport, `${cfg.path}?date=${date}&timezone=Asia/Seoul`, 20000);
+    // 진행 중(라이브) 경기 우선 1개만 원시 그대로
+    const arr = j.response || [];
+    const live = arr.find(g => { const s = ((g.status && (g.status.short || g.status.long)) || '').toUpperCase(); return !/(NS|FT|POST|CANC|TBD)/.test(s); }) || arr[0];
+    res.json({ sample: live || null });
+  } catch (e) { res.status(502).json({ error: String(e.message || e) }); }
+});
 // 진단: 서버가 받은 환경변수 "이름"만 표시 (값은 노출 안 함)
 app.get('/api/asports/debug', (req, res) => {
   const names = Object.keys(process.env).filter(k => /(API|SPORT|ODDS|KEY|FOOTBALL)/i.test(k));
@@ -420,7 +452,7 @@ app.get('/api/asports/games', async (req, res) => {
   const cfg = AS[sport]; if (!cfg) return res.status(400).json({ error: 'bad sport' });
   try {
     const path = `${cfg.path}?date=${date}&timezone=Asia/Seoul`;
-    const j = await asRaw(sport, path, 20000);
+    const j = await asRaw(sport, path, 12000);
     let games = (j.response || []).map(g => normAS(sport, g)).filter(Boolean);
     // 해외배당 붙이기 (매핑되는 주요 리그만)
     const needed = [...new Set(games.map(g => LEAGUE_TO_ODDS[g.league]).filter(Boolean))];
