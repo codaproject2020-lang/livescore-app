@@ -478,6 +478,26 @@ app.get('/api/asports/games', async (req, res) => {
   }
 });
 
+// 축구 실시간 이벤트 (골·퇴장·경고·교체) — 선수 이름 포함 (API-Sports 축구만 제공)
+app.get('/api/asports/events', async (req, res) => {
+  if (!APISPORTS_KEY) return res.json({ needKey: true, events: [] });
+  const fixture = req.query.fixture;
+  if (!fixture) return res.status(400).json({ error: 'need fixture' });
+  try {
+    const j = await asRaw('football', `/fixtures/events?fixture=${encodeURIComponent(fixture)}`, 12000);
+    const events = (j.response || []).map(ev => ({
+      minute: ev.time ? ev.time.elapsed : null,
+      extra: ev.time ? ev.time.extra : null,
+      team: ev.team ? ev.team.name : '',
+      type: ev.type || '',
+      detail: ev.detail || '',
+      player: ev.player ? ev.player.name : '',
+      assist: ev.assist ? ev.assist.name : ''
+    }));
+    res.json({ events });
+  } catch (e) { res.status(502).json({ error: String(e.message || e), events: [] }); }
+});
+
 // ============================================================
 //  커뮤니티 게시판 (자유 / 수익인증 / 손실인증)
 //  ※ 메모리 저장(서버 재시작 시 초기화). DB 붙이면 영구 저장 가능.
