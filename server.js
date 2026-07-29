@@ -315,11 +315,22 @@ function normAS(sport, g) {
     const as = s.away && typeof s.away === 'object' ? (s.away.total ?? s.away.points ?? null) : (s.away ?? null);
     const short = (g.status && g.status.short) || '';
     const long = (g.status && g.status.long) || '';
+    // 현재 세트/피리어드 실시간 점수 (배구 등): periods에서 마지막 진행 세트 추출
+    let livePts = null;
+    const pr = g.periods;
+    if (pr && typeof pr === 'object') {
+      const order = ['fifth', 'fourth', 'third', 'second', 'first'];
+      for (const k of order) {
+        const p = pr[k];
+        if (p && typeof p === 'object' && (p.home != null || p.away != null)) { livePts = { home: p.home, away: p.away }; break; }
+      }
+    }
     return {
       id: g.id, league: l ? l.name : '', leagueLogo: l ? l.logo : '', country: l ? (l.country ? (l.country.name || l.country) : '') : '',
       home: t.home.name, homeLogo: t.home.logo, away: t.away.name, awayLogo: t.away.logo,
       hs, as, status: short || long, statusLong: long,
       period: g.period || g.inning || null, timer: g.timer || (g.status && g.status.timer) || null,
+      livePts,
       date: g.date || g.time || (g.timestamp ? new Date(g.timestamp * 1000).toISOString() : null),
       state: asState(short || long, hs)
     };
