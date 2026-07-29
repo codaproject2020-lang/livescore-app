@@ -309,7 +309,10 @@ function stateBadge(e) {
 // AI 실시간 해설 (라이브 경기)
 function aiLive(e) {
   if (e.state !== 'live') return '';
-  const h = Number(e.hs), a = Number(e.as);
+  const setSports = (state.sport === 'volleyball' || state.sport === 'hockey');
+  let h, a;
+  if (setSports && e.livePts) { h = Number(e.livePts.home); a = Number(e.livePts.away); }
+  else { h = Number(e.hs); a = Number(e.as); }
   if (isNaN(h) || isNaN(a)) return '';
   const st = koStatus(e), diff = h - a;
   let msg;
@@ -327,7 +330,11 @@ function scoreBlock(e) {
     return `<div class="mid">${stateBadge(e)}<div class="vs">VS</div></div>`;
   }
   const cls = e.state === 'live' ? 'score live' : 'score';
-  return `<div class="mid">${stateBadge(e)}<div class="scores"><span class="${cls}">${esc(e.hs ?? 0)}</span><span class="vs">:</span><span class="${cls}">${esc(e.as ?? 0)}</span></div></div>`;
+  // 세트제 종목(배구/하키)은 현재 세트 실시간 점수 추가 표시
+  const setSports = (state.sport === 'volleyball' || state.sport === 'hockey');
+  const sub = (setSports && e.livePts && e.state === 'live') ? `<div class="setpts">현재 ${esc(e.livePts.home ?? 0)}:${esc(e.livePts.away ?? 0)}</div>` : '';
+  const mainLbl = setSports ? `<div class="scorelbl">세트</div>` : '';
+  return `<div class="mid">${stateBadge(e)}<div class="scores"><span class="${cls}">${esc(e.hs ?? 0)}</span><span class="vs">:</span><span class="${cls}">${esc(e.as ?? 0)}</span></div>${mainLbl}${sub}</div>`;
 }
 function oddsLine(e) {
   if (!e.odds) return '';
