@@ -1,23 +1,28 @@
 // ============================================================
-//  LiveScore AI · Frontend
+//  LIVE UP · Frontend  ·  BUILD: apisports-v2 (2026-07)
+//  ※ LIVE 피드 = API-Sports (/api/asports/games)
 // ============================================================
+console.log('LIVE UP build: apisports-v2');
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
+// API-Sports 종목 (키 = 서버 /api/asports/games?sport=)
 const SPORTS = [
-  { key: 'Soccer', ko: '축구', em: '⚽' },
-  { key: 'Baseball', ko: '야구', em: '⚾' },
-  { key: 'Basketball', ko: '농구', em: '🏀' },
-  { key: 'Ice Hockey', ko: '하키', em: '🏒' },
-  { key: 'American Football', ko: '미식축구', em: '🏈' },
-  { key: 'Tennis', ko: '테니스', em: '🎾' },
-  { key: 'Volleyball', ko: '배구', em: '🏐' }
+  { key: 'football', ko: '축구', em: '⚽' },
+  { key: 'baseball', ko: '야구', em: '⚾' },
+  { key: 'basketball', ko: '농구', em: '🏀' },
+  { key: 'volleyball', ko: '배구', em: '🏐' },
+  { key: 'hockey', ko: '하키', em: '🏒' },
+  { key: 'handball', ko: '핸드볼', em: '🤾' },
+  { key: 'rugby', ko: '럭비', em: '🏉' }
 ];
+// 주요 리그 우선 정렬 (이 리그들을 상단에)
+const TOP_LEAGUES = ['KBO', 'MLB', 'NPB', 'K League 1', 'Premier League', 'La Liga', 'Serie A', 'Bundesliga', 'NBA', 'WNBA', 'KBL', 'CPBL', 'NHL', 'UEFA Champions League'];
 
 const state = {
   date: new Date().toISOString().slice(0, 10),
-  sport: 'Baseball',   // 여름철 진행 종목 기본
+  sport: 'baseball',   // 여름철 진행 종목 기본
   leagues: []
 };
 
@@ -216,13 +221,9 @@ function buildSportNav() {
   $$('[data-sport]').forEach(el => el.addEventListener('click', () => { state.sport = el.dataset.sport; buildSportNav(); loadEvents(); closeDrawer(); }));
 }
 function buildLeagueNav() {
-  const items = state.leagues.map(l => `<a data-league="${l.id}" data-sport="${l.sport}"><span class="em">${l.flag}</span>${l.name}</a>`).join('');
-  $('#leagueNav').innerHTML = items;
-  $('#leagueNavD').innerHTML = items;
-  $$('[data-league]').forEach(el => el.addEventListener('click', () => {
-    state.sport = el.dataset.sport; buildSportNav();
-    loadEvents(el.dataset.league); closeDrawer();
-  }));
+  // API-Sports는 종목 단위로 조회 → 리그 네비는 현재 종목의 리그로 동적 표시(렌더 후 갱신)
+  $('#leagueNav').innerHTML = '<div class="side-note" style="padding:8px 16px">경기를 불러오면 리그가 표시됩니다</div>';
+  $('#leagueNavD').innerHTML = '';
 }
 
 // ============================================================
@@ -247,132 +248,117 @@ async function fetchJSON(url, { tries = 15, delay = 4000, onWait } = {}) {
 // ============================================================
 //  이벤트 로드 & 렌더
 // ============================================================
-async function loadEvents(focusLeague) {
+let feedGames = {};   // id -> game (상세 모달용)
+async function loadEvents() {
   const feed = $('#feed');
   feed.innerHTML = `<div class="loading">경기 불러오는 중…</div>`;
   try {
-    const d = await fetchJSON(`/api/events?date=${state.date}&sport=${encodeURIComponent(state.sport)}`, {
+    const d = await fetchJSON(`/api/asports/games?sport=${encodeURIComponent(state.sport)}&date=${state.date}`, {
       onWait: (n) => { feed.innerHTML = `<div class="loading">⏳ 무료 서버를 깨우는 중이에요…<br>최초 접속은 최대 1분 정도 걸릴 수 있어요.<br><span style="color:#aeb6c0">(자동 재시도 ${n})</span></div>`; }
     });
-    let events = d.events || [];
-    if (focusLeague) events = events.filter(e => e.leagueId === focusLeague);
-    renderFeed(events);
+    if (d.needKey) { feed.innerHTML = `<div class="loading">경기 데이터 API 키가 설정되지 않았어요.</div>`; return; }
+    const games = d.games || [];
+    feedGames = {}; games.forEach(g => feedGames[g.id] = g);
+    renderFeed(games);
   } catch (e) {
-    feed.innerHTML = `<div class="loading">데이터를 불러오지 못했습니다.<br><button onclick="loadEvents()" style="margin-top:10px;padding:9px 18px;border:none;border-radius:8px;background:#2f6fed;color:#fff;font-weight:800;cursor:pointer">다시 시도</button></div>`;
+    feed.innerHTML = `<div class="loading">데이터를 불러오지 못했습니다.<br><button onclick="loadEvents()" style="margin-top:10px;padding:9px 18px;border:none;border-radius:8px;background:#24568f;color:#fff;font-weight:800;cursor:pointer">다시 시도</button></div>`;
   }
 }
-
+function hhmm(dateStr) {
+  const t = dateStr ? new Date(dateStr) : null;
+  return t ? `${String(t.getHours()).padStart(2, '0')}:${String(t.getMinutes()).padStart(2, '0')}` : '예정';
+}
 function stateBadge(e) {
-  if (e.state === 'live') {
-    const label = e.progress || e.status || 'LIVE';
-    return `<span class="badge-state live">● ${esc(label)}</span>`;
-  }
+  if (e.state === 'live') return `<span class="badge-state live">● ${esc(e.elapsed ? e.elapsed + "'" : (e.status || 'LIVE'))}</span>`;
   if (e.state === 'finished') return `<span class="badge-state ft">종료</span>`;
-  return `<span class="badge-state sched">${esc((e.time || '').slice(0, 5) || '예정')}</span>`;
+  return `<span class="badge-state sched">${hhmm(e.date)}</span>`;
 }
-
 function scoreBlock(e) {
-  if (e.state === 'scheduled' || (e.homeScore == null && e.awayScore == null)) {
+  if (e.state === 'scheduled' || (e.hs == null && e.as == null)) {
     return `<div class="mid">${stateBadge(e)}<div class="vs">VS</div></div>`;
   }
   const cls = e.state === 'live' ? 'score live' : 'score';
-  return `<div class="mid">${stateBadge(e)}<div class="scores"><span class="${cls}">${esc(e.homeScore ?? 0)}</span><span class="vs">:</span><span class="${cls}">${esc(e.awayScore ?? 0)}</span></div></div>`;
+  return `<div class="mid">${stateBadge(e)}<div class="scores"><span class="${cls}">${esc(e.hs ?? 0)}</span><span class="vs">:</span><span class="${cls}">${esc(e.as ?? 0)}</span></div></div>`;
 }
-
 function predictBanner(e) {
-  const h = Number(e.homeScore), a = Number(e.awayScore);
+  const h = Number(e.hs), a = Number(e.as);
   let side = e.home, pct = 50;
   if (!isNaN(h) && !isNaN(a) && h !== a) { side = h > a ? e.home : e.away; pct = 55 + Math.min(35, Math.abs(h - a) * 9); }
-  const ou = (!isNaN(h) && !isNaN(a) && (h + a) >= 3) ? '오버' : '언더';
-  return `<div class="ansban" data-ev="${e.id}"><span class="badge">답</span><span class="t"><b>${esc(side)} ${pct}%</b> <span class="g">/ 핸디 / ${ou}</span></span><span class="go">›</span></div>`;
+  const ou = (!isNaN(h) && !isNaN(a) && (h + a) >= 5) ? '오버' : '언더';
+  return `<div class="ansban" data-ev="${esc(e.id)}"><span class="badge">답</span><span class="t"><b>${esc(side)} ${pct}%</b> <span class="g">/ 핸디 / ${ou}</span></span><span class="go">›</span></div>`;
 }
-
 function matchCard(e) {
-  return `<div class="match" data-ev="${e.id}">
+  return `<div class="match" data-ev="${esc(e.id)}">
     <span class="bell">🔔</span>
     <div class="mrow">
-      <div class="side"><div class="ph">${badge(e.homeBadge, '🏟')}</div><div class="team">${esc(e.home)}</div></div>
+      <div class="side"><div class="ph">${badge(e.homeLogo, '🏟')}</div><div class="team">${esc(e.home)}</div></div>
       ${scoreBlock(e)}
-      <div class="side"><div class="ph">${badge(e.awayBadge, '🏟')}</div><div class="team">${esc(e.away)}</div></div>
+      <div class="side"><div class="ph">${badge(e.awayLogo, '🏟')}</div><div class="team">${esc(e.away)}</div></div>
     </div>
     <span class="pick">픽</span>
   </div>`;
 }
-
-function renderFeed(events) {
+function renderFeed(games) {
   const feed = $('#feed');
-  if (!events.length) {
-    feed.innerHTML = `<div class="loading">${esc(state.date)} · ${SPORTS.find(s=>s.key===state.sport)?.ko || state.sport} 경기가 없습니다.<br>날짜를 바꾸거나 다른 종목을 선택해 보세요.</div>`;
+  if (!games.length) {
+    feed.innerHTML = `<div class="loading">${esc(state.date)} · ${SPORTS.find(s => s.key === state.sport)?.ko || state.sport} 경기가 없습니다.<br>날짜를 바꾸거나 다른 종목을 선택해 보세요.</div>`;
     return;
   }
-  // 리그별 그룹
   const groups = {};
-  events.forEach(e => { (groups[e.leagueId] = groups[e.leagueId] || { league: e, items: [] }).items.push(e); });
-  // live 우선
-  const order = Object.values(groups).sort((a, b) =>
-    (b.items.some(x => x.state === 'live') - a.items.some(x => x.state === 'live')));
-
+  games.forEach(e => { const k = e.league || '기타'; (groups[k] = groups[k] || { league: e, name: k, items: [] }).items.push(e); });
+  const order = Object.values(groups).sort((a, b) => {
+    const la = a.items.some(x => x.state === 'live'), lb = b.items.some(x => x.state === 'live');
+    if (la !== lb) return (lb ? 1 : 0) - (la ? 1 : 0);
+    const ra = TOP_LEAGUES.indexOf(a.name) < 0 ? 999 : TOP_LEAGUES.indexOf(a.name);
+    const rb = TOP_LEAGUES.indexOf(b.name) < 0 ? 999 : TOP_LEAGUES.indexOf(b.name);
+    if (ra !== rb) return ra - rb;
+    return b.items.length - a.items.length;
+  });
   feed.innerHTML = order.map(g => {
-    const lg = g.league;
     const live = g.items.filter(x => x.state === 'live').length;
-    const head = `<div class="lghd"><span class="flag">${badge(lg.leagueBadge, '🏆')}</span><span class="nm">${esc(lg.league)}</span><span class="cnt">(${g.items.length})</span>${live ? `<span class="live-dot" style="color:#e2231a;font-weight:800">🔴 ${live} LIVE</span>` : ''}<span class="up">∧</span></div>`;
-    const body = g.items.map(e => {
-      const showAns = e.state !== 'finished';
-      return (showAns ? predictBanner(e) : '') + matchCard(e);
-    }).join('');
+    const head = `<div class="lghd"><span class="flag">${badge(g.league.leagueLogo, '🏆')}</span><span class="nm">${esc(g.name)}</span><span class="cnt">(${g.items.length})</span>${live ? `<span class="live-dot" style="color:#e2231a;font-weight:800">🔴 ${live} LIVE</span>` : ''}<span class="up">∧</span></div>`;
+    const body = g.items.map(e => (e.state !== 'finished' ? predictBanner(e) : '') + matchCard(e)).join('');
     return `<div class="lg">${head}${body}</div>`;
   }).join('');
-
-  // 리그 접기
   $$('#feed .lghd').forEach(h => h.addEventListener('click', () => {
     let el = h.nextElementSibling; const arr = h.querySelector('.up'); const col = arr.textContent === '∨';
     while (el && !el.classList.contains('lghd')) { el.style.display = col ? '' : 'none'; el = el.nextElementSibling; }
     arr.textContent = col ? '∧' : '∨';
   }));
-  // 클릭 → 상세
   $$('#feed [data-ev]').forEach(el => el.addEventListener('click', () => openEvent(el.dataset.ev)));
 }
 
 // ============================================================
-//  경기 상세 모달
+//  경기 상세 모달 (메모리 데이터 사용 · 추가 호출 없음)
 // ============================================================
 async function openEvent(id) {
+  const e = feedGames[id]; if (!e) return;
   $('#scrim').classList.add('on'); $('#modal').classList.add('on');
-  $('#mBody').innerHTML = `<div class="loading">상세 정보 불러오는 중…</div>`;
-  try {
-    const [ed, pd] = await Promise.all([
-      fetch(`/api/event?id=${id}`).then(r => r.json()),
-      fetch(`/api/predict?id=${id}`).then(r => r.json()).catch(() => null)
-    ]);
-    const e = ed.event; if (!e) throw new Error('no data');
-    const pr = await fetch(`/api/predict?h=${e.homeScore ?? ''}&a=${e.awayScore ?? ''}`).then(r => r.json());
-    $('#mTitle').textContent = e.league || '경기 상세';
-    const box = ed.boxscore ? `<div class="box">${esc(ed.boxscore.replace(/<br>/g, '\n').replace(/<[^>]+>/g, ''))}</div>` : '';
-    $('#mBody').innerHTML = `
-      <div class="mteams">
-        <div class="mt"><div class="ph">${badge(e.homeBadge, '🏟')}</div><div class="nm">${esc(e.home)}</div></div>
-        <div class="msc"><div class="n">${e.state==='scheduled'?'VS':`${esc(e.homeScore??0)} : ${esc(e.awayScore??0)}`}</div><div class="st" style="color:${e.state==='live'?'#e2231a':'#8b93a0'}">${esc(e.progress||e.status||(e.time||'').slice(0,5)||'예정')}</div></div>
-        <div class="mt"><div class="ph">${badge(e.awayBadge, '🏟')}</div><div class="nm">${esc(e.away)}</div></div>
-      </div>
-      <div class="probwrap">
-        <div class="probttl"><span>🤖 AI 승부 예측</span><span>신뢰도 ${pr.confidence}%</span></div>
-        <div class="probbar"><div class="pw" style="width:${pr.home}%">${pr.home}%</div><div class="pd" style="width:${pr.draw}%">${pr.draw}%</div><div class="pl" style="width:${pr.away}%">${pr.away}%</div></div>
-        <div class="problbl"><span>${esc(e.home)} 승</span><span>무</span><span>${esc(e.away)} 승</span></div>
-      </div>
-      <div class="minfo">
-        <div><span class="k">리그</span> ${esc(e.league)} ${e.round ? '· '+esc(e.round)+'R' : ''}</div>
-        <div><span class="k">일시</span> ${esc(e.date)} ${esc((e.time||'').slice(0,5))}</div>
-        <div><span class="k">경기장</span> ${esc(e.venue || '-')}</div>
-        <div><span class="k">상태</span> ${esc(e.status || '-')}</div>
-      </div>
-      ${box}
-      ${e.video ? `<a class="mchat-open" style="background:#c4302b;margin-bottom:8px;display:block" href="${esc(e.video)}" target="_blank" rel="noopener">▶ 하이라이트 영상 보기</a>` : ''}
-      <div class="mchat-open" id="joinRoom" data-room="event:${e.id}">💬 이 경기 대화방 입장 (${esc(e.home)} vs ${esc(e.away)})</div>
-    `;
-    $('#joinRoom')?.addEventListener('click', () => { joinRoom($('#joinRoom').dataset.room, `${e.home} vs ${e.away}`); closeModal(); setTab('comm'); });
-  } catch (e) {
-    $('#mBody').innerHTML = `<div class="loading">상세 정보를 불러오지 못했습니다.</div>`;
-  }
+  $('#mTitle').textContent = e.league || '경기 상세';
+  const pr = await fetch(`/api/predict?h=${e.hs ?? ''}&a=${e.as ?? ''}`).then(r => r.json()).catch(() => ({ home: 40, draw: 25, away: 35, confidence: 60 }));
+  const st = e.state === 'live' ? (e.elapsed ? `● ${e.elapsed}'` : '● LIVE') : (e.state === 'finished' ? '종료' : hhmm(e.date));
+  const scoreTxt = (e.state === 'scheduled' || (e.hs == null && e.as == null)) ? 'VS' : `${esc(e.hs ?? 0)} : ${esc(e.as ?? 0)}`;
+  const t = e.date ? new Date(e.date) : null;
+  const when = t ? `${t.getMonth() + 1}/${t.getDate()} ${hhmm(e.date)}` : '';
+  $('#mBody').innerHTML = `
+    <div class="mteams">
+      <div class="mt"><div class="ph">${badge(e.homeLogo, '🏟')}</div><div class="nm">${esc(e.home)}</div></div>
+      <div class="msc"><div class="n">${scoreTxt}</div><div class="st" style="color:${e.state === 'live' ? '#e2231a' : '#8b93a0'}">${esc(st)}</div></div>
+      <div class="mt"><div class="ph">${badge(e.awayLogo, '🏟')}</div><div class="nm">${esc(e.away)}</div></div>
+    </div>
+    <div class="probwrap">
+      <div class="probttl"><span>🤖 AI 승부 예측</span><span>신뢰도 ${pr.confidence}%</span></div>
+      <div class="probbar"><div class="pw" style="width:${pr.home}%">${pr.home}%</div><div class="pd" style="width:${pr.draw}%">${pr.draw}%</div><div class="pl" style="width:${pr.away}%">${pr.away}%</div></div>
+      <div class="problbl"><span>${esc(e.home)} 승</span><span>무</span><span>${esc(e.away)} 승</span></div>
+    </div>
+    <div class="minfo">
+      <div><span class="k">리그</span> ${esc(e.league)}</div>
+      <div><span class="k">일시</span> ${esc(when)}</div>
+      <div><span class="k">상태</span> ${esc(e.status || '-')}</div>
+    </div>
+    <div class="mchat-open" id="joinRoom" data-room="event:${esc(e.id)}">💬 이 경기 대화방 입장 (${esc(e.home)} vs ${esc(e.away)})</div>
+  `;
+  $('#joinRoom')?.addEventListener('click', () => { joinRoom($('#joinRoom').dataset.room, `${e.home} vs ${e.away}`); closeModal(); setTab('comm'); });
 }
 function closeModal() { $('#scrim').classList.remove('on'); $('#modal').classList.remove('on'); }
 $('#mClose').addEventListener('click', closeModal);

@@ -8,7 +8,7 @@
 <link rel="manifest" href="/manifest.json">
 <link rel="apple-touch-icon" href="/logo.png.jpg">
 <link rel="icon" href="/logo.png.jpg">
-<link rel="stylesheet" href="styles.css">
+<link rel="stylesheet" href="styles.css?v=2">
 </head>
 <body>
 <div class="shell">
@@ -130,7 +130,7 @@
     <div class="ad">
       <span class="cp">real data</span>
       <div class="th">⚡</div>
-      <div class="txt">실시간 경기 데이터는 TheSportsDB API로 연동됩니다.</div>
+      <div class="txt">실시간 경기 데이터는 API-Sports로 연동됩니다.</div>
     </div>
     <p class="foot">스코어·엠블럼·순위는 실제 API 데이터입니다. 배당·AI 예측은 참고용 계산값입니다.<br>
       원본 서비스: <a href="https://livescore.co.kr/" target="_blank" rel="noopener">livescore.co.kr</a></p>
@@ -228,6 +228,6 @@
     window.addEventListener('load', () => navigator.serviceWorker.register('/sw.js').catch(() => {}));
   }
 </script>
-<script src="app.js"></script>
+<script src="app.js?v=2"></script>
 </body>
 </html>
