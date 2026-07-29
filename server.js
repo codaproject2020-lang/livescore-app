@@ -347,11 +347,20 @@ app.get('/api/asports/sports', (req, res) => {
 });
 // 리그명 → The Odds API sport 키 (해외배당 매칭용)
 const LEAGUE_TO_ODDS = {
+  // 야구
   'MLB': 'baseball_mlb', 'KBO': 'baseball_kbo', 'NPB': 'baseball_npb',
+  // 축구
   'Premier League': 'soccer_epl', 'La Liga': 'soccer_spain_la_liga', 'Serie A': 'soccer_italy_serie_a',
-  'Bundesliga': 'soccer_germany_bundesliga', 'Ligue 1': 'soccer_france_ligue_one',
-  'K League 1': 'soccer_korea_kleague1', 'MLS': 'soccer_usa_mls',
-  'NBA': 'basketball_nba', 'WNBA': 'basketball_wnba', 'NHL': 'icehockey_nhl'
+  'Bundesliga': 'soccer_germany_bundesliga', 'Ligue 1': 'soccer_france_ligue_one', 'Ligue 1 - France': 'soccer_france_ligue_one',
+  'K League 1': 'soccer_korea_kleague1', 'Major League Soccer': 'soccer_usa_mls', 'MLS': 'soccer_usa_mls',
+  'UEFA Champions League': 'soccer_uefa_champs_league', 'Eredivisie': 'soccer_netherlands_eredivisie',
+  'Primeira Liga': 'soccer_portugal_primeira_liga', 'Championship': 'soccer_efl_champ',
+  'Serie A - Brazil': 'soccer_brazil_campeonato', 'Brasileirão Série A': 'soccer_brazil_campeonato',
+  'Primera División': 'soccer_argentina_primera_division', 'J1 League': 'soccer_japan_j_league',
+  'A-League': 'soccer_australia_aleague', 'Süper Lig': 'soccer_turkey_super_league',
+  // 농구·하키·미식축구·격투기
+  'NBA': 'basketball_nba', 'WNBA': 'basketball_wnba', 'NCAA': 'basketball_ncaab',
+  'NHL': 'icehockey_nhl', 'NFL': 'americanfootball_nfl', 'MMA': 'mma_mixed_martial_arts'
 };
 const normTeam = s => String(s || '').toLowerCase().replace(/[^a-z0-9가-힣]/g, '');
 async function oddsLookup(oddsSport) {
