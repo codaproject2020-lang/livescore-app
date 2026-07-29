@@ -398,9 +398,9 @@ table.boxsc .r{font-weight:900;color:var(--red);background:#fbfaf4}
   .side-r{display:flex;flex-direction:column;height:calc(100vh - 36px)}
   .side-r .chatpane{flex:1;min-height:0}
   .center{border-radius:14px;overflow:hidden;box-shadow:0 2px 14px rgba(0,0,0,.06);min-height:auto;padding-bottom:0;border-top:3px solid var(--gold)}
-  .topbar,.sportrow{display:none}          /* PC는 좌측 네비 사용 */
+  .topbar{display:none}                     /* PC는 좌측 네비 사용 */
+  .sportrow{display:flex;top:0;border-radius:14px 14px 0 0}  /* PC에도 종목 아이콘 줄 표시 */
   #view-comm{display:none!important}         /* PC는 우측 채팅 사용 */
-  .datenav{border-radius:14px 14px 0 0}
   .chatban .prize{display:none}
 }
 @media(max-width:959px){

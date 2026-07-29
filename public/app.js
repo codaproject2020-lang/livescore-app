@@ -333,7 +333,7 @@ function oddsLine(e) {
   if (!e.odds) return '';
   const o = e.odds, c = (v, l) => v ? `<span>${l} <b>${Number(v).toFixed(2)}</b></span>` : '';
   const parts = [c(o.home, '승'), o.draw ? c(o.draw, '무') : '', c(o.away, '패')].filter(Boolean).join('');
-  return parts ? `<div class="modds">🌍 해외 ${parts}</div>` : '';
+  return parts ? `<div class="modds">💰 배당 ${parts}</div>` : '';
 }
 function predictBanner(e) {
   const h = Number(e.hs), a = Number(e.as);
