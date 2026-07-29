@@ -329,14 +329,19 @@ function normAS(sport, g) {
     let box = null, curInning = null, inningHalf = null;
     if (sport === 'baseball') {
       const hi = (s.home && s.home.innings) || {}, ai = (s.away && s.away.innings) || {};
-      const nums = [];
-      Object.keys(hi).forEach(k => { const n = +k; if (n) nums.push(n); });
-      Object.keys(ai).forEach(k => { const n = +k; if (n) nums.push(n); });
-      curInning = nums.length ? Math.max.apply(null, nums) : (parseInt(String(short).replace(/\D/g, '')) || null);
+      const filled = (o, n) => o[n] != null && o[n] !== '';
+      // ✅ 현재 이닝은 status에서 (예: "IN4" / "Inning 4"). innings 칸은 1~9가 미리 null로 차 있어 최댓값으로 계산하면 항상 9가 됨.
+      const statusNum = parseInt(String(short).replace(/\D/g, ''), 10) || parseInt(String(long).replace(/\D/g, ''), 10) || 0;
+      // 백업: 실제 득점이 기록된 마지막 이닝
+      let lastPlayed = 0;
+      for (let n = 1; n <= 15; n++) { if (filled(hi, n) || filled(ai, n)) lastPlayed = n; }
+      curInning = statusNum || lastPlayed || null;
       if (curInning != null) {
-        const hv = hi[curInning];
-        // 홈팀이 해당 이닝 득점칸을 가지면 말(공격 종료/진행), 아니면 초
-        inningHalf = (hv != null && hv !== '') ? 'bottom' : 'top';
+        const hFilled = filled(hi, curInning), aFilled = filled(ai, curInning);
+        // 원정팀(초 공격)만 기록 → 초 / 홈팀(말 공격)까지 기록 → 말
+        if (aFilled && !hFilled) inningHalf = 'top';
+        else if (hFilled) inningHalf = 'bottom';
+        else inningHalf = 'top';   // 이닝 시작 직후(초 공격 준비)
       }
       box = {
         home: { r: (s.home && s.home.total != null ? s.home.total : hs), h: (s.home && s.home.hits != null ? s.home.hits : null), e: (s.home && s.home.errors != null ? s.home.errors : null), innings: hi },
