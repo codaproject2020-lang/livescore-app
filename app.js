@@ -1,6 +1,8 @@
 // ============================================================
-//  LiveScore AI · Frontend
+//  LIVE UP · Frontend  ·  BUILD: apisports-v2 (2026-07)
+//  ※ LIVE 피드 = API-Sports (/api/asports/games)
 // ============================================================
+console.log('LIVE UP build: apisports-v2');
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
