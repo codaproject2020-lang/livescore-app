@@ -342,7 +342,54 @@ app.get('/api/asports/status', async (req, res) => {
 app.get('/api/asports/sports', (req, res) => {
   res.json({ hasKey: !!APISPORTS_KEY, sports: Object.entries(AS).map(([k, v]) => ({ key: k, ko: v.ko, em: v.em })) });
 });
-// 날짜별 경기 (정규화)
+// 리그명 → The Odds API sport 키 (해외배당 매칭용)
+const LEAGUE_TO_ODDS = {
+  'MLB': 'baseball_mlb', 'KBO': 'baseball_kbo', 'NPB': 'baseball_npb',
+  'Premier League': 'soccer_epl', 'La Liga': 'soccer_spain_la_liga', 'Serie A': 'soccer_italy_serie_a',
+  'Bundesliga': 'soccer_germany_bundesliga', 'Ligue 1': 'soccer_france_ligue_one',
+  'K League 1': 'soccer_korea_kleague1', 'MLS': 'soccer_usa_mls',
+  'NBA': 'basketball_nba', 'WNBA': 'basketball_wnba', 'NHL': 'icehockey_nhl'
+};
+const normTeam = s => String(s || '').toLowerCase().replace(/[^a-z0-9가-힣]/g, '');
+async function oddsLookup(oddsSport) {
+  if (!ODDS_KEY) return null;
+  const url = `https://api.the-odds-api.com/v4/sports/${oddsSport}/odds/?apiKey=${ODDS_KEY}&regions=uk,eu&markets=h2h&oddsFormat=decimal`;
+  const ck = 'OL:' + oddsSport, now = Date.now(), hit = cache.get(ck);
+  if (hit && now - hit.t < 300000) return hit.v;   // 5분 캐시(쿼터 절약)
+  try {
+    const r = await fetch(url); if (!r.ok) throw new Error('odds ' + r.status);
+    const arr = await r.json();
+    const map = {};
+    (Array.isArray(arr) ? arr : []).forEach(g => {
+      const hi = { home: 0, away: 0, draw: 0 };
+      (g.bookmakers || []).forEach(bk => {
+        const m = (bk.markets || []).find(x => x.key === 'h2h'); if (!m) return;
+        (m.outcomes || []).forEach(o => {
+          if (o.name === g.home_team) hi.home = Math.max(hi.home, o.price);
+          else if (o.name === g.away_team) hi.away = Math.max(hi.away, o.price);
+          else if (o.name === 'Draw') hi.draw = Math.max(hi.draw, o.price);
+        });
+      });
+      map[normTeam(g.home_team) + '|' + normTeam(g.away_team)] = { home: hi.home || null, away: hi.away || null, draw: hi.draw || null };
+    });
+    cache.set(ck, { t: now, v: map });
+    return map;
+  } catch { return null; }
+}
+function attachOdds(g, map) {
+  if (!map) return;
+  const hk = normTeam(g.home), ak = normTeam(g.away);
+  let f = map[hk + '|' + ak];
+  if (!f) {
+    for (const k in map) {
+      const [kh, ka] = k.split('|');
+      if ((kh.includes(hk.slice(0, 5)) || hk.includes(kh.slice(0, 5))) && (ka.includes(ak.slice(0, 5)) || ak.includes(ka.slice(0, 5)))) { f = map[k]; break; }
+    }
+  }
+  if (f) g.odds = f;
+}
+
+// 날짜별 경기 (정규화 + 해외배당 매칭)
 app.get('/api/asports/games', async (req, res) => {
   if (!APISPORTS_KEY) return res.json({ needKey: true, games: [] });
   const sport = req.query.sport || 'football';
@@ -352,6 +399,11 @@ app.get('/api/asports/games', async (req, res) => {
     const path = `${cfg.path}?date=${date}&timezone=Asia/Seoul`;
     const j = await asRaw(sport, path, 20000);
     let games = (j.response || []).map(g => normAS(sport, g)).filter(Boolean);
+    // 해외배당 붙이기 (매핑되는 주요 리그만)
+    const needed = [...new Set(games.map(g => LEAGUE_TO_ODDS[g.league]).filter(Boolean))];
+    const maps = {};
+    for (const os of needed) maps[os] = await oddsLookup(os);
+    games.forEach(g => { const os = LEAGUE_TO_ODDS[g.league]; if (os) attachOdds(g, maps[os]); });
     games.sort((a, b) => (b.state === 'live') - (a.state === 'live'));
     res.json({ sport, date, count: games.length, apiErrors: j.errors || null, results: j.results, games });
   } catch (e) {
