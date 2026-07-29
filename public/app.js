@@ -892,7 +892,7 @@ async function init() {
   fetchJSON('/api/leagues', { tries: 15, delay: 4000 })
     .then(d => { state.leagues = d.leagues || []; buildLeagueNav(); })
     .catch(() => {});
-  // 라이브 자동 갱신 (15초) · 상세/채팅 열려 있어도 스코어·해설 계속 갱신
-  setInterval(() => { if (!$('#view-live').classList.contains('hidden') || modalEventId) loadEvents(); }, 15000);
+  // 라이브 자동 갱신 (10초) · 상세/채팅 열려 있어도 스코어·해설 계속 갱신
+  setInterval(() => { if (!$('#view-live').classList.contains('hidden') || modalEventId) loadEvents(); }, 10000);
 }
 init();
