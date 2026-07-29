@@ -498,6 +498,81 @@ app.get('/api/asports/events', async (req, res) => {
   } catch (e) { res.status(502).json({ error: String(e.message || e), events: [] }); }
 });
 
+// 축구 선발 라인업 (선발11·포메이션·grid 좌표·교체·감독) — API-Sports 축구
+app.get('/api/asports/lineups', async (req, res) => {
+  if (!APISPORTS_KEY) return res.json({ needKey: true, teams: [] });
+  const fixture = req.query.fixture;
+  if (!fixture) return res.status(400).json({ error: 'need fixture' });
+  try {
+    const j = await asRaw('football', `/fixtures/lineups?fixture=${encodeURIComponent(fixture)}`, 120000);
+    const teams = (j.response || []).map(t => ({
+      team: t.team ? t.team.name : '', logo: t.team ? t.team.logo : '',
+      formation: t.formation || '',
+      coach: t.coach ? t.coach.name : '',
+      startXI: (t.startXI || []).map(x => ({ id: x.player.id, name: x.player.name, number: x.player.number, pos: x.player.pos, grid: x.player.grid })),
+      subs: (t.substitutes || []).map(x => ({ id: x.player.id, name: x.player.name, number: x.player.number, pos: x.player.pos }))
+    }));
+    res.json({ teams });
+  } catch (e) { res.status(502).json({ error: String(e.message || e), teams: [] }); }
+});
+
+// ============================================================
+//  MLB 무료 실데이터 (statsapi.mlb.com · API 키 불필요)
+// ============================================================
+async function mlbFetch(path, ttl = 30000) {
+  const url = 'https://statsapi.mlb.com' + path;
+  const hit = cache.get(url), now = Date.now();
+  if (hit && now - hit.t < ttl) return hit.v;
+  const r = await fetch(url);
+  if (!r.ok) throw new Error('mlb ' + r.status);
+  const v = await r.json();
+  cache.set(url, { t: now, v });
+  return v;
+}
+// 팀명 별명(마지막 단어)으로 매칭 (API-Sports ↔ MLB StatsAPI)
+function mlbNick(s) { return String(s || '').toLowerCase().replace(/[^a-z ]/g, '').trim().split(/\s+/).pop(); }
+function mlbTeamMatch(a, b) { const na = mlbNick(a), nb = mlbNick(b); return na && nb && na === nb; }
+// MLB 경기 라인업(타순) — gamePk를 스케줄에서 매칭
+app.get('/api/mlb/game', async (req, res) => {
+  const { home, away } = req.query;
+  const date = req.query.date || new Date().toISOString().slice(0, 10);
+  try {
+    const sch = await mlbFetch(`/api/v1/schedule?sportId=1&date=${date}`, 60000);
+    const games = (sch.dates && sch.dates[0] && sch.dates[0].games) || [];
+    let swap = false;
+    let g = games.find(x => mlbTeamMatch(x.teams.home.team.name, home) && mlbTeamMatch(x.teams.away.team.name, away));
+    if (!g) { g = games.find(x => mlbTeamMatch(x.teams.home.team.name, away) && mlbTeamMatch(x.teams.away.team.name, home)); if (g) swap = true; }
+    if (!g) return res.json({ found: false });
+    const box = await mlbFetch(`/api/v1/game/${g.gamePk}/boxscore`, 20000);
+    const side = t => {
+      const T = box.teams[t]; if (!T) return { team: '', lineup: [], pitcher: null };
+      const players = T.players || {};
+      const arr = Object.values(players).filter(p => p.battingOrder).map(p => ({
+        bo: parseInt(p.battingOrder, 10), id: p.person.id, name: p.person.fullName, pos: p.position ? p.position.abbreviation : ''
+      }));
+      const lineup = arr.filter(p => p.bo % 100 === 0).sort((a, b) => a.bo - b.bo).map((p, i) => ({ order: i + 1, id: p.id, name: p.name, pos: p.pos }));
+      let pitcher = null;
+      const pid = (T.pitchers || [])[0];
+      if (pid && players['ID' + pid]) pitcher = { id: pid, name: players['ID' + pid].person.fullName, pos: 'P' };
+      return { team: T.team.name, lineup, pitcher };
+    };
+    const hSide = side('home'), aSide = side('away');
+    res.json({ found: true, gamePk: g.gamePk, home: swap ? aSide : hSide, away: swap ? hSide : aSide });
+  } catch (e) { res.status(502).json({ found: false, error: String(e.message || e) }); }
+});
+// MLB 선수 최근 경기 로그 (타자 hitting / 투수 pitching)
+app.get('/api/mlb/player', async (req, res) => {
+  const id = req.query.id, group = req.query.group === 'pitching' ? 'pitching' : 'hitting';
+  if (!id) return res.status(400).json({ error: 'need id' });
+  const season = new Date().getFullYear();
+  try {
+    const j = await mlbFetch(`/api/v1/people/${id}/stats?stats=gameLog&group=${group}&season=${season}`, 120000);
+    const splits = (j.stats && j.stats[0] && j.stats[0].splits) || [];
+    const games = splits.slice(-10).reverse().map(s => ({ date: s.date, opp: s.opponent ? s.opponent.name : '', home: s.isHome, stat: s.stat || {} }));
+    res.json({ id, group, games });
+  } catch (e) { res.status(502).json({ error: String(e.message || e), games: [] }); }
+});
+
 // ============================================================
 //  커뮤니티 게시판 (자유 / 수익인증 / 손실인증)
 //  ※ 메모리 저장(서버 재시작 시 초기화). DB 붙이면 영구 저장 가능.
