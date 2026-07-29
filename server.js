@@ -306,19 +306,22 @@ function normAS(sport, g) {
       return {
         id: f.id, league: l.name, leagueLogo: l.logo, country: l.country, round: l.round,
         home: t.home.name, homeLogo: t.home.logo, away: t.away.name, awayLogo: t.away.logo,
-        hs: go.home, as: go.away, status: f.status.short, elapsed: f.status.elapsed,
+        hs: go.home, as: go.away, status: f.status.short, statusLong: f.status.long, elapsed: f.status.elapsed,
         date: f.date, state: asState(f.status.short, go.home)
       };
     }
     const l = g.league, t = g.teams, s = g.scores || {};
     const hs = s.home && typeof s.home === 'object' ? (s.home.total ?? s.home.points ?? null) : (s.home ?? null);
     const as = s.away && typeof s.away === 'object' ? (s.away.total ?? s.away.points ?? null) : (s.away ?? null);
-    const short = (g.status && (g.status.short || g.status.long)) || '';
+    const short = (g.status && g.status.short) || '';
+    const long = (g.status && g.status.long) || '';
     return {
       id: g.id, league: l ? l.name : '', leagueLogo: l ? l.logo : '', country: l ? (l.country ? (l.country.name || l.country) : '') : '',
       home: t.home.name, homeLogo: t.home.logo, away: t.away.name, awayLogo: t.away.logo,
-      hs, as, status: short, date: g.date || g.time || (g.timestamp ? new Date(g.timestamp * 1000).toISOString() : null),
-      state: asState(short, hs)
+      hs, as, status: short || long, statusLong: long,
+      period: g.period || g.inning || null, timer: g.timer || (g.status && g.status.timer) || null,
+      date: g.date || g.time || (g.timestamp ? new Date(g.timestamp * 1000).toISOString() : null),
+      state: asState(short || long, hs)
     };
   } catch { return null; }
 }
