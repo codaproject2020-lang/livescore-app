@@ -409,3 +409,24 @@ table.boxsc .r{font-weight:900;color:var(--red);background:#fbfaf4}
   .side-l,.side-r{display:none}
   #chatDesk{display:none}
 }
+
+/* ===== 상세보기: AI 총정리 · 라인스코어 · 배당 · 임베드 채팅 ===== */
+.aisum{background:linear-gradient(180deg,#f6faf2,#f4f7fb);border:1px solid #d6e8cb;border-radius:12px;padding:12px 14px;margin:12px 0}
+.aisum-hd{font-weight:900;color:var(--navy);font-size:13px;margin-bottom:6px;display:flex;align-items:center;gap:8px}
+.aisum-live{font-size:10px;color:#fff;background:var(--red);border-radius:6px;padding:2px 7px;font-weight:800;animation:aiblink 1.2s infinite}
+@keyframes aiblink{50%{opacity:.55}}
+.aisum p{font-size:12.5px;line-height:1.55;color:#374151;margin:5px 0}
+.aisum p b{color:var(--answer)}
+.ailive .aihit{color:#7a5c12;font-weight:800;margin-left:4px}
+.msc .msc-set{font-size:12px;color:var(--red);font-weight:900;margin-top:3px;background:#fff2f0;border-radius:6px;padding:2px 8px;display:inline-block}
+table.boxsc .he{color:var(--sub);background:#fafbfc;font-weight:800}
+.rhe{font-size:10px;color:var(--dim);font-weight:600;margin-left:6px}
+.modds-detail{font-size:13px;color:var(--navy);background:#fffaf0;border:1px solid var(--goldLine);border-radius:9px;padding:9px 12px}
+.modds-detail b{color:var(--answer);font-size:14px}
+.mchat-embed{margin-top:14px;border:1px solid var(--line);border-radius:12px;overflow:hidden;background:#fff}
+.mce-hd{background:linear-gradient(135deg,#16243d,#243a5e);color:#fff;font-size:12.5px;font-weight:700;padding:10px 12px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.mce-hd b{color:#f0c14e}
+.mce-tag{font-size:10px;background:rgba(240,193,78,.2);color:#f0c14e;border-radius:6px;padding:2px 7px;font-weight:800}
+.mce-on{margin-left:auto;font-size:11px;color:#8fe38f;font-weight:800}
+.chatpane.embed{height:300px}
+.chatpane.embed .chat-msgs{min-height:0}

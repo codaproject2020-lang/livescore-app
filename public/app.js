@@ -260,6 +260,8 @@ async function loadEvents() {
     const games = d.games || [];
     feedGames = {}; games.forEach(g => feedGames[g.id] = g);
     renderFeed(games);
+    // 상세 모달이 열려 있으면 해당 경기 상세도 실시간 갱신 (채팅은 유지)
+    if (modalEventId && feedGames[modalEventId] && modalPredict) renderDetail(feedGames[modalEventId], modalPredict);
   } catch (e) {
     feed.innerHTML = `<div class="loading">데이터를 불러오지 못했습니다.<br><button onclick="loadEvents()" style="margin-top:10px;padding:9px 18px;border:none;border-radius:8px;background:#24568f;color:#fff;font-weight:800;cursor:pointer">다시 시도</button></div>`;
   }
@@ -284,10 +286,10 @@ function koStatus(e) {
     return long || '진행 중';
   }
   if (sp === 'baseball') {
-    const inn = e.period || (long.match(/(\d+)/) || [])[1] || (s.match(/(\d+)/) || [])[1];
+    const inn = e.curInning || e.period || (long.match(/(\d+)/) || [])[1] || (s.match(/(\d+)/) || [])[1];
     let half = '';
-    if (/top|초/.test(L) || /^T/.test(s)) half = '초';
-    else if (/bot|말/.test(L) || /^B/.test(s)) half = '말';
+    if (e.inningHalf === 'top' || /top/.test(L) || /^T/.test(s)) half = '초';
+    else if (e.inningHalf === 'bottom' || /bot/.test(L) || /^B/.test(s)) half = '말';
     if (inn) return `${inn}회${half}`;
     return long || '진행 중';
   }
@@ -322,7 +324,49 @@ function aiLive(e) {
     const tone = ld >= 5 ? '크게 앞서며 승기를 잡은' : ld >= 3 ? '리드를 벌리는' : '한 발 앞선';
     msg = `${st} · <b>${esc(lead)}</b>이(가) ${ld}점 차로 ${tone} 흐름 (${h}:${a}).`;
   }
+  // 야구: 안타/실책 흐름 한 줄 추가
+  if (state.sport === 'baseball' && e.box) {
+    const bh = e.box.home, ba = e.box.away;
+    if (bh && ba && (bh.h != null || ba.h != null)) {
+      msg += ` <span class="aihit">안타 ${e.home.split(' ')[0]} ${bh.h ?? 0} · ${e.away.split(' ')[0]} ${ba.h ?? 0}</span>`;
+    }
+  }
   return `<div class="ailive">🤖 <b>AI 해설</b> ${msg}</div>`;
+}
+// AI 총정리 (상세보기 · 여러 문장)
+function aiSummary(e) {
+  const sp = state.sport;
+  const h = Number(e.hs), a = Number(e.as);
+  const lines = [];
+  const st = e.state === 'live' ? koStatus(e) : (e.state === 'finished' ? '경기 종료' : '경기 예정');
+  if (e.state === 'scheduled') {
+    lines.push(`곧 시작하는 <b>${esc(e.home)}</b> vs <b>${esc(e.away)}</b> 경기입니다.`);
+    if (e.odds) lines.push(`배당 기준 ${(Number(e.odds.home)||9) < (Number(e.odds.away)||9) ? esc(e.home) : esc(e.away)} 쪽이 근소 우위로 평가돼요.`);
+    lines.push(`킥오프 후 실시간 스코어·해설이 이 화면에 자동 갱신됩니다.`);
+    return lines;
+  }
+  const diff = (!isNaN(h) && !isNaN(a)) ? h - a : 0;
+  const lead = diff > 0 ? e.home : e.away, ld = Math.abs(diff);
+  // 1) 현재 상황
+  if (diff === 0) lines.push(`${st} 현재 <b>${h}:${a}</b> 동점, 어느 쪽도 물러서지 않는 초박빙 승부예요.`);
+  else lines.push(`${st} 현재 <b>${esc(lead)}</b>이(가) <b>${Math.max(h,a)}:${Math.min(h,a)}</b>, ${ld}점 차로 ${ld>=5?'승기를 굳히는':ld>=3?'주도권을 쥔':'한 발 앞선'} 양상입니다.`);
+  // 2) 종목별 디테일
+  if (sp === 'baseball' && e.box) {
+    const bh = e.box.home, ba = e.box.away;
+    const hh = bh?.h ?? 0, ah = ba?.h ?? 0, he = bh?.e ?? 0, ae = ba?.e ?? 0;
+    lines.push(`안타는 ${esc(e.home)} ${hh}개 · ${esc(e.away)} ${ah}개, 실책은 ${he}:${ae}. ${hh>ah?esc(e.home)+'의 방망이가 더 터지는':ah>hh?esc(e.away)+'의 방망이가 더 터지는':'양 팀 타선이 비슷한'} 흐름이에요.`);
+    if (e.inningHalf) lines.push(`${e.curInning || ''}회 ${e.inningHalf === 'top' ? '초 · 원정팀 공격' : '말 · 홈팀 공격'} 국면입니다.`);
+  } else if ((sp === 'volleyball' || sp === 'hockey') && e.livePts) {
+    lines.push(`세트 스코어 ${h}:${a}, 현재 진행 세트는 <b>${e.livePts.home ?? 0}:${e.livePts.away ?? 0}</b>. ${Number(e.livePts.home) > Number(e.livePts.away) ? esc(e.home) : Number(e.livePts.away) > Number(e.livePts.home) ? esc(e.away) : '양 팀'}이(가) 이 세트를 리드 중이에요.`);
+  }
+  // 3) 배당/전망
+  if (e.odds) {
+    const oh = Number(e.odds.home), oa = Number(e.odds.away);
+    if (oh && oa) lines.push(`배당은 승 ${oh.toFixed(2)} / 패 ${oa.toFixed(2)}로, 시장은 ${oh < oa ? esc(e.home) : esc(e.away)} 우세를 반영하고 있습니다.`);
+  }
+  if (e.state === 'finished') lines.push(`최종 <b>${h}:${a}</b>로 ${diff===0?'무승부':esc(lead)+' 승리'}. 수고한 경기였어요.`);
+  else lines.push(`남은 이닝/시간 변수에 따라 흐름이 바뀔 수 있어 끝까지 지켜볼 만합니다. (약 15초마다 자동 갱신)`);
+  return lines;
 }
 function scoreBlock(e) {
   const hasScore = e.hs != null || e.as != null;
@@ -395,22 +439,47 @@ function renderFeed(games) {
 // ============================================================
 //  경기 상세 모달 (메모리 데이터 사용 · 추가 호출 없음)
 // ============================================================
-async function openEvent(id) {
-  const e = feedGames[id]; if (!e) return;
-  $('#scrim').classList.add('on'); $('#modal').classList.add('on');
-  $('#mTitle').textContent = e.league || '경기 상세';
-  const pr = await fetch(`/api/predict?h=${e.hs ?? ''}&a=${e.as ?? ''}`).then(r => r.json()).catch(() => ({ home: 40, draw: 25, away: 35, confidence: 60 }));
+let modalChatUI = null, modalEventId = null, modalPredict = null;
+// 야구 이닝별 라인스코어(R·H·E) 표
+function lineScoreTable(e) {
+  if (state.sport !== 'baseball' || !e.box) return '';
+  const bh = e.box.home, ba = e.box.away;
+  const hi = bh.innings || {}, ai = ba.innings || {};
+  const nums = Object.keys(hi).concat(Object.keys(ai)).map(Number).filter(Boolean);
+  const nInn = Math.min(Math.max(nums.length ? Math.max.apply(null, nums) : 9, 9), 12);
+  const head = Array.from({ length: nInn }, (_, k) => `<th>${k + 1}</th>`).join('');
+  const cells = inn => Array.from({ length: nInn }, (_, k) => {
+    const v = inn[k + 1] ?? inn[String(k + 1)];
+    return `<td>${v == null || v === '' ? '' : esc(v)}</td>`;
+  }).join('');
+  return `<div class="odsec">📊 이닝별 스코어 <span class="rhe">R · H(안타) · E(실책)</span></div>
+    <table class="boxsc"><thead><tr><th></th>${head}<th class="r">R</th><th class="he">H</th><th class="he">E</th></tr></thead>
+    <tbody>
+      <tr><td class="tn">${esc(e.home)}</td>${cells(hi)}<td class="r">${esc(bh.r ?? 0)}</td><td class="he">${esc(bh.h ?? 0)}</td><td class="he">${esc(bh.e ?? 0)}</td></tr>
+      <tr><td class="tn">${esc(e.away)}</td>${cells(ai)}<td class="r">${esc(ba.r ?? 0)}</td><td class="he">${esc(ba.h ?? 0)}</td><td class="he">${esc(ba.e ?? 0)}</td></tr>
+    </tbody></table>`;
+}
+function renderDetail(e, pr) {
+  const el = $('#mDetail'); if (!el) return;
   const st = e.state === 'live' ? ('● ' + koStatus(e)) : (e.state === 'finished' ? '종료' : hhmm(e.date));
   const scoreTxt = (e.state === 'scheduled' || (e.hs == null && e.as == null)) ? 'VS' : `${esc(e.hs ?? 0)} : ${esc(e.as ?? 0)}`;
+  const setSports = (state.sport === 'volleyball' || state.sport === 'hockey');
+  const setpts = (setSports && e.livePts && e.state === 'live') ? `<div class="msc-set">현재 세트 ${esc(e.livePts.home ?? 0)}:${esc(e.livePts.away ?? 0)}</div>` : '';
   const t = e.date ? new Date(e.date) : null;
   const when = t ? `${t.getMonth() + 1}/${t.getDate()} ${hhmm(e.date)}` : '';
-  $('#mBody').innerHTML = `
+  const odds = e.odds ? `<div class="odsec">💰 배당</div><div class="modds-detail">승 <b>${e.odds.home ? Number(e.odds.home).toFixed(2) : '-'}</b>${e.odds.draw ? ` · 무 <b>${Number(e.odds.draw).toFixed(2)}</b>` : ''} · 패 <b>${e.odds.away ? Number(e.odds.away).toFixed(2) : '-'}</b></div>` : '';
+  el.innerHTML = `
     <div class="mteams">
       <div class="mt"><div class="ph">${badge(e.homeLogo, '🏟')}</div><div class="nm">${esc(e.home)}</div></div>
-      <div class="msc"><div class="n">${scoreTxt}</div><div class="st" style="color:${e.state === 'live' ? '#e2231a' : '#8b93a0'}">${esc(st)}</div></div>
+      <div class="msc"><div class="n">${scoreTxt}</div><div class="st" style="color:${e.state === 'live' ? '#e2231a' : '#8b93a0'}">${esc(st)}</div>${setpts}</div>
       <div class="mt"><div class="ph">${badge(e.awayLogo, '🏟')}</div><div class="nm">${esc(e.away)}</div></div>
     </div>
-    ${aiLive(e)}
+    <div class="aisum">
+      <div class="aisum-hd">🤖 AI 총정리 ${e.state === 'live' ? '<span class="aisum-live">● LIVE</span>' : ''}</div>
+      ${aiSummary(e).map(l => `<p>${l}</p>`).join('')}
+    </div>
+    ${lineScoreTable(e)}
+    ${odds}
     <div class="probwrap">
       <div class="probttl"><span>🤖 AI 승부 예측</span><span>신뢰도 ${pr.confidence}%</span></div>
       <div class="probbar"><div class="pw" style="width:${pr.home}%">${pr.home}%</div><div class="pd" style="width:${pr.draw}%">${pr.draw}%</div><div class="pl" style="width:${pr.away}%">${pr.away}%</div></div>
@@ -419,13 +488,35 @@ async function openEvent(id) {
     <div class="minfo">
       <div><span class="k">리그</span> ${esc(e.league)}</div>
       <div><span class="k">일시</span> ${esc(when)}</div>
-      <div><span class="k">상태</span> ${esc(e.status || '-')}</div>
-    </div>
-    <div class="mchat-open" id="joinRoom" data-room="event:${esc(e.id)}">💬 이 경기 대화방 입장 (${esc(e.home)} vs ${esc(e.away)})</div>
-  `;
-  $('#joinRoom')?.addEventListener('click', () => { joinRoom($('#joinRoom').dataset.room, `${e.home} vs ${e.away}`); closeModal(); setTab('comm'); });
+      <div><span class="k">상태</span> ${esc(koStatus(e))}</div>
+    </div>`;
 }
-function closeModal() { $('#scrim').classList.remove('on'); $('#modal').classList.remove('on'); }
+async function openEvent(id) {
+  const e = feedGames[id]; if (!e) return;
+  modalEventId = id;
+  $('#scrim').classList.add('on'); $('#modal').classList.add('on');
+  $('#mTitle').textContent = e.league || '경기 상세';
+  $('#mBody').innerHTML = `
+    <div id="mDetail"><div class="loading">불러오는 중…</div></div>
+    <div class="mchat-embed">
+      <div class="mce-hd">💬 <b>${esc(e.home)} vs ${esc(e.away)}</b> 대화방 <span class="mce-tag">보면서 채팅</span> <span class="mce-on">🟢 <b id="onlineM">0</b></span></div>
+      <div id="mChatPane" class="chatpane embed"></div>
+    </div>`;
+  // 상세를 보면서 채팅 — 별도 입장 없이 이 경기 방에 바로 연결
+  modalChatUI = buildChatUI($('#mChatPane'));
+  joinRoom(`event:${e.id}`, `${e.home} vs ${e.away}`);
+  const pr = await fetch(`/api/predict?h=${e.hs ?? ''}&a=${e.as ?? ''}`).then(r => r.json()).catch(() => ({ home: 40, draw: 25, away: 35, confidence: 60 }));
+  modalPredict = pr;
+  renderDetail(feedGames[id] || e, pr);
+}
+function closeModal() {
+  $('#scrim').classList.remove('on'); $('#modal').classList.remove('on');
+  if (modalChatUI) {
+    const i = chatUIs.indexOf(modalChatUI); if (i >= 0) chatUIs.splice(i, 1);
+    modalChatUI = null; joinRoom('all', '전경기 대화방');
+  }
+  modalEventId = null; modalPredict = null;
+}
 $('#mClose').addEventListener('click', closeModal);
 $('#scrim').addEventListener('click', closeModal);
 
@@ -742,7 +833,7 @@ function addMsg(m) {
   });
 }
 function clearMsgs() { chatUIs.forEach(ui => ui.msgs.innerHTML = ''); seenMsgs.clear(); }
-function setOnline(total) { ['#onlineAll', '#onlineR', '#onlineD'].forEach(s => { const el = $(s); if (el) el.textContent = total; }); }
+function setOnline(total) { ['#onlineAll', '#onlineR', '#onlineD', '#onlineM'].forEach(s => { const el = $(s); if (el) el.textContent = total; }); }
 
 function joinRoom(room, label) {
   if (!ws || ws.readyState !== 1) return;
@@ -801,7 +892,7 @@ async function init() {
   fetchJSON('/api/leagues', { tries: 15, delay: 4000 })
     .then(d => { state.leagues = d.leagues || []; buildLeagueNav(); })
     .catch(() => {});
-  // 라이브 자동 갱신 (30초)
-  setInterval(() => { if (!$('#view-live').classList.contains('hidden')) loadEvents(); }, 30000);
+  // 라이브 자동 갱신 (15초) · 상세/채팅 열려 있어도 스코어·해설 계속 갱신
+  setInterval(() => { if (!$('#view-live').classList.contains('hidden') || modalEventId) loadEvents(); }, 15000);
 }
 init();
