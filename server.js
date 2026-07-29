@@ -452,13 +452,20 @@ app.get('/api/asports/games', async (req, res) => {
   const cfg = AS[sport]; if (!cfg) return res.status(400).json({ error: 'bad sport' });
   try {
     const path = `${cfg.path}?date=${date}&timezone=Asia/Seoul`;
-    const j = await asRaw(sport, path, 12000);
+    const j = await asRaw(sport, path, 6000);   // 라이브 신선도 우선 (6초)
     let games = (j.response || []).map(g => normAS(sport, g)).filter(Boolean);
-    // 해외배당 붙이기 (매핑되는 주요 리그만)
+    // ⚡ 배당은 "이미 캐시된 것만" 즉시 부착 → 점수 응답이 배당 조회를 기다리지 않음.
+    //    캐시에 없으면 백그라운드로 미리 받아두고(fire-and-forget) 다음 폴링 때 붙는다.
     const needed = [...new Set(games.map(g => LEAGUE_TO_ODDS[g.league]).filter(Boolean))];
-    const maps = {};
-    for (const os of needed) maps[os] = await oddsLookup(os);
-    games.forEach(g => { const os = LEAGUE_TO_ODDS[g.league]; if (os) attachOdds(g, maps[os]); });
+    const now = Date.now();
+    needed.forEach(os => {
+      const hit = cache.get('OL:' + os);
+      if (hit && now - hit.t < 300000) {
+        games.forEach(g => { if (LEAGUE_TO_ODDS[g.league] === os) attachOdds(g, hit.v); });
+      } else {
+        oddsLookup(os).catch(() => {});   // 백그라운드 프리페치 (응답 대기 안 함)
+      }
+    });
     games.sort((a, b) => (b.state === 'live') - (a.state === 'live'));
     res.json({ sport, date, count: games.length, apiErrors: j.errors || null, results: j.results, games });
   } catch (e) {
