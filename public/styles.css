@@ -430,3 +430,13 @@ table.boxsc .he{color:var(--sub);background:#fafbfc;font-weight:800}
 .mce-on{margin-left:auto;font-size:11px;color:#8fe38f;font-weight:800}
 .chatpane.embed{height:300px}
 .chatpane.embed .chat-msgs{min-height:0}
+/* 실시간 이벤트 피드 */
+.evfeed{border:1px solid var(--line);border-radius:10px;overflow:hidden;max-height:230px;overflow-y:auto;background:#fff}
+.evrow{display:flex;align-items:flex-start;gap:9px;padding:9px 11px;border-bottom:1px solid var(--line2);font-size:12.5px;line-height:1.4}
+.evrow:last-child{border-bottom:none}
+.evrow:first-child{background:#fff8ee}
+.evm{flex:0 0 auto;min-width:34px;color:var(--dim);font-weight:800;font-size:11px;padding-top:1px}
+.evi{flex:0 0 auto;font-size:15px;line-height:1.1}
+.evt{flex:1;color:#374151}
+.evt b{color:var(--navy)}
+.ev-empty{padding:16px 12px;text-align:center;color:var(--dim);font-size:12px;line-height:1.5}

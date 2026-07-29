@@ -261,7 +261,10 @@ async function loadEvents() {
     feedGames = {}; games.forEach(g => feedGames[g.id] = g);
     renderFeed(games);
     // 상세 모달이 열려 있으면 해당 경기 상세도 실시간 갱신 (채팅은 유지)
-    if (modalEventId && feedGames[modalEventId] && modalPredict) renderDetail(feedGames[modalEventId], modalPredict);
+    if (modalEventId && feedGames[modalEventId] && modalPredict) {
+      logChanges(modalEventId, feedGames[modalEventId]);   // 변화 감지 → 이벤트 로그 적립
+      renderDetail(feedGames[modalEventId], modalPredict);
+    }
   } catch (e) {
     feed.innerHTML = `<div class="loading">데이터를 불러오지 못했습니다.<br><button onclick="loadEvents()" style="margin-top:10px;padding:9px 18px;border:none;border-radius:8px;background:#24568f;color:#fff;font-weight:800;cursor:pointer">다시 시도</button></div>`;
   }
@@ -440,6 +443,71 @@ function renderFeed(games) {
 //  경기 상세 모달 (메모리 데이터 사용 · 추가 호출 없음)
 // ============================================================
 let modalChatUI = null, modalEventId = null, modalPredict = null;
+// ===== 실시간 이벤트 피드 (축구=실제 이벤트 / 야구·기타=변화감지 AI 로그) =====
+const eventLogs = {};   // id -> [{t, icon, text}]
+const snapForLog = {};  // id -> 직전 스냅샷
+function nowHM() { const d = new Date(); return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`; }
+function pushLog(id, icon, text) {
+  const arr = (eventLogs[id] = eventLogs[id] || []);
+  const last = arr[arr.length - 1];
+  if (last && last.text === text) return;         // 연속 중복 방지
+  arr.push({ t: nowHM(), icon, text });
+  if (arr.length > 40) arr.shift();
+}
+function logChanges(id, e) {
+  const p = snapForLog[id];
+  const snap = {
+    hs: Number(e.hs) || 0, as: Number(e.as) || 0,
+    hh: e.box && e.box.home ? e.box.home.h : null, ah: e.box && e.box.away ? e.box.away.h : null,
+    he: e.box && e.box.home ? e.box.home.e : null, ae: e.box && e.box.away ? e.box.away.e : null,
+    inn: e.curInning != null ? e.curInning : null, half: e.inningHalf || null,
+    sp: e.livePts ? `${e.livePts.home}:${e.livePts.away}` : null
+  };
+  if (p) {
+    if (state.sport === 'baseball') {
+      if (snap.hs > p.hs) pushLog(id, '🔴', `득점! <b>${esc(e.home)}</b> 홈 득점 (${snap.hs}:${snap.as})`);
+      if (snap.as > p.as) pushLog(id, '🔴', `득점! <b>${esc(e.away)}</b> 원정 득점 (${snap.hs}:${snap.as})`);
+      if (snap.hh != null && p.hh != null && snap.hh > p.hh) pushLog(id, '🏏', `안타! <b>${esc(e.home)}</b> 안타 (누적 ${snap.hh})`);
+      if (snap.ah != null && p.ah != null && snap.ah > p.ah) pushLog(id, '🏏', `안타! <b>${esc(e.away)}</b> 안타 (누적 ${snap.ah})`);
+      if (snap.he != null && p.he != null && snap.he > p.he) pushLog(id, '⚠️', `실책 <b>${esc(e.home)}</b> (${snap.he})`);
+      if (snap.ae != null && p.ae != null && snap.ae > p.ae) pushLog(id, '⚠️', `실책 <b>${esc(e.away)}</b> (${snap.ae})`);
+      if (snap.inn !== p.inn || snap.half !== p.half) { if (snap.inn) pushLog(id, '🔄', `${snap.inn}회${snap.half === 'top' ? '초' : '말'} 시작`); }
+    } else {
+      if (snap.hs > p.hs) pushLog(id, '🔴', `<b>${esc(e.home)}</b> 득점 (${snap.hs}:${snap.as})`);
+      if (snap.as > p.as) pushLog(id, '🔴', `<b>${esc(e.away)}</b> 득점 (${snap.hs}:${snap.as})`);
+      if (snap.sp && snap.sp !== p.sp) pushLog(id, '🏐', `현재 세트 스코어 ${snap.sp}`);
+    }
+  }
+  snapForLog[id] = snap;
+}
+function eventEmpty() {
+  return `<div class="ev-empty">🤖 경기를 실시간으로 지켜보는 중… 이벤트가 나오면 자동으로 올라옵니다.</div>`;
+}
+async function updateEvents(e) {
+  const box = $('#mEvents'); if (!box) return;
+  if (state.sport === 'football') {
+    try {
+      const d = await fetchJSON(`/api/asports/events?fixture=${encodeURIComponent(e.id)}`, { tries: 1 });
+      const evs = d.events || [];
+      if (!evs.length) { box.innerHTML = eventEmpty(); return; }
+      box.innerHTML = evs.slice().reverse().map(ev => {
+        let icon = '•', label = ev.detail || ev.type;
+        if (ev.type === 'Goal') { icon = '⚽'; label = /own/i.test(ev.detail) ? '자책골' : /penalty/i.test(ev.detail) ? 'PK 골!' : '골!'; }
+        else if (ev.type === 'Card' && /red/i.test(ev.detail)) { icon = '🟥'; label = '퇴장!'; }
+        else if (ev.type === 'Card') { icon = '🟨'; label = '경고'; }
+        else if (/subst/i.test(ev.type)) { icon = '🔄'; label = '교체'; }
+        else if (/var/i.test(ev.type)) { icon = '📺'; label = 'VAR'; }
+        const mm = ev.minute != null ? `${ev.minute}${ev.extra ? '+' + ev.extra : ''}'` : '';
+        const who = ev.type === 'subst' ? `${esc(ev.assist)} → ${esc(ev.player)}` : `${esc(ev.player)}${ev.assist ? ` (도움 ${esc(ev.assist)})` : ''}`;
+        return `<div class="evrow"><span class="evm">${esc(mm)}</span><span class="evi">${icon}</span><span class="evt"><b>${esc(label)}</b> ${who} · ${esc(ev.team)}</span></div>`;
+      }).join('');
+    } catch { box.innerHTML = eventEmpty(); }
+  } else {
+    const log = eventLogs[e.id] || [];
+    if (!log.length) { box.innerHTML = eventEmpty(); return; }
+    box.innerHTML = log.slice().reverse().map(x => `<div class="evrow"><span class="evm">${esc(x.t)}</span><span class="evi">${x.icon}</span><span class="evt">${x.text}</span></div>`).join('');
+  }
+}
 // 야구 이닝별 라인스코어(R·H·E) 표
 function lineScoreTable(e) {
   if (state.sport !== 'baseball' || !e.box) return '';
@@ -478,6 +546,8 @@ function renderDetail(e, pr) {
       <div class="aisum-hd">🤖 AI 총정리 ${e.state === 'live' ? '<span class="aisum-live">● LIVE</span>' : ''}</div>
       ${aiSummary(e).map(l => `<p>${l}</p>`).join('')}
     </div>
+    <div class="odsec">📻 실시간 이벤트 <span class="rhe">AI 자동 정리${state.sport === 'football' ? ' · 골/퇴장/교체' : ' · 득점/안타/실책'}</span></div>
+    <div id="mEvents" class="evfeed">${eventEmpty()}</div>
     ${lineScoreTable(e)}
     ${odds}
     <div class="probwrap">
@@ -490,6 +560,7 @@ function renderDetail(e, pr) {
       <div><span class="k">일시</span> ${esc(when)}</div>
       <div><span class="k">상태</span> ${esc(koStatus(e))}</div>
     </div>`;
+  updateEvents(e);   // 실시간 이벤트 피드 채우기 (축구=API / 그외=변화감지 로그)
 }
 async function openEvent(id) {
   const e = feedGames[id]; if (!e) return;
@@ -507,6 +578,7 @@ async function openEvent(id) {
   joinRoom(`event:${e.id}`, `${e.home} vs ${e.away}`);
   const pr = await fetch(`/api/predict?h=${e.hs ?? ''}&a=${e.as ?? ''}`).then(r => r.json()).catch(() => ({ home: 40, draw: 25, away: 35, confidence: 60 }));
   modalPredict = pr;
+  logChanges(id, feedGames[id] || e);   // 스냅샷 시드 (이후 변화만 이벤트로 기록)
   renderDetail(feedGames[id] || e, pr);
 }
 function closeModal() {
