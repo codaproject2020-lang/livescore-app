@@ -262,7 +262,14 @@ app.get('/api/team/recent', async (req, res) => {
 //  API-Sports (정식 다종목 실시간) · 프록시 + 캐싱
 //  키: 환경변수 APISPORTS_KEY (헤더 x-apisports-key)
 // ============================================================
-const APISPORTS_KEY = process.env.APISPORTS_KEY || '';
+// 방어적으로 읽기 (이름 변형·앞뒤 공백 대응)
+const APISPORTS_KEY = (
+  process.env.APISPORTS_KEY ||
+  process.env.API_SPORTS_KEY ||
+  process.env.APISPORT_KEY ||
+  process.env.APIFOOTBALL_KEY ||
+  ''
+).trim();
 const AS = {
   football: { host: 'v3.football.api-sports.io', ko: '축구', em: '⚽', path: '/fixtures' },
   baseball: { host: 'v1.baseball.api-sports.io', ko: '야구', em: '⚾', path: '/games' },
@@ -316,6 +323,15 @@ function normAS(sport, g) {
   } catch { return null; }
 }
 
+// 진단: 서버가 받은 환경변수 "이름"만 표시 (값은 노출 안 함)
+app.get('/api/asports/debug', (req, res) => {
+  const names = Object.keys(process.env).filter(k => /(API|SPORT|ODDS|KEY|FOOTBALL)/i.test(k));
+  res.json({
+    matchingEnvNames: names,
+    apisportsKeyDetected: !!APISPORTS_KEY,
+    apisportsKeyLen: APISPORTS_KEY.length
+  });
+});
 // 키/쿼터 상태 확인 (배포 후 검증용)
 app.get('/api/asports/status', async (req, res) => {
   if (!APISPORTS_KEY) return res.json({ key: false, msg: 'APISPORTS_KEY 미설정' });
