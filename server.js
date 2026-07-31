@@ -411,6 +411,9 @@ const LEAGUE_TO_ODDS = {
   'NHL': 'icehockey_nhl', 'NFL': 'americanfootball_nfl', 'MMA': 'mma_mixed_martial_arts'
 };
 const normTeam = s => String(s || '').toLowerCase().replace(/[^a-z0-9가-힣]/g, '');
+// 경기별 배당 영구 저장소(팀쌍 키). 경기 시작 후 The Odds API에서 사라져도 마지막 배당을 계속 보여줌.
+const oddsStore = new Map();   // key -> { home, away, draw, t }
+const ODDS_STORE_TTL = 8 * 3600 * 1000;   // 8시간 유지
 async function oddsLookup(oddsSport) {
   if (!ODDS_KEY) return null;
   const url = `https://api.the-odds-api.com/v4/sports/${oddsSport}/odds/?apiKey=${ODDS_KEY}&regions=uk,eu&markets=h2h&oddsFormat=decimal`;
@@ -430,21 +433,32 @@ async function oddsLookup(oddsSport) {
           else if (o.name === 'Draw') hi.draw = Math.max(hi.draw, o.price);
         });
       });
-      map[normTeam(g.home_team) + '|' + normTeam(g.away_team)] = { home: hi.home || null, away: hi.away || null, draw: hi.draw || null };
+      const key = normTeam(g.home_team) + '|' + normTeam(g.away_team);
+      const val = { home: hi.home || null, away: hi.away || null, draw: hi.draw || null };
+      map[key] = val;
+      if (val.home || val.away) oddsStore.set(key, { ...val, t: now });   // 영구 저장소에도 적립
     });
     cache.set(ck, { t: now, v: map });
     return map;
   } catch { return null; }
 }
+function fuzzyFind(container, hk, ak, getEntries) {
+  for (const [k, v] of getEntries(container)) {
+    const [kh, ka] = k.split('|');
+    if ((kh.includes(hk.slice(0, 5)) || hk.includes(kh.slice(0, 5))) && (ka.includes(ak.slice(0, 5)) || ak.includes(ka.slice(0, 5)))) return v;
+  }
+  return null;
+}
 function attachOdds(g, map) {
-  if (!map) return;
-  const hk = normTeam(g.home), ak = normTeam(g.away);
-  let f = map[hk + '|' + ak];
+  const hk = normTeam(g.home), ak = normTeam(g.away), pair = hk + '|' + ak;
+  let f = map ? map[pair] : null;
+  if (!f && map) f = fuzzyFind(map, hk, ak, m => Object.entries(m));
+  // 라이브 등으로 현재 맵에 없으면 영구 저장소에서 마지막 배당 사용
   if (!f) {
-    for (const k in map) {
-      const [kh, ka] = k.split('|');
-      if ((kh.includes(hk.slice(0, 5)) || hk.includes(kh.slice(0, 5))) && (ka.includes(ak.slice(0, 5)) || ak.includes(ka.slice(0, 5)))) { f = map[k]; break; }
-    }
+    const now = Date.now();
+    let s = oddsStore.get(pair);
+    if (!s) s = fuzzyFind(oddsStore, hk, ak, m => m.entries());
+    if (s && now - s.t < ODDS_STORE_TTL) f = s;
   }
   if (f) g.odds = f;
 }
@@ -467,7 +481,8 @@ app.get('/api/asports/games', async (req, res) => {
       const hit = cache.get('OL:' + os);
       if (hit && Date.now() - hit.t < 300000) map = hit.v;
       else map = await Promise.race([oddsLookup(os), new Promise(r => setTimeout(() => r(null), 3000))]);
-      if (map) games.forEach(g => { if (LEAGUE_TO_ODDS[g.league] === os) attachOdds(g, map); });
+      // map이 null이어도 attachOdds가 영구 저장소(oddsStore)에서 마지막 배당을 붙여줌
+      games.forEach(g => { if (LEAGUE_TO_ODDS[g.league] === os) attachOdds(g, map); });
     }));
     games.sort((a, b) => (b.state === 'live') - (a.state === 'live'));
     res.json({ sport, date, count: games.length, apiErrors: j.errors || null, results: j.results, games });
@@ -556,6 +571,46 @@ app.get('/api/mlb/game', async (req, res) => {
     };
     const hSide = side('home'), aSide = side('away');
     res.json({ found: true, gamePk: g.gamePk, home: swap ? aSide : hSide, away: swap ? hSide : aSide });
+  } catch (e) { res.status(502).json({ found: false, error: String(e.message || e) }); }
+});
+// gamePk 찾기 (스케줄에서 팀명 매칭)
+async function mlbFindGame(home, away, date) {
+  const sch = await mlbFetch(`/api/v1/schedule?sportId=1&date=${date}`, 60000);
+  const games = (sch.dates && sch.dates[0] && sch.dates[0].games) || [];
+  let swap = false;
+  let g = games.find(x => mlbTeamMatch(x.teams.home.team.name, home) && mlbTeamMatch(x.teams.away.team.name, away));
+  if (!g) { g = games.find(x => mlbTeamMatch(x.teams.home.team.name, away) && mlbTeamMatch(x.teams.away.team.name, home)); if (g) swap = true; }
+  return g ? { gamePk: g.gamePk, swap } : null;
+}
+// MLB 실시간 상태 (볼·스트라이크·아웃 · 주자 1/2/3루 · 현재 타자/투수 · R/H/E/사사구)
+app.get('/api/mlb/live', async (req, res) => {
+  const { home, away } = req.query;
+  const date = req.query.date || new Date().toISOString().slice(0, 10);
+  try {
+    const f = await mlbFindGame(home, away, date);
+    if (!f) return res.json({ found: false });
+    const ls = await mlbFetch(`/api/v1/game/${f.gamePk}/linescore`, 8000);
+    const off = ls.offense || {}, def = ls.defense || {}, tr = ls.teams || {};
+    const mk = t => ({ r: (tr[t] && tr[t].runs != null) ? tr[t].runs : null, h: (tr[t] && tr[t].hits != null) ? tr[t].hits : null, e: (tr[t] && tr[t].errors != null) ? tr[t].errors : null, bb: null });
+    let H = mk('home'), A = mk('away');
+    try {
+      const box = await mlbFetch(`/api/v1/game/${f.gamePk}/boxscore`, 20000);
+      const bb = t => { try { return box.teams[t].teamStats.batting.baseOnBalls; } catch { return null; } };
+      H.bb = bb('home'); A.bb = bb('away');
+    } catch {}
+    res.json({
+      found: true,
+      inning: ls.currentInning != null ? ls.currentInning : null,
+      inningOrdinal: ls.currentInningOrdinal || null,
+      half: ls.inningHalf || null,            // "Top" / "Bottom" / "Middle" / "End"
+      balls: ls.balls != null ? ls.balls : null,
+      strikes: ls.strikes != null ? ls.strikes : null,
+      outs: ls.outs != null ? ls.outs : null,
+      bases: { first: !!off.first, second: !!off.second, third: !!off.third },
+      batter: off.batter ? off.batter.fullName : null,
+      pitcher: def.pitcher ? def.pitcher.fullName : null,
+      box: f.swap ? { home: A, away: H } : { home: H, away: A }
+    });
   } catch (e) { res.status(502).json({ found: false, error: String(e.message || e) }); }
 });
 // MLB 선수 최근 경기 로그 (타자 hitting / 투수 pitching)
