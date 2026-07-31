@@ -172,11 +172,26 @@ const ODDS_SPORTS = [
 
 app.get('/api/odds/sports', (req, res) => res.json({ sports: ODDS_SPORTS, hasKey: !!ODDS_KEY }));
 
+// 진단: The Odds API 남은 크레딧 확인 (헤더 x-requests-remaining)
+app.get('/api/odds/quota', async (req, res) => {
+  if (!ODDS_KEY) return res.json({ needKey: true });
+  try {
+    const r = await fetch(`https://api.the-odds-api.com/v4/sports/upcoming/odds/?apiKey=${ODDS_KEY}&regions=us&markets=h2h`);
+    const body = await r.text();
+    res.json({
+      httpStatus: r.status,
+      remaining: r.headers.get('x-requests-remaining'),
+      used: r.headers.get('x-requests-used'),
+      bodyPreview: body.slice(0, 200)
+    });
+  } catch (e) { res.status(502).json({ error: String(e.message || e) }); }
+});
+
 app.get('/api/odds', async (req, res) => {
   if (!ODDS_KEY) return res.json({ needKey: true, games: [] });
   try {
     const sport = req.query.sport || 'soccer_epl';
-    const url = `https://api.the-odds-api.com/v4/sports/${encodeURIComponent(sport)}/odds/?apiKey=${ODDS_KEY}&regions=uk,eu&markets=h2h&oddsFormat=decimal`;
+    const url = `https://api.the-odds-api.com/v4/sports/${encodeURIComponent(sport)}/odds/?apiKey=${ODDS_KEY}&regions=us,eu&markets=h2h&oddsFormat=decimal`;
     const data = await cachedJSON(url, 90000);
     const arr = Array.isArray(data) ? data : [];
     const games = arr.map(g => {
@@ -210,7 +225,7 @@ app.get('/api/odds/event', async (req, res) => {
   try {
     const { id, sport } = req.query;
     if (!id || !sport) return res.status(400).json({ error: 'id/sport required' });
-    const url = `https://api.the-odds-api.com/v4/sports/${encodeURIComponent(sport)}/events/${encodeURIComponent(id)}/odds/?apiKey=${ODDS_KEY}&regions=uk,eu&markets=h2h,spreads,totals&oddsFormat=decimal`;
+    const url = `https://api.the-odds-api.com/v4/sports/${encodeURIComponent(sport)}/events/${encodeURIComponent(id)}/odds/?apiKey=${ODDS_KEY}&regions=us,eu&markets=h2h,spreads,totals&oddsFormat=decimal`;
     const g = await cachedJSON(url, 60000);
     if (!g || !g.id) return res.json({ event: null });
     const books = (g.bookmakers || []).map(bk => {
@@ -416,9 +431,9 @@ const oddsStore = new Map();   // key -> { home, away, draw, t }
 const ODDS_STORE_TTL = 8 * 3600 * 1000;   // 8시간 유지
 async function oddsLookup(oddsSport) {
   if (!ODDS_KEY) return null;
-  const url = `https://api.the-odds-api.com/v4/sports/${oddsSport}/odds/?apiKey=${ODDS_KEY}&regions=uk,eu&markets=h2h&oddsFormat=decimal`;
+  const url = `https://api.the-odds-api.com/v4/sports/${oddsSport}/odds/?apiKey=${ODDS_KEY}&regions=us,eu&markets=h2h&oddsFormat=decimal`;
   const ck = 'OL:' + oddsSport, now = Date.now(), hit = cache.get(ck);
-  if (hit && now - hit.t < 300000) return hit.v;   // 5분 캐시(쿼터 절약)
+  if (hit && now - hit.t < 900000) return hit.v;   // 15분 캐시(무료 쿼터 절약)
   try {
     const r = await fetch(url); if (!r.ok) throw new Error('odds ' + r.status);
     const arr = await r.json();
@@ -479,7 +494,7 @@ app.get('/api/asports/games', async (req, res) => {
     await Promise.all(needed.map(async os => {
       let map = null;
       const hit = cache.get('OL:' + os);
-      if (hit && Date.now() - hit.t < 300000) map = hit.v;
+      if (hit && Date.now() - hit.t < 900000) map = hit.v;
       else map = await Promise.race([oddsLookup(os), new Promise(r => setTimeout(() => r(null), 3000))]);
       // map이 null이어도 attachOdds가 영구 저장소(oddsStore)에서 마지막 배당을 붙여줌
       games.forEach(g => { if (LEAGUE_TO_ODDS[g.league] === os) attachOdds(g, map); });
