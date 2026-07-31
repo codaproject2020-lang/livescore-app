@@ -562,6 +562,39 @@ function wirePlayerClicks(kind) {
     }));
   }
 }
+// MLB 실시간 상황 (볼·스트라이크·아웃 · 주자 · 타자/투수 · R/H/E/BB)
+function basesSvg(b) {
+  const on = '#e2231a', off = '#d9dde3';
+  return `<svg class="diamond" viewBox="0 0 44 44" width="42" height="42" aria-hidden="true">
+    <rect x="17" y="5" width="10" height="10" transform="rotate(45 22 10)" fill="${b && b.second ? on : off}"/>
+    <rect x="29" y="17" width="10" height="10" transform="rotate(45 34 22)" fill="${b && b.first ? on : off}"/>
+    <rect x="5" y="17" width="10" height="10" transform="rotate(45 10 22)" fill="${b && b.third ? on : off}"/>
+  </svg>`;
+}
+async function updateMlbLive(e) {
+  const box = $('#mMlbLive'); if (!box) return;
+  try {
+    const d = await fetchJSON(`/api/mlb/live?home=${encodeURIComponent(e.home)}&away=${encodeURIComponent(e.away)}&date=${state.date}`, { tries: 1 });
+    if (!d.found || (d.inning == null && d.balls == null && d.outs == null)) { box.innerHTML = ''; return; }
+    const halfKo = d.half === 'Top' ? '초' : d.half === 'Bottom' ? '말' : d.half === 'Middle' ? ' 중간' : d.half === 'End' ? ' 교대' : '';
+    const dot = (n, max) => { let s = ''; for (let i = 0; i < max; i++) s += `<span class="cd${i < (n || 0) ? ' on' : ''}"></span>`; return s; };
+    const bh = d.box.home || {}, ba = d.box.away || {};
+    box.innerHTML = `
+      <div class="odsec">⚾ 실시간 상황 <span class="rhe">MLB · 무료 실데이터</span></div>
+      <div class="mlbstate">
+        <div class="ms-top">
+          <span class="ms-inn">${d.inning != null ? d.inning + '회' + halfKo : '-'}</span>
+          <div class="bso"><span class="bso-l">B</span>${dot(d.balls, 3)}<span class="bso-l">S</span>${dot(d.strikes, 2)}<span class="bso-l o">O</span>${dot(d.outs, 2)}</div>
+          ${basesSvg(d.bases)}
+        </div>
+        <div class="ms-players"><div>🏏 타석 <b>${esc(d.batter || '-')}</b></div><div>⚾ 투수 <b>${esc(d.pitcher || '-')}</b></div></div>
+        <table class="rhe-tbl"><thead><tr><th></th><th>R</th><th>H</th><th>E</th><th>BB</th></tr></thead><tbody>
+          <tr><td class="tn">${esc(e.away)}</td><td>${esc(ba.r ?? 0)}</td><td>${esc(ba.h ?? 0)}</td><td>${esc(ba.e ?? 0)}</td><td>${esc(ba.bb ?? '-')}</td></tr>
+          <tr><td class="tn">${esc(e.home)}</td><td>${esc(bh.r ?? 0)}</td><td>${esc(bh.h ?? 0)}</td><td>${esc(bh.e ?? 0)}</td><td>${esc(bh.bb ?? '-')}</td></tr>
+        </tbody></table>
+      </div>`;
+  } catch { box.innerHTML = ''; }
+}
 async function updateLineup(e) {
   const box = $('#mLineupWrap'); if (!box) return;
   const sp = state.sport;
@@ -625,6 +658,7 @@ function renderDetail(e, pr) {
       <div class="aisum-hd">🤖 AI 총정리 ${e.state === 'live' ? '<span class="aisum-live">● LIVE</span>' : ''}</div>
       ${aiSummary(e).map(l => `<p>${l}</p>`).join('')}
     </div>
+    <div id="mMlbLive"></div>
     <div class="odsec">📻 실시간 이벤트 <span class="rhe">AI 자동 정리${state.sport === 'football' ? ' · 골/퇴장/교체' : ' · 득점/안타/실책'}</span></div>
     <div id="mEvents" class="evfeed">${eventEmpty()}</div>
     ${lineScoreTable(e)}
@@ -640,6 +674,7 @@ function renderDetail(e, pr) {
       <div><span class="k">상태</span> ${esc(koStatus(e))}</div>
     </div>`;
   updateEvents(e);   // 실시간 이벤트 피드 채우기 (축구=API / 그외=변화감지 로그)
+  if (e.league === 'MLB') updateMlbLive(e);   // MLB 실시간 볼카운트·주자·타자/투수 (10초 갱신)
 }
 async function openEvent(id) {
   const e = feedGames[id]; if (!e) return;

@@ -472,3 +472,19 @@ table.pllog{width:100%;border-collapse:collapse;font-size:11.5px;text-align:cent
 table.pllog th,table.pllog td{padding:6px 3px;border:1px solid var(--line2)}
 table.pllog th{background:#f3f6f9;color:var(--sub);font-size:10px}
 table.pllog td:first-child{color:var(--dim)}
+/* MLB 실시간 상황 (B/S/O · 베이스 · 타자/투수 · R/H/E/BB) */
+.mlbstate{border:1px solid var(--gold);border-radius:12px;overflow:hidden;background:#fffdf7}
+.ms-top{display:flex;align-items:center;gap:12px;padding:11px 13px;background:linear-gradient(135deg,#16243d,#243a5e);flex-wrap:wrap}
+.ms-inn{color:#f0c14e;font-weight:900;font-size:15px}
+.bso{display:flex;align-items:center;gap:4px;flex:1;flex-wrap:wrap}
+.bso-l{color:#fff;font-weight:900;font-size:11px;margin-left:6px}
+.bso-l.o{color:#ff9a9a}
+.cd{width:11px;height:11px;border-radius:50%;background:rgba(255,255,255,.22);display:inline-block}
+.cd.on{background:#ffd23f;box-shadow:0 0 5px rgba(255,210,63,.8)}
+.diamond{flex:0 0 auto}
+.ms-players{display:flex;justify-content:space-between;gap:10px;padding:10px 13px;font-size:12.5px;color:#374151;border-bottom:1px solid var(--line2);flex-wrap:wrap}
+.ms-players b{color:var(--navy)}
+table.rhe-tbl{width:100%;border-collapse:collapse;font-size:12px;text-align:center}
+table.rhe-tbl th,table.rhe-tbl td{padding:7px 4px;border:1px solid var(--line2)}
+table.rhe-tbl th{background:#f3f6f9;color:var(--sub);font-size:10px}
+table.rhe-tbl .tn{text-align:left;padding-left:10px;font-weight:700;white-space:nowrap}
