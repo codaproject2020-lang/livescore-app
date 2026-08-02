@@ -253,7 +253,7 @@ table.rank td.pt{font-weight:900;color:var(--blue)}
 .mbrand-logo{display:flex}.mbrand-logo img{height:36px;width:auto;display:block}
 .mbrand-txt{font-style:italic;font-weight:900;font-size:19px;color:#f0c14e}
 .mbrand .dlbtn.sm{margin-left:auto}
-@media(min-width:960px){ .mbrand{display:none} }
+@media(min-width:1024px){ .mbrand{display:none} }
 
 /* ===== 다운로드 로딩 오버레이 ===== */
 .dloverlay{position:fixed;inset:0;z-index:200;background:radial-gradient(120% 100% at 50% 0%,#16243d,#07090d);display:none;align-items:center;justify-content:center;padding:24px}
@@ -391,7 +391,7 @@ table.boxsc .r{font-weight:900;color:var(--red);background:#fbfaf4}
 .online-pill{float:right;font-size:11px;color:var(--up);font-weight:800}
 
 /* ================= DESKTOP (>=960px) ================= */
-@media(min-width:960px){
+@media(min-width:1024px){
   body{padding:18px 0}
   .shell{grid-template-columns:230px minmax(0,1fr) 320px;gap:16px;padding:0 16px;align-items:start}
   .side-l,.side-r{display:block;background:#fff;border-radius:14px;overflow:hidden auto;position:sticky;top:18px;box-shadow:0 2px 14px rgba(0,0,0,.06);max-height:calc(100vh - 36px);border-top:3px solid var(--gold)}
@@ -405,7 +405,7 @@ table.boxsc .r{font-weight:900;color:var(--red);background:#fbfaf4}
   #view-comm{display:none!important}         /* PC는 우측 채팅 사용 */
   .chatban .prize{display:none}
 }
-@media(max-width:959px){
+@media(max-width:1023px){
   .side-l,.side-r{display:none}
   #chatDesk{display:none}
 }
