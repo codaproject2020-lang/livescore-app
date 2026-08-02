@@ -628,7 +628,7 @@ app.get('/api/mlb/game', async (req, res) => {
       return { team: T.team.name, lineup, pitcher };
     };
     const hSide = side('home'), aSide = side('away');
-    res.json({ found: true, gamePk: g.gamePk, home: swap ? aSide : hSide, away: swap ? hSide : aSide });
+    res.json({ found: true, gamePk: f.gamePk, home: swap ? aSide : hSide, away: swap ? hSide : aSide });
   } catch (e) { res.status(502).json({ found: false, error: String(e.message || e) }); }
 });
 // gamePk 찾기 — 한국/미국 날짜 시차 때문에 전날·당일·다음날까지 검색
