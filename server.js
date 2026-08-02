@@ -525,6 +525,21 @@ app.get('/api/asports/games', async (req, res) => {
     const path = `${cfg.path}?date=${date}&timezone=Asia/Seoul`;
     const j = await asRaw(sport, path, 6000);   // 라이브 신선도 우선 (6초)
     let games = (j.response || []).map(g => normAS(sport, g)).filter(Boolean);
+    // ⚾ MLB는 공식 StatsAPI로 스코어·상태·이닝 덮어쓰기 (API-Sports 지연 보정 → 실시간)
+    if (sport === 'baseball' && games.some(g => g.league === 'MLB')) {
+      const sm = await mlbScoreMap(date).catch(() => null);
+      if (sm) games.forEach(g => {
+        if (g.league !== 'MLB') return;
+        const hN = mlbNick(g.home), aN = mlbNick(g.away), e = sm[[hN, aN].sort().join('|')];
+        if (!e) return;
+        if (e.scores[hN] != null) g.hs = e.scores[hN];
+        if (e.scores[aN] != null) g.as = e.scores[aN];
+        g.state = e.state;
+        g.status = e.state === 'finished' ? 'FT' : e.state === 'live' ? 'IN' : 'NS';
+        if (e.inning != null) { g.curInning = e.inning; g.period = e.inning; }
+        if (e.half) g.inningHalf = e.half === 'Top' ? 'top' : e.half === 'Bottom' ? 'bottom' : g.inningHalf;
+      });
+    }
     // ⚡ 배당 매칭:
     //   - 축구: 리그가 너무 많아 LEAGUE_TO_ODDS 매핑으로 필요한 리그만 조회
     //   - 그 외(야구/농구/하키/럭비): The Odds API 그룹 안의 활성 리그 전부 조회해 팀명으로 매칭
@@ -604,7 +619,7 @@ async function mlbFetch(path, ttl = 30000) {
   return v;
 }
 // 팀명 별명(마지막 단어)으로 매칭 (API-Sports ↔ MLB StatsAPI)
-function mlbNick(s) { return String(s || '').toLowerCase().replace(/[^a-z ]/g, '').trim().split(/\s+/).pop(); }
+function mlbNick(s) { const w = String(s || '').toLowerCase().replace(/[^a-z ]/g, '').trim().split(/\s+/); let n = w[w.length - 1] || ''; if (n === 'sox' && w.length >= 2) n = w[w.length - 2] + n; return n; }
 function mlbTeamMatch(a, b) { const na = mlbNick(a), nb = mlbNick(b); return na && nb && na === nb; }
 // MLB 경기 라인업(타순) — gamePk를 스케줄에서 매칭
 app.get('/api/mlb/game', async (req, res) => {
@@ -651,6 +666,35 @@ async function mlbFindGame(home, away, date) {
   const rank = s => s === 'Live' ? 0 : s === 'Final' ? 1 : 2;
   cands.sort((a, b) => rank(a.st) - rank(b.st));
   return cands[0];
+}
+// MLB 스코어/상태/이닝을 공식 StatsAPI로 덮어쓰기용 맵 (API-Sports보다 훨씬 빠름·정확)
+async function mlbScoreMap(date) {
+  const map = {};
+  for (const d of [date, mlbAddDays(date, -1), mlbAddDays(date, 1)]) {
+    let sch;
+    try { sch = await mlbFetch(`/api/v1/schedule?sportId=1&date=${d}&hydrate=linescore`, 15000); } catch { continue; }
+    const games = [];
+    (sch.dates || []).forEach(dd => (dd.games || []).forEach(g => games.push(g)));
+    for (const g of games) {
+      const hN = mlbNick(g.teams.home.team.name), aN = mlbNick(g.teams.away.team.name);
+      if (!hN || !aN) continue;
+      const key = [hN, aN].sort().join('|');
+      const st = (g.status && g.status.abstractGameState) || '';
+      const ls = g.linescore || {};
+      const entry = {
+        scores: {}, homeNick: hN,
+        state: st === 'Final' ? 'finished' : st === 'Live' ? 'live' : 'scheduled',
+        inning: ls.currentInning != null ? ls.currentInning : null,
+        half: ls.inningHalf || null
+      };
+      entry.scores[hN] = g.teams.home.score != null ? g.teams.home.score : null;
+      entry.scores[aN] = g.teams.away.score != null ? g.teams.away.score : null;
+      // 여러 날짜 중 실제 진행/종료된 경기를 우선
+      const rank = s => s === 'live' ? 0 : s === 'finished' ? 1 : 2;
+      if (!map[key] || rank(entry.state) < rank(map[key].state)) map[key] = entry;
+    }
+  }
+  return map;
 }
 // MLB 실시간 상태 (볼·스트라이크·아웃 · 주자 1/2/3루 · 현재 타자/투수 · R/H/E/사사구)
 app.get('/api/mlb/live', async (req, res) => {
