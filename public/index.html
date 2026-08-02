@@ -8,7 +8,7 @@
 <link rel="manifest" href="/manifest.json">
 <link rel="apple-touch-icon" href="/logo.png.jpg">
 <link rel="icon" href="/logo.png.jpg">
-<link rel="stylesheet" href="styles.css?v=12">
+<link rel="stylesheet" href="styles.css?v=13">
 </head>
 <body>
 <div class="shell">
@@ -54,6 +54,9 @@
 
     <!-- 종목 아이콘 줄 (모바일) -->
     <div class="sportrow" id="sportRow"></div>
+
+    <!-- 리그 선택 바 (전체/KBO/MLB/… · 종목별) -->
+    <div class="leaguerow" id="leagueRow" style="display:none"></div>
 
     <!-- 날짜 이동 -->
     <div class="datenav">
@@ -228,6 +231,6 @@
     window.addEventListener('load', () => navigator.serviceWorker.register('/sw.js').catch(() => {}));
   }
 </script>
-<script src="app.js?v=12"></script>
+<script src="app.js?v=13"></script>
 </body>
 </html>

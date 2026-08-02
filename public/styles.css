@@ -488,3 +488,11 @@ table.rhe-tbl{width:100%;border-collapse:collapse;font-size:12px;text-align:cent
 table.rhe-tbl th,table.rhe-tbl td{padding:7px 4px;border:1px solid var(--line2)}
 table.rhe-tbl th{background:#f3f6f9;color:var(--sub);font-size:10px}
 table.rhe-tbl .tn{text-align:left;padding-left:10px;font-weight:700;white-space:nowrap}
+/* 상단 리그 선택 바 */
+.leaguerow{display:flex;gap:7px;overflow-x:auto;padding:9px 12px;background:#fff;border-bottom:1px solid var(--line);-webkit-overflow-scrolling:touch;scrollbar-width:none}
+.leaguerow::-webkit-scrollbar{display:none}
+.lgchip{flex:0 0 auto;padding:7px 13px;border-radius:16px;background:#f1f4f8;color:var(--sub);font-size:12.5px;font-weight:700;cursor:pointer;white-space:nowrap;border:1px solid transparent;transition:all .12s}
+.lgchip b{color:var(--dim);font-weight:800;margin-left:2px}
+.lgchip:hover{background:#e7edf5}
+.lgchip.on{background:var(--navy);color:#fff;border-color:var(--gold)}
+.lgchip.on b{color:var(--gold)}

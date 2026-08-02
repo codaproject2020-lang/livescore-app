@@ -23,7 +23,8 @@ const TOP_LEAGUES = ['KBO', 'MLB', 'NPB', 'K League 1', 'Premier League', 'La Li
 const state = {
   date: new Date().toISOString().slice(0, 10),
   sport: 'baseball',   // 여름철 진행 종목 기본
-  leagues: []
+  leagues: [],
+  leagueFilter: 'all'  // 상단 리그 선택 필터
 };
 
 // ---------- 팀 뱃지/엠블럼 ----------
@@ -218,7 +219,7 @@ function buildSportNav() {
   const list = SPORTS.map(s => `<a data-sport="${s.key}" class="${s.key === state.sport ? 'on' : ''}"><span class="em">${s.em}</span>${s.ko}</a>`).join('');
   $('#sportNav').innerHTML = list;
   $('#sportNavD').innerHTML = list;
-  $$('[data-sport]').forEach(el => el.addEventListener('click', () => { state.sport = el.dataset.sport; buildSportNav(); loadEvents(); closeDrawer(); }));
+  $$('[data-sport]').forEach(el => el.addEventListener('click', () => { state.sport = el.dataset.sport; state.leagueFilter = 'all'; buildSportNav(); loadEvents(); closeDrawer(); }));
 }
 function buildLeagueNav() {
   // API-Sports는 종목 단위로 조회 → 리그 네비는 현재 종목의 리그로 동적 표시(렌더 후 갱신)
@@ -249,6 +250,29 @@ async function fetchJSON(url, { tries = 15, delay = 4000, onWait } = {}) {
 //  이벤트 로드 & 렌더
 // ============================================================
 let feedGames = {};   // id -> game (상세 모달용)
+let allFeedGames = [];   // 필터 전 전체 경기
+function filterGames() { return state.leagueFilter === 'all' ? allFeedGames : allFeedGames.filter(g => g.league === state.leagueFilter); }
+// 상단 리그 선택 바 (전체 / KBO / MLB / … · 모든 종목 공통)
+function buildLeagueRow(games) {
+  const row = $('#leagueRow'); if (!row) return;
+  const counts = {};
+  games.forEach(g => { const k = g.league || '기타'; counts[k] = (counts[k] || 0) + 1; });
+  const leagues = Object.entries(counts).sort((a, b) => {
+    const ra = TOP_LEAGUES.indexOf(a[0]), rb = TOP_LEAGUES.indexOf(b[0]);
+    const ia = ra < 0 ? 999 : ra, ib = rb < 0 ? 999 : rb;
+    if (ia !== ib) return ia - ib;
+    return b[1] - a[1];
+  });
+  if (!leagues.length) { row.style.display = 'none'; row.innerHTML = ''; return; }
+  row.style.display = 'flex';
+  row.innerHTML = `<div class="lgchip ${state.leagueFilter === 'all' ? 'on' : ''}" data-lg="all">전체 <b>${games.length}</b></div>`
+    + leagues.map(([nm, n]) => `<div class="lgchip ${state.leagueFilter === nm ? 'on' : ''}" data-lg="${esc(nm)}">${esc(nm)} <b>${n}</b></div>`).join('');
+  $$('#leagueRow .lgchip').forEach(c => c.addEventListener('click', () => {
+    state.leagueFilter = c.dataset.lg;
+    $$('#leagueRow .lgchip').forEach(x => x.classList.remove('on')); c.classList.add('on');
+    renderFeed(filterGames());
+  }));
+}
 async function loadEvents() {
   const feed = $('#feed');
   feed.innerHTML = `<div class="loading">경기 불러오는 중…</div>`;
@@ -258,8 +282,12 @@ async function loadEvents() {
     });
     if (d.needKey) { feed.innerHTML = `<div class="loading">경기 데이터 API 키가 설정되지 않았어요.</div>`; return; }
     const games = d.games || [];
+    allFeedGames = games;
     feedGames = {}; games.forEach(g => feedGames[g.id] = g);
-    renderFeed(games);
+    // 현재 리그 필터가 이번 데이터에 없으면 전체로 리셋
+    if (state.leagueFilter !== 'all' && !games.some(g => g.league === state.leagueFilter)) state.leagueFilter = 'all';
+    buildLeagueRow(games);
+    renderFeed(filterGames());
     // 상세 모달이 열려 있으면 해당 경기 상세도 실시간 갱신 (채팅은 유지)
     if (modalEventId && feedGames[modalEventId] && modalPredict) {
       logChanges(modalEventId, feedGames[modalEventId]);   // 변화 감지 → 이벤트 로그 적립
@@ -1067,6 +1095,26 @@ function closeDrawer() { $('#drawer').classList.remove('on'); $('#scrimD').class
 $('#scrimD').addEventListener('click', closeDrawer);
 
 // ============================================================
+//  뒤로가기(휴대폰/브라우저) → 앱 종료 대신 "열린 팝업만" 닫기
+// ============================================================
+const OVERLAY_IDS = ['modal', 'loginModal', 'writeModal', 'drawer'];
+function anyOverlayOpen() { return OVERLAY_IDS.some(id => { const el = document.getElementById(id); return el && el.classList.contains('on'); }); }
+function closeAllOverlays() {
+  if ($('#modal') && $('#modal').classList.contains('on')) closeModal();
+  if ($('#loginModal') && $('#loginModal').classList.contains('on')) closeLogin();
+  if ($('#writeModal') && $('#writeModal').classList.contains('on')) closeWrite();
+  if ($('#drawer') && $('#drawer').classList.contains('on')) closeDrawer();
+}
+function pushOverlayState() { try { if (!(history.state && history.state.liveupOverlay)) history.pushState({ liveupOverlay: true }, ''); } catch (e) {} }
+function initBackButtonHandling() {
+  // 팝업/드로어가 열리면 히스토리 상태를 하나 쌓아둠 → 뒤로가기가 그걸 먼저 소비
+  const mo = new MutationObserver(() => { if (anyOverlayOpen()) pushOverlayState(); });
+  OVERLAY_IDS.forEach(id => { const el = document.getElementById(id); if (el) mo.observe(el, { attributes: true, attributeFilter: ['class'] }); });
+  // 뒤로가기 → 열린 게 있으면 그것만 닫음 (앱은 안 꺼짐)
+  window.addEventListener('popstate', () => { if (anyOverlayOpen()) closeAllOverlays(); });
+}
+
+// ============================================================
 //  INIT
 // ============================================================
 async function init() {
@@ -1075,6 +1123,7 @@ async function init() {
   buildChatUI($('#chatMobile'));
   connectWS();
   buildSportNav();          // 종목 메뉴 즉시 표시(네트워크 불필요)
+  initBackButtonHandling(); // 휴대폰 뒤로가기 = 팝업만 닫기
   loadEvents();             // 경기 즉시 로드(자체 자동 재시도 내장)
   // 관심 리그는 백그라운드로, 서버 깰 때까지 재시도
   fetchJSON('/api/leagues', { tries: 15, delay: 4000 })
