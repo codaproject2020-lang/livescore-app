@@ -556,6 +556,20 @@ function renderPitch(t) {
   });
   return `<div class="pitch"><div class="pitch-hd">${esc(t.team)} · <b>${esc(t.formation)}</b>${t.coach ? ` · 감독 ${esc(t.coach)}` : ''}</div><div class="pitch-field">${dots.join('')}</div></div>`;
 }
+// 야구장 수비 배치도 (포지션별 좌표) — 얼굴 대신 포지션 캐릭터 원
+const BB_POS = { P: [50, 60], C: [50, 87], '1B': [72, 52], '2B': [61, 39], SS: [39, 39], '3B': [28, 52], LF: [21, 25], CF: [50, 13], RF: [79, 25] };
+function fieldDot(p, x, y) {
+  return `<div class="fd" data-pid="${esc(p.id)}" data-name="${esc(p.name)}" data-group="${p.pos === 'P' ? 'pitching' : 'hitting'}" style="left:${x}%;top:${y}%"><div class="fd-av">${esc(p.pos || '')}</div><div class="fd-nm">${esc(shortName(p.name))}</div></div>`;
+}
+function mlbField(side, teamName) {
+  const dots = [];
+  (side.lineup || []).forEach(p => { if (p.pos && p.pos !== 'DH' && BB_POS[p.pos]) { const [x, y] = BB_POS[p.pos]; dots.push(fieldDot(p, x, y)); } });
+  if (side.pitcher) { const [x, y] = BB_POS.P; dots.push(fieldDot({ ...side.pitcher, pos: 'P' }, x, y)); }
+  const dh = (side.lineup || []).find(p => p.pos === 'DH');
+  if (!dots.length) return `<div class="lu-note">라인업 미확정</div>`;
+  return `<div class="bfield">${dots.join('')}</div>${dh ? `<div class="bfield-dh">🏏 지명타자(DH) <b>${esc(dh.name)}</b></div>` : ''}`;
+}
+function wireFieldClicks() { $$('#mLineupWrap .fd').forEach(el => el.addEventListener('click', () => showMlbPlayer(el.dataset.pid, el.dataset.name, el.dataset.group || 'hitting'))); }
 function mlbCol(side, teamName) {
   const rows = (side.lineup || []).map(p => `<div class="mlb-p" data-pid="${esc(p.id)}" data-name="${esc(p.name)}" data-group="hitting"><span class="mlb-o">${esc(p.order)}</span><span class="mlb-pos">${esc(p.pos)}</span><span class="mlb-nm">${esc(p.name)}</span></div>`).join('');
   const pit = side.pitcher ? `<div class="mlb-p pit" data-pid="${esc(side.pitcher.id)}" data-name="${esc(side.pitcher.name)}" data-group="pitching"><span class="mlb-o">P</span><span class="mlb-pos">선발</span><span class="mlb-nm">${esc(side.pitcher.name)}</span></div>` : '';
@@ -615,7 +629,10 @@ async function updateMlbLive(e) {
           <div class="bso"><span class="bso-l">B</span>${dot(d.balls, 3)}<span class="bso-l">S</span>${dot(d.strikes, 2)}<span class="bso-l o">O</span>${dot(d.outs, 2)}</div>
           ${basesSvg(d.bases)}
         </div>
-        <div class="ms-players"><div>🏏 타석 <b>${esc(d.batter || '-')}</b></div><div>⚾ 투수 <b>${esc(d.pitcher || '-')}</b></div></div>
+        <div class="ms-players">
+          <div>🏏 타석 <b>${esc(d.batter || '-')}</b>${d.batterLine ? ` <span class="ms-stat">${d.batterLine.h}/${d.batterLine.ab} · K${d.batterLine.k} · ${d.batterLine.bb}BB</span>` : ''}</div>
+          <div>⚾ 투수 <b>${esc(d.pitcher || '-')}</b>${d.pitcherLine ? ` <span class="ms-stat">${d.pitcherLine.ip}이닝${d.pitcherLine.np != null ? ' · ' + d.pitcherLine.np + '구' : ''} · ${d.pitcherLine.k}K · ${d.pitcherLine.er}자책</span>` : ''}</div>
+        </div>
         <table class="rhe-tbl"><thead><tr><th></th><th>R</th><th>H</th><th>E</th><th>BB</th></tr></thead><tbody>
           <tr><td class="tn">${esc(e.away)}</td><td>${esc(ba.r ?? 0)}</td><td>${esc(ba.h ?? 0)}</td><td>${esc(ba.e ?? 0)}</td><td>${esc(ba.bb ?? '-')}</td></tr>
           <tr><td class="tn">${esc(e.home)}</td><td>${esc(bh.r ?? 0)}</td><td>${esc(bh.h ?? 0)}</td><td>${esc(bh.e ?? 0)}</td><td>${esc(bh.bb ?? '-')}</td></tr>
@@ -640,8 +657,19 @@ async function updateLineup(e) {
     try {
       const d = await fetchJSON(`/api/mlb/game?home=${encodeURIComponent(e.home)}&away=${encodeURIComponent(e.away)}&date=${state.date}`, { tries: 1 });
       if (!d.found || (!(d.home.lineup || []).length && !(d.away.lineup || []).length)) { box.innerHTML = `<div class="odsec">📋 선발 라인업 (타순)</div><div class="lu-note">MLB 라인업은 보통 <b>경기 2~4시간 전</b> 확정돼요.</div>`; return; }
-      box.innerHTML = `<div class="odsec">📋 선발 라인업 (타순) <span class="rhe">선수 누르면 최근 10경기</span></div><div class="mlb-lu">${mlbCol(d.home, e.home)}${mlbCol(d.away, e.away)}</div><div id="mPlayer"></div>`;
-      wirePlayerClicks('mlb');
+      box.innerHTML = `
+        <div class="odsec">📋 선발 라인업 <span class="rhe">야구장 배치 · 선수 누르면 최근 10경기</span></div>
+        <div class="bfield-tabs"><span class="bft on" data-t="home">${esc(e.home)}</span><span class="bft" data-t="away">${esc(e.away)}</span></div>
+        <div id="bfieldBox">${mlbField(d.home, e.home)}</div>
+        <div class="odsec">타순표</div>
+        <div class="mlb-lu">${mlbCol(d.home, e.home)}${mlbCol(d.away, e.away)}</div>
+        <div id="mPlayer"></div>`;
+      $$('#mLineupWrap .bft').forEach(t => t.addEventListener('click', () => {
+        $$('#mLineupWrap .bft').forEach(x => x.classList.remove('on')); t.classList.add('on');
+        const side = t.dataset.t === 'home' ? d.home : d.away, nm = t.dataset.t === 'home' ? e.home : e.away;
+        $('#bfieldBox').innerHTML = mlbField(side, nm); wireFieldClicks();
+      }));
+      wirePlayerClicks('mlb'); wireFieldClicks();
     } catch { box.innerHTML = `<div class="odsec">📋 선발 라인업</div><div class="lu-note">불러오기 실패</div>`; }
   } else {
     const ko = (SPORTS.find(s => s.key === sp) || {}).ko || sp;
