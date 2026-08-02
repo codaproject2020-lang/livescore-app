@@ -191,7 +191,7 @@ app.get('/api/odds', async (req, res) => {
   if (!ODDS_KEY) return res.json({ needKey: true, games: [] });
   try {
     const sport = req.query.sport || 'soccer_epl';
-    const url = `https://api.the-odds-api.com/v4/sports/${encodeURIComponent(sport)}/odds/?apiKey=${ODDS_KEY}&regions=us,eu&markets=h2h&oddsFormat=decimal`;
+    const url = `https://api.the-odds-api.com/v4/sports/${encodeURIComponent(sport)}/odds/?apiKey=${ODDS_KEY}&regions=us,uk,eu&markets=h2h&oddsFormat=decimal`;
     const data = await cachedJSON(url, 90000);
     const arr = Array.isArray(data) ? data : [];
     const games = arr.map(g => {
@@ -225,7 +225,7 @@ app.get('/api/odds/event', async (req, res) => {
   try {
     const { id, sport } = req.query;
     if (!id || !sport) return res.status(400).json({ error: 'id/sport required' });
-    const url = `https://api.the-odds-api.com/v4/sports/${encodeURIComponent(sport)}/events/${encodeURIComponent(id)}/odds/?apiKey=${ODDS_KEY}&regions=us,eu&markets=h2h,spreads,totals&oddsFormat=decimal`;
+    const url = `https://api.the-odds-api.com/v4/sports/${encodeURIComponent(sport)}/events/${encodeURIComponent(id)}/odds/?apiKey=${ODDS_KEY}&regions=us,uk,eu&markets=h2h,spreads,totals&oddsFormat=decimal`;
     const g = await cachedJSON(url, 60000);
     if (!g || !g.id) return res.json({ event: null });
     const books = (g.bookmakers || []).map(bk => {
@@ -408,6 +408,20 @@ app.get('/api/asports/status', async (req, res) => {
 app.get('/api/asports/sports', (req, res) => {
   res.json({ hasKey: !!APISPORTS_KEY, sports: Object.entries(AS).map(([k, v]) => ({ key: k, ko: v.ko, em: v.em })) });
 });
+// 진단: 특정 종목/날짜의 리그명 목록 + 배당 매핑 여부 (축구 매핑 보완용)
+app.get('/api/asports/leagues', async (req, res) => {
+  if (!APISPORTS_KEY) return res.json({ needKey: true });
+  const sport = req.query.sport || 'football';
+  const date = req.query.date || new Date().toISOString().slice(0, 10);
+  const cfg = AS[sport]; if (!cfg) return res.status(400).json({ error: 'bad sport' });
+  try {
+    const j = await asRaw(sport, `${cfg.path}?date=${date}&timezone=Asia/Seoul`, 60000);
+    const counts = {};
+    (j.response || []).map(g => normAS(sport, g)).filter(Boolean).forEach(g => { counts[g.league] = (counts[g.league] || 0) + 1; });
+    const leagues = Object.entries(counts).map(([name, n]) => ({ name, games: n, mapped: sport === 'football' ? !!LEAGUE_TO_ODDS[name] : 'group' })).sort((a, b) => b.games - a.games);
+    res.json({ sport, date, leagues });
+  } catch (e) { res.status(502).json({ error: String(e.message || e) }); }
+});
 // 리그명 → The Odds API sport 키 (해외배당 매칭용)
 const LEAGUE_TO_ODDS = {
   // 야구
@@ -419,21 +433,44 @@ const LEAGUE_TO_ODDS = {
   'UEFA Champions League': 'soccer_uefa_champs_league', 'Eredivisie': 'soccer_netherlands_eredivisie',
   'Primeira Liga': 'soccer_portugal_primeira_liga', 'Championship': 'soccer_efl_champ',
   'Serie A - Brazil': 'soccer_brazil_campeonato', 'Brasileirão Série A': 'soccer_brazil_campeonato',
-  'Primera División': 'soccer_argentina_primera_division', 'J1 League': 'soccer_japan_j_league',
-  'A-League': 'soccer_australia_aleague', 'Süper Lig': 'soccer_turkey_super_league',
+  'Primera División': 'soccer_argentina_primera_division', 'Liga Profesional Argentina': 'soccer_argentina_primera_division',
+  'J1 League': 'soccer_japan_j_league', 'J League': 'soccer_japan_j_league',
+  'A-League': 'soccer_australia_aleague', 'Süper Lig': 'soccer_turkey_super_league', 'Super Lig': 'soccer_turkey_super_league',
+  // 여름 시즌 진행 리그 (북유럽·남미 등)
+  'Eliteserien': 'soccer_norway_eliteserien', 'Allsvenskan': 'soccer_sweden_allsvenskan', 'Superettan': 'soccer_sweden_superettan',
+  'Veikkausliiga': 'soccer_finland_veikkausliiga', 'Superliga': 'soccer_denmark_superliga',
+  'Jupiler Pro League': 'soccer_belgium_first_div', 'First Division A': 'soccer_belgium_first_div',
+  'Serie B': 'soccer_brazil_serie_b', 'Liga MX': 'soccer_mexico_ligamx', 'Primera A': 'soccer_chile_campeonato',
+  'Super League': 'soccer_china_superleague', 'Premiership': 'soccer_spl', 'Bundesliga 2': 'soccer_germany_bundesliga2',
+  '3. Liga': 'soccer_germany_liga3', 'League One': 'soccer_england_league1', 'League Two': 'soccer_england_league2',
+  'UEFA Europa League': 'soccer_uefa_europa_league', 'UEFA Champions League Qualifying': 'soccer_uefa_champs_league_qualification',
   // 농구·하키·미식축구·격투기
   'NBA': 'basketball_nba', 'WNBA': 'basketball_wnba', 'NCAA': 'basketball_ncaab',
   'NHL': 'icehockey_nhl', 'NFL': 'americanfootball_nfl', 'MMA': 'mma_mixed_martial_arts'
 };
+// 앱 종목 → The Odds API 그룹명 (그룹 안의 모든 활성 리그를 가져와 팀명으로 매칭)
+// ※ 축구(soccer)는 리그가 60개+라 개별 호출 비용이 커서 LEAGUE_TO_ODDS 매핑을 씀.
+// ※ 배구/핸드볼은 The Odds API에 아예 없음 → 배당 불가.
+const ODDS_GROUP = { baseball: 'Baseball', basketball: 'Basketball', hockey: 'Ice Hockey', rugby: 'Rugby League' };
+let oddsSportsList = null, oddsSportsListT = 0;
+async function oddsSportKeys(group) {
+  if (!ODDS_KEY || !group) return [];
+  const now = Date.now();
+  if (!oddsSportsList || now - oddsSportsListT > 3600000) {   // /v4/sports는 크레딧 소모 안 함, 1시간 캐시
+    try { const r = await fetch(`https://api.the-odds-api.com/v4/sports/?apiKey=${ODDS_KEY}`); oddsSportsList = await r.json(); oddsSportsListT = now; }
+    catch { return []; }
+  }
+  return (Array.isArray(oddsSportsList) ? oddsSportsList : []).filter(s => s.group === group && s.active && !s.has_outrights).map(s => s.key);
+}
 const normTeam = s => String(s || '').toLowerCase().replace(/[^a-z0-9가-힣]/g, '');
 // 경기별 배당 영구 저장소(팀쌍 키). 경기 시작 후 The Odds API에서 사라져도 마지막 배당을 계속 보여줌.
 const oddsStore = new Map();   // key -> { home, away, draw, t }
 const ODDS_STORE_TTL = 8 * 3600 * 1000;   // 8시간 유지
 async function oddsLookup(oddsSport) {
   if (!ODDS_KEY) return null;
-  const url = `https://api.the-odds-api.com/v4/sports/${oddsSport}/odds/?apiKey=${ODDS_KEY}&regions=us,eu&markets=h2h&oddsFormat=decimal`;
+  const url = `https://api.the-odds-api.com/v4/sports/${oddsSport}/odds/?apiKey=${ODDS_KEY}&regions=us,uk,eu&markets=h2h&oddsFormat=decimal`;
   const ck = 'OL:' + oddsSport, now = Date.now(), hit = cache.get(ck);
-  if (hit && now - hit.t < 900000) return hit.v;   // 15분 캐시(무료 쿼터 절약)
+  if (hit && now - hit.t < 600000) return hit.v;   // 15분 캐시(무료 쿼터 절약)
   try {
     const r = await fetch(url); if (!r.ok) throw new Error('odds ' + r.status);
     const arr = await r.json();
@@ -488,17 +525,26 @@ app.get('/api/asports/games', async (req, res) => {
     const path = `${cfg.path}?date=${date}&timezone=Asia/Seoul`;
     const j = await asRaw(sport, path, 6000);   // 라이브 신선도 우선 (6초)
     let games = (j.response || []).map(g => normAS(sport, g)).filter(Boolean);
-    // ⚡ 배당: 캐시에 있으면 즉시 부착. 없으면 최대 3초만 기다려서 붙이고(대부분 첫 요청 1회만),
-    //    3초 넘으면 백그라운드로 계속 받아 다음 폴링 때 붙는다. → 점수는 안 느려지고 배당도 확실히 나옴.
-    const needed = [...new Set(games.map(g => LEAGUE_TO_ODDS[g.league]).filter(Boolean))];
+    // ⚡ 배당 매칭:
+    //   - 축구: 리그가 너무 많아 LEAGUE_TO_ODDS 매핑으로 필요한 리그만 조회
+    //   - 그 외(야구/농구/하키/럭비): The Odds API 그룹 안의 활성 리그 전부 조회해 팀명으로 매칭
+    //     → MLB·KBO·NPB·MiLB, NBA·WNBA·유로리그, NHL·SHL 등 자동 커버
+    let needed;
+    if (sport === 'football') {
+      needed = [...new Set(games.map(g => LEAGUE_TO_ODDS[g.league]).filter(Boolean))];
+    } else {
+      needed = await oddsSportKeys(ODDS_GROUP[sport]);
+    }
+    const merged = {};
     await Promise.all(needed.map(async os => {
       let map = null;
       const hit = cache.get('OL:' + os);
-      if (hit && Date.now() - hit.t < 900000) map = hit.v;
-      else map = await Promise.race([oddsLookup(os), new Promise(r => setTimeout(() => r(null), 3000))]);
-      // map이 null이어도 attachOdds가 영구 저장소(oddsStore)에서 마지막 배당을 붙여줌
-      games.forEach(g => { if (LEAGUE_TO_ODDS[g.league] === os) attachOdds(g, map); });
+      if (hit && Date.now() - hit.t < 600000) map = hit.v;
+      else map = await Promise.race([oddsLookup(os), new Promise(r => setTimeout(() => r(null), 3500))]);
+      if (map) Object.assign(merged, map);
     }));
+    // 모든 경기에 팀명으로 매칭 시도 (merged에 없으면 attachOdds가 영구 저장소에서 보완)
+    games.forEach(g => attachOdds(g, merged));
     games.sort((a, b) => (b.state === 'live') - (a.state === 'live'));
     res.json({ sport, date, count: games.length, apiErrors: j.errors || null, results: j.results, games });
   } catch (e) {
@@ -565,13 +611,10 @@ app.get('/api/mlb/game', async (req, res) => {
   const { home, away } = req.query;
   const date = req.query.date || new Date().toISOString().slice(0, 10);
   try {
-    const sch = await mlbFetch(`/api/v1/schedule?sportId=1&date=${date}`, 60000);
-    const games = (sch.dates && sch.dates[0] && sch.dates[0].games) || [];
-    let swap = false;
-    let g = games.find(x => mlbTeamMatch(x.teams.home.team.name, home) && mlbTeamMatch(x.teams.away.team.name, away));
-    if (!g) { g = games.find(x => mlbTeamMatch(x.teams.home.team.name, away) && mlbTeamMatch(x.teams.away.team.name, home)); if (g) swap = true; }
-    if (!g) return res.json({ found: false });
-    const box = await mlbFetch(`/api/v1/game/${g.gamePk}/boxscore`, 20000);
+    const f = await mlbFindGame(home, away, date);
+    if (!f) return res.json({ found: false });
+    const swap = f.swap;
+    const box = await mlbFetch(`/api/v1/game/${f.gamePk}/boxscore`, 20000);
     const side = t => {
       const T = box.teams[t]; if (!T) return { team: '', lineup: [], pitcher: null };
       const players = T.players || {};
@@ -588,14 +631,20 @@ app.get('/api/mlb/game', async (req, res) => {
     res.json({ found: true, gamePk: g.gamePk, home: swap ? aSide : hSide, away: swap ? hSide : aSide });
   } catch (e) { res.status(502).json({ found: false, error: String(e.message || e) }); }
 });
-// gamePk 찾기 (스케줄에서 팀명 매칭)
+// gamePk 찾기 — 한국/미국 날짜 시차 때문에 전날·당일·다음날까지 검색
+function mlbAddDays(dstr, n) { const d = new Date(dstr + 'T12:00:00Z'); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); }
 async function mlbFindGame(home, away, date) {
-  const sch = await mlbFetch(`/api/v1/schedule?sportId=1&date=${date}`, 60000);
-  const games = (sch.dates && sch.dates[0] && sch.dates[0].games) || [];
-  let swap = false;
-  let g = games.find(x => mlbTeamMatch(x.teams.home.team.name, home) && mlbTeamMatch(x.teams.away.team.name, away));
-  if (!g) { g = games.find(x => mlbTeamMatch(x.teams.home.team.name, away) && mlbTeamMatch(x.teams.away.team.name, home)); if (g) swap = true; }
-  return g ? { gamePk: g.gamePk, swap } : null;
+  for (const d of [date, mlbAddDays(date, -1), mlbAddDays(date, 1)]) {
+    let sch;
+    try { sch = await mlbFetch(`/api/v1/schedule?sportId=1&date=${d}`, 60000); } catch { continue; }
+    const games = [];
+    (sch.dates || []).forEach(dd => (dd.games || []).forEach(g => games.push(g)));
+    let swap = false;
+    let g = games.find(x => mlbTeamMatch(x.teams.home.team.name, home) && mlbTeamMatch(x.teams.away.team.name, away));
+    if (!g) { g = games.find(x => mlbTeamMatch(x.teams.home.team.name, away) && mlbTeamMatch(x.teams.away.team.name, home)); if (g) swap = true; }
+    if (g) return { gamePk: g.gamePk, swap };
+  }
+  return null;
 }
 // MLB 실시간 상태 (볼·스트라이크·아웃 · 주자 1/2/3루 · 현재 타자/투수 · R/H/E/사사구)
 app.get('/api/mlb/live', async (req, res) => {
