@@ -657,10 +657,22 @@ app.get('/api/mlb/live', async (req, res) => {
     const off = ls.offense || {}, def = ls.defense || {}, tr = ls.teams || {};
     const mk = t => ({ r: (tr[t] && tr[t].runs != null) ? tr[t].runs : null, h: (tr[t] && tr[t].hits != null) ? tr[t].hits : null, e: (tr[t] && tr[t].errors != null) ? tr[t].errors : null, bb: null });
     let H = mk('home'), A = mk('away');
+    let batterLine = null, pitcherLine = null;
     try {
-      const box = await mlbFetch(`/api/v1/game/${f.gamePk}/boxscore`, 20000);
+      const box = await mlbFetch(`/api/v1/game/${f.gamePk}/boxscore`, 15000);
       const bb = t => { try { return box.teams[t].teamStats.batting.baseOnBalls; } catch { return null; } };
       H.bb = bb('home'); A.bb = bb('away');
+      // 현재 타자/투수의 이 경기 성적 (0/3 0BB, 투구수 등)
+      const offSide = (ls.inningHalf === 'Bottom') ? 'home' : 'away';
+      const defSide = offSide === 'home' ? 'away' : 'home';
+      if (off.batter && box.teams[offSide]) {
+        const p = box.teams[offSide].players['ID' + off.batter.id];
+        if (p && p.stats && p.stats.batting) { const s = p.stats.batting; batterLine = { ab: s.atBats ?? 0, h: s.hits ?? 0, k: s.strikeOuts ?? 0, bb: s.baseOnBalls ?? 0, hr: s.homeRuns ?? 0, rbi: s.rbi ?? 0 }; }
+      }
+      if (def.pitcher && box.teams[defSide]) {
+        const p = box.teams[defSide].players['ID' + def.pitcher.id];
+        if (p && p.stats && p.stats.pitching) { const s = p.stats.pitching; pitcherLine = { ip: s.inningsPitched ?? '0.0', k: s.strikeOuts ?? 0, er: s.earnedRuns ?? 0, np: s.numberOfPitches ?? s.pitchesThrown ?? null, h: s.hits ?? 0, bb: s.baseOnBalls ?? 0 }; }
+      }
     } catch {}
     res.json({
       found: true,
@@ -673,6 +685,7 @@ app.get('/api/mlb/live', async (req, res) => {
       bases: { first: !!off.first, second: !!off.second, third: !!off.third },
       batter: off.batter ? off.batter.fullName : null,
       pitcher: def.pitcher ? def.pitcher.fullName : null,
+      batterLine, pitcherLine,
       box: f.swap ? { home: A, away: H } : { home: H, away: A }
     });
   } catch (e) { res.status(502).json({ found: false, error: String(e.message || e) }); }
