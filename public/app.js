@@ -428,9 +428,9 @@ function matchCard(e) {
   return `<div class="match" data-ev="${esc(e.id)}">
     <span class="bell">🔔</span>
     <div class="mrow">
-      <div class="side"><div class="ph">${badge(e.homeLogo, '🏟')}</div><div class="team">${esc(e.home)}</div></div>
+      <div class="side"><div class="ph">${badge(e.homeLogo, '🏟')}</div><div class="team">${esc(e.home)}</div><span class="hatag home">🏠 홈</span></div>
       ${scoreBlock(e)}
-      <div class="side"><div class="ph">${badge(e.awayLogo, '🏟')}</div><div class="team">${esc(e.away)}</div></div>
+      <div class="side"><div class="ph">${badge(e.awayLogo, '🏟')}</div><div class="team">${esc(e.away)}</div><span class="hatag away">✈ 원정</span></div>
     </div>
     ${aiLive(e)}
     ${oddsLine(e)}
@@ -706,9 +706,9 @@ function renderDetail(e, pr) {
   const odds = e.odds ? `<div class="odsec">💰 배당</div><div class="modds-detail">승 <b>${e.odds.home ? Number(e.odds.home).toFixed(2) : '-'}</b>${e.odds.draw ? ` · 무 <b>${Number(e.odds.draw).toFixed(2)}</b>` : ''} · 패 <b>${e.odds.away ? Number(e.odds.away).toFixed(2) : '-'}</b></div>` : '';
   el.innerHTML = `
     <div class="mteams">
-      <div class="mt"><div class="ph">${badge(e.homeLogo, '🏟')}</div><div class="nm">${esc(e.home)}</div></div>
+      <div class="mt"><div class="ph">${badge(e.homeLogo, '🏟')}</div><div class="nm">${esc(e.home)}</div><span class="hatag home">🏠 홈</span></div>
       <div class="msc"><div class="n">${scoreTxt}</div><div class="st" style="color:${e.state === 'live' ? '#e2231a' : '#8b93a0'}">${esc(st)}</div>${setpts}</div>
-      <div class="mt"><div class="ph">${badge(e.awayLogo, '🏟')}</div><div class="nm">${esc(e.away)}</div></div>
+      <div class="mt"><div class="ph">${badge(e.awayLogo, '🏟')}</div><div class="nm">${esc(e.away)}</div><span class="hatag away">✈ 원정</span></div>
     </div>
     <div class="aisum">
       <div class="aisum-hd">🤖 AI 총정리 ${e.state === 'live' ? '<span class="aisum-live">● LIVE</span>' : ''}</div>
