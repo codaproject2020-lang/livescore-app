@@ -634,17 +634,23 @@ app.get('/api/mlb/game', async (req, res) => {
 // gamePk 찾기 — 한국/미국 날짜 시차 때문에 전날·당일·다음날까지 검색
 function mlbAddDays(dstr, n) { const d = new Date(dstr + 'T12:00:00Z'); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); }
 async function mlbFindGame(home, away, date) {
+  const cands = [];
   for (const d of [date, mlbAddDays(date, -1), mlbAddDays(date, 1)]) {
     let sch;
     try { sch = await mlbFetch(`/api/v1/schedule?sportId=1&date=${d}`, 60000); } catch { continue; }
     const games = [];
     (sch.dates || []).forEach(dd => (dd.games || []).forEach(g => games.push(g)));
-    let swap = false;
-    let g = games.find(x => mlbTeamMatch(x.teams.home.team.name, home) && mlbTeamMatch(x.teams.away.team.name, away));
-    if (!g) { g = games.find(x => mlbTeamMatch(x.teams.home.team.name, away) && mlbTeamMatch(x.teams.away.team.name, home)); if (g) swap = true; }
-    if (g) return { gamePk: g.gamePk, swap };
+    for (const g of games) {
+      const st = (g.status && g.status.abstractGameState) || '';
+      if (mlbTeamMatch(g.teams.home.team.name, home) && mlbTeamMatch(g.teams.away.team.name, away)) cands.push({ gamePk: g.gamePk, swap: false, st });
+      else if (mlbTeamMatch(g.teams.home.team.name, away) && mlbTeamMatch(g.teams.away.team.name, home)) cands.push({ gamePk: g.gamePk, swap: true, st });
+    }
   }
-  return null;
+  if (!cands.length) return null;
+  // 진행 중(Live) > 종료(Final) > 예정(Preview) 순으로 선택 → 시리즈 중 실제 라이브 경기를 잡음
+  const rank = s => s === 'Live' ? 0 : s === 'Final' ? 1 : 2;
+  cands.sort((a, b) => rank(a.st) - rank(b.st));
+  return cands[0];
 }
 // MLB 실시간 상태 (볼·스트라이크·아웃 · 주자 1/2/3루 · 현재 타자/투수 · R/H/E/사사구)
 app.get('/api/mlb/live', async (req, res) => {
