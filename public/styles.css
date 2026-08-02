@@ -84,10 +84,7 @@ html,body{overflow-x:hidden;max-width:100%}
 .side .ph{width:36px;height:36px;border-radius:50%;background:#eef1f4;display:grid;place-items:center;font-size:15px;overflow:hidden;border:1px solid #e4e8ec}
 .side .ph img{width:100%;height:100%;object-fit:contain}
 .side .team{font-size:13px;font-weight:800;text-align:center;line-height:1.25;max-width:120px}
-.hatag{font-size:9.5px;font-weight:800;padding:1px 6px;border-radius:5px;margin-top:2px;white-space:nowrap}
-.hatag.home{background:#eaf3ff;color:#24568f}
-.hatag.away{background:#f4eee6;color:#8a6a2b}
-.mt .hatag{margin-top:4px}
+.haic{font-size:11px;opacity:.85;margin:0 3px;vertical-align:middle}
 .mid{display:flex;flex-direction:column;align-items:center;gap:4px}
 .mid .badge-state{font-size:11px;font-weight:800;padding:3px 8px;border-radius:4px;white-space:nowrap}
 .mid .badge-state.live{background:#8a2b24;color:#fff}
