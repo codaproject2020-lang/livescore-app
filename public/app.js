@@ -50,6 +50,11 @@ const STR = {
   news: ['Latest sports news', '스포츠 최신 뉴스', 'スポーツ最新ニュース', '体育最新新闻', 'Últimas noticias', 'ताज़ा खबरें', 'Tin thể thao', 'ข่าวกีฬา', 'Спортновости', 'Sport-News', 'Actus sport', 'Notizie sport'],
   interest: ['Leagues', '관심 리그', 'リーグ', '联赛', 'Ligas', 'लीग', 'Giải đấu', 'ลีก', 'Лиги', 'Ligen', 'Ligues', 'Leghe'],
   sportsHd: ['Sports', '종목', 'スポーツ', '项目', 'Deportes', 'खेल', 'Môn', 'กีฬา', 'Спорт', 'Sportart', 'Sports', 'Sport'],
+  pick: ['Pick', '픽', 'ピック', '精选', 'Pick', 'पिक', 'Chọn', 'พิค', 'Пик', 'Pick', 'Pick', 'Pick'],
+  newsMore: ['· via Daum Sports', '· 다음스포츠에서 보기', '· Daumスポーツで見る', '· 在Daum体育查看', '· en Daum Sports', '· Daum Sports पर देखें', '· trên Daum Sports', '· ดูที่ Daum Sports', '· на Daum Sports', '· auf Daum Sports', '· sur Daum Sports', '· su Daum Sports'],
+  noGames: ['No games scheduled', '경기가 없습니다', '試合がありません', '暂无比赛', 'Sin partidos', 'कोई मैच नहीं', 'Không có trận đấu', 'ไม่มีการแข่งขัน', 'Нет матчей', 'Keine Spiele', 'Aucun match', 'Nessuna partita'],
+  loadingGames: ['Loading games…', '경기 불러오는 중…', '試合を読み込み中…', '加载比赛中…', 'Cargando partidos…', 'मैच लोड हो रहे…', 'Đang tải trận…', 'กำลังโหลด…', 'Загрузка матчей…', 'Spiele laden…', 'Chargement…', 'Caricamento…'],
+  retry: ['Retry', '다시 시도', '再試行', '重试', 'Reintentar', 'पुनः प्रयास', 'Thử lại', 'ลองใหม่', 'Повторить', 'Erneut', 'Réessayer', 'Riprova'],
   // 종목명 (키 = SPORTS.key)
   football: ['Soccer', '축구', 'サッカー', '足球', 'Fútbol', 'फुटबॉल', 'Bóng đá', 'ฟุตบอล', 'Футбол', 'Fußball', 'Football', 'Calcio'],
   baseball: ['Baseball', '야구', '野球', '棒球', 'Béisbol', 'बेसबॉल', 'Bóng chày', 'เบสบอล', 'Бейсбол', 'Baseball', 'Baseball', 'Baseball'],
@@ -72,6 +77,60 @@ function setLang(l) {
   if (typeof buildSportNav === 'function') buildSportNav();
   if (typeof loadEvents === 'function' && $('#view-live') && !$('#view-live').classList.contains('hidden')) loadEvents();
   if (typeof renderInfoList === 'function' && $('#view-info') && !$('#view-info').classList.contains('hidden')) renderInfoList();
+  if (typeof refreshDateLabel === 'function') refreshDateLabel();
+}
+
+// ============================================================
+//  팀 이름 번역 (MLB 30팀 · CJK) · 나머지 언어/리그는 영문 원문 유지
+//  key = 닉네임(마지막 단어, Sox/Jays 예외) → { ko, ja, zh }
+// ============================================================
+const TEAM_I18N = {
+  'diamondbacks': { ko: '애리조나', ja: 'アリゾナ', zh: '亚利桑那' },
+  'braves': { ko: '애틀랜타', ja: 'アトランタ', zh: '亚特兰大' },
+  'orioles': { ko: '볼티모어', ja: 'ボルチモア', zh: '巴尔的摩' },
+  'red sox': { ko: '보스턴', ja: 'ボストン', zh: '波士顿红袜' },
+  'cubs': { ko: '시카고 컵스', ja: 'カブス', zh: '芝加哥小熊' },
+  'white sox': { ko: '시카고 화이트삭스', ja: 'ホワイトソックス', zh: '芝加哥白袜' },
+  'reds': { ko: '신시내티', ja: 'シンシナティ', zh: '辛辛那提' },
+  'guardians': { ko: '클리블랜드', ja: 'クリーブランド', zh: '克利夫兰' },
+  'rockies': { ko: '콜로라도', ja: 'コロラド', zh: '科罗拉多' },
+  'tigers': { ko: '디트로이트', ja: 'デトロイト', zh: '底特律' },
+  'astros': { ko: '휴스턴', ja: 'ヒューストン', zh: '休斯顿' },
+  'royals': { ko: '캔자스시티', ja: 'カンザスシティ', zh: '堪萨斯城' },
+  'angels': { ko: 'LA 에인절스', ja: 'エンゼルス', zh: '洛杉矶天使' },
+  'dodgers': { ko: 'LA 다저스', ja: 'ドジャース', zh: '洛杉矶道奇' },
+  'marlins': { ko: '마이애미', ja: 'マイアミ', zh: '迈阿密' },
+  'brewers': { ko: '밀워키', ja: 'ミルウォーキー', zh: '密尔沃基' },
+  'twins': { ko: '미네소타', ja: 'ミネソタ', zh: '明尼苏达' },
+  'mets': { ko: '뉴욕 메츠', ja: 'メッツ', zh: '纽约大都会' },
+  'yankees': { ko: '뉴욕 양키스', ja: 'ヤンキース', zh: '纽约洋基' },
+  'athletics': { ko: '애슬레틱스', ja: 'アスレチックス', zh: '运动家' },
+  'phillies': { ko: '필라델피아', ja: 'フィリーズ', zh: '费城' },
+  'pirates': { ko: '피츠버그', ja: 'パイレーツ', zh: '匹兹堡' },
+  'padres': { ko: '샌디에이고', ja: 'パドレス', zh: '圣地亚哥' },
+  'giants': { ko: '샌프란시스코', ja: 'ジャイアンツ', zh: '旧金山巨人' },
+  'mariners': { ko: '시애틀', ja: 'マリナーズ', zh: '西雅图水手' },
+  'cardinals': { ko: '세인트루이스', ja: 'カージナルス', zh: '圣路易斯红雀' },
+  'rays': { ko: '탬파베이', ja: 'レイズ', zh: '坦帕湾光芒' },
+  'rangers': { ko: '텍사스', ja: 'レンジャーズ', zh: '德州游骑兵' },
+  'blue jays': { ko: '토론토', ja: 'ブルージェイズ', zh: '多伦多蓝鸟' },
+  'nationals': { ko: '워싱턴', ja: 'ナショナルズ', zh: '华盛顿国民' }
+};
+function tmNick(s) {
+  const w = String(s || '').toLowerCase().replace(/[.]/g, '').trim().split(/\s+/);
+  const last2 = w.slice(-2).join(' ');
+  if (['red sox', 'white sox', 'blue jays'].includes(last2)) return last2;
+  return w[w.length - 1] || '';
+}
+// 표시용 팀명: CJK 언어에서만 사전 매칭, 없으면 원문 유지
+function TN(name) {
+  if (!name || (LANG !== 'ko' && LANG !== 'ja' && LANG !== 'zh')) return name;
+  const e = TEAM_I18N[tmNick(name)];
+  return (e && e[LANG]) ? e[LANG] : name;
+}
+// MLB StatsAPI 선수 얼굴 (없으면 generic 실루엣 자동 반환)
+function mlbFace(id) {
+  return id ? `https://img.mlbstatic.com/mlb-photos/image/upload/d_people:generic:headshot:67:current.png/w_120,q_auto:best/v1/people/${encodeURIComponent(id)}/headshot/67/current` : '';
 }
 
 // API-Sports 종목 (키 = 서버 /api/asports/games?sport=)
@@ -335,7 +394,7 @@ function buildLeagueRow(games) {
   });
   if (!leagues.length) { row.style.display = 'none'; row.innerHTML = ''; return; }
   row.style.display = 'flex';
-  row.innerHTML = `<div class="lgchip ${state.leagueFilter === 'all' ? 'on' : ''}" data-lg="all">전체 <b>${games.length}</b></div>`
+  row.innerHTML = `<div class="lgchip ${state.leagueFilter === 'all' ? 'on' : ''}" data-lg="all">${esc(t('all'))} <b>${games.length}</b></div>`
     + leagues.map(([nm, n]) => `<div class="lgchip ${state.leagueFilter === nm ? 'on' : ''}" data-lg="${esc(nm)}">${esc(nm)} <b>${n}</b></div>`).join('');
   $$('#leagueRow .lgchip').forEach(c => c.addEventListener('click', () => {
     state.leagueFilter = c.dataset.lg;
@@ -347,7 +406,7 @@ function buildLeagueRow(games) {
 }
 async function loadEvents() {
   const feed = $('#feed');
-  feed.innerHTML = `<div class="loading">경기 불러오는 중…</div>`;
+  feed.innerHTML = `<div class="loading">${esc(t('loadingGames'))}</div>`;
   try {
     const d = await fetchJSON(`/api/asports/games?sport=${encodeURIComponent(state.sport)}&date=${state.date}`, {
       onWait: (n) => { feed.innerHTML = `<div class="loading">⏳ 무료 서버를 깨우는 중이에요…<br>최초 접속은 최대 1분 정도 걸릴 수 있어요.<br><span style="color:#aeb6c0">(자동 재시도 ${n})</span></div>`; }
@@ -366,7 +425,7 @@ async function loadEvents() {
       renderDetail(feedGames[modalEventId], modalPredict);
     }
   } catch (e) {
-    feed.innerHTML = `<div class="loading">데이터를 불러오지 못했습니다.<br><button onclick="loadEvents()" style="margin-top:10px;padding:9px 18px;border:none;border-radius:8px;background:#24568f;color:#fff;font-weight:800;cursor:pointer">다시 시도</button></div>`;
+    feed.innerHTML = `<div class="loading">${esc(t('loading'))}<br><button onclick="loadEvents()" style="margin-top:10px;padding:9px 18px;border:none;border-radius:8px;background:#24568f;color:#fff;font-weight:800;cursor:pointer">${esc(t('retry'))}</button></div>`;
   }
 }
 function hhmm(dateStr) {
@@ -501,7 +560,7 @@ function rheMini(e) {
   if (state.sport !== 'baseball' || !e.box) return '';
   const h = e.box.home || {}, a = e.box.away || {};
   if ([h.h, h.e, a.h, a.e].every(v => v == null)) return '';
-  const nm = t => { const p = String(t || '').trim().split(' '); return p.length > 1 ? p[p.length - 1] : t; };
+  const nm = x => { const s = TN(x); const p = String(s || '').trim().split(' '); return (LANG === 'en' || LANG === 'es' || LANG === 'de' || LANG === 'fr' || LANG === 'it' || LANG === 'vi') && p.length > 1 ? p[p.length - 1] : s; };
   const showBB = (h.bb != null || a.bb != null);
   return `<div class="rhemini"><table>
     <thead><tr><th></th><th>R</th><th>H</th><th>E</th>${showBB ? '<th>BB</th>' : ''}</tr></thead>
@@ -514,21 +573,21 @@ function matchCard(e) {
   return `<div class="match" data-ev="${esc(e.id)}">
     <span class="bell">🔔</span>
     <div class="mrow">
-      <div class="side"><div class="ph">${badge(e.homeLogo, '🏟')}</div><div class="team"><span class="haic">🏠</span>${esc(e.home)}</div></div>
+      <div class="side"><div class="ph">${badge(e.homeLogo, '🏟')}</div><div class="team"><span class="haic">🏠</span>${esc(TN(e.home))}</div></div>
       ${scoreBlock(e)}
-      <div class="side"><div class="ph">${badge(e.awayLogo, '🏟')}</div><div class="team">${esc(e.away)}<span class="haic">✈</span></div></div>
+      <div class="side"><div class="ph">${badge(e.awayLogo, '🏟')}</div><div class="team">${esc(TN(e.away))}<span class="haic">✈</span></div></div>
     </div>
     ${bsoMini(e)}
     ${rheMini(e)}
     ${aiLive(e)}
     ${oddsLine(e)}
-    <span class="pick">픽</span>
+    <span class="pick">${esc(t('pick'))}</span>
   </div>`;
 }
 function renderFeed(games) {
   const feed = $('#feed');
   if (!games.length) {
-    feed.innerHTML = `<div class="loading">${esc(state.date)} · ${SPORTS.find(s => s.key === state.sport)?.ko || state.sport} 경기가 없습니다.<br>날짜를 바꾸거나 다른 종목을 선택해 보세요.</div>`;
+    feed.innerHTML = `<div class="loading">${esc(state.date)} · ${esc(t(state.sport))} · ${esc(t('noGames'))}</div>`;
     return;
   }
   const groups = {};
@@ -647,7 +706,11 @@ function renderPitch(t) {
 // 야구장 수비 배치도 (포지션별 좌표) — 얼굴 대신 포지션 캐릭터 원
 const BB_POS = { P: [50, 60], C: [50, 87], '1B': [72, 52], '2B': [61, 39], SS: [39, 39], '3B': [28, 52], LF: [21, 25], CF: [50, 13], RF: [79, 25] };
 function fieldDot(p, x, y) {
-  return `<div class="fd" data-pid="${esc(p.id)}" data-name="${esc(p.name)}" data-group="${p.pos === 'P' ? 'pitching' : 'hitting'}" style="left:${x}%;top:${y}%"><div class="fd-av">${esc(p.pos || '')}</div><div class="fd-nm">${esc(shortName(p.name))}</div></div>`;
+  const face = mlbFace(p.id);
+  const av = face
+    ? `<div class="fd-av has-face"><img src="${face}" alt="" loading="lazy" onerror="this.parentNode.classList.remove('has-face');this.parentNode.textContent='${esc(p.pos || '')}'"><span class="fd-pos">${esc(p.pos || '')}</span></div>`
+    : `<div class="fd-av">${esc(p.pos || '')}</div>`;
+  return `<div class="fd" data-pid="${esc(p.id)}" data-name="${esc(p.name)}" data-group="${p.pos === 'P' ? 'pitching' : 'hitting'}" style="left:${x}%;top:${y}%">${av}<div class="fd-nm">${esc(shortName(p.name))}</div></div>`;
 }
 function mlbField(side, teamName) {
   const dots = [];
@@ -658,10 +721,14 @@ function mlbField(side, teamName) {
   return `<div class="bfield">${dots.join('')}</div>${dh ? `<div class="bfield-dh">🏏 지명타자(DH) <b>${esc(dh.name)}</b></div>` : ''}`;
 }
 function wireFieldClicks() { $$('#mLineupWrap .fd').forEach(el => el.addEventListener('click', () => showMlbPlayer(el.dataset.pid, el.dataset.name, el.dataset.group || 'hitting'))); }
+function mlbFaceEl(id) {
+  const f = mlbFace(id);
+  return f ? `<span class="mlb-face"><img src="${f}" alt="" loading="lazy" onerror="this.parentNode.style.display='none'"></span>` : '';
+}
 function mlbCol(side, teamName) {
-  const rows = (side.lineup || []).map(p => `<div class="mlb-p" data-pid="${esc(p.id)}" data-name="${esc(p.name)}" data-group="hitting"><span class="mlb-o">${esc(p.order)}</span><span class="mlb-pos">${esc(p.pos)}</span><span class="mlb-nm">${esc(p.name)}</span></div>`).join('');
-  const pit = side.pitcher ? `<div class="mlb-p pit" data-pid="${esc(side.pitcher.id)}" data-name="${esc(side.pitcher.name)}" data-group="pitching"><span class="mlb-o">P</span><span class="mlb-pos">선발</span><span class="mlb-nm">${esc(side.pitcher.name)}</span></div>` : '';
-  return `<div class="mlb-side"><div class="mlb-hd">${esc(teamName)}</div>${rows || '<div class="lu-note">라인업 미확정</div>'}${pit}</div>`;
+  const rows = (side.lineup || []).map(p => `<div class="mlb-p" data-pid="${esc(p.id)}" data-name="${esc(p.name)}" data-group="hitting"><span class="mlb-o">${esc(p.order)}</span>${mlbFaceEl(p.id)}<span class="mlb-pos">${esc(p.pos)}</span><span class="mlb-nm">${esc(p.name)}</span></div>`).join('');
+  const pit = side.pitcher ? `<div class="mlb-p pit" data-pid="${esc(side.pitcher.id)}" data-name="${esc(side.pitcher.name)}" data-group="pitching"><span class="mlb-o">P</span>${mlbFaceEl(side.pitcher.id)}<span class="mlb-pos">${esc(t('probable'))}</span><span class="mlb-nm">${esc(side.pitcher.name)}</span></div>` : '';
+  return `<div class="mlb-side"><div class="mlb-hd">${esc(TN(teamName))}</div>${rows || '<div class="lu-note">-</div>'}${pit}</div>`;
 }
 async function showMlbPlayer(id, name, group) {
   const box = $('#mPlayer'); if (!box) return;
@@ -729,8 +796,8 @@ async function updateMlbLive(e) {
           <div>⚾ 투수 <b>${esc(d.pitcher || '-')}</b>${d.pitcherLine ? ` <span class="ms-stat">${d.pitcherLine.ip}이닝${d.pitcherLine.np != null ? ' · ' + d.pitcherLine.np + '구' : ''} · ${d.pitcherLine.k}K · ${d.pitcherLine.er}자책</span>` : ''}</div>
         </div>
         <table class="rhe-tbl"><thead><tr><th></th><th>R</th><th>H</th><th>E</th><th>BB</th></tr></thead><tbody>
-          <tr><td class="tn">${esc(e.away)}</td><td>${esc(ba.r ?? 0)}</td><td>${esc(ba.h ?? 0)}</td><td>${esc(ba.e ?? 0)}</td><td>${esc(ba.bb ?? '-')}</td></tr>
-          <tr><td class="tn">${esc(e.home)}</td><td>${esc(bh.r ?? 0)}</td><td>${esc(bh.h ?? 0)}</td><td>${esc(bh.e ?? 0)}</td><td>${esc(bh.bb ?? '-')}</td></tr>
+          <tr><td class="tn">${esc(TN(e.away))}</td><td>${esc(ba.r ?? 0)}</td><td>${esc(ba.h ?? 0)}</td><td>${esc(ba.e ?? 0)}</td><td>${esc(ba.bb ?? '-')}</td></tr>
+          <tr><td class="tn">${esc(TN(e.home))}</td><td>${esc(bh.r ?? 0)}</td><td>${esc(bh.h ?? 0)}</td><td>${esc(bh.e ?? 0)}</td><td>${esc(bh.bb ?? '-')}</td></tr>
         </tbody></table>
       </div>`;
   } catch { box.innerHTML = ''; }
@@ -754,7 +821,7 @@ async function updateLineup(e) {
       if (!d.found || (!(d.home.lineup || []).length && !(d.away.lineup || []).length)) { box.innerHTML = `<div class="odsec">📋 선발 라인업 (타순)</div><div class="lu-note">MLB 라인업은 보통 <b>경기 2~4시간 전</b> 확정돼요.</div>`; return; }
       box.innerHTML = `
         <div class="odsec">📋 선발 라인업 <span class="rhe">야구장 배치 · 선수 누르면 최근 10경기</span></div>
-        <div class="bfield-tabs"><span class="bft on" data-t="home">${esc(e.home)}</span><span class="bft" data-t="away">${esc(e.away)}</span></div>
+        <div class="bfield-tabs"><span class="bft on" data-t="home">${esc(TN(e.home))}</span><span class="bft" data-t="away">${esc(TN(e.away))}</span></div>
         <div id="bfieldBox">${mlbField(d.home, e.home)}</div>
         <div class="odsec">타순표</div>
         <div class="mlb-lu">${mlbCol(d.home, e.home)}${mlbCol(d.away, e.away)}</div>
@@ -789,7 +856,7 @@ async function updateBox(e) {
     const d = await fetchJSON(`/api/mlb/boxscore?home=${encodeURIComponent(e.home)}&away=${encodeURIComponent(e.away)}&date=${state.date}`, { tries: 1 });
     if (!d.found || (!(d.home.batters || []).length && !(d.away.batters || []).length)) { box.innerHTML = `<div class="odsec">📋 경기 기록</div><div class="lu-note">경기 시작 후 투수·타자 기록이 표시돼요.</div>`; return; }
     box.innerHTML = `<div class="odsec">📋 경기 기록 <span class="rhe">투수·타자</span></div>
-      <div class="bfield-tabs"><span class="bft on" data-t="home">${esc(e.home)}</span><span class="bft" data-t="away">${esc(e.away)}</span></div>
+      <div class="bfield-tabs"><span class="bft on" data-t="home">${esc(TN(e.home))}</span><span class="bft" data-t="away">${esc(TN(e.away))}</span></div>
       <div id="boxBody">${boxTables(d.home)}</div>`;
     $$('#mBoxWrap .bft').forEach(t => t.addEventListener('click', () => {
       $$('#mBoxWrap .bft').forEach(x => x.classList.remove('on')); t.classList.add('on');
@@ -809,12 +876,12 @@ async function updateInfo(e) {
     const p = d.probable || {};
     if (p.home || p.away) {
       const row = (nm, pp) => pp ? `<tr><td class="tn">${esc(nm)}</td><td class="nm">${esc(pp.name)}</td><td><b>${esc(pp.w)}승 ${esc(pp.l)}패</b> ${esc(pp.era)}</td><td>${esc(pp.ip)}이닝 ${esc(pp.k)}K ${esc(pp.bb)}BB</td></tr>` : '';
-      html += `<div class="odsec">🎯 선발투수 (시즌)</div><table class="stt inf"><tbody>${row(e.home, p.home)}${row(e.away, p.away)}</tbody></table>`;
+      html += `<div class="odsec">🎯 ${esc(t('probable'))}</div><table class="stt inf"><tbody>${row(TN(e.home), p.home)}${row(TN(e.away), p.away)}</tbody></table>`;
     }
     const rc = d.recent || {};
     const col = (nm, arr) => `<div class="recol"><div class="rec-hd">${esc(nm)}</div>${(arr || []).map(g => `<div class="rec-row clik" data-gp="${esc(g.gamePk || '')}"><span class="rb ${g.win ? 'W' : 'L'}">${g.win ? '승' : '패'}</span><span class="ro">${esc(teamShort(g.opp))}</span><span class="rs">${esc(g.ts)}:${esc(g.os)}</span></div>`).join('') || '<div class="rec-empty">기록 없음</div>'}</div>`;
     if ((rc.home && rc.home.length) || (rc.away && rc.away.length)) {
-      html += `<div class="odsec">📅 최근 10경기</div><div class="recent2">${col(e.home, rc.home)}${col(e.away, rc.away)}</div>`;
+      html += `<div class="odsec">📅 ${esc(t('recent'))}</div><div class="recent2">${col(TN(e.home), rc.home)}${col(TN(e.away), rc.away)}</div>`;
     }
     // 맞대결(H2H)
     const h = d.h2h || [];
@@ -898,9 +965,9 @@ function renderDetail(e, pr) {
   const sc = $('#mScore');
   if (sc) sc.innerHTML = `
     <div class="mteams">
-      <div class="mt"><div class="ph">${badge(e.homeLogo, '🏟')}</div><div class="nm"><span class="haic">🏠</span>${esc(e.home)}</div></div>
+      <div class="mt"><div class="ph">${badge(e.homeLogo, '🏟')}</div><div class="nm"><span class="haic">🏠</span>${esc(TN(e.home))}</div></div>
       <div class="msc"><div class="n">${scoreTxt}</div><div class="st" style="color:${e.state === 'live' ? '#e2231a' : '#8b93a0'}">${esc(st)}</div>${setpts}</div>
-      <div class="mt"><div class="ph">${badge(e.awayLogo, '🏟')}</div><div class="nm">${esc(e.away)}<span class="haic">✈</span></div></div>
+      <div class="mt"><div class="ph">${badge(e.awayLogo, '🏟')}</div><div class="nm">${esc(TN(e.away))}<span class="haic">✈</span></div></div>
     </div>`;
   el.innerHTML = `
     <div id="mMlbLive"></div>
@@ -1212,7 +1279,7 @@ function renderInfoList() {
     return `<div class="infocard" data-ev="${esc(g.id)}">
       <div class="ic-mid">
         <div class="ic-lg">⚾ ${esc(g.league)} · ${stx} ${info}</div>
-        <div class="ic-tm"><b>${esc(g.home)}</b> <span class="ic-vs">${sc}</span> ${esc(g.away)}</div>
+        <div class="ic-tm"><b>${esc(TN(g.home))}</b> <span class="ic-vs">${sc}</span> ${esc(TN(g.away))}</div>
       </div>
       <div class="ic-go">상세 ›</div>
     </div>`;
@@ -1345,16 +1412,20 @@ function connectWS() {
 // ============================================================
 //  날짜 네비 / 드로어 / 기타
 // ============================================================
+function refreshDateLabel() {
+  const el = $('#dateToday'); if (!el) return;
+  el.textContent = (state.date === new Date().toISOString().slice(0, 10)) ? t('today') : state.date.slice(5);
+}
 function shiftDate(days) {
   const d = new Date(state.date); d.setDate(d.getDate() + days);
   state.date = d.toISOString().slice(0, 10); $('#datePick').value = state.date;
-  $('#dateToday').textContent = (state.date === new Date().toISOString().slice(0, 10)) ? '오늘' : state.date.slice(5);
+  refreshDateLabel();
   loadEvents();
 }
 $('#datePrev').addEventListener('click', () => shiftDate(-1));
 $('#dateNext').addEventListener('click', () => shiftDate(1));
-$('#dateToday').addEventListener('click', () => { state.date = new Date().toISOString().slice(0, 10); $('#datePick').value = state.date; $('#dateToday').textContent = '오늘'; loadEvents(); });
-$('#datePick').addEventListener('change', e => { state.date = e.target.value; $('#dateToday').textContent = (state.date === new Date().toISOString().slice(0,10)) ? '오늘' : state.date.slice(5); loadEvents(); });
+$('#dateToday').addEventListener('click', () => { state.date = new Date().toISOString().slice(0, 10); $('#datePick').value = state.date; refreshDateLabel(); loadEvents(); });
+$('#datePick').addEventListener('change', e => { state.date = e.target.value; refreshDateLabel(); loadEvents(); });
 $('#btnRefresh').addEventListener('click', () => loadEvents());
 $('#btnUser')?.addEventListener('click', openLogin);
 $('#btnMenu').addEventListener('click', openDrawer);
@@ -1389,6 +1460,7 @@ function initLangSelectors() {
   const opts = LANGS.map(l => `<option value="${l}"${l === LANG ? ' selected' : ''}>${LANG_NAMES[l]}</option>`).join('');
   ['#langSel', '#langSelD'].forEach(sel => { const el = $(sel); if (el) { el.innerHTML = opts; el.value = LANG; el.addEventListener('change', () => setLang(el.value)); } });
   applyI18n();
+  refreshDateLabel();
 }
 async function init() {
   $('#datePick').value = state.date;

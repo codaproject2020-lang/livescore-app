@@ -8,7 +8,7 @@
 <link rel="manifest" href="/manifest.json">
 <link rel="apple-touch-icon" href="/logo.png.jpg">
 <link rel="icon" href="/logo.png.jpg">
-<link rel="stylesheet" href="styles.css?v=25">
+<link rel="stylesheet" href="styles.css?v=26">
 </head>
 <body>
 <div class="shell">
@@ -71,8 +71,8 @@
     <!-- 뉴스 티커 -->
     <div class="ticker">
       <span class="spk">🔊</span>
-      <a class="txt" href="https://sports.daum.net/" target="_blank" rel="noopener">스포츠 최신 뉴스 · 다음스포츠에서 보기</a>
-      <span class="pick">픽</span>
+      <a class="txt" href="https://sports.daum.net/" target="_blank" rel="noopener"><span data-i18n="news">스포츠 최신 뉴스</span> <span data-i18n="newsMore">· 다음스포츠에서 보기</span></a>
+      <span class="pick" data-i18n="pick">픽</span>
     </div>
 
     <!-- 전경기 대화방 -->
@@ -234,6 +234,6 @@
     window.addEventListener('load', () => navigator.serviceWorker.register('/sw.js').catch(() => {}));
   }
 </script>
-<script src="app.js?v=33"></script>
+<script src="app.js?v=34"></script>
 </body>
 </html>
