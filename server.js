@@ -838,9 +838,29 @@ async function mlbRecent(teamId, sportId, date) {
   return fin.slice(0, 10).map(g => {
     const isHome = g.teams.home.team.id === Number(teamId);
     const my = isHome ? g.teams.home : g.teams.away, op = isHome ? g.teams.away : g.teams.home;
-    return { date: g.officialDate, opp: op.team.name, ts: my.score, os: op.score, win: my.score > op.score };
+    return { date: g.officialDate, opp: op.team.name, ts: my.score, os: op.score, win: my.score > op.score, gamePk: g.gamePk };
   });
 }
+// 특정 과거 경기의 이닝스코어 + 투수/타자 박스 (최근경기·맞대결 펼쳐보기)
+app.get('/api/mlb/gamebox', async (req, res) => {
+  const gp = req.query.gamePk;
+  if (!gp) return res.status(400).json({ error: 'need gamePk' });
+  try {
+    const [ls, box] = await Promise.all([
+      mlbFetch(`/api/v1/game/${gp}/linescore`, 86400000),
+      mlbFetch(`/api/v1/game/${gp}/boxscore`, 86400000)
+    ]);
+    const innings = (ls.innings || []).map(i => ({ num: i.num, home: i.home ? i.home.runs : null, away: i.away ? i.away.runs : null }));
+    const lt = ls.teams || {};
+    const side = t => {
+      const T = box.teams[t] || {}, P = T.players || {};
+      const pitchers = (T.pitchers || []).map(id => { const p = P['ID' + id] || {}, s = (p.stats && p.stats.pitching) || {}; return { name: p.person ? p.person.fullName : '', ip: s.inningsPitched ?? '-', h: s.hits ?? 0, er: s.earnedRuns ?? 0, k: s.strikeOuts ?? 0 }; });
+      const batters = (T.batters || []).map(id => { const p = P['ID' + id] || {}, s = (p.stats && p.stats.batting) || {}; return { name: p.person ? p.person.fullName : '', pos: p.position ? p.position.abbreviation : '', ab: s.atBats ?? 0, h: s.hits ?? 0, rbi: s.rbi ?? 0 }; });
+      return { name: T.team ? T.team.name : '', r: lt[t] ? lt[t].runs : null, h: lt[t] ? lt[t].hits : null, e: lt[t] ? lt[t].errors : null, pitchers, batters };
+    };
+    res.json({ innings, home: side('home'), away: side('away') });
+  } catch (e) { res.status(502).json({ error: String(e.message || e) }); }
+});
 // 선발(예상) 투수 시즌 성적
 async function mlbPitcherSeason(id) {
   if (!id) return null;
@@ -861,7 +881,7 @@ async function mlbH2H(homeId, awayId, sportId) {
   (sch.dates || []).forEach(dd => (dd.games || []).forEach(g => games.push(g)));
   const fin = games.filter(g => (g.status && g.status.abstractGameState) === 'Final' && g.teams.home.score != null);
   fin.sort((a, b) => new Date(b.gameDate) - new Date(a.gameDate));
-  return fin.slice(0, 8).map(g => ({ date: g.officialDate, home: g.teams.home.team.name, away: g.teams.away.team.name, hs: g.teams.home.score, as: g.teams.away.score }));
+  return fin.slice(0, 8).map(g => ({ date: g.officialDate, home: g.teams.home.team.name, away: g.teams.away.team.name, hs: g.teams.home.score, as: g.teams.away.score, gamePk: g.gamePk }));
 }
 // 팀 순위표 (리그 순위/득실/연승)
 async function mlbStandings(teamId, homeId, awayId) {
