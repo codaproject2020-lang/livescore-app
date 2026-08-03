@@ -703,13 +703,16 @@ function rheMini(e) {
       <tr><td class="tn">${esc(nm(e.away))}</td><td class="r">${esc(a.r ?? e.as ?? 0)}</td><td>${esc(a.h ?? 0)}</td><td>${esc(a.e ?? 0)}</td>${showBB ? `<td>${esc(a.bb ?? '-')}</td>` : ''}</tr>
     </tbody></table></div>`;
 }
+// 홈/원정 배지 (이모지 대신 또렷한 아이콘 칩)
+const HA_HOME = '<span class="haic home" title="HOME" aria-label="HOME"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.6 1.5 11.2l1.5 1.9L5 11.9V21h5.2v-5.6h3.6V21H19v-9.1l2 1.2 1.5-1.9z"/></svg></span>';
+const HA_AWAY = '<span class="haic away" title="AWAY" aria-label="AWAY"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21.5 15.6 14 11.2V4.9a2 2 0 0 0-4 0v6.3l-7.5 4.4v1.9L10 15.4v3.9l-2.3 1.6V22L12 20.8 16.3 22v-1.1L14 19.3v-3.9l7.5 2.1z"/></svg></span>';
 function matchCard(e) {
   return `<div class="match" data-ev="${esc(e.id)}">
     <span class="bell">🔔</span>
     <div class="mrow">
-      <div class="side"><div class="ph">${badge(e.homeLogo, '🏟')}</div><div class="team"><span class="haic">🏠</span>${esc(TN(e.home, e.league))}</div></div>
+      <div class="side"><div class="ph">${badge(e.homeLogo, '🏟')}</div><div class="team">${HA_HOME}${esc(TN(e.home, e.league))}</div></div>
       ${scoreBlock(e)}
-      <div class="side"><div class="ph">${badge(e.awayLogo, '🏟')}</div><div class="team">${esc(TN(e.away, e.league))}<span class="haic">✈</span></div></div>
+      <div class="side"><div class="ph">${badge(e.awayLogo, '🏟')}</div><div class="team">${esc(TN(e.away, e.league))}${HA_AWAY}</div></div>
     </div>
     ${bsoMini(e)}
     ${rheMini(e)}
@@ -1099,9 +1102,9 @@ function renderDetail(e, pr) {
   const sc = $('#mScore');
   if (sc) sc.innerHTML = `
     <div class="mteams">
-      <div class="mt"><div class="ph">${badge(e.homeLogo, '🏟')}</div><div class="nm"><span class="haic">🏠</span>${esc(TN(e.home, e.league))}</div></div>
+      <div class="mt"><div class="ph">${badge(e.homeLogo, '🏟')}</div><div class="nm">${HA_HOME}${esc(TN(e.home, e.league))}</div></div>
       <div class="msc"><div class="n">${scoreTxt}</div><div class="st" style="color:${e.state === 'live' ? '#e2231a' : '#8b93a0'}">${esc(st)}</div>${setpts}</div>
-      <div class="mt"><div class="ph">${badge(e.awayLogo, '🏟')}</div><div class="nm">${esc(TN(e.away, e.league))}<span class="haic">✈</span></div></div>
+      <div class="mt"><div class="ph">${badge(e.awayLogo, '🏟')}</div><div class="nm">${esc(TN(e.away, e.league))}${HA_AWAY}</div></div>
     </div>`;
   el.innerHTML = `
     <div id="mMlbLive"></div>
