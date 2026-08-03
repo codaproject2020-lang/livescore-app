@@ -424,6 +424,19 @@ function predictBanner(e) {
   const ou = (!isNaN(h) && !isNaN(a) && (h + a) >= 5) ? '오버' : '언더';
   return `<div class="ansban" data-ev="${esc(e.id)}"><span class="badge">답</span><span class="t"><b>${esc(side)} ${pct}%</b> <span class="g">/ 핸디 / ${ou}</span></span><span class="go">›</span></div>`;
 }
+// 야구 R·H·E 미니 스코어보드 (득점·안타·실책)
+function rheMini(e) {
+  if (state.sport !== 'baseball' || !e.box) return '';
+  const h = e.box.home || {}, a = e.box.away || {};
+  if ([h.h, h.e, a.h, a.e].every(v => v == null)) return '';
+  const nm = t => { const p = String(t || '').trim().split(' '); return p.length > 1 ? p[p.length - 1] : t; };
+  return `<div class="rhemini"><table>
+    <thead><tr><th></th><th>R</th><th>H</th><th>E</th></tr></thead>
+    <tbody>
+      <tr><td class="tn">${esc(nm(e.home))}</td><td class="r">${esc(h.r ?? e.hs ?? 0)}</td><td>${esc(h.h ?? 0)}</td><td>${esc(h.e ?? 0)}</td></tr>
+      <tr><td class="tn">${esc(nm(e.away))}</td><td class="r">${esc(a.r ?? e.as ?? 0)}</td><td>${esc(a.h ?? 0)}</td><td>${esc(a.e ?? 0)}</td></tr>
+    </tbody></table></div>`;
+}
 function matchCard(e) {
   return `<div class="match" data-ev="${esc(e.id)}">
     <span class="bell">🔔</span>
@@ -432,6 +445,7 @@ function matchCard(e) {
       ${scoreBlock(e)}
       <div class="side"><div class="ph">${badge(e.awayLogo, '🏟')}</div><div class="team">${esc(e.away)}<span class="haic">✈</span></div></div>
     </div>
+    ${rheMini(e)}
     ${aiLive(e)}
     ${oddsLine(e)}
     <span class="pick">픽</span>
@@ -728,7 +742,8 @@ function renderDetail(e, pr) {
       <div><span class="k">리그</span> ${esc(e.league)}</div>
       <div><span class="k">일시</span> ${esc(when)}</div>
       <div><span class="k">상태</span> ${esc(koStatus(e))}</div>
-    </div>`;
+    </div>
+    <a class="ythl" href="https://www.youtube.com/results?search_query=${encodeURIComponent(e.away + ' vs ' + e.home + ' ' + esc(e.league) + ' highlights')}" target="_blank" rel="noopener">📺 경기 하이라이트 · YouTube에서 보기 ›</a>`;
   updateEvents(e);   // 실시간 이벤트 피드 채우기 (축구=API / 그외=변화감지 로그)
   if (e.league === 'MLB') updateMlbLive(e);   // MLB 실시간 볼카운트·주자·타자/투수 (10초 갱신)
 }
