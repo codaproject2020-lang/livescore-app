@@ -84,20 +84,20 @@ html,body{overflow-x:hidden;max-width:100%}
 .side .ph{width:36px;height:36px;border-radius:50%;background:#eef1f4;display:grid;place-items:center;font-size:15px;overflow:hidden;border:1px solid #e4e8ec}
 .side .ph img{width:100%;height:100%;object-fit:contain}
 .side .team{font-size:13px;font-weight:800;text-align:center;line-height:1.25;max-width:120px}
-.haic{display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:7px;flex:0 0 auto;box-shadow:0 1px 3px rgba(20,30,55,.25)}
-.haic svg{width:14px;height:14px;fill:currentColor;display:block}
-.haic.home{background:#16243d;color:#f5c542;border:2px solid #fff}
-.haic.away{background:#fff;color:#7a8493;border:2px solid #fff;box-shadow:0 0 0 1.5px #c7cfda,0 1px 3px rgba(20,30,55,.2)}
+.haic{display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;border-radius:5px;flex:0 0 auto;box-shadow:0 1px 2px rgba(20,30,55,.25)}
+.haic svg{width:10px;height:10px;fill:currentColor;display:block}
+.haic.home{background:#16243d;color:#f5c542;border:1.5px solid #fff}
+.haic.away{background:#fff;color:#7a8493;border:1.5px solid #fff;box-shadow:0 0 0 1px #c7cfda,0 1px 2px rgba(20,30,55,.2)}
 /* 카드: 로고 우하단 모서리에 겹쳐 붙임 (이름은 정중앙 유지) */
-.side .haic{position:absolute;top:20px;z-index:3}
-.side .haic.home{left:calc(50% - 25px)}
-.side .haic.away{left:calc(50% + 5px)}
+.side .haic{position:absolute;top:23px;z-index:3}
+.side .haic.home{left:calc(50% - 20px)}
+.side .haic.away{left:calc(50% + 4px)}
 /* 상세 모달: 큰 로고(54px) 우하단 */
 .mteams .mt{position:relative}
-.mteams .mt .haic{position:absolute;top:34px;width:26px;height:26px;z-index:3}
-.mteams .mt .haic svg{width:16px;height:16px}
-.mteams .mt .haic.home{left:calc(50% - 31px)}
-.mteams .mt .haic.away{left:calc(50% + 5px)}
+.mteams .mt .haic{position:absolute;top:38px;width:18px;height:18px;z-index:3}
+.mteams .mt .haic svg{width:11px;height:11px}
+.mteams .mt .haic.home{left:calc(50% - 25px)}
+.mteams .mt .haic.away{left:calc(50% + 7px)}
 /* 야구 R·H·E 미니 스코어보드 */
 .rhemini{grid-column:2;display:flex;justify-content:flex-end;margin-top:8px}
 .rhemini table{border-collapse:collapse;font-size:11px;text-align:center}
