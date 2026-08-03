@@ -742,8 +742,7 @@ function renderDetail(e, pr) {
       <div><span class="k">리그</span> ${esc(e.league)}</div>
       <div><span class="k">일시</span> ${esc(when)}</div>
       <div><span class="k">상태</span> ${esc(koStatus(e))}</div>
-    </div>
-    <a class="ythl" href="https://www.youtube.com/results?search_query=${encodeURIComponent(e.away + ' vs ' + e.home + ' ' + esc(e.league) + ' highlights')}" target="_blank" rel="noopener">📺 경기 하이라이트 · YouTube에서 보기 ›</a>`;
+    </div>`;
   updateEvents(e);   // 실시간 이벤트 피드 채우기 (축구=API / 그외=변화감지 로그)
   if (e.league === 'MLB') updateMlbLive(e);   // MLB 실시간 볼카운트·주자·타자/투수 (10초 갱신)
 }
@@ -755,6 +754,7 @@ async function openEvent(id) {
   $('#mBody').innerHTML = `
     <div id="mDetail"><div class="loading">불러오는 중…</div></div>
     <div id="mLineupWrap"></div>
+    <div id="mYtWrap"></div>
     <div class="mchat-embed">
       <div class="mce-hd">💬 <b>${esc(e.home)} vs ${esc(e.away)}</b> 대화방 <span class="mce-tag">보면서 채팅</span> <span class="mce-on">🟢 <b id="onlineM">0</b></span></div>
       <div id="mChatPane" class="chatpane embed"></div>
@@ -767,6 +767,25 @@ async function openEvent(id) {
   logChanges(id, feedGames[id] || e);   // 스냅샷 시드 (이후 변화만 이벤트로 기록)
   renderDetail(feedGames[id] || e, pr);
   updateLineup(feedGames[id] || e);     // 라인업은 한 번만 로드 (10초 갱신 때 초기화 방지)
+  buildYt(feedGames[id] || e);          // 하이라이트 재생 버튼 (한 번만 · 재생 유지)
+}
+// YouTube 하이라이트 — 화면 안에서 ▶ 재생 (키 있으면 인라인, 없으면 링크 폴백)
+function ytFallback(q, msg) {
+  return `<div class="odsec">📺 경기 하이라이트</div>${msg ? `<div class="lu-note">${esc(msg)}</div>` : ''}<a class="ythl" href="https://www.youtube.com/results?search_query=${encodeURIComponent(q)}" target="_blank" rel="noopener">📺 YouTube에서 보기 ›</a>`;
+}
+function buildYt(e) {
+  const box = $('#mYtWrap'); if (!box) return;
+  const q = e.away + ' vs ' + e.home + ' ' + (e.league || '') + ' highlights';
+  box.innerHTML = `<div class="odsec">📺 경기 하이라이트</div><button class="ythl-play" id="ytPlay">▶ 하이라이트 재생</button>`;
+  $('#ytPlay')?.addEventListener('click', async () => {
+    const btn = $('#ytPlay'); if (btn) { btn.textContent = '불러오는 중…'; btn.disabled = true; }
+    try {
+      const d = await fetchJSON('/api/youtube?q=' + encodeURIComponent(q), { tries: 1 });
+      if (d.needKey) { box.innerHTML = ytFallback(q, 'YouTube 재생 키가 아직 없어요 (설정하면 화면 안에서 바로 재생돼요)'); return; }
+      if (!d.videoId) { box.innerHTML = ytFallback(q, '영상을 찾지 못했어요'); return; }
+      box.innerHTML = `<div class="odsec">📺 경기 하이라이트 <span class="rhe">${esc((d.title || '').slice(0, 40))}</span></div><div class="ytembed"><iframe src="https://www.youtube.com/embed/${encodeURIComponent(d.videoId)}?autoplay=1&rel=0" title="highlights" allow="autoplay; encrypted-media; fullscreen" allowfullscreen frameborder="0"></iframe></div>`;
+    } catch { box.innerHTML = ytFallback(q, '불러오기 실패 — 링크로 열립니다'); }
+  });
 }
 function closeModal() {
   $('#scrim').classList.remove('on'); $('#modal').classList.remove('on');
