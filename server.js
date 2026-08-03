@@ -539,6 +539,7 @@ app.get('/api/asports/games', async (req, res) => {
         g.status = e.state === 'finished' ? 'FT' : e.state === 'live' ? 'IN' : 'NS';
         if (e.inning != null) { g.curInning = e.inning; g.period = e.inning; }
         if (e.half) g.inningHalf = e.half === 'Top' ? 'top' : e.half === 'Bottom' ? 'bottom' : g.inningHalf;
+        if (e.bso) g.bso = e.bso;   // 카드용 볼/스트라이크/아웃 + 주자
         // R/H/E/BB 박스 (카드 미니 스코어보드용)
         const prevH = g.box && g.box.home ? g.box.home : {}, prevA = g.box && g.box.away ? g.box.away : {};
         g.box = {
@@ -706,11 +707,25 @@ async function mlbScoreMap(date) {
           as.bb = ba.baseOnBalls != null ? ba.baseOnBalls : null; if (as.h == null) as.h = ba.hits != null ? ba.hits : null;
         } catch {}
       }
+      // 진행 중 경기: 볼/스트라이크/아웃 + 주자(1·2·3루) — 카드(바깥)에서 바로 보이도록
+      let bso = null;
+      if (st === 'Live') {
+        try {
+          const fl = await mlbFetch(`/api/v1/game/${g.gamePk}/linescore`, 8000);
+          const off = fl.offense || {};
+          bso = {
+            balls: fl.balls != null ? fl.balls : null, strikes: fl.strikes != null ? fl.strikes : null, outs: fl.outs != null ? fl.outs : null,
+            bases: { first: !!off.first, second: !!off.second, third: !!off.third },
+            batter: off.batter ? off.batter.fullName : null
+          };
+        } catch {}
+      }
       const entry = {
         state: st === 'Final' ? 'finished' : st === 'Live' ? 'live' : 'scheduled',
         inning: ls.currentInning != null ? ls.currentInning : null,
         half: ls.inningHalf || null,
-        byNick: { [hN]: hs, [aN]: as }
+        byNick: { [hN]: hs, [aN]: as },
+        bso
       };
       if (!map[key] || rank(entry.state) < rank(map[key].state)) map[key] = entry;
     }));
