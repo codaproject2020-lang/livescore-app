@@ -526,10 +526,13 @@ app.get('/api/asports/games', async (req, res) => {
     const j = await asRaw(sport, path, 6000);   // 라이브 신선도 우선 (6초)
     let games = (j.response || []).map(g => normAS(sport, g)).filter(Boolean);
     // ⚾ MLB는 공식 StatsAPI로 스코어·상태·이닝 덮어쓰기 (API-Sports 지연 보정 → 실시간)
-    if (sport === 'baseball' && games.some(g => g.league === 'MLB')) {
-      const sm = await mlbScoreMap(date).catch(() => null);
-      if (sm) games.forEach(g => {
-        if (g.league !== 'MLB') return;
+    // MLB(sportId 1) + LMB 멕시코리그(sportId 23)를 공식 StatsAPI로 실시간 덮어쓰기
+    if (sport === 'baseball' && games.some(g => g.league === 'MLB' || g.league === 'LMB')) {
+      const sm = {};
+      if (games.some(g => g.league === 'MLB')) Object.assign(sm, await mlbScoreMap(date, 1).catch(() => ({})));
+      if (games.some(g => g.league === 'LMB')) Object.assign(sm, await mlbScoreMap(date, 23).catch(() => ({})));
+      games.forEach(g => {
+        if (g.league !== 'MLB' && g.league !== 'LMB') return;
         const hN = mlbNick(g.home), aN = mlbNick(g.away), e = sm[[hN, aN].sort().join('|')];
         if (!e) return;
         const H = e.byNick[hN] || {}, A = e.byNick[aN] || {};
@@ -627,7 +630,14 @@ async function mlbFetch(path, ttl = 30000) {
   return v;
 }
 // 팀명 별명(마지막 단어)으로 매칭 (API-Sports ↔ MLB StatsAPI)
-function mlbNick(s) { const w = String(s || '').toLowerCase().replace(/[^a-z ]/g, '').trim().split(/\s+/); let n = w[w.length - 1] || ''; if (n === 'sox' && w.length >= 2) n = w[w.length - 2] + n; return n; }
+// 팀 별명 정규화 (약칭↔풀네임 매칭). LMB(멕시코)는 API-Sports 약칭 ↔ StatsAPI 풀네임이 달라 별칭 보정.
+const MLB_NICK_ALIAS = { mexico: 'diablos', rojos: 'diablos', norte: 'acereros', monclova: 'acereros' };
+function mlbNick(s) {
+  const w = String(s || '').toLowerCase().replace(/[^a-z ]/g, '').trim().split(/\s+/);
+  let n = w[w.length - 1] || '';
+  if (n === 'sox' && w.length >= 2) n = w[w.length - 2] + n;
+  return MLB_NICK_ALIAS[n] || n;
+}
 function mlbTeamMatch(a, b) { const na = mlbNick(a), nb = mlbNick(b); return na && nb && na === nb; }
 // MLB 경기 라인업(타순) — gamePk를 스케줄에서 매칭
 app.get('/api/mlb/game', async (req, res) => {
@@ -658,15 +668,17 @@ app.get('/api/mlb/game', async (req, res) => {
 function mlbAddDays(dstr, n) { const d = new Date(dstr + 'T12:00:00Z'); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); }
 async function mlbFindGame(home, away, date) {
   const cands = [];
-  for (const d of [date, mlbAddDays(date, -1), mlbAddDays(date, 1)]) {
-    let sch;
-    try { sch = await mlbFetch(`/api/v1/schedule?sportId=1&date=${d}`, 60000); } catch { continue; }
-    const games = [];
-    (sch.dates || []).forEach(dd => (dd.games || []).forEach(g => games.push(g)));
+  for (const sportId of [1, 23]) {   // 1=MLB, 23=LMB(멕시코)
+    for (const d of [date, mlbAddDays(date, -1), mlbAddDays(date, 1)]) {
+      let sch;
+      try { sch = await mlbFetch(`/api/v1/schedule?sportId=${sportId}&date=${d}`, 60000); } catch { continue; }
+      const games = [];
+      (sch.dates || []).forEach(dd => (dd.games || []).forEach(g => games.push(g)));
     for (const g of games) {
       const st = (g.status && g.status.abstractGameState) || '';
       if (mlbTeamMatch(g.teams.home.team.name, home) && mlbTeamMatch(g.teams.away.team.name, away)) cands.push({ gamePk: g.gamePk, swap: false, st });
       else if (mlbTeamMatch(g.teams.home.team.name, away) && mlbTeamMatch(g.teams.away.team.name, home)) cands.push({ gamePk: g.gamePk, swap: true, st });
+      }
     }
   }
   if (!cands.length) return null;
@@ -676,12 +688,12 @@ async function mlbFindGame(home, away, date) {
   return cands[0];
 }
 // MLB 스코어/상태/이닝을 공식 StatsAPI로 덮어쓰기용 맵 (API-Sports보다 훨씬 빠름·정확)
-async function mlbScoreMap(date) {
+async function mlbScoreMap(date, sportId = 1) {
   const map = {};
   const rank = s => s === 'live' ? 0 : s === 'finished' ? 1 : 2;
   for (const d of [date, mlbAddDays(date, -1), mlbAddDays(date, 1)]) {
     let sch;
-    try { sch = await mlbFetch(`/api/v1/schedule?sportId=1&date=${d}&hydrate=linescore`, 15000); } catch { continue; }
+    try { sch = await mlbFetch(`/api/v1/schedule?sportId=${sportId}&date=${d}&hydrate=linescore`, 15000); } catch { continue; }
     const games = [];
     (sch.dates || []).forEach(dd => (dd.games || []).forEach(g => games.push(g)));
     await Promise.all(games.map(async g => {
