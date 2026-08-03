@@ -747,6 +747,21 @@ async function updateInfo(e) {
     if ((rc.home && rc.home.length) || (rc.away && rc.away.length)) {
       html += `<div class="odsec">📅 최근 10경기</div><div class="recent2">${col(e.home, rc.home)}${col(e.away, rc.away)}</div>`;
     }
+    // 맞대결(H2H)
+    const h = d.h2h || [];
+    if (h.length) {
+      html += `<div class="odsec">⚔️ 맞대결</div><div class="h2hbox">${h.map(g => {
+        const md = (g.date || '').slice(5);
+        return `<div class="h2h-row"><span class="h2h-d">${esc(md)}</span><span class="h2h-t">${esc(teamShort(g.home))}</span><span class="h2h-s">${esc(g.hs)}:${esc(g.as)}</span><span class="h2h-t r">${esc(teamShort(g.away))}</span></div>`;
+      }).join('')}</div>`;
+    }
+    // 팀 순위표
+    const st = d.standings || [];
+    if (st.length) {
+      html += `<div class="odsec">🏆 팀 순위</div><table class="stt stdtbl"><thead><tr><th>#</th><th>팀</th><th>승</th><th>패</th><th>승률</th><th>득</th><th>실</th><th>연속</th></tr></thead><tbody>${
+        st.map(r => `<tr class="${r.hl ? 'hl' : ''}"><td>${esc(r.rank)}</td><td class="nm">${esc(teamShort(r.name))}</td><td>${esc(r.w)}</td><td>${esc(r.l)}</td><td>${esc(String(r.pct).replace(/^0/, ''))}</td><td>${esc(r.rs)}</td><td>${esc(r.ra)}</td><td>${esc(r.streak)}</td></tr>`).join('')
+        }</tbody></table>`;
+    }
     box.innerHTML = html;
   } catch {}
 }
