@@ -1043,17 +1043,30 @@ const INFO = [
 ];
 
 let infoBuilt = false;
-function initInfo() {
+// 경기 정보방: 현재 종목의 실제 경기 목록 → 클릭 시 실제 상세(라인업·투수/타자 기록 포함)
+async function initInfo() {
   const list = $('#infoList'); if (!list) return;
-  list.innerHTML = INFO.map((m, i) => `<div class="infocard" data-i="${i}">
-    <div class="ic-no">${m.no}</div>
-    <div class="ic-mid">
-      <div class="ic-lg">⚾ ${m.league} · ${m.date} · ${m.venue}</div>
-      <div class="ic-tm"><span class="ic-b" style="background:${m.home.color}">${m.home.logo}</span> ${esc(m.home.name)} <span class="ic-vs">vs</span> ${esc(m.away.name)} <span class="ic-b" style="background:${m.away.color}">${m.away.logo}</span></div>
-    </div>
-    <div class="ic-go">상세 ›</div>
-  </div>`).join('');
-  $$('#infoList .infocard').forEach(c => c.addEventListener('click', () => openInfoDetail(+c.dataset.i)));
+  list.innerHTML = `<div class="loading">경기 불러오는 중…</div>`;
+  try {
+    const d = await fetchJSON(`/api/asports/games?sport=${encodeURIComponent(state.sport)}&date=${state.date}`, { tries: 2, delay: 3000 });
+    const games = d.games || [];
+    games.forEach(g => { feedGames[g.id] = g; });   // openEvent가 사용
+    if (!games.length) { list.innerHTML = `<div class="loading">${esc(state.date)} · ${SPORTS.find(s => s.key === state.sport)?.ko || state.sport} 경기가 없습니다.</div>`; return; }
+    // 라이브 먼저
+    games.sort((a, b) => (b.state === 'live') - (a.state === 'live'));
+    list.innerHTML = games.map(g => {
+      const stx = g.state === 'live' ? `<span style="color:var(--red);font-weight:800">● ${esc(koStatus(g))}</span>` : g.state === 'finished' ? '종료' : hhmm(g.date);
+      const sc = (g.hs == null && g.as == null) ? 'VS' : `${esc(g.hs ?? 0)} : ${esc(g.as ?? 0)}`;
+      return `<div class="infocard" data-ev="${esc(g.id)}">
+        <div class="ic-mid">
+          <div class="ic-lg">${badge(g.leagueLogo, '⚾')} ${esc(g.league)} · ${stx}</div>
+          <div class="ic-tm"><b>${esc(g.home)}</b> <span class="ic-vs">${sc}</span> ${esc(g.away)}</div>
+        </div>
+        <div class="ic-go">상세 ›</div>
+      </div>`;
+    }).join('');
+    $$('#infoList .infocard').forEach(c => c.addEventListener('click', () => openEvent(c.dataset.ev)));
+  } catch { list.innerHTML = `<div class="loading">불러오지 못했습니다.</div>`; }
 }
 function pitTable(team) {
   return `<table class="stt"><thead><tr><th>투수</th><th></th><th>방어율</th><th>경기</th><th>승</th><th>패</th><th>세</th><th>이닝</th></tr></thead><tbody>${
