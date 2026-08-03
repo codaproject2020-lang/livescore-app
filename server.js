@@ -800,6 +800,30 @@ app.get('/api/mlb/player', async (req, res) => {
     res.json({ id, group, games });
   } catch (e) { res.status(502).json({ error: String(e.message || e), games: [] }); }
 });
+// MLB/LMB 경기 박스스코어 (투수 기록 + 타자 기록) — 경기정보방용
+app.get('/api/mlb/boxscore', async (req, res) => {
+  const { home, away } = req.query;
+  const date = req.query.date || new Date().toISOString().slice(0, 10);
+  try {
+    const f = await mlbFindGame(home, away, date);
+    if (!f) return res.json({ found: false });
+    const box = await mlbFetch(`/api/v1/game/${f.gamePk}/boxscore`, 20000);
+    const side = t => {
+      const T = box.teams[t] || {}, P = T.players || {};
+      const pitchers = (T.pitchers || []).map(id => {
+        const p = P['ID' + id] || {}, s = (p.stats && p.stats.pitching) || {};
+        return { name: p.person ? p.person.fullName : '', ip: s.inningsPitched ?? '-', np: s.numberOfPitches ?? s.pitchesThrown ?? '-', h: s.hits ?? 0, er: s.earnedRuns ?? 0, hr: s.homeRuns ?? 0, k: s.strikeOuts ?? 0, bb: s.baseOnBalls ?? 0 };
+      });
+      const batters = (T.batters || []).map(id => {
+        const p = P['ID' + id] || {}, s = (p.stats && p.stats.batting) || {};
+        return { name: p.person ? p.person.fullName : '', pos: p.position ? p.position.abbreviation : '', ab: s.atBats ?? 0, h: s.hits ?? 0, bb: s.baseOnBalls ?? 0, rbi: s.rbi ?? 0, hr: s.homeRuns ?? 0, k: s.strikeOuts ?? 0, sb: s.stolenBases ?? 0 };
+      });
+      return { team: T.team ? T.team.name : '', pitchers, batters };
+    };
+    const hSide = side('home'), aSide = side('away');
+    res.json({ found: true, home: f.swap ? aSide : hSide, away: f.swap ? hSide : aSide });
+  } catch (e) { res.status(502).json({ found: false, error: String(e.message || e) }); }
+});
 
 // ============================================================
 //  YouTube 하이라이트 검색 (화면 내 재생용 · YouTube Data API v3)
