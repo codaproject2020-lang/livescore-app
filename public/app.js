@@ -725,6 +725,28 @@ async function updateBox(e) {
     }));
   } catch { box.innerHTML = `<div class="odsec">📋 경기 기록</div><div class="lu-note">불러오기 실패</div>`; }
 }
+// 경기정보방: 예상 선발투수 + 양팀 최근 10경기 (MLB·LMB)
+async function updateInfo(e) {
+  const box = $('#mInfoWrap'); if (!box) return;
+  if (e.league !== 'MLB' && e.league !== 'LMB') { box.innerHTML = ''; return; }
+  box.innerHTML = '';
+  try {
+    const d = await fetchJSON(`/api/mlb/info?home=${encodeURIComponent(e.home)}&away=${encodeURIComponent(e.away)}&date=${state.date}`, { tries: 1 });
+    if (!d.found) return;
+    let html = '';
+    const p = d.probable || {};
+    if (p.home || p.away) {
+      const row = (nm, pp) => pp ? `<tr><td class="tn">${esc(nm)}</td><td class="nm">${esc(pp.name)}</td><td><b>${esc(pp.w)}승 ${esc(pp.l)}패</b> ${esc(pp.era)}</td><td>${esc(pp.ip)}이닝 ${esc(pp.k)}K ${esc(pp.bb)}BB</td></tr>` : '';
+      html += `<div class="odsec">🎯 선발투수 (시즌)</div><table class="stt inf"><tbody>${row(e.home, p.home)}${row(e.away, p.away)}</tbody></table>`;
+    }
+    const rc = d.recent || {};
+    const col = (nm, arr) => `<div class="recol"><div class="rec-hd">${esc(nm)}</div>${(arr || []).map(g => `<div class="rec-row"><span class="rb ${g.win ? 'W' : 'L'}">${g.win ? '승' : '패'}</span><span class="ro">${esc(teamShort(g.opp))}</span><span class="rs">${esc(g.ts)}:${esc(g.os)}</span></div>`).join('') || '<div class="rec-empty">기록 없음</div>'}</div>`;
+    if ((rc.home && rc.home.length) || (rc.away && rc.away.length)) {
+      html += `<div class="odsec">📅 최근 10경기</div><div class="recent2">${col(e.home, rc.home)}${col(e.away, rc.away)}</div>`;
+    }
+    box.innerHTML = html;
+  } catch {}
+}
 // 야구 이닝별 라인스코어(R·H·E) 표
 function lineScoreTable(e) {
   if (state.sport !== 'baseball' || !e.box) return '';
@@ -795,6 +817,7 @@ async function openEvent(id) {
     <div id="mDetail"><div class="loading">불러오는 중…</div></div>
     <div id="mLineupWrap"></div>
     <div id="mBoxWrap"></div>
+    <div id="mInfoWrap"></div>
     <div class="mchat-embed">
       <div class="mce-hd">💬 <b>${esc(e.home)} vs ${esc(e.away)}</b> 대화방 <span class="mce-tag">보면서 채팅</span> <span class="mce-on">🟢 <b id="onlineM">0</b></span></div>
       <div id="mChatPane" class="chatpane embed"></div>
@@ -808,6 +831,7 @@ async function openEvent(id) {
   renderDetail(feedGames[id] || e, pr);
   updateLineup(feedGames[id] || e);     // 라인업은 한 번만 로드 (10초 갱신 때 초기화 방지)
   updateBox(feedGames[id] || e);        // 경기정보방: 투수·타자 기록
+  updateInfo(feedGames[id] || e);       // 예상 선발투수 + 최근 10경기
   buildYt(feedGames[id] || e);          // 하이라이트 재생 버튼 (한 번만 · 재생 유지)
 }
 // YouTube 하이라이트 — 화면 안에서 ▶ 재생 (키 있으면 인라인, 없으면 링크 폴백)
