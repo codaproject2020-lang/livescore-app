@@ -804,15 +804,15 @@ function renderDetail(e, pr) {
       <div class="mt"><div class="ph">${badge(e.awayLogo, '🏟')}</div><div class="nm">${esc(e.away)}<span class="haic">✈</span></div></div>
     </div>`;
   el.innerHTML = `
+    <div id="mMlbLive"></div>
+    ${lineScoreTable(e)}
+    ${odds}
     <div class="aisum">
       <div class="aisum-hd">🤖 AI 총정리 ${e.state === 'live' ? '<span class="aisum-live">● LIVE</span>' : ''}</div>
       ${aiSummary(e).map(l => `<p>${l}</p>`).join('')}
     </div>
-    <div id="mMlbLive"></div>
     <div class="odsec">📻 실시간 이벤트 <span class="rhe">AI 자동 정리${state.sport === 'football' ? ' · 골/퇴장/교체' : ' · 득점/안타/실책'}</span></div>
     <div id="mEvents" class="evfeed">${eventEmpty()}</div>
-    ${lineScoreTable(e)}
-    ${odds}
     <div class="probwrap">
       <div class="probttl"><span>🤖 AI 승부 예측</span><span>신뢰도 ${pr.confidence}%</span></div>
       <div class="probbar"><div class="pw" style="width:${pr.home}%">${pr.home}%</div><div class="pd" style="width:${pr.draw}%">${pr.draw}%</div><div class="pl" style="width:${pr.away}%">${pr.away}%</div></div>
@@ -835,9 +835,9 @@ async function openEvent(id) {
     <div id="mScore"></div>
     <div id="mYtWrap"></div>
     <div id="mDetail"><div class="loading">불러오는 중…</div></div>
-    <div id="mLineupWrap"></div>
     <div id="mBoxWrap"></div>
     <div id="mInfoWrap"></div>
+    <div id="mLineupWrap"></div>
     <div class="mchat-embed">
       <div class="mce-hd">💬 <b>${esc(e.home)} vs ${esc(e.away)}</b> 대화방 <span class="mce-tag">보면서 채팅</span> <span class="mce-on">🟢 <b id="onlineM">0</b></span></div>
       <div id="mChatPane" class="chatpane embed"></div>
