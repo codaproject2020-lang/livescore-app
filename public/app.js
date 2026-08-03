@@ -7,6 +7,73 @@ const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
+// ============================================================
+//  다국어(i18n) · 12개 언어 (기본 영어)
+// ============================================================
+const LANGS = ['en', 'ko', 'ja', 'zh', 'es', 'hi', 'vi', 'th', 'ru', 'de', 'fr', 'it'];
+const LANG_NAMES = { en: 'English', ko: '한국어', ja: '日本語', zh: '中文', es: 'Español', hi: 'हिन्दी', vi: 'Tiếng Việt', th: 'ไทย', ru: 'Русский', de: 'Deutsch', fr: 'Français', it: 'Italiano' };
+// 값 순서: en, ko, ja, zh, es, hi, vi, th, ru, de, fr, it
+const STR = {
+  live: ['Live', '라이브', 'ライブ', '直播', 'En vivo', 'लाइव', 'Trực tiếp', 'สด', 'Лайв', 'Live', 'Direct', 'Live'],
+  info: ['Match Info', '경기 정보방', '試合情報', '比赛信息', 'Partidos', 'मैच जानकारी', 'Thông tin', 'ข้อมูลแมตช์', 'Матчи', 'Spielinfo', 'Infos match', 'Info partite'],
+  rank: ['Standings', '순위', '順位', '排名', 'Clasificación', 'रैंकिंग', 'BXH', 'อันดับ', 'Таблица', 'Tabelle', 'Classement', 'Classifica'],
+  odds: ['Odds', '배당', 'オッズ', '赔率', 'Cuotas', 'ऑड्स', 'Tỷ lệ', 'อัตราต่อรอง', 'Ставки', 'Quoten', 'Cotes', 'Quote'],
+  community: ['Community', '커뮤니티', 'コミュニティ', '社区', 'Comunidad', 'समुदाय', 'Cộng đồng', 'ชุมชน', 'Сообщество', 'Community', 'Communauté', 'Community'],
+  chat: ['Chat', '채팅', 'チャット', '聊天', 'Chat', 'चैट', 'Trò chuyện', 'แชท', 'Чат', 'Chat', 'Chat', 'Chat'],
+  login: ['Login', '로그인', 'ログイン', '登录', 'Entrar', 'लॉगिन', 'Đăng nhập', 'เข้าสู่ระบบ', 'Вход', 'Anmelden', 'Connexion', 'Accedi'],
+  download: ['Install App', '앱 다운로드', 'アプリ', '安装应用', 'Instalar app', 'ऐप इंस्टॉल', 'Cài đặt', 'ติดตั้งแอป', 'Установить', 'App holen', 'Installer', 'Installa app'],
+  all: ['All', '전체', '全て', '全部', 'Todos', 'सभी', 'Tất cả', 'ทั้งหมด', 'Все', 'Alle', 'Tout', 'Tutti'],
+  today: ['Today', '오늘', '今日', '今天', 'Hoy', 'आज', 'Hôm nay', 'วันนี้', 'Сегодня', 'Heute', "Aujourd'hui", 'Oggi'],
+  refresh: ['Refresh', '새로고침', '更新', '刷新', 'Actualizar', 'रिफ्रेश', 'Làm mới', 'รีเฟรช', 'Обновить', 'Aktualisieren', 'Actualiser', 'Aggiorna'],
+  allRoom: ['All-Games Chat', '전경기 대화방', '全試合チャット', '全场聊天', 'Chat general', 'सभी मैच चैट', 'Chat tất cả', 'แชทรวม', 'Общий чат', 'Alle-Spiele-Chat', 'Chat général', 'Chat generale'],
+  online: ['online', '접속', '接続', '在线', 'en línea', 'ऑनलाइन', 'trực tuyến', 'ออนไลน์', 'онлайн', 'online', 'en ligne', 'online'],
+  chatPh: ['Type a message…', '메시지 입력…', 'メッセージ入力…', '输入消息…', 'Escribe…', 'संदेश लिखें…', 'Nhập tin nhắn…', 'พิมพ์ข้อความ…', 'Сообщение…', 'Nachricht…', 'Message…', 'Messaggio…'],
+  send: ['Send', '전송', '送信', '发送', 'Enviar', 'भेजें', 'Gửi', 'ส่ง', 'Отпр.', 'Senden', 'Envoyer', 'Invia'],
+  finished: ['Final', '종료', '終了', '完场', 'Final', 'समाप्त', 'Kết thúc', 'จบ', 'Заверш.', 'Ende', 'Terminé', 'Finita'],
+  lineup: ['Lineup', '선발 라인업', 'スタメン', '首发阵容', 'Alineación', 'लाइनअप', 'Đội hình', 'ผู้เล่นตัวจริง', 'Состав', 'Aufstellung', 'Composition', 'Formazione'],
+  boxRec: ['Box Score', '경기 기록', '成績', '比赛数据', 'Estadísticas', 'रिकॉर्ड', 'Thống kê', 'สถิติ', 'Статистика', 'Statistik', 'Statistiques', 'Statistiche'],
+  probable: ['Starting Pitchers', '선발투수', '先発投手', '先发投手', 'Abridores', 'गेंदबाज', 'Ném bóng', 'พิตเชอร์', 'Питчеры', 'Starter', 'Lanceurs', 'Lanciatori'],
+  recent: ['Last 10 Games', '최근 10경기', '直近10試合', '近10场', 'Últimos 10', 'पिछले 10', '10 trận gần đây', '10 นัดล่าสุด', 'Последние 10', 'Letzte 10', '10 derniers', 'Ultime 10'],
+  h2h: ['Head to Head', '맞대결', '対戦成績', '交锋记录', 'Enfrentamientos', 'आमना-सामना', 'Đối đầu', 'สถิติเจอกัน', 'Очные встречи', 'Duelle', 'Confrontations', 'Scontri diretti'],
+  standings: ['Standings', '팀 순위', '順位表', '积分榜', 'Clasificación', 'अंक तालिका', 'BXH', 'ตารางคะแนน', 'Таблица', 'Tabelle', 'Classement', 'Classifica'],
+  highlight: ['Highlights', '경기 하이라이트', 'ハイライト', '比赛集锦', 'Resúmenes', 'हाइलाइट्स', 'Điểm nhấn', 'ไฮไลต์', 'Обзор матча', 'Highlights', 'Résumé', 'Highlights'],
+  playHi: ['▶ Play Highlights', '▶ 하이라이트 재생', '▶ ハイライト再生', '▶ 播放集锦', '▶ Ver resumen', '▶ हाइलाइट चलाएं', '▶ Xem điểm nhấn', '▶ เล่นไฮไลต์', '▶ Смотреть обзор', '▶ Highlights', '▶ Voir le résumé', '▶ Guarda highlights'],
+  aiSum: ['AI Summary', 'AI 총정리', 'AI要約', 'AI总结', 'Resumen IA', 'AI सारांश', 'Tóm tắt AI', 'สรุป AI', 'AI-обзор', 'KI-Zusammenfassung', 'Résumé IA', 'Riepilogo IA'],
+  liveEv: ['Live Events', '실시간 이벤트', 'ライブ速報', '实时事件', 'Eventos en vivo', 'लाइव इवेंट', 'Sự kiện trực tiếp', 'เหตุการณ์สด', 'События', 'Live-Events', 'Événements', 'Eventi live'],
+  aiPred: ['AI Prediction', 'AI 승부 예측', 'AI予想', 'AI预测', 'Predicción IA', 'AI भविष्यवाणी', 'Dự đoán AI', 'ทำนายผล AI', 'AI-прогноз', 'KI-Prognose', 'Pronostic IA', 'Pronostico IA'],
+  liveSit: ['Live Situation', '실시간 상황', 'ライブ状況', '实时状况', 'En directo', 'लाइव स्थिति', 'Tình huống', 'สถานการณ์สด', 'Ситуация', 'Live-Lage', 'En direct', 'Situazione live'],
+  league: ['League', '리그', 'リーグ', '联赛', 'Liga', 'लीग', 'Giải', 'ลีก', 'Лига', 'Liga', 'Ligue', 'Lega'],
+  dt: ['Date', '일시', '日時', '时间', 'Fecha', 'तारीख', 'Thời gian', 'เวลา', 'Дата', 'Datum', 'Date', 'Data'],
+  status: ['Status', '상태', '状態', '状态', 'Estado', 'स्थिति', 'Trạng thái', 'สถานะ', 'Статус', 'Status', 'Statut', 'Stato'],
+  loading: ['Loading…', '불러오는 중…', '読み込み中…', '加载中…', 'Cargando…', 'लोड हो रहा…', 'Đang tải…', 'กำลังโหลด…', 'Загрузка…', 'Lädt…', 'Chargement…', 'Caricamento…'],
+  langLabel: ['Language', '언어', '言語', '语言', 'Idioma', 'भाषा', 'Ngôn ngữ', 'ภาษา', 'Язык', 'Sprache', 'Langue', 'Lingua'],
+  news: ['Latest sports news', '스포츠 최신 뉴스', 'スポーツ最新ニュース', '体育最新新闻', 'Últimas noticias', 'ताज़ा खबरें', 'Tin thể thao', 'ข่าวกีฬา', 'Спортновости', 'Sport-News', 'Actus sport', 'Notizie sport'],
+  interest: ['Leagues', '관심 리그', 'リーグ', '联赛', 'Ligas', 'लीग', 'Giải đấu', 'ลีก', 'Лиги', 'Ligen', 'Ligues', 'Leghe'],
+  sportsHd: ['Sports', '종목', 'スポーツ', '项目', 'Deportes', 'खेल', 'Môn', 'กีฬา', 'Спорт', 'Sportart', 'Sports', 'Sport'],
+  // 종목명 (키 = SPORTS.key)
+  football: ['Soccer', '축구', 'サッカー', '足球', 'Fútbol', 'फुटबॉल', 'Bóng đá', 'ฟุตบอล', 'Футбол', 'Fußball', 'Football', 'Calcio'],
+  baseball: ['Baseball', '야구', '野球', '棒球', 'Béisbol', 'बेसबॉल', 'Bóng chày', 'เบสบอล', 'Бейсбол', 'Baseball', 'Baseball', 'Baseball'],
+  basketball: ['Basketball', '농구', 'バスケ', '篮球', 'Baloncesto', 'बास्केटबॉल', 'Bóng rổ', 'บาสเกตบอล', 'Баскетбол', 'Basketball', 'Basket', 'Basket'],
+  volleyball: ['Volleyball', '배구', 'バレー', '排球', 'Voleibol', 'वॉलीबॉल', 'Bóng chuyền', 'วอลเลย์บอล', 'Волейбол', 'Volleyball', 'Volley', 'Pallavolo'],
+  hockey: ['Hockey', '하키', 'ホッケー', '冰球', 'Hockey', 'हॉकी', 'Khúc côn cầu', 'ฮอกกี้', 'Хоккей', 'Hockey', 'Hockey', 'Hockey'],
+  handball: ['Handball', '핸드볼', 'ハンド', '手球', 'Balonmano', 'हैंडबॉल', 'Bóng ném', 'แฮนด์บอล', 'Гандбол', 'Handball', 'Handball', 'Pallamano'],
+  rugby: ['Rugby', '럭비', 'ラグビー', '橄榄球', 'Rugby', 'रग्बी', 'Bóng bầu dục', 'รักบี้', 'Регби', 'Rugby', 'Rugby', 'Rugby']
+};
+let LANG = (function () { try { return localStorage.getItem('liveup_lang') || 'en'; } catch (e) { return 'en'; } })();
+function t(key) { const a = STR[key]; if (!a) return key; const i = LANGS.indexOf(LANG); return a[i] || a[0]; }
+function applyI18n() {
+  document.documentElement.lang = LANG;
+  $$('[data-i18n]').forEach(el => { el.textContent = t(el.dataset.i18n); });
+  $$('[data-i18n-ph]').forEach(el => { el.placeholder = t(el.dataset.i18nPh); });
+}
+function setLang(l) {
+  LANG = l; try { localStorage.setItem('liveup_lang', l); } catch (e) {}
+  applyI18n();
+  if (typeof buildSportNav === 'function') buildSportNav();
+  if (typeof loadEvents === 'function' && $('#view-live') && !$('#view-live').classList.contains('hidden')) loadEvents();
+  if (typeof renderInfoList === 'function' && $('#view-info') && !$('#view-info').classList.contains('hidden')) renderInfoList();
+}
+
 // API-Sports 종목 (키 = 서버 /api/asports/games?sport=)
 const SPORTS = [
   { key: 'football', ko: '축구', em: '⚽' },
@@ -219,7 +286,7 @@ $('#wSubmit')?.addEventListener('click', async () => {
 function buildSportNav() {
   const row = SPORTS.map(s => `<div class="sp ${s.key === state.sport ? 'on' : ''}" data-sport="${s.key}" title="${s.ko}">${s.em}</div>`).join('');
   $('#sportRow').innerHTML = row;
-  const list = SPORTS.map(s => `<a data-sport="${s.key}" class="${s.key === state.sport ? 'on' : ''}"><span class="em">${s.em}</span>${s.ko}</a>`).join('');
+  const list = SPORTS.map(s => `<a data-sport="${s.key}" class="${s.key === state.sport ? 'on' : ''}"><span class="em">${s.em}</span>${esc(t(s.key))}</a>`).join('');
   $('#sportNav').innerHTML = list;
   $('#sportNavD').innerHTML = list;
   $$('[data-sport]').forEach(el => el.addEventListener('click', () => { state.sport = el.dataset.sport; state.leagueFilter = 'all'; buildSportNav(); loadEvents(); closeDrawer(); }));
@@ -1225,6 +1292,7 @@ function buildChatUI(container) {
   container.innerHTML = '';
   container.appendChild(tpl);
   const msgs = $('.chat-msgs', container), input = $('.ci', container), send = $('.cs', container);
+  input.placeholder = t('chatPh'); send.textContent = t('send');
   const doSend = () => { const v = input.value.trim(); if (!v || !ws || ws.readyState !== 1) return; ws.send(JSON.stringify({ type: 'chat', text: v })); input.value = ''; };
   send.addEventListener('click', doSend);
   input.addEventListener('keydown', e => { if (e.key === 'Enter') doSend(); });
@@ -1317,8 +1385,14 @@ function initBackButtonHandling() {
 // ============================================================
 //  INIT
 // ============================================================
+function initLangSelectors() {
+  const opts = LANGS.map(l => `<option value="${l}"${l === LANG ? ' selected' : ''}>${LANG_NAMES[l]}</option>`).join('');
+  ['#langSel', '#langSelD'].forEach(sel => { const el = $(sel); if (el) { el.innerHTML = opts; el.value = LANG; el.addEventListener('change', () => setLang(el.value)); } });
+  applyI18n();
+}
 async function init() {
   $('#datePick').value = state.date;
+  initLangSelectors();       // 언어 선택기 + 초기 번역 적용
   buildChatUI($('#chatDesk'));
   buildChatUI($('#chatMobile'));
   connectWS();
