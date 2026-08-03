@@ -446,6 +446,7 @@ function matchCard(e) {
       ${scoreBlock(e)}
       <div class="side"><div class="ph">${badge(e.awayLogo, '🏟')}</div><div class="team">${esc(e.away)}<span class="haic">✈</span></div></div>
     </div>
+    ${bsoMini(e)}
     ${rheMini(e)}
     ${aiLive(e)}
     ${oddsLine(e)}
@@ -621,12 +622,19 @@ function wirePlayerClicks(kind) {
 }
 // MLB 실시간 상황 (볼·스트라이크·아웃 · 주자 · 타자/투수 · R/H/E/BB)
 function basesSvg(b) {
-  const on = '#e2231a', off = '#d9dde3';
-  return `<svg class="diamond" viewBox="0 0 44 44" width="42" height="42" aria-hidden="true">
-    <rect x="17" y="5" width="10" height="10" transform="rotate(45 22 10)" fill="${b && b.second ? on : off}"/>
-    <rect x="29" y="17" width="10" height="10" transform="rotate(45 34 22)" fill="${b && b.first ? on : off}"/>
-    <rect x="5" y="17" width="10" height="10" transform="rotate(45 10 22)" fill="${b && b.third ? on : off}"/>
+  const on = '#e2231a', off = '#c3c9d2';
+  return `<svg class="diamond" viewBox="0 0 46 50" width="46" height="50" aria-hidden="true">
+    <rect x="18" y="5" width="10" height="10" transform="rotate(45 23 10)" fill="${b && b.second ? on : off}"/>
+    <rect x="30" y="17" width="10" height="10" transform="rotate(45 35 22)" fill="${b && b.first ? on : off}"/>
+    <rect x="6" y="17" width="10" height="10" transform="rotate(45 11 22)" fill="${b && b.third ? on : off}"/>
+    <rect x="16" y="33" width="14" height="14" transform="rotate(45 23 40)" fill="#fff" stroke="#16243d" stroke-width="3.5"/>
   </svg>`;
+}
+// 카드용 B/S/O + 주자 다이아몬드 (라이브 MLB만)
+function bsoMini(e) {
+  if (state.sport !== 'baseball' || e.state !== 'live' || !e.bso) return '';
+  const b = e.bso, dot = (n, max) => { let s = ''; for (let i = 0; i < max; i++) s += `<span class="cdm${i < (n || 0) ? ' on' : ''}"></span>`; return s; };
+  return `<div class="bsomini"><span class="bl">B</span>${dot(b.balls, 3)}<span class="bl">S</span>${dot(b.strikes, 2)}<span class="bl o">O</span>${dot(b.outs, 2)}<span class="bso-dia">${basesSvg(b.bases)}</span></div>`;
 }
 async function updateMlbLive(e) {
   const box = $('#mMlbLive'); if (!box) return;

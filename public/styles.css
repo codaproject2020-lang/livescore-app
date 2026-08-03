@@ -92,6 +92,14 @@ html,body{overflow-x:hidden;max-width:100%}
 .rhemini th{background:#f3f6f9;color:var(--sub);font-size:9px;font-weight:800}
 .rhemini .tn{text-align:right;color:var(--navy);font-weight:800;white-space:nowrap;background:#fafbfc}
 .rhemini .r{font-weight:900;color:var(--red);background:#fffaf4}
+/* 카드용 B/S/O + 주자 (라이브 MLB) */
+.bsomini{grid-column:2;display:flex;align-items:center;gap:5px;justify-content:center;margin-top:8px;flex-wrap:wrap;background:#f6f8fb;border:1px solid var(--line);border-radius:9px;padding:6px 8px}
+.bsomini .bl{font-weight:900;font-size:11px;color:var(--navy);margin-left:5px}
+.bsomini .bl.o{color:var(--red)}
+.bsomini .cdm{width:9px;height:9px;border-radius:50%;background:#cdd3db;display:inline-block}
+.bsomini .cdm.on{background:var(--red)}
+.bsomini .bso-dia{margin-left:6px;line-height:0}
+.bsomini .bso-dia svg{width:26px;height:28px}
 /* YouTube 하이라이트 링크 */
 .ythl{display:block;margin-top:8px;text-align:center;background:#ff0000;color:#fff;font-weight:800;font-size:13px;padding:11px;border-radius:10px}
 .ythl:hover{background:#d90000}
