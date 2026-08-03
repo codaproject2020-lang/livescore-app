@@ -273,7 +273,9 @@ function buildLeagueRow(games) {
   $$('#leagueRow .lgchip').forEach(c => c.addEventListener('click', () => {
     state.leagueFilter = c.dataset.lg;
     $$('#leagueRow .lgchip').forEach(x => x.classList.remove('on')); c.classList.add('on');
-    renderFeed(filterGames());
+    // 활성 화면에 필터 적용 (경기 정보방 / 라이브)
+    if ($('#view-info') && !$('#view-info').classList.contains('hidden')) renderInfoList();
+    else renderFeed(filterGames());
   }));
 }
 async function loadEvents() {
@@ -1085,6 +1087,7 @@ const INFO = [
 ];
 
 let infoBuilt = false;
+let infoGames = [];   // 정보방 전체 경기(필터 전)
 // 경기 정보방: 현재 종목의 실제 경기 목록 → 클릭 시 실제 상세(라인업·투수/타자 기록 포함)
 async function initInfo() {
   const list = $('#infoList'); if (!list) return;
@@ -1093,23 +1096,29 @@ async function initInfo() {
     const d = await fetchJSON(`/api/asports/games?sport=${encodeURIComponent(state.sport)}&date=${state.date}`, { tries: 2, delay: 3000 });
     const games = d.games || [];
     games.forEach(g => { feedGames[g.id] = g; });   // openEvent가 사용
-    if (!games.length) { list.innerHTML = `<div class="loading">${esc(state.date)} · ${SPORTS.find(s => s.key === state.sport)?.ko || state.sport} 경기가 없습니다.</div>`; return; }
-    // 라이브 먼저
     games.sort((a, b) => (b.state === 'live') - (a.state === 'live'));
-    list.innerHTML = games.map(g => {
-      const stx = g.state === 'live' ? `<span style="color:var(--red);font-weight:800">● ${esc(koStatus(g))}</span>` : g.state === 'finished' ? '종료' : hhmm(g.date);
-      const sc = (g.hs == null && g.as == null) ? 'VS' : `${esc(g.hs ?? 0)} : ${esc(g.as ?? 0)}`;
-      const info = statsLeague(g.league) ? '<span class="ic-full">정보 ✓</span>' : '';
-      return `<div class="infocard" data-ev="${esc(g.id)}">
-        <div class="ic-mid">
-          <div class="ic-lg">⚾ ${esc(g.league)} · ${stx} ${info}</div>
-          <div class="ic-tm"><b>${esc(g.home)}</b> <span class="ic-vs">${sc}</span> ${esc(g.away)}</div>
-        </div>
-        <div class="ic-go">상세 ›</div>
-      </div>`;
-    }).join('');
-    $$('#infoList .infocard').forEach(c => c.addEventListener('click', () => openEvent(c.dataset.ev)));
+    infoGames = games;
+    renderInfoList();
   } catch { list.innerHTML = `<div class="loading">불러오지 못했습니다.</div>`; }
+}
+// 정보방 목록 렌더 (상단 리그 칩 필터 적용)
+function renderInfoList() {
+  const list = $('#infoList'); if (!list) return;
+  const games = state.leagueFilter === 'all' ? infoGames : infoGames.filter(g => g.league === state.leagueFilter);
+  if (!games.length) { list.innerHTML = `<div class="loading">해당 리그 경기가 없습니다.</div>`; return; }
+  list.innerHTML = games.map(g => {
+    const stx = g.state === 'live' ? `<span style="color:var(--red);font-weight:800">● ${esc(koStatus(g))}</span>` : g.state === 'finished' ? '종료' : hhmm(g.date);
+    const sc = (g.hs == null && g.as == null) ? 'VS' : `${esc(g.hs ?? 0)} : ${esc(g.as ?? 0)}`;
+    const info = statsLeague(g.league) ? '<span class="ic-full">정보 ✓</span>' : '';
+    return `<div class="infocard" data-ev="${esc(g.id)}">
+      <div class="ic-mid">
+        <div class="ic-lg">⚾ ${esc(g.league)} · ${stx} ${info}</div>
+        <div class="ic-tm"><b>${esc(g.home)}</b> <span class="ic-vs">${sc}</span> ${esc(g.away)}</div>
+      </div>
+      <div class="ic-go">상세 ›</div>
+    </div>`;
+  }).join('');
+  $$('#infoList .infocard').forEach(c => c.addEventListener('click', () => openEvent(c.dataset.ev)));
 }
 function pitTable(team) {
   return `<table class="stt"><thead><tr><th>투수</th><th></th><th>방어율</th><th>경기</th><th>승</th><th>패</th><th>세</th><th>이닝</th></tr></thead><tbody>${
