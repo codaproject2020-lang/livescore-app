@@ -430,11 +430,12 @@ function rheMini(e) {
   const h = e.box.home || {}, a = e.box.away || {};
   if ([h.h, h.e, a.h, a.e].every(v => v == null)) return '';
   const nm = t => { const p = String(t || '').trim().split(' '); return p.length > 1 ? p[p.length - 1] : t; };
+  const showBB = (h.bb != null || a.bb != null);
   return `<div class="rhemini"><table>
-    <thead><tr><th></th><th>R</th><th>H</th><th>E</th></tr></thead>
+    <thead><tr><th></th><th>R</th><th>H</th><th>E</th>${showBB ? '<th>BB</th>' : ''}</tr></thead>
     <tbody>
-      <tr><td class="tn">${esc(nm(e.home))}</td><td class="r">${esc(h.r ?? e.hs ?? 0)}</td><td>${esc(h.h ?? 0)}</td><td>${esc(h.e ?? 0)}</td></tr>
-      <tr><td class="tn">${esc(nm(e.away))}</td><td class="r">${esc(a.r ?? e.as ?? 0)}</td><td>${esc(a.h ?? 0)}</td><td>${esc(a.e ?? 0)}</td></tr>
+      <tr><td class="tn">${esc(nm(e.home))}</td><td class="r">${esc(h.r ?? e.hs ?? 0)}</td><td>${esc(h.h ?? 0)}</td><td>${esc(h.e ?? 0)}</td>${showBB ? `<td>${esc(h.bb ?? '-')}</td>` : ''}</tr>
+      <tr><td class="tn">${esc(nm(e.away))}</td><td class="r">${esc(a.r ?? e.as ?? 0)}</td><td>${esc(a.h ?? 0)}</td><td>${esc(a.e ?? 0)}</td>${showBB ? `<td>${esc(a.bb ?? '-')}</td>` : ''}</tr>
     </tbody></table></div>`;
 }
 function matchCard(e) {
