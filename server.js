@@ -851,7 +851,36 @@ async function mlbPitcherSeason(id) {
     return { w: s.wins ?? 0, l: s.losses ?? 0, era: s.era ?? '-', ip: s.inningsPitched ?? '-', k: s.strikeOuts ?? 0, bb: s.baseOnBalls ?? 0 };
   } catch { return { w: 0, l: 0, era: '-', ip: '-', k: 0, bb: 0 }; }
 }
-// 경기정보: 예상 선발투수 + 양팀 최근 10경기
+// 맞대결(H2H) — 두 팀 시즌 대결 기록
+async function mlbH2H(homeId, awayId, sportId) {
+  if (!homeId || !awayId) return [];
+  const season = new Date().getFullYear();
+  let sch;
+  try { sch = await mlbFetch(`/api/v1/schedule?sportId=${sportId}&teamId=${homeId}&opponentId=${awayId}&season=${season}&gameType=R`, 600000); } catch { return []; }
+  const games = [];
+  (sch.dates || []).forEach(dd => (dd.games || []).forEach(g => games.push(g)));
+  const fin = games.filter(g => (g.status && g.status.abstractGameState) === 'Final' && g.teams.home.score != null);
+  fin.sort((a, b) => new Date(b.gameDate) - new Date(a.gameDate));
+  return fin.slice(0, 8).map(g => ({ date: g.officialDate, home: g.teams.home.team.name, away: g.teams.away.team.name, hs: g.teams.home.score, as: g.teams.away.score }));
+}
+// 팀 순위표 (리그 순위/득실/연승)
+async function mlbStandings(teamId, homeId, awayId) {
+  if (!teamId) return null;
+  const season = new Date().getFullYear();
+  let leagueId;
+  try { const t = await mlbFetch(`/api/v1/teams/${teamId}`, 3600000); leagueId = t.teams && t.teams[0] && t.teams[0].league && t.teams[0].league.id; } catch {}
+  if (!leagueId) return null;
+  let st;
+  try { st = await mlbFetch(`/api/v1/standings?leagueId=${leagueId}&season=${season}&standingsTypes=regularSeason`, 600000); } catch { return null; }
+  const rows = [];
+  (st.records || []).forEach(rec => (rec.teamRecords || []).forEach(tr => {
+    rows.push({ id: tr.team.id, name: tr.team.name, w: tr.wins, l: tr.losses, pct: tr.winningPercentage, rs: tr.runsScored ?? '-', ra: tr.runsAllowed ?? '-', streak: tr.streak ? tr.streak.streakCode : '' });
+  }));
+  rows.sort((a, b) => parseFloat(b.pct) - parseFloat(a.pct));
+  rows.forEach((r, i) => { r.rank = i + 1; r.hl = (r.id === Number(homeId) || r.id === Number(awayId)); });
+  return rows;
+}
+// 경기정보: 예상 선발투수 + 양팀 최근 10경기 + 맞대결 + 순위표
 app.get('/api/mlb/info', async (req, res) => {
   const { home, away } = req.query;
   const date = req.query.date || new Date().toISOString().slice(0, 10);
@@ -874,8 +903,13 @@ app.get('/api/mlb/info', async (req, res) => {
         probable = f.swap ? { home: as, away: hs } : { home: hs, away: as };
       }
     } catch {}
-    const [rHome, rAway] = await Promise.all([mlbRecent(ourHomeId, sportId, date), mlbRecent(ourAwayId, sportId, date)]);
-    res.json({ found: true, probable, recent: { home: rHome, away: rAway } });
+    const [rHome, rAway, h2h, standings] = await Promise.all([
+      mlbRecent(ourHomeId, sportId, date),
+      mlbRecent(ourAwayId, sportId, date),
+      mlbH2H(ourHomeId, ourAwayId, sportId),
+      mlbStandings(ourHomeId, ourHomeId, ourAwayId)
+    ]);
+    res.json({ found: true, probable, recent: { home: rHome, away: rAway }, h2h, standings });
   } catch (e) { res.status(502).json({ found: false, error: String(e.message || e) }); }
 });
 
