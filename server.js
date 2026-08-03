@@ -754,6 +754,28 @@ app.get('/api/mlb/player', async (req, res) => {
 });
 
 // ============================================================
+//  YouTube 하이라이트 검색 (화면 내 재생용 · YouTube Data API v3)
+//  ※ 무료 키를 환경변수 YT_API_KEY 에 넣으면 경기 하이라이트를 앱 안에서 바로 재생.
+//    키 없으면 프론트가 YouTube 검색 링크로 폴백.
+// ============================================================
+const YT_KEY = (process.env.YT_API_KEY || process.env.YOUTUBE_API_KEY || 'AIzaSyC9Ot692beQz-Ci3V3V_LJJHZDomF7aqCU').trim();
+app.get('/api/youtube', async (req, res) => {
+  if (!YT_KEY) return res.json({ needKey: true });
+  const q = (req.query.q || '').trim();
+  if (!q) return res.status(400).json({ error: 'need q' });
+  const ck = 'YT:' + q, hit = cache.get(ck);
+  if (hit && Date.now() - hit.t < 3600000) return res.json(hit.v);   // 1시간 캐시(쿼터 절약)
+  try {
+    const url = `https://www.googleapis.com/youtube/v3/search?part=snippet&type=video&maxResults=1&order=relevance&videoEmbeddable=true&q=${encodeURIComponent(q)}&key=${YT_KEY}`;
+    const r = await fetch(url); const j = await r.json();
+    const it = (j.items || [])[0];
+    const v = it ? { videoId: it.id.videoId, title: it.snippet.title } : { videoId: null };
+    cache.set(ck, { t: Date.now(), v });
+    res.json(v);
+  } catch (e) { res.status(502).json({ error: String(e.message || e) }); }
+});
+
+// ============================================================
 //  커뮤니티 게시판 (자유 / 수익인증 / 손실인증)
 //  ※ 메모리 저장(서버 재시작 시 초기화). DB 붙이면 영구 저장 가능.
 // ============================================================
