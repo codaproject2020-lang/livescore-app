@@ -526,13 +526,14 @@ app.get('/api/asports/games', async (req, res) => {
     const j = await asRaw(sport, path, 6000);   // 라이브 신선도 우선 (6초)
     let games = (j.response || []).map(g => normAS(sport, g)).filter(Boolean);
     // ⚾ MLB는 공식 StatsAPI로 스코어·상태·이닝 덮어쓰기 (API-Sports 지연 보정 → 실시간)
-    // MLB(sportId 1) + LMB 멕시코리그(sportId 23)를 공식 StatsAPI로 실시간 덮어쓰기
-    if (sport === 'baseball' && games.some(g => g.league === 'MLB' || g.league === 'LMB')) {
+    // StatsAPI 커버 리그(MLB=1, LMB=23, IL·PCL 등 Triple-A=11)를 공식 데이터로 실시간 덮어쓰기
+    const STATS_LG = { 'MLB': 1, 'LMB': 23, 'IL': 11, 'PCL': 11 };
+    if (sport === 'baseball' && games.some(g => STATS_LG[g.league])) {
       const sm = {};
-      if (games.some(g => g.league === 'MLB')) Object.assign(sm, await mlbScoreMap(date, 1).catch(() => ({})));
-      if (games.some(g => g.league === 'LMB')) Object.assign(sm, await mlbScoreMap(date, 23).catch(() => ({})));
+      const needSids = [...new Set(games.map(g => STATS_LG[g.league]).filter(Boolean))];
+      for (const sid of needSids) Object.assign(sm, await mlbScoreMap(date, sid).catch(() => ({})));
       games.forEach(g => {
-        if (g.league !== 'MLB' && g.league !== 'LMB') return;
+        if (!STATS_LG[g.league]) return;
         const hN = mlbNick(g.home), aN = mlbNick(g.away), e = sm[[hN, aN].sort().join('|')];
         if (!e) return;
         const H = e.byNick[hN] || {}, A = e.byNick[aN] || {};
@@ -668,7 +669,7 @@ app.get('/api/mlb/game', async (req, res) => {
 function mlbAddDays(dstr, n) { const d = new Date(dstr + 'T12:00:00Z'); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); }
 async function mlbFindGame(home, away, date) {
   const cands = [];
-  for (const sportId of [1, 23]) {   // 1=MLB, 23=LMB(멕시코)
+  for (const sportId of [1, 23, 11]) {   // 1=MLB, 23=LMB(멕시코), 11=Triple-A(IL·PCL 등)
     for (const d of [date, mlbAddDays(date, -1), mlbAddDays(date, 1)]) {
       let sch;
       try { sch = await mlbFetch(`/api/v1/schedule?sportId=${sportId}&date=${d}`, 60000); } catch { continue; }
