@@ -727,12 +727,15 @@ function renderDetail(e, pr) {
   const t = e.date ? new Date(e.date) : null;
   const when = t ? `${t.getMonth() + 1}/${t.getDate()} ${hhmm(e.date)}` : '';
   const odds = e.odds ? `<div class="odsec">💰 배당</div><div class="modds-detail">승 <b>${e.odds.home ? Number(e.odds.home).toFixed(2) : '-'}</b>${e.odds.draw ? ` · 무 <b>${Number(e.odds.draw).toFixed(2)}</b>` : ''} · 패 <b>${e.odds.away ? Number(e.odds.away).toFixed(2) : '-'}</b></div>` : '';
-  el.innerHTML = `
+  // 점수판은 별도 영역(#mScore)에 — 그 바로 밑에 하이라이트(#mYtWrap)가 오도록
+  const sc = $('#mScore');
+  if (sc) sc.innerHTML = `
     <div class="mteams">
       <div class="mt"><div class="ph">${badge(e.homeLogo, '🏟')}</div><div class="nm"><span class="haic">🏠</span>${esc(e.home)}</div></div>
       <div class="msc"><div class="n">${scoreTxt}</div><div class="st" style="color:${e.state === 'live' ? '#e2231a' : '#8b93a0'}">${esc(st)}</div>${setpts}</div>
       <div class="mt"><div class="ph">${badge(e.awayLogo, '🏟')}</div><div class="nm">${esc(e.away)}<span class="haic">✈</span></div></div>
-    </div>
+    </div>`;
+  el.innerHTML = `
     <div class="aisum">
       <div class="aisum-hd">🤖 AI 총정리 ${e.state === 'live' ? '<span class="aisum-live">● LIVE</span>' : ''}</div>
       ${aiSummary(e).map(l => `<p>${l}</p>`).join('')}
@@ -761,9 +764,10 @@ async function openEvent(id) {
   $('#scrim').classList.add('on'); $('#modal').classList.add('on');
   $('#mTitle').textContent = e.league || '경기 상세';
   $('#mBody').innerHTML = `
+    <div id="mScore"></div>
+    <div id="mYtWrap"></div>
     <div id="mDetail"><div class="loading">불러오는 중…</div></div>
     <div id="mLineupWrap"></div>
-    <div id="mYtWrap"></div>
     <div class="mchat-embed">
       <div class="mce-hd">💬 <b>${esc(e.home)} vs ${esc(e.away)}</b> 대화방 <span class="mce-tag">보면서 채팅</span> <span class="mce-on">🟢 <b id="onlineM">0</b></span></div>
       <div id="mChatPane" class="chatpane embed"></div>
