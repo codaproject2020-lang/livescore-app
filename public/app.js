@@ -19,6 +19,9 @@ const SPORTS = [
 ];
 // 주요 리그 우선 정렬 (이 리그들을 상단에)
 const TOP_LEAGUES = ['KBO', 'MLB', 'NPB', 'K League 1', 'Premier League', 'La Liga', 'Serie A', 'Bundesliga', 'NBA', 'WNBA', 'KBL', 'CPBL', 'NHL', 'UEFA Champions League'];
+// MLB StatsAPI(무료)로 라인업·투수/타자·최근경기까지 되는 야구 리그
+const STATS_LEAGUES = ['MLB', 'LMB', 'IL', 'PCL'];
+function statsLeague(lg) { return STATS_LEAGUES.includes(lg); }
 
 const state = {
   date: new Date().toISOString().slice(0, 10),
@@ -675,7 +678,7 @@ async function updateLineup(e) {
       box.innerHTML = `<div class="odsec">📋 선발 라인업 <span class="rhe">${esc(teams[0].formation)} · ${esc(teams[1].formation)} · 선수 탭</span></div>${teams.map(renderPitch).join('')}<div id="mPlayer"></div>`;
       wirePlayerClicks('football');
     } catch { box.innerHTML = `<div class="odsec">📋 선발 라인업</div><div class="lu-note">라인업을 불러오지 못했어요.</div>`; }
-  } else if (e.league === 'MLB' || e.league === 'LMB') {
+  } else if (statsLeague(e.league)) {
     box.innerHTML = `<div class="odsec">📋 선발 라인업 (타순)</div><div class="lineupbox"><div class="loading" style="padding:12px">라인업 불러오는 중…</div></div>`;
     try {
       const d = await fetchJSON(`/api/mlb/game?home=${encodeURIComponent(e.home)}&away=${encodeURIComponent(e.away)}&date=${state.date}`, { tries: 1 });
@@ -711,7 +714,7 @@ function boxTables(side) {
 }
 async function updateBox(e) {
   const box = $('#mBoxWrap'); if (!box) return;
-  if (e.league !== 'MLB' && e.league !== 'LMB') { box.innerHTML = ''; return; }
+  if (!statsLeague(e.league)) { box.innerHTML = ''; return; }
   box.innerHTML = `<div class="odsec">📋 경기 기록</div><div class="lu-note">불러오는 중…</div>`;
   try {
     const d = await fetchJSON(`/api/mlb/boxscore?home=${encodeURIComponent(e.home)}&away=${encodeURIComponent(e.away)}&date=${state.date}`, { tries: 1 });
@@ -728,7 +731,7 @@ async function updateBox(e) {
 // 경기정보방: 예상 선발투수 + 양팀 최근 10경기 (MLB·LMB)
 async function updateInfo(e) {
   const box = $('#mInfoWrap'); if (!box) return;
-  if (e.league !== 'MLB' && e.league !== 'LMB') { box.innerHTML = ''; return; }
+  if (!statsLeague(e.league)) { box.innerHTML = ''; return; }
   box.innerHTML = '';
   try {
     const d = await fetchJSON(`/api/mlb/info?home=${encodeURIComponent(e.home)}&away=${encodeURIComponent(e.away)}&date=${state.date}`, { tries: 1 });
@@ -804,7 +807,7 @@ function renderDetail(e, pr) {
       <div><span class="k">상태</span> ${esc(koStatus(e))}</div>
     </div>`;
   updateEvents(e);   // 실시간 이벤트 피드 채우기 (축구=API / 그외=변화감지 로그)
-  if (e.league === 'MLB' || e.league === 'LMB') updateMlbLive(e);   // MLB·LMB 실시간 볼카운트·주자·타자/투수 (10초 갱신)
+  if (statsLeague(e.league)) updateMlbLive(e);   // MLB·LMB·IL·PCL 실시간 볼카운트·주자·타자/투수 (10초 갱신)
 }
 async function openEvent(id) {
   const e = feedGames[id]; if (!e) return;
@@ -1081,9 +1084,10 @@ async function initInfo() {
     list.innerHTML = games.map(g => {
       const stx = g.state === 'live' ? `<span style="color:var(--red);font-weight:800">● ${esc(koStatus(g))}</span>` : g.state === 'finished' ? '종료' : hhmm(g.date);
       const sc = (g.hs == null && g.as == null) ? 'VS' : `${esc(g.hs ?? 0)} : ${esc(g.as ?? 0)}`;
+      const info = statsLeague(g.league) ? '<span class="ic-full">정보 ✓</span>' : '';
       return `<div class="infocard" data-ev="${esc(g.id)}">
         <div class="ic-mid">
-          <div class="ic-lg">${badge(g.leagueLogo, '⚾')} ${esc(g.league)} · ${stx}</div>
+          <div class="ic-lg">⚾ ${esc(g.league)} · ${stx} ${info}</div>
           <div class="ic-tm"><b>${esc(g.home)}</b> <span class="ic-vs">${sc}</span> ${esc(g.away)}</div>
         </div>
         <div class="ic-go">상세 ›</div>
