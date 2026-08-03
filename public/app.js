@@ -675,8 +675,8 @@ async function updateLineup(e) {
       box.innerHTML = `<div class="odsec">📋 선발 라인업 <span class="rhe">${esc(teams[0].formation)} · ${esc(teams[1].formation)} · 선수 탭</span></div>${teams.map(renderPitch).join('')}<div id="mPlayer"></div>`;
       wirePlayerClicks('football');
     } catch { box.innerHTML = `<div class="odsec">📋 선발 라인업</div><div class="lu-note">라인업을 불러오지 못했어요.</div>`; }
-  } else if (e.league === 'MLB') {
-    box.innerHTML = `<div class="odsec">📋 선발 라인업 (타순)</div><div class="lineupbox"><div class="loading" style="padding:12px">MLB 라인업 불러오는 중…</div></div>`;
+  } else if (e.league === 'MLB' || e.league === 'LMB') {
+    box.innerHTML = `<div class="odsec">📋 선발 라인업 (타순)</div><div class="lineupbox"><div class="loading" style="padding:12px">라인업 불러오는 중…</div></div>`;
     try {
       const d = await fetchJSON(`/api/mlb/game?home=${encodeURIComponent(e.home)}&away=${encodeURIComponent(e.away)}&date=${state.date}`, { tries: 1 });
       if (!d.found || (!(d.home.lineup || []).length && !(d.away.lineup || []).length)) { box.innerHTML = `<div class="odsec">📋 선발 라인업 (타순)</div><div class="lu-note">MLB 라인업은 보통 <b>경기 2~4시간 전</b> 확정돼요.</div>`; return; }
@@ -756,7 +756,7 @@ function renderDetail(e, pr) {
       <div><span class="k">상태</span> ${esc(koStatus(e))}</div>
     </div>`;
   updateEvents(e);   // 실시간 이벤트 피드 채우기 (축구=API / 그외=변화감지 로그)
-  if (e.league === 'MLB') updateMlbLive(e);   // MLB 실시간 볼카운트·주자·타자/투수 (10초 갱신)
+  if (e.league === 'MLB' || e.league === 'LMB') updateMlbLive(e);   // MLB·LMB 실시간 볼카운트·주자·타자/투수 (10초 갱신)
 }
 async function openEvent(id) {
   const e = feedGames[id]; if (!e) return;
