@@ -710,9 +710,9 @@ function matchCard(e) {
   return `<div class="match" data-ev="${esc(e.id)}">
     <span class="bell">🔔</span>
     <div class="mrow">
-      <div class="side"><div class="ph">${badge(e.homeLogo, '🏟')}</div><div class="team">${HA_HOME}${esc(TN(e.home, e.league))}</div></div>
+      <div class="side">${HA_HOME}<div class="ph">${badge(e.homeLogo, '🏟')}</div><div class="team">${esc(TN(e.home, e.league))}</div></div>
       ${scoreBlock(e)}
-      <div class="side"><div class="ph">${badge(e.awayLogo, '🏟')}</div><div class="team">${esc(TN(e.away, e.league))}${HA_AWAY}</div></div>
+      <div class="side">${HA_AWAY}<div class="ph">${badge(e.awayLogo, '🏟')}</div><div class="team">${esc(TN(e.away, e.league))}</div></div>
     </div>
     ${bsoMini(e)}
     ${rheMini(e)}
@@ -1102,9 +1102,9 @@ function renderDetail(e, pr) {
   const sc = $('#mScore');
   if (sc) sc.innerHTML = `
     <div class="mteams">
-      <div class="mt"><div class="ph">${badge(e.homeLogo, '🏟')}</div><div class="nm">${HA_HOME}${esc(TN(e.home, e.league))}</div></div>
+      <div class="mt">${HA_HOME}<div class="ph">${badge(e.homeLogo, '🏟')}</div><div class="nm">${esc(TN(e.home, e.league))}</div></div>
       <div class="msc"><div class="n">${scoreTxt}</div><div class="st" style="color:${e.state === 'live' ? '#e2231a' : '#8b93a0'}">${esc(st)}</div>${setpts}</div>
-      <div class="mt"><div class="ph">${badge(e.awayLogo, '🏟')}</div><div class="nm">${esc(TN(e.away, e.league))}${HA_AWAY}</div></div>
+      <div class="mt">${HA_AWAY}<div class="ph">${badge(e.awayLogo, '🏟')}</div><div class="nm">${esc(TN(e.away, e.league))}</div></div>
     </div>`;
   el.innerHTML = `
     <div id="mMlbLive"></div>
