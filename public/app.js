@@ -699,6 +699,32 @@ async function updateLineup(e) {
     box.innerHTML = `<div class="odsec">📋 선발 라인업</div><div class="lu-note">⚾ ${esc(ko)} 실시간 라인업은 현재 데이터 소스에서 제공되지 않아요. (KBO·NPB는 유료 계약 필요)</div>`;
   }
 }
+// 경기정보방: 투수·타자 기록 (박스스코어) — MLB·LMB
+function boxTables(side) {
+  const pit = `<table class="stt"><thead><tr><th>투수</th><th>이닝</th><th>투구</th><th>피안타</th><th>자책</th><th>K</th><th>BB</th></tr></thead><tbody>${
+    (side.pitchers || []).map(p => `<tr><td class="nm">${esc(p.name)}</td><td>${esc(p.ip)}</td><td>${esc(p.np)}</td><td>${esc(p.h)}</td><td>${esc(p.er)}</td><td>${esc(p.k)}</td><td>${esc(p.bb)}</td></tr>`).join('') || '<tr><td colspan="7">-</td></tr>'
+    }</tbody></table>`;
+  const bat = `<table class="stt" style="margin-top:8px"><thead><tr><th>타자</th><th></th><th>타수</th><th>안타</th><th>BB</th><th>타점</th><th>HR</th><th>K</th></tr></thead><tbody>${
+    (side.batters || []).map(b => `<tr><td class="nm">${esc(b.name)}</td><td class="lr">${esc(b.pos)}</td><td>${esc(b.ab)}</td><td>${esc(b.h)}</td><td>${esc(b.bb)}</td><td>${esc(b.rbi)}</td><td>${esc(b.hr)}</td><td>${esc(b.k)}</td></tr>`).join('') || '<tr><td colspan="8">-</td></tr>'
+    }</tbody></table>`;
+  return pit + bat;
+}
+async function updateBox(e) {
+  const box = $('#mBoxWrap'); if (!box) return;
+  if (e.league !== 'MLB' && e.league !== 'LMB') { box.innerHTML = ''; return; }
+  box.innerHTML = `<div class="odsec">📋 경기 기록</div><div class="lu-note">불러오는 중…</div>`;
+  try {
+    const d = await fetchJSON(`/api/mlb/boxscore?home=${encodeURIComponent(e.home)}&away=${encodeURIComponent(e.away)}&date=${state.date}`, { tries: 1 });
+    if (!d.found || (!(d.home.batters || []).length && !(d.away.batters || []).length)) { box.innerHTML = `<div class="odsec">📋 경기 기록</div><div class="lu-note">경기 시작 후 투수·타자 기록이 표시돼요.</div>`; return; }
+    box.innerHTML = `<div class="odsec">📋 경기 기록 <span class="rhe">투수·타자</span></div>
+      <div class="bfield-tabs"><span class="bft on" data-t="home">${esc(e.home)}</span><span class="bft" data-t="away">${esc(e.away)}</span></div>
+      <div id="boxBody">${boxTables(d.home)}</div>`;
+    $$('#mBoxWrap .bft').forEach(t => t.addEventListener('click', () => {
+      $$('#mBoxWrap .bft').forEach(x => x.classList.remove('on')); t.classList.add('on');
+      $('#boxBody').innerHTML = boxTables(t.dataset.t === 'home' ? d.home : d.away);
+    }));
+  } catch { box.innerHTML = `<div class="odsec">📋 경기 기록</div><div class="lu-note">불러오기 실패</div>`; }
+}
 // 야구 이닝별 라인스코어(R·H·E) 표
 function lineScoreTable(e) {
   if (state.sport !== 'baseball' || !e.box) return '';
@@ -768,6 +794,7 @@ async function openEvent(id) {
     <div id="mYtWrap"></div>
     <div id="mDetail"><div class="loading">불러오는 중…</div></div>
     <div id="mLineupWrap"></div>
+    <div id="mBoxWrap"></div>
     <div class="mchat-embed">
       <div class="mce-hd">💬 <b>${esc(e.home)} vs ${esc(e.away)}</b> 대화방 <span class="mce-tag">보면서 채팅</span> <span class="mce-on">🟢 <b id="onlineM">0</b></span></div>
       <div id="mChatPane" class="chatpane embed"></div>
@@ -780,6 +807,7 @@ async function openEvent(id) {
   logChanges(id, feedGames[id] || e);   // 스냅샷 시드 (이후 변화만 이벤트로 기록)
   renderDetail(feedGames[id] || e, pr);
   updateLineup(feedGames[id] || e);     // 라인업은 한 번만 로드 (10초 갱신 때 초기화 방지)
+  updateBox(feedGames[id] || e);        // 경기정보방: 투수·타자 기록
   buildYt(feedGames[id] || e);          // 하이라이트 재생 버튼 (한 번만 · 재생 유지)
 }
 // YouTube 하이라이트 — 화면 안에서 ▶ 재생 (키 있으면 인라인, 없으면 링크 폴백)
