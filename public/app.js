@@ -26,6 +26,7 @@ const STR = {
   today: ['Today', '오늘', '今日', '今天', 'Hoy', 'आज', 'Hôm nay', 'วันนี้', 'Сегодня', 'Heute', "Aujourd'hui", 'Oggi'],
   refresh: ['Refresh', '새로고침', '更新', '刷新', 'Actualizar', 'रिफ्रेश', 'Làm mới', 'รีเฟรช', 'Обновить', 'Aktualisieren', 'Actualiser', 'Aggiorna'],
   allRoom: ['All-Games Chat', '전경기 대화방', '全試合チャット', '全场聊天', 'Chat general', 'सभी मैच चैट', 'Chat tất cả', 'แชทรวม', 'Общий чат', 'Alle-Spiele-Chat', 'Chat général', 'Chat generale'],
+  liveChat: ['All-Games Live Chat', '전경기 실시간 채팅', '全試合ライブチャット', '全场实时聊天', 'Chat en vivo', 'लाइव चैट', 'Chat trực tiếp', 'แชทสด', 'Живой чат', 'Live-Chat', 'Chat en direct', 'Chat dal vivo'],
   online: ['online', '접속', '接続', '在线', 'en línea', 'ऑनलाइन', 'trực tuyến', 'ออนไลน์', 'онлайн', 'online', 'en ligne', 'online'],
   chatPh: ['Type a message…', '메시지 입력…', 'メッセージ入力…', '输入消息…', 'Escribe…', 'संदेश लिखें…', 'Nhập tin nhắn…', 'พิมพ์ข้อความ…', 'Сообщение…', 'Nachricht…', 'Message…', 'Messaggio…'],
   send: ['Send', '전송', '送信', '发送', 'Enviar', 'भेजें', 'Gửi', 'ส่ง', 'Отпр.', 'Senden', 'Envoyer', 'Invia'],
@@ -107,10 +108,10 @@ function setLang(l) {
 }
 
 // ============================================================
-//  팀 이름 번역 (MLB 30팀 · CJK) · 나머지 언어/리그는 영문 원문 유지
-//  key = 닉네임(마지막 단어, Sox/Jays 예외) → { ko, ja, zh }
+//  팀 이름 번역 (MLB·NPB·KBO·LMB · CJK) · 그 외 언어/리그는 영문 원문 유지
+//  key = 닉네임(마지막 단어, Sox/Jays 예외) → { ko, ja, zh }  · 리그별 사전으로 충돌 방지
 // ============================================================
-const TEAM_I18N = {
+const MLB_TEAMS = {
   'diamondbacks': { ko: '애리조나', ja: 'アリゾナ', zh: '亚利桑那' },
   'braves': { ko: '애틀랜타', ja: 'アトランタ', zh: '亚特兰大' },
   'orioles': { ko: '볼티모어', ja: 'ボルチモア', zh: '巴尔的摩' },
@@ -142,16 +143,78 @@ const TEAM_I18N = {
   'blue jays': { ko: '토론토', ja: 'ブルージェイズ', zh: '多伦多蓝鸟' },
   'nationals': { ko: '워싱턴', ja: 'ナショナルズ', zh: '华盛顿国民' }
 };
+// 일본프로야구(NPB) 12팀 — key = 닉네임(마지막 단어)
+const NPB_TEAMS = {
+  'eagles': { ko: '라쿠텐', ja: '楽天', zh: '乐天' },
+  'buffaloes': { ko: '오릭스', ja: 'オリックス', zh: '欧力士' },
+  'giants': { ko: '요미우리', ja: '巨人', zh: '读卖巨人' },
+  'tigers': { ko: '한신', ja: '阪神', zh: '阪神' },
+  'carp': { ko: '히로시마', ja: '広島', zh: '广岛' },
+  'swallows': { ko: '야쿠르트', ja: 'ヤクルト', zh: '养乐多' },
+  'baystars': { ko: '요코하마', ja: '横浜', zh: '横滨' },
+  'dragons': { ko: '주니치', ja: '中日', zh: '中日' },
+  'hawks': { ko: '소프트뱅크', ja: 'ソフトバンク', zh: '软银' },
+  'lions': { ko: '세이부', ja: '西武', zh: '西武' },
+  'marines': { ko: '롯데', ja: 'ロッテ', zh: '罗德' },
+  'fighters': { ko: '니혼햄', ja: '日本ハム', zh: '日本火腿' }
+};
+// 한국프로야구(KBO) 10팀
+const KBO_TEAMS = {
+  'bears': { ko: '두산', ja: '斗山', zh: '斗山' },
+  'twins': { ko: 'LG', ja: 'LG', zh: 'LG' },
+  'tigers': { ko: 'KIA', ja: 'KIA', zh: '起亚' },
+  'lions': { ko: '삼성', ja: 'サムスン', zh: '三星' },
+  'giants': { ko: '롯데', ja: 'ロッテ', zh: '乐天巨人' },
+  'eagles': { ko: '한화', ja: 'ハンファ', zh: '韩华' },
+  'landers': { ko: 'SSG', ja: 'SSG', zh: 'SSG' },
+  'wiz': { ko: 'KT', ja: 'KT', zh: 'KT' },
+  'heroes': { ko: '키움', ja: 'キウム', zh: '英雄' },
+  'dinos': { ko: 'NC', ja: 'NC', zh: 'NC' }
+};
+// 멕시코리그(LMB) — 도시/닉네임 표기 혼용 → 둘 다 키로 (음차)
+const LMB_TEAMS = {
+  'rojos': { ko: '디아블로스', ja: 'ディアブロス', zh: '红魔' },
+  'diablos': { ko: '디아블로스', ja: 'ディアブロス', zh: '红魔' },
+  'oaxaca': { ko: '오아하카', ja: 'オアハカ', zh: '瓦哈卡' },
+  'guerreros': { ko: '오아하카', ja: 'オアハカ', zh: '瓦哈卡' },
+  'campeche': { ko: '캄페체', ja: 'カンペチェ', zh: '坎佩切' },
+  'queretaro': { ko: '케레타로', ja: 'ケレタロ', zh: '克雷塔罗' },
+  'sultanes': { ko: '몬테레이', ja: 'モンテレイ', zh: '蒙特雷' },
+  'monterrey': { ko: '몬테레이', ja: 'モンテレイ', zh: '蒙特雷' },
+  'acereros': { ko: '몬클로바', ja: 'モンクロバ', zh: '蒙克洛瓦' },
+  'toros': { ko: '티후아나', ja: 'ティフアナ', zh: '蒂华纳' },
+  'tijuana': { ko: '티후아나', ja: 'ティフアナ', zh: '蒂华纳' },
+  'pericos': { ko: '푸에블라', ja: 'プエブラ', zh: '普埃布拉' },
+  'leones': { ko: '유카탄', ja: 'ユカタン', zh: '尤卡坦' },
+  'tigres': { ko: '킨타나로오', ja: 'キンタナロー', zh: '金塔纳罗奥' },
+  'rieleros': { ko: '아과스칼리엔테스', ja: 'アグアスカリエンテス', zh: '阿瓜斯卡连特斯' },
+  'saraperos': { ko: '살티요', ja: 'サルティージョ', zh: '萨尔蒂略' },
+  'algodoneros': { ko: '우니온라구나', ja: 'ウニオンラグナ', zh: '拉古纳联合' },
+  'olmecas': { ko: '타바스코', ja: 'タバスコ', zh: '塔巴斯科' },
+  'generales': { ko: '두랑고', ja: 'ドゥランゴ', zh: '杜兰戈' },
+  'mariachis': { ko: '과달라하라', ja: 'グアダラハラ', zh: '瓜达拉哈拉' },
+  'dorados': { ko: '치와와', ja: 'チワワ', zh: '奇瓦瓦' },
+  'bravos': { ko: '레온', ja: 'レオン', zh: '莱昂' }
+};
 function tmNick(s) {
   const w = String(s || '').toLowerCase().replace(/[.]/g, '').trim().split(/\s+/);
   const last2 = w.slice(-2).join(' ');
   if (['red sox', 'white sox', 'blue jays'].includes(last2)) return last2;
   return w[w.length - 1] || '';
 }
-// 표시용 팀명: CJK 언어에서만 사전 매칭, 없으면 원문 유지
-function TN(name) {
+function leagueDict(league) {
+  if (league === 'NPB') return NPB_TEAMS;
+  if (league === 'KBO') return KBO_TEAMS;
+  if (league === 'LMB') return LMB_TEAMS;
+  return MLB_TEAMS;   // MLB·IL·PCL(미국) 및 기본
+}
+// 표시용 팀명: CJK 언어에서만, 리그별 사전 매칭 → 없으면 원문 유지
+function TN(name, league) {
   if (!name || (LANG !== 'ko' && LANG !== 'ja' && LANG !== 'zh')) return name;
-  const e = TEAM_I18N[tmNick(name)];
+  const d = leagueDict(league);
+  const nick = tmNick(name);
+  let e = d[nick] || d[String(name).toLowerCase()];
+  if (!e && d !== MLB_TEAMS) e = MLB_TEAMS[nick];   // 미국팀 섞여 나올 때 대비
   return (e && e[LANG]) ? e[LANG] : name;
 }
 // MLB StatsAPI 선수 얼굴 (없으면 generic 실루엣 자동 반환)
@@ -551,7 +614,7 @@ function aiLive(e) {
   if (isNaN(h) || isNaN(a)) return '';
   const st = koStatus(e), diff = h - a;
   let msg;
-  if (diff === 0) msg = `${st}, <b>${esc(TN(e.home))}</b> vs <b>${esc(TN(e.away))}</b> ${h}:${a} 팽팽한 접전이에요.`;
+  if (diff === 0) msg = `${st}, <b>${esc(TN(e.home, e.league))}</b> vs <b>${esc(TN(e.away, e.league))}</b> ${h}:${a} 팽팽한 접전이에요.`;
   else {
     const lead = diff > 0 ? e.home : e.away, ld = Math.abs(diff);
     const tone = ld >= 5 ? '크게 앞서며 승기를 잡은' : ld >= 3 ? '리드를 벌리는' : '한 발 앞선';
@@ -573,8 +636,8 @@ function aiSummary(e) {
   const lines = [];
   const st = e.state === 'live' ? koStatus(e) : (e.state === 'finished' ? '경기 종료' : '경기 예정');
   if (e.state === 'scheduled') {
-    lines.push(`곧 시작하는 <b>${esc(TN(e.home))}</b> vs <b>${esc(TN(e.away))}</b> 경기입니다.`);
-    if (e.odds) lines.push(`배당 기준 ${(Number(e.odds.home)||9) < (Number(e.odds.away)||9) ? esc(TN(e.home)) : esc(TN(e.away))} 쪽이 근소 우위로 평가돼요.`);
+    lines.push(`곧 시작하는 <b>${esc(TN(e.home, e.league))}</b> vs <b>${esc(TN(e.away, e.league))}</b> 경기입니다.`);
+    if (e.odds) lines.push(`배당 기준 ${(Number(e.odds.home)||9) < (Number(e.odds.away)||9) ? esc(TN(e.home, e.league)) : esc(TN(e.away, e.league))} 쪽이 근소 우위로 평가돼요.`);
     lines.push(`킥오프 후 실시간 스코어·해설이 이 화면에 자동 갱신됩니다.`);
     return lines;
   }
@@ -587,15 +650,15 @@ function aiSummary(e) {
   if (sp === 'baseball' && e.box) {
     const bh = e.box.home, ba = e.box.away;
     const hh = bh?.h ?? 0, ah = ba?.h ?? 0, he = bh?.e ?? 0, ae = ba?.e ?? 0;
-    lines.push(`안타는 ${esc(TN(e.home))} ${hh}개 · ${esc(TN(e.away))} ${ah}개, 실책은 ${he}:${ae}. ${hh>ah?esc(TN(e.home))+'의 방망이가 더 터지는':ah>hh?esc(TN(e.away))+'의 방망이가 더 터지는':'양 팀 타선이 비슷한'} 흐름이에요.`);
+    lines.push(`안타는 ${esc(TN(e.home, e.league))} ${hh}개 · ${esc(TN(e.away, e.league))} ${ah}개, 실책은 ${he}:${ae}. ${hh>ah?esc(TN(e.home, e.league))+'의 방망이가 더 터지는':ah>hh?esc(TN(e.away, e.league))+'의 방망이가 더 터지는':'양 팀 타선이 비슷한'} 흐름이에요.`);
     if (e.inningHalf) lines.push(`${e.curInning || ''}회 ${e.inningHalf === 'top' ? '초 · 원정팀 공격' : '말 · 홈팀 공격'} 국면입니다.`);
   } else if ((sp === 'volleyball' || sp === 'hockey') && e.livePts) {
-    lines.push(`세트 스코어 ${h}:${a}, 현재 진행 세트는 <b>${e.livePts.home ?? 0}:${e.livePts.away ?? 0}</b>. ${Number(e.livePts.home) > Number(e.livePts.away) ? esc(TN(e.home)) : Number(e.livePts.away) > Number(e.livePts.home) ? esc(TN(e.away)) : '양 팀'}이(가) 이 세트를 리드 중이에요.`);
+    lines.push(`세트 스코어 ${h}:${a}, 현재 진행 세트는 <b>${e.livePts.home ?? 0}:${e.livePts.away ?? 0}</b>. ${Number(e.livePts.home) > Number(e.livePts.away) ? esc(TN(e.home, e.league)) : Number(e.livePts.away) > Number(e.livePts.home) ? esc(TN(e.away, e.league)) : '양 팀'}이(가) 이 세트를 리드 중이에요.`);
   }
   // 3) 배당/전망
   if (e.odds) {
     const oh = Number(e.odds.home), oa = Number(e.odds.away);
-    if (oh && oa) lines.push(`배당은 승 ${oh.toFixed(2)} / 패 ${oa.toFixed(2)}로, 시장은 ${oh < oa ? esc(TN(e.home)) : esc(TN(e.away))} 우세를 반영하고 있습니다.`);
+    if (oh && oa) lines.push(`배당은 승 ${oh.toFixed(2)} / 패 ${oa.toFixed(2)}로, 시장은 ${oh < oa ? esc(TN(e.home, e.league)) : esc(TN(e.away, e.league))} 우세를 반영하고 있습니다.`);
   }
   if (e.state === 'finished') lines.push(`최종 <b>${h}:${a}</b>로 ${diff===0?'무승부':esc(lead)+' 승리'}. 수고한 경기였어요.`);
   else lines.push(`남은 이닝/시간 변수에 따라 흐름이 바뀔 수 있어 끝까지 지켜볼 만합니다. (약 15초마다 자동 갱신)`);
@@ -644,9 +707,9 @@ function matchCard(e) {
   return `<div class="match" data-ev="${esc(e.id)}">
     <span class="bell">🔔</span>
     <div class="mrow">
-      <div class="side"><div class="ph">${badge(e.homeLogo, '🏟')}</div><div class="team"><span class="haic">🏠</span>${esc(TN(e.home))}</div></div>
+      <div class="side"><div class="ph">${badge(e.homeLogo, '🏟')}</div><div class="team"><span class="haic">🏠</span>${esc(TN(e.home, e.league))}</div></div>
       ${scoreBlock(e)}
-      <div class="side"><div class="ph">${badge(e.awayLogo, '🏟')}</div><div class="team">${esc(TN(e.away))}<span class="haic">✈</span></div></div>
+      <div class="side"><div class="ph">${badge(e.awayLogo, '🏟')}</div><div class="team">${esc(TN(e.away, e.league))}<span class="haic">✈</span></div></div>
     </div>
     ${bsoMini(e)}
     ${rheMini(e)}
@@ -711,16 +774,16 @@ function logChanges(id, e) {
   };
   if (p) {
     if (state.sport === 'baseball') {
-      if (snap.hs > p.hs) pushLog(id, '🔴', `득점! <b>${esc(TN(e.home))}</b> 홈 득점 (${snap.hs}:${snap.as})`);
-      if (snap.as > p.as) pushLog(id, '🔴', `득점! <b>${esc(TN(e.away))}</b> 원정 득점 (${snap.hs}:${snap.as})`);
-      if (snap.hh != null && p.hh != null && snap.hh > p.hh) pushLog(id, '🏏', `안타! <b>${esc(TN(e.home))}</b> 안타 (누적 ${snap.hh})`);
-      if (snap.ah != null && p.ah != null && snap.ah > p.ah) pushLog(id, '🏏', `안타! <b>${esc(TN(e.away))}</b> 안타 (누적 ${snap.ah})`);
-      if (snap.he != null && p.he != null && snap.he > p.he) pushLog(id, '⚠️', `실책 <b>${esc(TN(e.home))}</b> (${snap.he})`);
-      if (snap.ae != null && p.ae != null && snap.ae > p.ae) pushLog(id, '⚠️', `실책 <b>${esc(TN(e.away))}</b> (${snap.ae})`);
+      if (snap.hs > p.hs) pushLog(id, '🔴', `득점! <b>${esc(TN(e.home, e.league))}</b> 홈 득점 (${snap.hs}:${snap.as})`);
+      if (snap.as > p.as) pushLog(id, '🔴', `득점! <b>${esc(TN(e.away, e.league))}</b> 원정 득점 (${snap.hs}:${snap.as})`);
+      if (snap.hh != null && p.hh != null && snap.hh > p.hh) pushLog(id, '🏏', `안타! <b>${esc(TN(e.home, e.league))}</b> 안타 (누적 ${snap.hh})`);
+      if (snap.ah != null && p.ah != null && snap.ah > p.ah) pushLog(id, '🏏', `안타! <b>${esc(TN(e.away, e.league))}</b> 안타 (누적 ${snap.ah})`);
+      if (snap.he != null && p.he != null && snap.he > p.he) pushLog(id, '⚠️', `실책 <b>${esc(TN(e.home, e.league))}</b> (${snap.he})`);
+      if (snap.ae != null && p.ae != null && snap.ae > p.ae) pushLog(id, '⚠️', `실책 <b>${esc(TN(e.away, e.league))}</b> (${snap.ae})`);
       if (snap.inn !== p.inn || snap.half !== p.half) { if (snap.inn) pushLog(id, '🔄', `${snap.inn}회${snap.half === 'top' ? '초' : '말'} 시작`); }
     } else {
-      if (snap.hs > p.hs) pushLog(id, '🔴', `<b>${esc(TN(e.home))}</b> 득점 (${snap.hs}:${snap.as})`);
-      if (snap.as > p.as) pushLog(id, '🔴', `<b>${esc(TN(e.away))}</b> 득점 (${snap.hs}:${snap.as})`);
+      if (snap.hs > p.hs) pushLog(id, '🔴', `<b>${esc(TN(e.home, e.league))}</b> 득점 (${snap.hs}:${snap.as})`);
+      if (snap.as > p.as) pushLog(id, '🔴', `<b>${esc(TN(e.away, e.league))}</b> 득점 (${snap.hs}:${snap.as})`);
       if (snap.sp && snap.sp !== p.sp) pushLog(id, '🏐', `현재 세트 스코어 ${snap.sp}`);
     }
   }
@@ -796,10 +859,10 @@ function mlbFaceEl(id) {
   const f = mlbFace(id);
   return f ? `<span class="mlb-face"><img src="${f}" alt="" loading="lazy" onerror="this.parentNode.style.display='none'"></span>` : '';
 }
-function mlbCol(side, teamName) {
+function mlbCol(side, teamName, league) {
   const rows = (side.lineup || []).map(p => `<div class="mlb-p" data-pid="${esc(p.id)}" data-name="${esc(p.name)}" data-group="hitting"><span class="mlb-o">${esc(p.order)}</span>${mlbFaceEl(p.id)}<span class="mlb-pos">${esc(p.pos)}</span><span class="mlb-nm">${esc(p.name)}</span></div>`).join('');
   const pit = side.pitcher ? `<div class="mlb-p pit" data-pid="${esc(side.pitcher.id)}" data-name="${esc(side.pitcher.name)}" data-group="pitching"><span class="mlb-o">P</span>${mlbFaceEl(side.pitcher.id)}<span class="mlb-pos">${esc(t('probable'))}</span><span class="mlb-nm">${esc(side.pitcher.name)}</span></div>` : '';
-  return `<div class="mlb-side"><div class="mlb-hd">${esc(TN(teamName))}</div>${rows || '<div class="lu-note">-</div>'}${pit}</div>`;
+  return `<div class="mlb-side"><div class="mlb-hd">${esc(TN(teamName, league))}</div>${rows || '<div class="lu-note">-</div>'}${pit}</div>`;
 }
 async function showMlbPlayer(id, name, group) {
   const box = $('#mPlayer'); if (!box) return;
@@ -868,8 +931,8 @@ async function updateMlbLive(e) {
           <div>⚾ ${sl('pitcher')} <b>${esc(d.pitcher || '-')}</b>${d.pitcherLine ? ` <span class="ms-stat">${d.pitcherLine.ip}${sl('ip')}${d.pitcherLine.np != null ? ' · ' + d.pitcherLine.np + 'P' : ''} · ${d.pitcherLine.k}K · ${d.pitcherLine.er}${sl('er')}</span>` : ''}</div>
         </div>
         <table class="rhe-tbl"><thead><tr><th></th><th>R</th><th>H</th><th>E</th><th>BB</th></tr></thead><tbody>
-          <tr><td class="tn">${esc(TN(e.away))}</td><td>${esc(ba.r ?? 0)}</td><td>${esc(ba.h ?? 0)}</td><td>${esc(ba.e ?? 0)}</td><td>${esc(ba.bb ?? '-')}</td></tr>
-          <tr><td class="tn">${esc(TN(e.home))}</td><td>${esc(bh.r ?? 0)}</td><td>${esc(bh.h ?? 0)}</td><td>${esc(bh.e ?? 0)}</td><td>${esc(bh.bb ?? '-')}</td></tr>
+          <tr><td class="tn">${esc(TN(e.away, e.league))}</td><td>${esc(ba.r ?? 0)}</td><td>${esc(ba.h ?? 0)}</td><td>${esc(ba.e ?? 0)}</td><td>${esc(ba.bb ?? '-')}</td></tr>
+          <tr><td class="tn">${esc(TN(e.home, e.league))}</td><td>${esc(bh.r ?? 0)}</td><td>${esc(bh.h ?? 0)}</td><td>${esc(bh.e ?? 0)}</td><td>${esc(bh.bb ?? '-')}</td></tr>
         </tbody></table>
       </div>`;
   } catch { box.innerHTML = ''; }
@@ -893,10 +956,10 @@ async function updateLineup(e) {
       if (!d.found || (!(d.home.lineup || []).length && !(d.away.lineup || []).length)) { box.innerHTML = `<div class="odsec">📋 ${esc(t('lineup'))}</div><div class="lu-note">-</div>`; return; }
       box.innerHTML = `
         <div class="odsec">📋 ${esc(t('lineup'))} <span class="rhe">${esc(t('fieldPos'))} · ${esc(t('tapPlayer'))}</span></div>
-        <div class="bfield-tabs"><span class="bft on" data-t="home">${esc(TN(e.home))}</span><span class="bft" data-t="away">${esc(TN(e.away))}</span></div>
+        <div class="bfield-tabs"><span class="bft on" data-t="home">${esc(TN(e.home, e.league))}</span><span class="bft" data-t="away">${esc(TN(e.away, e.league))}</span></div>
         <div id="bfieldBox">${mlbField(d.home, e.home)}</div>
         <div class="odsec">${esc(t('order'))}</div>
-        <div class="mlb-lu">${mlbCol(d.home, e.home)}${mlbCol(d.away, e.away)}</div>
+        <div class="mlb-lu">${mlbCol(d.home, e.home, e.league)}${mlbCol(d.away, e.away, e.league)}</div>
         <div id="mPlayer"></div>`;
       $$('#mLineupWrap .bft').forEach(t => t.addEventListener('click', () => {
         $$('#mLineupWrap .bft').forEach(x => x.classList.remove('on')); t.classList.add('on');
@@ -927,7 +990,7 @@ async function updateBox(e) {
     const d = await fetchJSON(`/api/mlb/boxscore?home=${encodeURIComponent(e.home)}&away=${encodeURIComponent(e.away)}&date=${state.date}`, { tries: 1 });
     if (!d.found || (!(d.home.batters || []).length && !(d.away.batters || []).length)) { box.innerHTML = `<div class="odsec">📋 ${esc(t('boxRec'))}</div><div class="lu-note">-</div>`; return; }
     box.innerHTML = `<div class="odsec">📋 ${esc(t('boxRec'))} <span class="rhe">${sl('pitcher')}·${sl('batter')}</span></div>
-      <div class="bfield-tabs"><span class="bft on" data-t="home">${esc(TN(e.home))}</span><span class="bft" data-t="away">${esc(TN(e.away))}</span></div>
+      <div class="bfield-tabs"><span class="bft on" data-t="home">${esc(TN(e.home, e.league))}</span><span class="bft" data-t="away">${esc(TN(e.away, e.league))}</span></div>
       <div id="boxBody">${boxTables(d.home)}</div>`;
     $$('#mBoxWrap .bft').forEach(t => t.addEventListener('click', () => {
       $$('#mBoxWrap .bft').forEach(x => x.classList.remove('on')); t.classList.add('on');
@@ -1019,8 +1082,8 @@ function lineScoreTable(e) {
   return `<div class="odsec">📊 ${esc(t('inningScore'))} <span class="rhe">R · H · E</span></div>
     <table class="boxsc"><thead><tr><th></th>${head}<th class="r">R</th><th class="he">H</th><th class="he">E</th></tr></thead>
     <tbody>
-      <tr><td class="tn">${esc(TN(e.home))}</td>${cells(hi)}<td class="r">${esc(bh.r ?? 0)}</td><td class="he">${esc(bh.h ?? 0)}</td><td class="he">${esc(bh.e ?? 0)}</td></tr>
-      <tr><td class="tn">${esc(TN(e.away))}</td>${cells(ai)}<td class="r">${esc(ba.r ?? 0)}</td><td class="he">${esc(ba.h ?? 0)}</td><td class="he">${esc(ba.e ?? 0)}</td></tr>
+      <tr><td class="tn">${esc(TN(e.home, e.league))}</td>${cells(hi)}<td class="r">${esc(bh.r ?? 0)}</td><td class="he">${esc(bh.h ?? 0)}</td><td class="he">${esc(bh.e ?? 0)}</td></tr>
+      <tr><td class="tn">${esc(TN(e.away, e.league))}</td>${cells(ai)}<td class="r">${esc(ba.r ?? 0)}</td><td class="he">${esc(ba.h ?? 0)}</td><td class="he">${esc(ba.e ?? 0)}</td></tr>
     </tbody></table>`;
 }
 function renderDetail(e, pr) {
@@ -1036,9 +1099,9 @@ function renderDetail(e, pr) {
   const sc = $('#mScore');
   if (sc) sc.innerHTML = `
     <div class="mteams">
-      <div class="mt"><div class="ph">${badge(e.homeLogo, '🏟')}</div><div class="nm"><span class="haic">🏠</span>${esc(TN(e.home))}</div></div>
+      <div class="mt"><div class="ph">${badge(e.homeLogo, '🏟')}</div><div class="nm"><span class="haic">🏠</span>${esc(TN(e.home, e.league))}</div></div>
       <div class="msc"><div class="n">${scoreTxt}</div><div class="st" style="color:${e.state === 'live' ? '#e2231a' : '#8b93a0'}">${esc(st)}</div>${setpts}</div>
-      <div class="mt"><div class="ph">${badge(e.awayLogo, '🏟')}</div><div class="nm">${esc(TN(e.away))}<span class="haic">✈</span></div></div>
+      <div class="mt"><div class="ph">${badge(e.awayLogo, '🏟')}</div><div class="nm">${esc(TN(e.away, e.league))}<span class="haic">✈</span></div></div>
     </div>`;
   el.innerHTML = `
     <div id="mMlbLive"></div>
@@ -1053,7 +1116,7 @@ function renderDetail(e, pr) {
     <div class="probwrap">
       <div class="probttl"><span>🤖 ${esc(t('aiPred'))}</span><span>${esc(t('confidence'))} ${pr.confidence}%</span></div>
       <div class="probbar"><div class="pw" style="width:${pr.home}%">${pr.home}%</div><div class="pd" style="width:${pr.draw}%">${pr.draw}%</div><div class="pl" style="width:${pr.away}%">${pr.away}%</div></div>
-      <div class="problbl"><span>${esc(TN(e.home))} ${esc(t('win'))}</span><span>${esc(t('draw'))}</span><span>${esc(TN(e.away))} ${esc(t('win'))}</span></div>
+      <div class="problbl"><span>${esc(TN(e.home, e.league))} ${esc(t('win'))}</span><span>${esc(t('draw'))}</span><span>${esc(TN(e.away, e.league))} ${esc(t('win'))}</span></div>
     </div>
     <div class="minfo">
       <div><span class="k">${esc(t('league'))}</span> ${esc(e.league)}</div>
@@ -1076,7 +1139,7 @@ async function openEvent(id) {
     <div id="mInfoWrap"></div>
     <div id="mLineupWrap"></div>
     <div class="mchat-embed">
-      <div class="mce-hd">💬 <b>${esc(TN(e.home))} vs ${esc(TN(e.away))}</b> 대화방 <span class="mce-tag">보면서 채팅</span> <span class="mce-on">🟢 <b id="onlineM">0</b></span></div>
+      <div class="mce-hd">💬 <b>${esc(TN(e.home, e.league))} vs ${esc(TN(e.away, e.league))}</b> 대화방 <span class="mce-tag">보면서 채팅</span> <span class="mce-on">🟢 <b id="onlineM">0</b></span></div>
       <div id="mChatPane" class="chatpane embed"></div>
     </div>`;
   // 상세를 보면서 채팅 — 별도 입장 없이 이 경기 방에 바로 연결
@@ -1350,7 +1413,7 @@ function renderInfoList() {
     return `<div class="infocard" data-ev="${esc(g.id)}">
       <div class="ic-mid">
         <div class="ic-lg">⚾ ${esc(g.league)} · ${stx} ${info}</div>
-        <div class="ic-tm"><b>${esc(TN(g.home))}</b> <span class="ic-vs">${sc}</span> ${esc(TN(g.away))}</div>
+        <div class="ic-tm"><b>${esc(TN(g.home, g.league))}</b> <span class="ic-vs">${sc}</span> ${esc(TN(g.away, g.league))}</div>
       </div>
       <div class="ic-go">${esc(t('scoreDetail'))} ›</div>
     </div>`;
@@ -1391,7 +1454,7 @@ function openInfoDetail(i) {
       <div class="lu"><div class="lu-hd" style="border-color:${m.away.color}">${esc(m.away.name)}</div>${m.away.lineup.map((p, n) => `<div class="lu-row"><span class="lu-n">${n + 1}</span>${esc(p)}</div>`).join('')}</div>
     </div>
 
-    <div class="odsec">🧢 ${esc(t('boxRec'))} <span class="teamtog"><span class="tg on" data-t="home">${esc(TN(m.home.name))}</span><span class="tg" data-t="away">${esc(TN(m.away.name))}</span></span></div>
+    <div class="odsec">🧢 ${esc(t('boxRec'))} <span class="teamtog"><span class="tg on" data-t="home">${esc(TN(m.home.name, m.league))}</span><span class="tg" data-t="away">${esc(TN(m.away.name, m.league))}</span></span></div>
     <div id="iiPit">${pitTable(m.home)}</div>
     <div id="iiBat" style="margin-top:8px">${batTable(m.home)}</div>
 
@@ -1401,7 +1464,7 @@ function openInfoDetail(i) {
       <tr><td class="tn">${esc(m.away.name)}</td>${innings('away')}<td class="r">${sum('away')}</td></tr></tbody></table>
 
     <div class="odsec">📅 ${esc(t('recent'))}</div>
-    <div class="recent2"><div class="recol"><div class="rec-hd">${esc(TN(m.home.name))}</div>${recentRows(m.recent.home)}</div><div class="recol"><div class="rec-hd">${esc(TN(m.away.name))}</div>${recentRows(m.recent.away)}</div></div>
+    <div class="recent2"><div class="recol"><div class="rec-hd">${esc(TN(m.home.name, m.league))}</div>${recentRows(m.recent.home)}</div><div class="recol"><div class="rec-hd">${esc(TN(m.away.name, m.league))}</div>${recentRows(m.recent.away)}</div></div>
     <div class="foot" style="padding:12px 0 0">라인업·선수기록·국내배당은 <b>샘플 데이터</b>입니다. 실제 연동은 유료 스포츠데이터가 필요합니다.</div>
   `;
   // 배당 탭

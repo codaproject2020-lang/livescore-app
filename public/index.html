@@ -142,7 +142,7 @@
 
   <!-- ================= 우측(채팅/상세, PC 전용) ================= -->
   <aside class="side-r">
-    <div class="side-hd">💬 전경기 실시간 채팅 <span class="online-pill">🟢 <b id="onlineR">0</b></span></div>
+    <div class="side-hd">💬 <span data-i18n="liveChat">전경기 실시간 채팅</span> <span class="online-pill">🟢 <b id="onlineR">0</b></span></div>
     <div id="chatDesk" class="chatpane"></div>
   </aside>
 </div>
@@ -210,8 +210,8 @@
 <template id="chatTpl">
   <div class="chat-msgs"></div>
   <div class="chat-input">
-    <input type="text" class="ci" placeholder="메시지 입력…" maxlength="300">
-    <button class="cs">전송</button>
+    <input type="text" class="ci" placeholder="메시지 입력…" data-i18n-ph="chatPh" maxlength="300">
+    <button class="cs" data-i18n="send">전송</button>
   </div>
 </template>
 
@@ -234,6 +234,6 @@
     window.addEventListener('load', () => navigator.serviceWorker.register('/sw.js').catch(() => {}));
   }
 </script>
-<script src="app.js?v=35"></script>
+<script src="app.js?v=36"></script>
 </body>
 </html>
