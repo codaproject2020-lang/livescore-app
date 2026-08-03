@@ -676,8 +676,8 @@ async function mlbFindGame(home, away, date) {
       (sch.dates || []).forEach(dd => (dd.games || []).forEach(g => games.push(g)));
     for (const g of games) {
       const st = (g.status && g.status.abstractGameState) || '';
-      if (mlbTeamMatch(g.teams.home.team.name, home) && mlbTeamMatch(g.teams.away.team.name, away)) cands.push({ gamePk: g.gamePk, swap: false, st });
-      else if (mlbTeamMatch(g.teams.home.team.name, away) && mlbTeamMatch(g.teams.away.team.name, home)) cands.push({ gamePk: g.gamePk, swap: true, st });
+      if (mlbTeamMatch(g.teams.home.team.name, home) && mlbTeamMatch(g.teams.away.team.name, away)) cands.push({ gamePk: g.gamePk, swap: false, st, sportId, homeId: g.teams.home.team.id, awayId: g.teams.away.team.id });
+      else if (mlbTeamMatch(g.teams.home.team.name, away) && mlbTeamMatch(g.teams.away.team.name, home)) cands.push({ gamePk: g.gamePk, swap: true, st, sportId, homeId: g.teams.home.team.id, awayId: g.teams.away.team.id });
       }
     }
   }
@@ -822,6 +822,59 @@ app.get('/api/mlb/boxscore', async (req, res) => {
     };
     const hSide = side('home'), aSide = side('away');
     res.json({ found: true, home: f.swap ? aSide : hSide, away: f.swap ? hSide : aSide });
+  } catch (e) { res.status(502).json({ found: false, error: String(e.message || e) }); }
+});
+// 팀 최근 10경기
+async function mlbRecent(teamId, sportId, date) {
+  if (!teamId) return [];
+  const start = mlbAddDays(date, -30);
+  let sch;
+  try { sch = await mlbFetch(`/api/v1/schedule?sportId=${sportId}&teamId=${teamId}&startDate=${start}&endDate=${date}&gameType=R`, 300000); } catch { return []; }
+  const games = [];
+  (sch.dates || []).forEach(dd => (dd.games || []).forEach(g => games.push(g)));
+  const fin = games.filter(g => (g.status && g.status.abstractGameState) === 'Final' && g.teams.home.score != null);
+  fin.sort((a, b) => new Date(b.gameDate) - new Date(a.gameDate));
+  return fin.slice(0, 10).map(g => {
+    const isHome = g.teams.home.team.id === Number(teamId);
+    const my = isHome ? g.teams.home : g.teams.away, op = isHome ? g.teams.away : g.teams.home;
+    return { date: g.officialDate, opp: op.team.name, ts: my.score, os: op.score, win: my.score > op.score };
+  });
+}
+// 선발(예상) 투수 시즌 성적
+async function mlbPitcherSeason(id) {
+  if (!id) return null;
+  const season = new Date().getFullYear();
+  try {
+    const j = await mlbFetch(`/api/v1/people/${id}/stats?stats=season&group=pitching&season=${season}`, 3600000);
+    const s = (j.stats && j.stats[0] && j.stats[0].splits && j.stats[0].splits[0] && j.stats[0].splits[0].stat) || {};
+    return { w: s.wins ?? 0, l: s.losses ?? 0, era: s.era ?? '-', ip: s.inningsPitched ?? '-', k: s.strikeOuts ?? 0, bb: s.baseOnBalls ?? 0 };
+  } catch { return { w: 0, l: 0, era: '-', ip: '-', k: 0, bb: 0 }; }
+}
+// 경기정보: 예상 선발투수 + 양팀 최근 10경기
+app.get('/api/mlb/info', async (req, res) => {
+  const { home, away } = req.query;
+  const date = req.query.date || new Date().toISOString().slice(0, 10);
+  try {
+    const f = await mlbFindGame(home, away, date);
+    if (!f) return res.json({ found: false });
+    const sportId = f.sportId || 1;
+    const ourHomeId = f.swap ? f.awayId : f.homeId, ourAwayId = f.swap ? f.homeId : f.awayId;
+    // 선발투수 (schedule + hydrate)
+    let probable = { home: null, away: null };
+    try {
+      const sg = await mlbFetch(`/api/v1/schedule?sportId=${sportId}&gamePk=${f.gamePk}&hydrate=probablePitcher`, 120000);
+      const g = sg.dates && sg.dates[0] && sg.dates[0].games && sg.dates[0].games[0];
+      if (g) {
+        const hp = g.teams.home.probablePitcher, ap = g.teams.away.probablePitcher;
+        const [hs, as] = await Promise.all([
+          hp ? mlbPitcherSeason(hp.id).then(s => ({ name: hp.fullName, ...s })) : null,
+          ap ? mlbPitcherSeason(ap.id).then(s => ({ name: ap.fullName, ...s })) : null
+        ]);
+        probable = f.swap ? { home: as, away: hs } : { home: hs, away: as };
+      }
+    } catch {}
+    const [rHome, rAway] = await Promise.all([mlbRecent(ourHomeId, sportId, date), mlbRecent(ourAwayId, sportId, date)]);
+    res.json({ found: true, probable, recent: { home: rHome, away: rAway } });
   } catch (e) { res.status(502).json({ found: false, error: String(e.message || e) }); }
 });
 
