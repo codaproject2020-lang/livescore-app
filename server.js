@@ -532,12 +532,19 @@ app.get('/api/asports/games', async (req, res) => {
         if (g.league !== 'MLB') return;
         const hN = mlbNick(g.home), aN = mlbNick(g.away), e = sm[[hN, aN].sort().join('|')];
         if (!e) return;
-        if (e.scores[hN] != null) g.hs = e.scores[hN];
-        if (e.scores[aN] != null) g.as = e.scores[aN];
+        const H = e.byNick[hN] || {}, A = e.byNick[aN] || {};
+        if (H.r != null) g.hs = H.r;
+        if (A.r != null) g.as = A.r;
         g.state = e.state;
         g.status = e.state === 'finished' ? 'FT' : e.state === 'live' ? 'IN' : 'NS';
         if (e.inning != null) { g.curInning = e.inning; g.period = e.inning; }
         if (e.half) g.inningHalf = e.half === 'Top' ? 'top' : e.half === 'Bottom' ? 'bottom' : g.inningHalf;
+        // R/H/E/BB 박스 (카드 미니 스코어보드용)
+        const prevH = g.box && g.box.home ? g.box.home : {}, prevA = g.box && g.box.away ? g.box.away : {};
+        g.box = {
+          home: { r: H.r != null ? H.r : g.hs, h: H.h != null ? H.h : (prevH.h ?? null), e: H.e != null ? H.e : (prevH.e ?? null), bb: H.bb != null ? H.bb : null, innings: prevH.innings || {} },
+          away: { r: A.r != null ? A.r : g.as, h: A.h != null ? A.h : (prevA.h ?? null), e: A.e != null ? A.e : (prevA.e ?? null), bb: A.bb != null ? A.bb : null, innings: prevA.innings || {} }
+        };
       });
     }
     // ⚡ 배당 매칭:
@@ -670,29 +677,43 @@ async function mlbFindGame(home, away, date) {
 // MLB 스코어/상태/이닝을 공식 StatsAPI로 덮어쓰기용 맵 (API-Sports보다 훨씬 빠름·정확)
 async function mlbScoreMap(date) {
   const map = {};
+  const rank = s => s === 'live' ? 0 : s === 'finished' ? 1 : 2;
   for (const d of [date, mlbAddDays(date, -1), mlbAddDays(date, 1)]) {
     let sch;
     try { sch = await mlbFetch(`/api/v1/schedule?sportId=1&date=${d}&hydrate=linescore`, 15000); } catch { continue; }
     const games = [];
     (sch.dates || []).forEach(dd => (dd.games || []).forEach(g => games.push(g)));
-    for (const g of games) {
+    await Promise.all(games.map(async g => {
       const hN = mlbNick(g.teams.home.team.name), aN = mlbNick(g.teams.away.team.name);
-      if (!hN || !aN) continue;
+      if (!hN || !aN) return;
       const key = [hN, aN].sort().join('|');
       const st = (g.status && g.status.abstractGameState) || '';
-      const ls = g.linescore || {};
+      const ls = g.linescore || {}, lt = ls.teams || {};
+      const side = who => ({
+        r: g.teams[who].score != null ? g.teams[who].score : (lt[who] && lt[who].runs != null ? lt[who].runs : null),
+        h: lt[who] && lt[who].hits != null ? lt[who].hits : null,
+        e: lt[who] && lt[who].errors != null ? lt[who].errors : null,
+        bb: null
+      });
+      const hs = side('home'), as = side('away');
+      // 사사구(BB)·안타 보정은 boxscore에서 (진행/종료 경기만 — 비용 절약)
+      if (st === 'Live' || st === 'Final') {
+        try {
+          const box = await mlbFetch(`/api/v1/game/${g.gamePk}/boxscore`, 30000);
+          const bt = who => (box.teams[who] && box.teams[who].teamStats && box.teams[who].teamStats.batting) || {};
+          const bh = bt('home'), ba = bt('away');
+          hs.bb = bh.baseOnBalls != null ? bh.baseOnBalls : null; if (hs.h == null) hs.h = bh.hits != null ? bh.hits : null;
+          as.bb = ba.baseOnBalls != null ? ba.baseOnBalls : null; if (as.h == null) as.h = ba.hits != null ? ba.hits : null;
+        } catch {}
+      }
       const entry = {
-        scores: {}, homeNick: hN,
         state: st === 'Final' ? 'finished' : st === 'Live' ? 'live' : 'scheduled',
         inning: ls.currentInning != null ? ls.currentInning : null,
-        half: ls.inningHalf || null
+        half: ls.inningHalf || null,
+        byNick: { [hN]: hs, [aN]: as }
       };
-      entry.scores[hN] = g.teams.home.score != null ? g.teams.home.score : null;
-      entry.scores[aN] = g.teams.away.score != null ? g.teams.away.score : null;
-      // 여러 날짜 중 실제 진행/종료된 경기를 우선
-      const rank = s => s === 'live' ? 0 : s === 'finished' ? 1 : 2;
       if (!map[key] || rank(entry.state) < rank(map[key].state)) map[key] = entry;
-    }
+    }));
   }
   return map;
 }
