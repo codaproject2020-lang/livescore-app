@@ -781,11 +781,11 @@ const HA_HOME = '<span class="haic home" title="HOME" aria-label="HOME"><svg vie
 const HA_AWAY = '<span class="haic away" title="AWAY" aria-label="AWAY"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21.5 15.6 14 11.2V4.9a2 2 0 0 0-4 0v6.3l-7.5 4.4v1.9L10 15.4v3.9l-2.3 1.6V22L12 20.8 16.3 22v-1.1L14 19.3v-3.9l7.5 2.1z"/></svg></span>';
 function matchCard(e) {
   return `<div class="match" data-ev="${esc(e.id)}">
-    <span class="bell">🔔</span>
+    <span class="bell favbell${isMatchFav(e) ? ' on' : ''}" data-favmatch="${esc(e.id)}" title="${esc(t('favTeams'))}">${isMatchFav(e) ? '🔔' : '🔕'}</span>
     <div class="mrow">
-      <div class="side">${HA_HOME}<div class="ph">${badge(e.homeLogo, '🏟')}</div><div class="team">${favStar(e.home)}${esc(TN(e.home, e.league))}</div></div>
+      <div class="side">${HA_HOME}<div class="ph">${badge(e.homeLogo, '🏟')}</div><div class="team">${esc(TN(e.home, e.league))}</div></div>
       ${scoreBlock(e)}
-      <div class="side">${HA_AWAY}<div class="ph">${badge(e.awayLogo, '🏟')}</div><div class="team">${esc(TN(e.away, e.league))}${favStar(e.away)}</div></div>
+      <div class="side">${HA_AWAY}<div class="ph">${badge(e.awayLogo, '🏟')}</div><div class="team">${esc(TN(e.away, e.league))}</div></div>
     </div>
     ${bsoMini(e)}
     ${rheMini(e)}
@@ -800,8 +800,12 @@ function renderFeed(games) {
     feed.innerHTML = `<div class="loading">${esc(state.date)} · ${esc(t(state.sport))} · ${esc(t('noGames'))}</div>`;
     return;
   }
+  // ⭐ 즐겨찾기(종) 경기는 맨 위 별도 그룹으로
+  const favGames = games.filter(e => isMatchFav(e));
+  const rest = games.filter(e => !isMatchFav(e));
+  favGames.sort((a, b) => (b.state === 'live') - (a.state === 'live'));
   const groups = {};
-  games.forEach(e => { const k = e.league || '기타'; (groups[k] = groups[k] || { league: e, name: k, items: [] }).items.push(e); });
+  rest.forEach(e => { const k = e.league || '기타'; (groups[k] = groups[k] || { league: e, name: k, items: [] }).items.push(e); });
   const order = Object.values(groups).sort((a, b) => {
     const la = a.items.some(x => x.state === 'live'), lb = b.items.some(x => x.state === 'live');
     if (la !== lb) return (lb ? 1 : 0) - (la ? 1 : 0);
@@ -810,12 +814,20 @@ function renderFeed(games) {
     if (ra !== rb) return ra - rb;
     return b.items.length - a.items.length;
   });
-  feed.innerHTML = order.map(g => {
+  let html = '';
+  if (favGames.length) {
+    const live = favGames.filter(x => x.state === 'live').length;
+    const head = `<div class="lghd favhd"><span class="flag">⭐</span><span class="nm">${esc(t('favTeams'))}</span><span class="cnt">(${favGames.length})</span>${live ? `<span class="live-dot" style="color:#e2231a;font-weight:800">🔴 ${live} LIVE</span>` : ''}<span class="up">∧</span></div>`;
+    const body = favGames.map(e => (e.state !== 'finished' ? predictBanner(e) : '') + matchCard(e)).join('');
+    html += `<div class="lg lg-fav">${head}${body}</div>`;
+  }
+  html += order.map(g => {
     const live = g.items.filter(x => x.state === 'live').length;
     const head = `<div class="lghd"><span class="flag">${badge(g.league.leagueLogo, '🏆')}</span><span class="nm">${esc(g.name)}</span><span class="cnt">(${g.items.length})</span>${live ? `<span class="live-dot" style="color:#e2231a;font-weight:800">🔴 ${live} LIVE</span>` : ''}<span class="up">∧</span></div>`;
     const body = g.items.map(e => (e.state !== 'finished' ? predictBanner(e) : '') + matchCard(e)).join('');
     return `<div class="lg">${head}${body}</div>`;
   }).join('');
+  feed.innerHTML = html;
   $$('#feed .lghd').forEach(h => h.addEventListener('click', () => {
     let el = h.nextElementSibling; const arr = h.querySelector('.up'); const col = arr.textContent === '∨';
     while (el && !el.classList.contains('lghd')) { el.style.display = col ? '' : 'none'; el = el.nextElementSibling; }
@@ -1688,8 +1700,26 @@ function saveNotif() { try { localStorage.setItem('liveup_notif', JSON.stringify
 function isFav(name) { return FAV.includes(String(name || '')); }
 function favStar(name) { return `<span class="favstar${isFav(name) ? ' on' : ''}" data-fav="${esc(name)}">${isFav(name) ? '★' : '☆'}</span>`; }
 function toggleFav(name) { name = String(name || ''); const i = FAV.indexOf(name); if (i >= 0) FAV.splice(i, 1); else FAV.push(name); saveFav(); if (NOTIF.on) syncPush(); if ($('#view-live') && !$('#view-live').classList.contains('hidden')) renderFeed(filterGames()); }
-// 별 클릭은 경기 상세로 안 넘어가게 (캡처 단계에서 가로챔)
-document.addEventListener('click', ev => { const s = ev.target.closest && ev.target.closest('.favstar'); if (s) { ev.stopPropagation(); ev.preventDefault(); toggleFav(s.dataset.fav); } }, true);
+// 경기 단위 즐겨찾기 (종 아이콘) — 양 팀을 관심팀에 등록/해제
+function isMatchFav(e) { return isFav(e.home) && isFav(e.away); }
+function toggleMatchFav(id) {
+  const e = feedGames[id]; if (!e) return;
+  if (isMatchFav(e)) { FAV = FAV.filter(x => x !== e.home && x !== e.away); }
+  else { if (!isFav(e.home)) FAV.push(e.home); if (!isFav(e.away)) FAV.push(e.away); if (!NOTIF.on) autoEnableNotif(); }
+  saveFav(); if (NOTIF.on) syncPush();
+  if ($('#view-live') && !$('#view-live').classList.contains('hidden')) renderFeed(filterGames());
+}
+// 종을 처음 누르면 알림 자동 활성화(권한 요청) → 앱 꺼도 푸시
+async function autoEnableNotif() {
+  try { if ('Notification' in window && Notification.permission !== 'denied') { const p = await Notification.requestPermission(); if (p === 'granted') { NOTIF.on = true; saveNotif(); syncPush(); } } } catch (e) {}
+}
+// 종/별 클릭은 경기 상세로 안 넘어가게 (캡처 단계에서 가로챔)
+document.addEventListener('click', ev => {
+  const b = ev.target.closest && ev.target.closest('.favbell');
+  if (b) { ev.stopPropagation(); ev.preventDefault(); toggleMatchFav(b.dataset.favmatch); return; }
+  const s = ev.target.closest && ev.target.closest('.favstar');
+  if (s) { ev.stopPropagation(); ev.preventDefault(); toggleFav(s.dataset.fav); }
+}, true);
 
 // ── 서버 웹 푸시 구독 (앱 꺼져도 알림) ──
 let swReg = null, vapidKey = null;

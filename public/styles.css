@@ -596,3 +596,13 @@ table.rhe-tbl .tn{text-align:left;padding-left:10px;font-weight:700;white-space:
 .favchips{display:flex;flex-wrap:wrap;gap:7px;margin-top:6px}
 .favchip{background:#16243d;color:#fff;border-radius:14px;padding:5px 11px;font-size:12px;font-weight:700;cursor:pointer;border:1.5px solid var(--gold)}
 .favchip:hover{background:#e2231a;border-color:#e2231a}
+
+/* 🔔 경기 즐겨찾기 종 + ⭐ 즐겨찾기 그룹 */
+.match .bell{cursor:pointer;transition:transform .1s}
+.match .bell:hover{transform:scale(1.15)}
+.match .bell.favbell{opacity:.5;filter:grayscale(1)}
+.match .bell.favbell.on{opacity:1;filter:none;text-shadow:0 1px 3px rgba(224,169,46,.6)}
+.lg-fav{border-left:4px solid var(--gold)}
+.lghd.favhd{background:linear-gradient(90deg,#fff5db,#fdf7e8)}
+.lghd.favhd .nm{color:var(--navy)}
+.lghd.favhd .flag{font-size:16px}
