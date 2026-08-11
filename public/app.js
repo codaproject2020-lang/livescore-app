@@ -82,6 +82,42 @@ const STR = {
   setWord: ['Sets', '세트', 'セット', '局', 'Sets', 'सेट', 'Set', 'เซ็ต', 'Сеты', 'Sätze', 'Sets', 'Set'],
   now: ['Now', '현재', '現在', '当前', 'Ahora', 'अभी', 'Hiện tại', 'ตอนนี้', 'Сейчас', 'Jetzt', 'Actuel', 'Ora'],
   scheduled: ['Scheduled', '예정', '予定', '预定', 'Programado', 'निर्धारित', 'Dự kiến', 'ตามกำหนด', 'По расписанию', 'Geplant', 'Prévu', 'In programma'],
+  // ── AI 해설·이벤트 문장 템플릿 ({토큰} 치환) ──
+  aiComm: ['AI Commentary', 'AI 해설', 'AI解説', 'AI解说', 'Comentario IA', 'AI कमेंट्री', 'Bình luận AI', 'คำบรรยาย AI', 'AI-комментарий', 'KI-Kommentar', 'Commentaire IA', 'Commento IA'],
+  aiTie: ['{st}, {home} vs {away} {h}:{a} — neck and neck.', '{st}, {home} vs {away} {h}:{a} 팽팽한 접전이에요.', '{st}、{home} 対 {away} {h}:{a} の接戦です。', '{st}，{home} vs {away} {h}:{a}，势均力敌。', '{st}, {home} vs {away} {h}:{a}, muy igualado.', '{st}, {home} बनाम {away} {h}:{a} — कांटे की टक्कर।', '{st}, {home} vs {away} {h}:{a} — cân tài cân sức.', '{st}, {home} พบ {away} {h}:{a} สูสีมาก', '{st}, {home} — {away} {h}:{a}, борьба на равных.', '{st}, {home} vs {away} {h}:{a} — Kopf-an-Kopf.', '{st}, {home} vs {away} {h}:{a} — au coude à coude.', '{st}, {home} vs {away} {h}:{a} — equilibratissima.'],
+  aiLead: ['{st} · {lead} leads by {d} ({h}:{a}).', '{st} · {lead} {d}점 차로 앞서는 흐름 ({h}:{a}).', '{st}・{lead} が {d} 点差でリード（{h}:{a}）。', '{st}·{lead} 领先 {d} 分（{h}:{a}）。', '{st} · {lead} gana por {d} ({h}:{a}).', '{st} · {lead} {d} से आगे ({h}:{a})।', '{st} · {lead} dẫn {d} ({h}:{a}).', '{st} · {lead} นำอยู่ {d} ({h}:{a})', '{st} · {lead} впереди на {d} ({h}:{a}).', '{st} · {lead} führt mit {d} ({h}:{a}).', '{st} · {lead} mène de {d} ({h}:{a}).', '{st} · {lead} avanti di {d} ({h}:{a}).'],
+  aiHits: ['Hits {home} {hh} · {away} {ah}', '안타 {home} {hh} · {away} {ah}', '安打 {home} {hh} · {away} {ah}', '安打 {home} {hh} · {away} {ah}', 'Hits {home} {hh} · {away} {ah}', 'हिट {home} {hh} · {away} {ah}', 'Hit {home} {hh} · {away} {ah}', 'ฮิต {home} {hh} · {away} {ah}', 'Хиты {home} {hh} · {away} {ah}', 'Hits {home} {hh} · {away} {ah}', 'Coups {home} {hh} · {away} {ah}', 'Valide {home} {hh} · {away} {ah}'],
+  sumSched1: ['Upcoming: {home} vs {away}.', '곧 시작하는 {home} vs {away} 경기입니다.', 'まもなく開始：{home} 対 {away}。', '即将开始：{home} vs {away}。', 'Próximo: {home} vs {away}.', 'आगामी: {home} बनाम {away}।', 'Sắp diễn ra: {home} vs {away}.', 'กำลังจะเริ่ม: {home} พบ {away}', 'Скоро: {home} — {away}.', 'Bald: {home} vs {away}.', 'À venir : {home} vs {away}.', 'In arrivo: {home} vs {away}.'],
+  sumSched2: ['Odds slightly favor {side}.', '배당 기준 {side} 쪽이 근소 우위예요.', 'オッズ的には {side} がやや優勢。', '赔率略微看好 {side}。', 'Las cuotas favorecen algo a {side}.', 'ऑड्स में {side} थोड़ा आगे।', 'Tỷ lệ nghiêng nhẹ về {side}.', 'อัตราต่อรองเอียงไป {side} เล็กน้อย', 'Ставки слегка за {side}.', 'Quoten leicht für {side}.', 'Les cotes favorisent {side}.', 'Le quote favoriscono {side}.'],
+  sumSched3: ['Live score & commentary will auto-update here.', '시작 후 실시간 스코어·해설이 자동 갱신됩니다.', '開始後、ライブスコアと解説が自動更新されます。', '开赛后实时比分与解说将自动更新。', 'El marcador y comentarios se actualizarán aquí.', 'शुरू होने पर लाइव स्कोर व कमेंट्री अपडेट होंगे।', 'Tỷ số & bình luận sẽ tự cập nhật ở đây.', 'สกอร์และคำบรรยายสดจะอัปเดตอัตโนมัติ', 'Счёт и комментарии обновятся автоматически.', 'Live-Score & Kommentar aktualisieren sich hier.', 'Score et commentaires se mettront à jour ici.', 'Punteggio e commento si aggiorneranno qui.'],
+  sumTie: ['{st}: tied {h}:{a}, extremely close.', '{st} 현재 {h}:{a} 동점, 초박빙 승부예요.', '{st} 現在 {h}:{a} の同点、大接戦です。', '{st} 目前 {h}:{a} 平局，非常胶着。', '{st}: empate {h}:{a}, muy reñido.', '{st}: {h}:{a} बराबरी, बेहद करीबी।', '{st}: hòa {h}:{a}, cực sát nút.', '{st}: เสมอ {h}:{a} สูสีมาก', '{st}: ничья {h}:{a}, очень напряжённо.', '{st}: {h}:{a} unentschieden, sehr eng.', '{st} : égalité {h}:{a}, très serré.', '{st}: pari {h}:{a}, molto equilibrata.'],
+  sumLead: ['{st}: {lead} leads {hi}:{lo}, by {d}.', '{st} 현재 {lead}이(가) {hi}:{lo}, {d}점 차로 앞섭니다.', '{st} 現在 {lead} が {hi}:{lo}、{d} 点差でリード。', '{st} {lead} 以 {hi}:{lo} 领先 {d} 分。', '{st}: {lead} gana {hi}:{lo}, por {d}.', '{st}: {lead} {hi}:{lo} से {d} आगे।', '{st}: {lead} dẫn {hi}:{lo}, cách {d}.', '{st}: {lead} นำ {hi}:{lo} ห่าง {d}', '{st}: {lead} ведёт {hi}:{lo}, на {d}.', '{st}: {lead} führt {hi}:{lo}, mit {d}.', '{st} : {lead} mène {hi}:{lo}, de {d}.', '{st}: {lead} avanti {hi}:{lo}, di {d}.'],
+  sumBB: ['Hits: {home} {hh} · {away} {ah}. Errors {he}:{ae}.', '안타 {home} {hh} · {away} {ah}, 실책 {he}:{ae}.', '安打 {home} {hh} · {away} {ah}、失策 {he}:{ae}。', '安打 {home} {hh} · {away} {ah}，失误 {he}:{ae}。', 'Hits: {home} {hh} · {away} {ah}. Errores {he}:{ae}.', 'हिट: {home} {hh} · {away} {ah}. एरर {he}:{ae}.', 'Hit: {home} {hh} · {away} {ah}. Lỗi {he}:{ae}.', 'ฮิต: {home} {hh} · {away} {ah} เออเรอร์ {he}:{ae}', 'Хиты: {home} {hh} · {away} {ah}. Ошибки {he}:{ae}.', 'Hits: {home} {hh} · {away} {ah}. Fehler {he}:{ae}.', 'Coups : {home} {hh} · {away} {ah}. Erreurs {he}:{ae}.', 'Valide: {home} {hh} · {away} {ah}. Errori {he}:{ae}.'],
+  sumInn: ['{x} — {tb}.', '{x} · {tb} 국면입니다.', '{x}・{tb}。', '{x}·{tb}。', '{x} — {tb}.', '{x} — {tb}।', '{x} — {tb}.', '{x} — {tb}', '{x} — {tb}.', '{x} — {tb}.', '{x} — {tb}.', '{x} — {tb}.'],
+  tbTop: ['top · away batting', '초 · 원정팀 공격', '表・ビジター攻撃', '上·客队进攻', 'alta · batea visitante', 'ऊपरी · अवे बल्लेबाजी', 'đầu · đội khách đánh', 'ครึ่งบน · ทีมเยือนตี', 'верх · бьёт гость', 'oben · Gäste am Schlag', 'haute · visiteurs à la batte', 'alta · battono gli ospiti'],
+  tbBot: ['bottom · home batting', '말 · 홈팀 공격', '裏・ホーム攻撃', '下·主队进攻', 'baja · batea local', 'निचली · होम बल्लेबाजी', 'cuối · đội nhà đánh', 'ครึ่งล่าง · ทีมเหย้าตี', 'низ · бьёт хозяин', 'unten · Heim am Schlag', 'basse · domicile à la batte', 'bassa · battono i padroni'],
+  sumSet: ['Sets {h}:{a}, current set {sh}:{sa}. {leader} leads this set.', '세트 {h}:{a}, 현재 세트 {sh}:{sa}. {leader}이(가) 이 세트 리드 중.', 'セット {h}:{a}、現在のセット {sh}:{sa}。{leader} がリード。', '局分 {h}:{a}，当前局 {sh}:{sa}。{leader} 领先本局。', 'Sets {h}:{a}, set actual {sh}:{sa}. {leader} domina.', 'सेट {h}:{a}, वर्तमान सेट {sh}:{sa}. {leader} आगे।', 'Set {h}:{a}, set hiện tại {sh}:{sa}. {leader} dẫn.', 'เซ็ต {h}:{a} เซ็ตปัจจุบัน {sh}:{sa} {leader} นำ', 'Сеты {h}:{a}, текущий {sh}:{sa}. {leader} ведёт.', 'Sätze {h}:{a}, aktueller Satz {sh}:{sa}. {leader} führt.', 'Sets {h}:{a}, set actuel {sh}:{sa}. {leader} mène.', 'Set {h}:{a}, set attuale {sh}:{sa}. {leader} avanti.'],
+  sumOdds: ['Odds: win {oh} / lose {oa}; market favors {side}.', '배당 승 {oh} / 패 {oa}, 시장은 {side} 우세를 반영.', 'オッズ 勝 {oh} / 負 {oa}、市場は {side} 優勢。', '赔率 胜 {oh} / 负 {oa}，市场看好 {side}。', 'Cuotas: gana {oh} / pierde {oa}; el mercado favorece a {side}.', 'ऑड्स: जीत {oh} / हार {oa}; बाज़ार {side} के पक्ष में।', 'Tỷ lệ: thắng {oh} / thua {oa}; thị trường nghiêng về {side}.', 'อัตราต่อรอง: ชนะ {oh} / แพ้ {oa} ตลาดเอียงไป {side}', 'Ставки: победа {oh} / поражение {oa}; рынок за {side}.', 'Quoten: Sieg {oh} / Niederlage {oa}; Markt für {side}.', 'Cotes : victoire {oh} / défaite {oa} ; marché pour {side}.', 'Quote: vittoria {oh} / sconfitta {oa}; mercato per {side}.'],
+  sumFinal: ['Final {h}:{a} — {result}.', '최종 {h}:{a}, {result}.', '最終 {h}:{a}、{result}。', '终场 {h}:{a}，{result}。', 'Final {h}:{a} — {result}.', 'अंतिम {h}:{a} — {result}।', 'Chung cuộc {h}:{a} — {result}.', 'จบเกม {h}:{a} — {result}', 'Итог {h}:{a} — {result}.', 'Endstand {h}:{a} — {result}.', 'Score final {h}:{a} — {result}.', 'Finale {h}:{a} — {result}.'],
+  resultDraw: ['draw', '무승부', '引き分け', '平局', 'empate', 'ड्रॉ', 'hòa', 'เสมอ', 'ничья', 'Unentschieden', 'match nul', 'pareggio'],
+  resultWin: ['{lead} win', '{lead} 승리', '{lead} の勝利', '{lead} 获胜', 'victoria de {lead}', '{lead} की जीत', '{lead} thắng', '{lead} ชนะ', 'победа {lead}', '{lead} Sieg', 'victoire de {lead}', 'vittoria di {lead}'],
+  sumCont: ['Still anyone’s game — worth watching. (auto-updates ~15s)', '남은 시간 변수로 흐름이 바뀔 수 있어 끝까지 볼 만해요. (약 15초 자동 갱신)', '残り時間で流れは変わり得ます。最後まで注目。（約15秒更新）', '剩余时间仍有变数，值得看到最后。（约15秒更新）', 'Aún puede cambiar; vale la pena verlo. (~15s)', 'अभी कुछ भी हो सकता है, अंत तक देखें। (~15s)', 'Vẫn khó lường, đáng xem đến cuối. (~15s)', 'ยังพลิกได้ ควรดูจนจบ (~15 วิ)', 'Всё ещё может измениться. (~15с)', 'Noch offen — dranbleiben. (~15s)', 'Tout reste possible, à suivre. (~15s)', 'Ancora tutto aperto, da seguire. (~15s)'],
+  evScore: ['Score! {team} ({h}:{a})', '득점! {team} ({h}:{a})', '得点！{team}（{h}:{a}）', '得分！{team}（{h}:{a}）', '¡Anota! {team} ({h}:{a})', 'स्कोर! {team} ({h}:{a})', 'Ghi điểm! {team} ({h}:{a})', 'ได้แต้ม! {team} ({h}:{a})', 'Очко! {team} ({h}:{a})', 'Punkt! {team} ({h}:{a})', 'But ! {team} ({h}:{a})', 'Punto! {team} ({h}:{a})'],
+  evHit: ['Hit! {team} (total {n})', '안타! {team} (누적 {n})', '安打！{team}（計 {n}）', '安打！{team}（累计 {n}）', '¡Hit! {team} (total {n})', 'हिट! {team} (कुल {n})', 'Hit! {team} (tổng {n})', 'ฮิต! {team} (รวม {n})', 'Хит! {team} (всего {n})', 'Hit! {team} (gesamt {n})', 'Coup ! {team} (total {n})', 'Valida! {team} (tot {n})'],
+  evError: ['Error {team} ({n})', '실책 {team} ({n})', '失策 {team}（{n}）', '失误 {team}（{n}）', 'Error {team} ({n})', 'एरर {team} ({n})', 'Lỗi {team} ({n})', 'เออเรอร์ {team} ({n})', 'Ошибка {team} ({n})', 'Fehler {team} ({n})', 'Erreur {team} ({n})', 'Errore {team} ({n})'],
+  evInnStart: ['Start of {x}', '{x} 시작', '{x} 開始', '{x} 开始', 'Comienza {x}', '{x} शुरू', 'Bắt đầu {x}', 'เริ่ม {x}', 'Начало {x}', '{x} beginnt', 'Début {x}', 'Inizio {x}'],
+  evSet: ['Current set {s}', '현재 세트 {s}', '現在のセット {s}', '当前局 {s}', 'Set actual {s}', 'वर्तमान सेट {s}', 'Set hiện tại {s}', 'เซ็ตปัจจุบัน {s}', 'Текущий сет {s}', 'Aktueller Satz {s}', 'Set actuel {s}', 'Set attuale {s}'],
+  fbGoal: ['Goal!', '골!', 'ゴール！', '进球！', '¡Gol!', 'गोल!', 'Bàn thắng!', 'ประตู!', 'Гол!', 'Tor!', 'But !', 'Gol!'],
+  fbOwn: ['Own goal', '자책골', 'オウンゴール', '乌龙球', 'Autogol', 'आत्मघाती गोल', 'Phản lưới', 'ทำเข้าประตูตัวเอง', 'Автогол', 'Eigentor', 'But c.s.c.', 'Autogol'],
+  fbPk: ['Penalty goal!', 'PK 골!', 'PKゴール！', '点球得分！', '¡Gol de penalti!', 'पेनल्टी गोल!', 'Bàn phạt đền!', 'จุดโทษ!', 'Гол с пенальти!', 'Elfmetertor!', 'But sur penalty !', 'Gol su rigore!'],
+  fbRed: ['Red card!', '퇴장!', '退場！', '红牌！', '¡Roja!', 'लाल कार्ड!', 'Thẻ đỏ!', 'ใบแดง!', 'Красная!', 'Rote Karte!', 'Carton rouge !', 'Rosso!'],
+  fbYellow: ['Yellow card', '경고', '警告', '黄牌', 'Amarilla', 'पीला कार्ड', 'Thẻ vàng', 'ใบเหลือง', 'Жёлтая', 'Gelbe Karte', 'Carton jaune', 'Giallo'],
+  fbSub: ['Substitution', '교체', '交代', '换人', 'Cambio', 'बदलाव', 'Thay người', 'เปลี่ยนตัว', 'Замена', 'Wechsel', 'Remplacement', 'Sostituzione'],
+  fbAssist: ['assist', '도움', 'アシスト', '助攻', 'asist.', 'असिस्ट', 'kiến tạo', 'แอสซิสต์', 'пас', 'Vorlage', 'passe déc.', 'assist'],
+  ansTag: ['Pick', '답', '予想', '推荐', 'Pick', 'पिक', 'Chọn', 'พิค', 'Прогноз', 'Tipp', 'Pari', 'Scelta'],
+  over: ['Over', '오버', 'オーバー', '大', 'Over', 'ओवर', 'Tài', 'สูง', 'Больше', 'Über', 'Plus', 'Over'],
+  under: ['Under', '언더', 'アンダー', '小', 'Under', 'अंडर', 'Xỉu', 'ต่ำ', 'Меньше', 'Unter', 'Moins', 'Under'],
+  handi: ['Handicap', '핸디', 'ハンデ', '让分', 'Hándicap', 'हैंडिकैप', 'Chấp', 'แฮนดิแคป', 'Фора', 'Handicap', 'Handicap', 'Handicap'],
   // 종목명 (키 = SPORTS.key)
   football: ['Soccer', '축구', 'サッカー', '足球', 'Fútbol', 'फुटबॉल', 'Bóng đá', 'ฟุตบอล', 'Футбол', 'Fußball', 'Football', 'Calcio'],
   baseball: ['Baseball', '야구', '野球', '棒球', 'Béisbol', 'बेसबॉल', 'Bóng chày', 'เบสบอล', 'Бейсбол', 'Baseball', 'Baseball', 'Baseball'],
@@ -93,6 +129,8 @@ const STR = {
 };
 let LANG = (function () { try { return localStorage.getItem('liveup_lang') || 'en'; } catch (e) { return 'en'; } })();
 function t(key) { const a = STR[key]; if (!a) return key; const i = LANGS.indexOf(LANG); return a[i] || a[0]; }
+// 템플릿 문장 치환: ai('aiLead', {st,lead,d,h,a}) → 선택 언어 문장
+function ai(key, v) { let s = t(key); if (v) for (const k in v) s = s.split('{' + k + '}').join(v[k]); return s; }
 function applyI18n() {
   document.documentElement.lang = LANG;
   $$('[data-i18n]').forEach(el => { el.textContent = t(el.dataset.i18n); });
@@ -630,55 +668,57 @@ function aiLive(e) {
   else { h = Number(e.hs); a = Number(e.as); }
   if (isNaN(h) || isNaN(a)) return '';
   const st = koStatus(e), diff = h - a;
+  const HM = `<b>${esc(TN(e.home, e.league))}</b>`, AW = `<b>${esc(TN(e.away, e.league))}</b>`;
   let msg;
-  if (diff === 0) msg = `${st}, <b>${esc(TN(e.home, e.league))}</b> vs <b>${esc(TN(e.away, e.league))}</b> ${h}:${a} 팽팽한 접전이에요.`;
+  if (diff === 0) msg = ai('aiTie', { st, home: HM, away: AW, h, a });
   else {
-    const lead = diff > 0 ? e.home : e.away, ld = Math.abs(diff);
-    const tone = ld >= 5 ? '크게 앞서며 승기를 잡은' : ld >= 3 ? '리드를 벌리는' : '한 발 앞선';
-    msg = `${st} · <b>${esc(lead)}</b>이(가) ${ld}점 차로 ${tone} 흐름 (${h}:${a}).`;
+    const lead = `<b>${esc(TN(diff > 0 ? e.home : e.away, e.league))}</b>`, ld = Math.abs(diff);
+    msg = ai('aiLead', { st, lead, d: ld, h, a });
   }
-  // 야구: 안타/실책 흐름 한 줄 추가
+  // 야구: 안타 흐름 한 줄 추가
   if (state.sport === 'baseball' && e.box) {
     const bh = e.box.home, ba = e.box.away;
     if (bh && ba && (bh.h != null || ba.h != null)) {
-      msg += ` <span class="aihit">안타 ${e.home.split(' ')[0]} ${bh.h ?? 0} · ${e.away.split(' ')[0]} ${ba.h ?? 0}</span>`;
+      msg += ` <span class="aihit">${ai('aiHits', { home: esc(TN(e.home, e.league)), hh: bh.h ?? 0, away: esc(TN(e.away, e.league)), ah: ba.h ?? 0 })}</span>`;
     }
   }
-  return `<div class="ailive">🤖 <b>AI 해설</b> ${msg}</div>`;
+  return `<div class="ailive">🤖 <b>${esc(t('aiComm'))}</b> ${msg}</div>`;
 }
 // AI 총정리 (상세보기 · 여러 문장)
 function aiSummary(e) {
   const sp = state.sport;
   const h = Number(e.hs), a = Number(e.as);
   const lines = [];
-  const st = e.state === 'live' ? koStatus(e) : (e.state === 'finished' ? '경기 종료' : '경기 예정');
+  const st = e.state === 'live' ? koStatus(e) : (e.state === 'finished' ? t('finished') : t('scheduled'));
+  const HM = esc(TN(e.home, e.league)), AW = esc(TN(e.away, e.league));
   if (e.state === 'scheduled') {
-    lines.push(`곧 시작하는 <b>${esc(TN(e.home, e.league))}</b> vs <b>${esc(TN(e.away, e.league))}</b> 경기입니다.`);
-    if (e.odds) lines.push(`배당 기준 ${(Number(e.odds.home)||9) < (Number(e.odds.away)||9) ? esc(TN(e.home, e.league)) : esc(TN(e.away, e.league))} 쪽이 근소 우위로 평가돼요.`);
-    lines.push(`킥오프 후 실시간 스코어·해설이 이 화면에 자동 갱신됩니다.`);
+    lines.push(ai('sumSched1', { home: `<b>${HM}</b>`, away: `<b>${AW}</b>` }));
+    if (e.odds) lines.push(ai('sumSched2', { side: (Number(e.odds.home) || 9) < (Number(e.odds.away) || 9) ? HM : AW }));
+    lines.push(ai('sumSched3'));
     return lines;
   }
   const diff = (!isNaN(h) && !isNaN(a)) ? h - a : 0;
-  const lead = diff > 0 ? e.home : e.away, ld = Math.abs(diff);
+  const leadName = esc(TN(diff > 0 ? e.home : e.away, e.league)), ld = Math.abs(diff);
   // 1) 현재 상황
-  if (diff === 0) lines.push(`${st} 현재 <b>${h}:${a}</b> 동점, 어느 쪽도 물러서지 않는 초박빙 승부예요.`);
-  else lines.push(`${st} 현재 <b>${esc(lead)}</b>이(가) <b>${Math.max(h,a)}:${Math.min(h,a)}</b>, ${ld}점 차로 ${ld>=5?'승기를 굳히는':ld>=3?'주도권을 쥔':'한 발 앞선'} 양상입니다.`);
+  if (diff === 0) lines.push(ai('sumTie', { st, h, a }));
+  else lines.push(ai('sumLead', { st, lead: `<b>${leadName}</b>`, hi: Math.max(h, a), lo: Math.min(h, a), d: ld }));
   // 2) 종목별 디테일
   if (sp === 'baseball' && e.box) {
     const bh = e.box.home, ba = e.box.away;
     const hh = bh?.h ?? 0, ah = ba?.h ?? 0, he = bh?.e ?? 0, ae = ba?.e ?? 0;
-    lines.push(`안타는 ${esc(TN(e.home, e.league))} ${hh}개 · ${esc(TN(e.away, e.league))} ${ah}개, 실책은 ${he}:${ae}. ${hh>ah?esc(TN(e.home, e.league))+'의 방망이가 더 터지는':ah>hh?esc(TN(e.away, e.league))+'의 방망이가 더 터지는':'양 팀 타선이 비슷한'} 흐름이에요.`);
-    if (e.inningHalf) lines.push(`${e.curInning || ''}회 ${e.inningHalf === 'top' ? '초 · 원정팀 공격' : '말 · 홈팀 공격'} 국면입니다.`);
+    lines.push(ai('sumBB', { home: HM, hh, away: AW, ah, he, ae }));
+    if (e.inningHalf) lines.push(ai('sumInn', { x: inningLabel(e.curInning || '', e.inningHalf), tb: e.inningHalf === 'top' ? t('tbTop') : t('tbBot') }));
   } else if ((sp === 'volleyball' || sp === 'hockey') && e.livePts) {
-    lines.push(`세트 스코어 ${h}:${a}, 현재 진행 세트는 <b>${e.livePts.home ?? 0}:${e.livePts.away ?? 0}</b>. ${Number(e.livePts.home) > Number(e.livePts.away) ? esc(TN(e.home, e.league)) : Number(e.livePts.away) > Number(e.livePts.home) ? esc(TN(e.away, e.league)) : '양 팀'}이(가) 이 세트를 리드 중이에요.`);
+    const lh = Number(e.livePts.home), la = Number(e.livePts.away);
+    lines.push(ai('sumSet', { h, a, sh: e.livePts.home ?? 0, sa: e.livePts.away ?? 0, leader: lh > la ? HM : la > lh ? AW : '—' }));
   }
   // 3) 배당/전망
   if (e.odds) {
     const oh = Number(e.odds.home), oa = Number(e.odds.away);
-    if (oh && oa) lines.push(`배당은 승 ${oh.toFixed(2)} / 패 ${oa.toFixed(2)}로, 시장은 ${oh < oa ? esc(TN(e.home, e.league)) : esc(TN(e.away, e.league))} 우세를 반영하고 있습니다.`);
+    if (oh && oa) lines.push(ai('sumOdds', { oh: oh.toFixed(2), oa: oa.toFixed(2), side: oh < oa ? HM : AW }));
   }
-  if (e.state === 'finished') lines.push(`최종 <b>${h}:${a}</b>로 ${diff===0?'무승부':esc(lead)+' 승리'}. 수고한 경기였어요.`);
-  else lines.push(`남은 이닝/시간 변수에 따라 흐름이 바뀔 수 있어 끝까지 지켜볼 만합니다. (약 15초마다 자동 갱신)`);
+  if (e.state === 'finished') lines.push(ai('sumFinal', { h, a, result: diff === 0 ? t('resultDraw') : ai('resultWin', { lead: leadName }) }));
+  else lines.push(ai('sumCont'));
   return lines;
 }
 function scoreBlock(e) {
@@ -703,8 +743,8 @@ function predictBanner(e) {
   const h = Number(e.hs), a = Number(e.as);
   let side = e.home, pct = 50;
   if (!isNaN(h) && !isNaN(a) && h !== a) { side = h > a ? e.home : e.away; pct = 55 + Math.min(35, Math.abs(h - a) * 9); }
-  const ou = (!isNaN(h) && !isNaN(a) && (h + a) >= 5) ? '오버' : '언더';
-  return `<div class="ansban" data-ev="${esc(e.id)}"><span class="badge">답</span><span class="t"><b>${esc(side)} ${pct}%</b> <span class="g">/ 핸디 / ${ou}</span></span><span class="go">›</span></div>`;
+  const ou = (!isNaN(h) && !isNaN(a) && (h + a) >= 5) ? t('over') : t('under');
+  return `<div class="ansban" data-ev="${esc(e.id)}"><span class="badge">${esc(t('ansTag'))}</span><span class="t"><b>${esc(TN(side, e.league))} ${pct}%</b> <span class="g">/ ${esc(t('handi'))} / ${esc(ou)}</span></span><span class="go">›</span></div>`;
 }
 // 야구 R·H·E 미니 스코어보드 (득점·안타·실책)
 function rheMini(e) {
@@ -792,19 +832,20 @@ function logChanges(id, e) {
     inn: e.curInning != null ? e.curInning : null, half: e.inningHalf || null,
     sp: e.livePts ? `${e.livePts.home}:${e.livePts.away}` : null
   };
+  const HM = `<b>${esc(TN(e.home, e.league))}</b>`, AW = `<b>${esc(TN(e.away, e.league))}</b>`;
   if (p) {
     if (state.sport === 'baseball') {
-      if (snap.hs > p.hs) pushLog(id, '🔴', `득점! <b>${esc(TN(e.home, e.league))}</b> 홈 득점 (${snap.hs}:${snap.as})`);
-      if (snap.as > p.as) pushLog(id, '🔴', `득점! <b>${esc(TN(e.away, e.league))}</b> 원정 득점 (${snap.hs}:${snap.as})`);
-      if (snap.hh != null && p.hh != null && snap.hh > p.hh) pushLog(id, '🏏', `안타! <b>${esc(TN(e.home, e.league))}</b> 안타 (누적 ${snap.hh})`);
-      if (snap.ah != null && p.ah != null && snap.ah > p.ah) pushLog(id, '🏏', `안타! <b>${esc(TN(e.away, e.league))}</b> 안타 (누적 ${snap.ah})`);
-      if (snap.he != null && p.he != null && snap.he > p.he) pushLog(id, '⚠️', `실책 <b>${esc(TN(e.home, e.league))}</b> (${snap.he})`);
-      if (snap.ae != null && p.ae != null && snap.ae > p.ae) pushLog(id, '⚠️', `실책 <b>${esc(TN(e.away, e.league))}</b> (${snap.ae})`);
-      if (snap.inn !== p.inn || snap.half !== p.half) { if (snap.inn) pushLog(id, '🔄', `${snap.inn}회${snap.half === 'top' ? '초' : '말'} 시작`); }
+      if (snap.hs > p.hs) pushLog(id, '🔴', ai('evScore', { team: HM, h: snap.hs, a: snap.as }));
+      if (snap.as > p.as) pushLog(id, '🔴', ai('evScore', { team: AW, h: snap.hs, a: snap.as }));
+      if (snap.hh != null && p.hh != null && snap.hh > p.hh) pushLog(id, '🏏', ai('evHit', { team: HM, n: snap.hh }));
+      if (snap.ah != null && p.ah != null && snap.ah > p.ah) pushLog(id, '🏏', ai('evHit', { team: AW, n: snap.ah }));
+      if (snap.he != null && p.he != null && snap.he > p.he) pushLog(id, '⚠️', ai('evError', { team: HM, n: snap.he }));
+      if (snap.ae != null && p.ae != null && snap.ae > p.ae) pushLog(id, '⚠️', ai('evError', { team: AW, n: snap.ae }));
+      if (snap.inn !== p.inn || snap.half !== p.half) { if (snap.inn) pushLog(id, '🔄', ai('evInnStart', { x: inningLabel(snap.inn, snap.half) })); }
     } else {
-      if (snap.hs > p.hs) pushLog(id, '🔴', `<b>${esc(TN(e.home, e.league))}</b> 득점 (${snap.hs}:${snap.as})`);
-      if (snap.as > p.as) pushLog(id, '🔴', `<b>${esc(TN(e.away, e.league))}</b> 득점 (${snap.hs}:${snap.as})`);
-      if (snap.sp && snap.sp !== p.sp) pushLog(id, '🏐', `현재 세트 스코어 ${snap.sp}`);
+      if (snap.hs > p.hs) pushLog(id, '🔴', ai('evScore', { team: HM, h: snap.hs, a: snap.as }));
+      if (snap.as > p.as) pushLog(id, '🔴', ai('evScore', { team: AW, h: snap.hs, a: snap.as }));
+      if (snap.sp && snap.sp !== p.sp) pushLog(id, '🏐', ai('evSet', { s: snap.sp }));
     }
   }
   snapForLog[id] = snap;
@@ -821,13 +862,13 @@ async function updateEvents(e) {
       if (!evs.length) { box.innerHTML = eventEmpty(); return; }
       box.innerHTML = evs.slice().reverse().map(ev => {
         let icon = '•', label = ev.detail || ev.type;
-        if (ev.type === 'Goal') { icon = '⚽'; label = /own/i.test(ev.detail) ? '자책골' : /penalty/i.test(ev.detail) ? 'PK 골!' : '골!'; }
-        else if (ev.type === 'Card' && /red/i.test(ev.detail)) { icon = '🟥'; label = '퇴장!'; }
-        else if (ev.type === 'Card') { icon = '🟨'; label = '경고'; }
-        else if (/subst/i.test(ev.type)) { icon = '🔄'; label = '교체'; }
+        if (ev.type === 'Goal') { icon = '⚽'; label = /own/i.test(ev.detail) ? t('fbOwn') : /penalty/i.test(ev.detail) ? t('fbPk') : t('fbGoal'); }
+        else if (ev.type === 'Card' && /red/i.test(ev.detail)) { icon = '🟥'; label = t('fbRed'); }
+        else if (ev.type === 'Card') { icon = '🟨'; label = t('fbYellow'); }
+        else if (/subst/i.test(ev.type)) { icon = '🔄'; label = t('fbSub'); }
         else if (/var/i.test(ev.type)) { icon = '📺'; label = 'VAR'; }
         const mm = ev.minute != null ? `${ev.minute}${ev.extra ? '+' + ev.extra : ''}'` : '';
-        const who = ev.type === 'subst' ? `${esc(ev.assist)} → ${esc(ev.player)}` : `${esc(ev.player)}${ev.assist ? ` (도움 ${esc(ev.assist)})` : ''}`;
+        const who = /subst/i.test(ev.type) ? `${esc(ev.assist)} → ${esc(ev.player)}` : `${esc(ev.player)}${ev.assist ? ` (${esc(t('fbAssist'))} ${esc(ev.assist)})` : ''}`;
         return `<div class="evrow"><span class="evm">${esc(mm)}</span><span class="evi">${icon}</span><span class="evt"><b>${esc(label)}</b> ${who} · ${esc(ev.team)}</span></div>`;
       }).join('');
     } catch { box.innerHTML = eventEmpty(); }
