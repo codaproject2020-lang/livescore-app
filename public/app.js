@@ -751,7 +751,7 @@ function rheMini(e) {
   if (state.sport !== 'baseball' || !e.box) return '';
   const h = e.box.home || {}, a = e.box.away || {};
   if ([h.h, h.e, a.h, a.e].every(v => v == null)) return '';
-  const nm = x => { const s = TN(x); const p = String(s || '').trim().split(' '); return (LANG === 'en' || LANG === 'es' || LANG === 'de' || LANG === 'fr' || LANG === 'it' || LANG === 'vi') && p.length > 1 ? p[p.length - 1] : s; };
+  const nm = x => { const s = TN(x, e.league); const p = String(s || '').trim().split(' '); return (LANG === 'en' || LANG === 'es' || LANG === 'de' || LANG === 'fr' || LANG === 'it' || LANG === 'vi') && p.length > 1 ? p[p.length - 1] : s; };
   const showBB = (h.bb != null || a.bb != null);
   return `<div class="rhemini"><table>
     <thead><tr><th></th><th>R</th><th>H</th><th>E</th>${showBB ? '<th>BB</th>' : ''}</tr></thead>
@@ -1075,12 +1075,12 @@ async function updateInfo(e) {
     const p = d.probable || {};
     if (p.home || p.away) {
       const row = (nm, pp) => pp ? `<tr><td class="tn">${esc(nm)}</td><td class="nm">${esc(pp.name)}</td><td><b>${esc(pp.w)}${sl('w')} ${esc(pp.l)}${sl('l')}</b> ${esc(pp.era)}</td><td>${esc(pp.ip)}${sl('ip')} ${esc(pp.k)}K ${esc(pp.bb)}BB</td></tr>` : '';
-      html += `<div class="odsec">🎯 ${esc(t('probable'))}</div><table class="stt inf"><tbody>${row(TN(e.home), p.home)}${row(TN(e.away), p.away)}</tbody></table>`;
+      html += `<div class="odsec">🎯 ${esc(t('probable'))}</div><table class="stt inf"><tbody>${row(TN(e.home, e.league), p.home)}${row(TN(e.away, e.league), p.away)}</tbody></table>`;
     }
     const rc = d.recent || {};
     const col = (nm, arr) => `<div class="recol"><div class="rec-hd">${esc(nm)}</div>${(arr || []).map(g => `<div class="rec-row clik" data-gp="${esc(g.gamePk || '')}"><span class="rb ${g.win ? 'W' : 'L'}">${g.win ? 'W' : 'L'}</span><span class="ro">${esc(teamShort(g.opp))}</span><span class="rs">${esc(g.ts)}:${esc(g.os)}</span></div>`).join('') || '<div class="rec-empty">-</div>'}</div>`;
     if ((rc.home && rc.home.length) || (rc.away && rc.away.length)) {
-      html += `<div class="odsec">📅 ${esc(t('recent'))}</div><div class="recent2">${col(TN(e.home), rc.home)}${col(TN(e.away), rc.away)}</div>`;
+      html += `<div class="odsec">📅 ${esc(t('recent'))}</div><div class="recent2">${col(TN(e.home, e.league), rc.home)}${col(TN(e.away, e.league), rc.away)}</div>`;
     }
     // 맞대결(H2H)
     const h = d.h2h || [];
