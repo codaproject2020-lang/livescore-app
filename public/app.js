@@ -552,17 +552,24 @@ async function loadEvents(silent) {
     feedGames = {}; games.forEach(g => feedGames[g.id] = g);
     // 현재 리그 필터가 이번 데이터에 없으면 전체로 리셋
     if (state.leagueFilter !== 'all' && !games.some(g => g.league === state.leagueFilter)) state.leagueFilter = 'all';
-    // ▼ 화면이 위로 튀지 않도록: 재렌더 전 스크롤 위치 저장 → 후 복원
-    const sy = window.pageYOffset || document.documentElement.scrollTop || 0;
+    // ▼ 화면이 위로 튀지 않도록: 재렌더 전 스크롤 위치 저장 → 후(레이아웃 반영까지) 복원
+    const sy = window.pageYOffset || document.documentElement.scrollTop || document.body.scrollTop || 0;
+    const modalEl = $('#modal'); const moy = modalEl ? modalEl.scrollTop : 0;
     buildLeagueRow(games);
     renderFeed(filterGames());
-    if (silent) window.scrollTo(0, sy);   // 강제 상단 이동 방지
     // 상세 모달이 열려 있으면 해당 경기 상세도 실시간 갱신 (채팅·스크롤 유지)
     if (modalEventId && feedGames[modalEventId] && modalPredict) {
-      const mb = $('#mBody'); const my = mb ? mb.scrollTop : 0;
       logChanges(modalEventId, feedGames[modalEventId]);   // 변화 감지 → 이벤트 로그 적립
       renderDetail(feedGames[modalEventId], modalPredict);
-      if (mb) mb.scrollTop = my;   // 모달 상세도 보던 위치 유지
+    }
+    if (silent) {
+      const restore = () => {
+        window.scrollTo(0, sy);
+        if (document.scrollingElement) document.scrollingElement.scrollTop = sy;
+        if (modalEl && modalEl.classList.contains('on')) modalEl.scrollTop = moy;
+      };
+      restore();                       // 즉시
+      requestAnimationFrame(restore);  // 레이아웃 반영 직후 한 번 더 (브라우저 자동 스크롤 보정 무력화)
     }
   } catch (e) {
     if (!silent) feed.innerHTML = `<div class="loading">${esc(t('loading'))}<br><button onclick="loadEvents()" style="margin-top:10px;padding:9px 18px;border:none;border-radius:8px;background:#24568f;color:#fff;font-weight:800;cursor:pointer">${esc(t('retry'))}</button></div>`;
