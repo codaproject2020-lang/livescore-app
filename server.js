@@ -660,12 +660,12 @@ app.get('/api/mlb/game', async (req, res) => {
       const T = box.teams[t]; if (!T) return { team: '', lineup: [], pitcher: null };
       const players = T.players || {};
       const arr = Object.values(players).filter(p => p.battingOrder).map(p => ({
-        bo: parseInt(p.battingOrder, 10), id: p.person.id, name: p.person.fullName, pos: p.position ? p.position.abbreviation : ''
+        bo: parseInt(p.battingOrder, 10), id: p.person.id, name: p.person.fullName, pos: p.position ? p.position.abbreviation : '', number: p.jerseyNumber || ''
       }));
-      const lineup = arr.filter(p => p.bo % 100 === 0).sort((a, b) => a.bo - b.bo).map((p, i) => ({ order: i + 1, id: p.id, name: p.name, pos: p.pos }));
+      const lineup = arr.filter(p => p.bo % 100 === 0).sort((a, b) => a.bo - b.bo).map((p, i) => ({ order: i + 1, id: p.id, name: p.name, pos: p.pos, number: p.number }));
       let pitcher = null;
       const pid = (T.pitchers || [])[0];
-      if (pid && players['ID' + pid]) pitcher = { id: pid, name: players['ID' + pid].person.fullName, pos: 'P' };
+      if (pid && players['ID' + pid]) pitcher = { id: pid, name: players['ID' + pid].person.fullName, pos: 'P', number: players['ID' + pid].jerseyNumber || '' };
       return { team: T.team.name, lineup, pitcher };
     };
     const hSide = side('home'), aSide = side('away');
