@@ -9,6 +9,7 @@ import { WebSocketServer } from 'ws';
 import http from 'http';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import webpush from 'web-push';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
@@ -515,6 +516,39 @@ function attachOdds(g, map) {
   if (f) g.odds = f;
 }
 
+// 경기 목록 생성 (정규화 + MLB 실시간 덮어쓰기) — 라우트/푸시 스케줄러 공용
+async function buildGamesCore(sport, date) {
+  const cfg = AS[sport]; if (!cfg) return { games: [], j: {} };
+  const path = `${cfg.path}?date=${date}&timezone=Asia/Seoul`;
+  const j = await asRaw(sport, path, 6000);   // 라이브 신선도 우선 (6초)
+  let games = (j.response || []).map(g => normAS(sport, g)).filter(Boolean);
+  const STATS_LG = { 'MLB': 1, 'LMB': 23, 'IL': 11, 'PCL': 11 };
+  if (sport === 'baseball' && games.some(g => STATS_LG[g.league])) {
+    const sm = {};
+    const needSids = [...new Set(games.map(g => STATS_LG[g.league]).filter(Boolean))];
+    for (const sid of needSids) Object.assign(sm, await mlbScoreMap(date, sid).catch(() => ({})));
+    games.forEach(g => {
+      if (!STATS_LG[g.league]) return;
+      const hN = mlbNick(g.home), aN = mlbNick(g.away), e = sm[[hN, aN].sort().join('|')];
+      if (!e) return;
+      const H = e.byNick[hN] || {}, A = e.byNick[aN] || {};
+      if (H.r != null) g.hs = H.r;
+      if (A.r != null) g.as = A.r;
+      g.state = e.state;
+      g.status = e.state === 'finished' ? 'FT' : e.state === 'live' ? 'IN' : 'NS';
+      if (e.inning != null) { g.curInning = e.inning; g.period = e.inning; }
+      if (e.half) g.inningHalf = e.half === 'Top' ? 'top' : e.half === 'Bottom' ? 'bottom' : g.inningHalf;
+      if (e.bso) g.bso = e.bso;
+      const prevH = g.box && g.box.home ? g.box.home : {}, prevA = g.box && g.box.away ? g.box.away : {};
+      g.box = {
+        home: { r: H.r != null ? H.r : g.hs, h: H.h != null ? H.h : (prevH.h ?? null), e: H.e != null ? H.e : (prevH.e ?? null), bb: H.bb != null ? H.bb : null, innings: prevH.innings || {} },
+        away: { r: A.r != null ? A.r : g.as, h: A.h != null ? A.h : (prevA.h ?? null), e: A.e != null ? A.e : (prevA.e ?? null), bb: A.bb != null ? A.bb : null, innings: prevA.innings || {} }
+      };
+    });
+  }
+  return { games, j };
+}
+
 // 날짜별 경기 (정규화 + 해외배당 매칭)
 app.get('/api/asports/games', async (req, res) => {
   if (!APISPORTS_KEY) return res.json({ needKey: true, games: [] });
@@ -522,36 +556,7 @@ app.get('/api/asports/games', async (req, res) => {
   const date = req.query.date || new Date().toISOString().slice(0, 10);
   const cfg = AS[sport]; if (!cfg) return res.status(400).json({ error: 'bad sport' });
   try {
-    const path = `${cfg.path}?date=${date}&timezone=Asia/Seoul`;
-    const j = await asRaw(sport, path, 6000);   // 라이브 신선도 우선 (6초)
-    let games = (j.response || []).map(g => normAS(sport, g)).filter(Boolean);
-    // ⚾ MLB는 공식 StatsAPI로 스코어·상태·이닝 덮어쓰기 (API-Sports 지연 보정 → 실시간)
-    // StatsAPI 커버 리그(MLB=1, LMB=23, IL·PCL 등 Triple-A=11)를 공식 데이터로 실시간 덮어쓰기
-    const STATS_LG = { 'MLB': 1, 'LMB': 23, 'IL': 11, 'PCL': 11 };
-    if (sport === 'baseball' && games.some(g => STATS_LG[g.league])) {
-      const sm = {};
-      const needSids = [...new Set(games.map(g => STATS_LG[g.league]).filter(Boolean))];
-      for (const sid of needSids) Object.assign(sm, await mlbScoreMap(date, sid).catch(() => ({})));
-      games.forEach(g => {
-        if (!STATS_LG[g.league]) return;
-        const hN = mlbNick(g.home), aN = mlbNick(g.away), e = sm[[hN, aN].sort().join('|')];
-        if (!e) return;
-        const H = e.byNick[hN] || {}, A = e.byNick[aN] || {};
-        if (H.r != null) g.hs = H.r;
-        if (A.r != null) g.as = A.r;
-        g.state = e.state;
-        g.status = e.state === 'finished' ? 'FT' : e.state === 'live' ? 'IN' : 'NS';
-        if (e.inning != null) { g.curInning = e.inning; g.period = e.inning; }
-        if (e.half) g.inningHalf = e.half === 'Top' ? 'top' : e.half === 'Bottom' ? 'bottom' : g.inningHalf;
-        if (e.bso) g.bso = e.bso;   // 카드용 볼/스트라이크/아웃 + 주자
-        // R/H/E/BB 박스 (카드 미니 스코어보드용)
-        const prevH = g.box && g.box.home ? g.box.home : {}, prevA = g.box && g.box.away ? g.box.away : {};
-        g.box = {
-          home: { r: H.r != null ? H.r : g.hs, h: H.h != null ? H.h : (prevH.h ?? null), e: H.e != null ? H.e : (prevH.e ?? null), bb: H.bb != null ? H.bb : null, innings: prevH.innings || {} },
-          away: { r: A.r != null ? A.r : g.as, h: A.h != null ? A.h : (prevA.h ?? null), e: A.e != null ? A.e : (prevA.e ?? null), bb: A.bb != null ? A.bb : null, innings: prevA.innings || {} }
-        };
-      });
-    }
+    const { games, j } = await buildGamesCore(sport, date);
     // ⚡ 배당 매칭:
     //   - 축구: 리그가 너무 많아 LEAGUE_TO_ODDS 매핑으로 필요한 리그만 조회
     //   - 그 외(야구/농구/하키/럭비): The Odds API 그룹 안의 활성 리그 전부 조회해 팀명으로 매칭
@@ -1051,6 +1056,115 @@ wss.on('connection', (ws) => {
     sendPresence(ws.room);
   });
 });
+
+// ============================================================
+//  🔔 웹 푸시 (앱을 완전히 닫아도 오는 알림) · Web Push + VAPID
+//  · 관심팀 경기의 시작/득점/종료/라인업/퇴장을 서버가 감지 → 구독자에게 푸시
+//  · ⚠️ 무료 Render는 15분 후 잠들어 감지가 끊김 → 상시 서버(유료) 권장
+// ============================================================
+const VAPID_PUBLIC = process.env.VAPID_PUBLIC || 'BK9w16DfLnhkCXW2RscfgEXwaYnhqSraV1cGxbefQV3FccVmh716bSOHT7MGAL_y3L11xcJTLusGM-3lJWmvB6Q';
+const VAPID_PRIVATE = process.env.VAPID_PRIVATE || 'G39TutUfTrpnk6LZtn4ura0Yk9scbRplKTNgpoQBgRw';
+const VAPID_SUBJECT = process.env.VAPID_SUBJECT || 'mailto:admin@liveup.fans';
+let PUSH_ON = false;
+try { webpush.setVapidDetails(VAPID_SUBJECT, VAPID_PUBLIC, VAPID_PRIVATE); PUSH_ON = true; } catch (e) { console.log('web-push init fail', e.message); }
+
+// 구독 저장 (메모리: 재시작 시 초기화 → 클라가 다시 구독). endpoint를 키로.
+const subs = new Map();   // endpoint -> { sub, fav:[teams], prefs:{}, lang }
+function nick(s) { return String(s || '').toLowerCase().replace(/[.]/g, '').trim(); }
+function favMatch(favArr, name) {
+  const n = nick(name); return (favArr || []).some(f => { const nf = nick(f); return nf && (n === nf || n.includes(nf) || nf.includes(n)); });
+}
+
+app.get('/api/push/key', (req, res) => res.json({ key: VAPID_PUBLIC, enabled: PUSH_ON }));
+app.post('/api/push/subscribe', (req, res) => {
+  const { subscription, fav, prefs, lang } = req.body || {};
+  if (!subscription || !subscription.endpoint) return res.status(400).json({ ok: false });
+  subs.set(subscription.endpoint, { sub: subscription, fav: fav || [], prefs: prefs || {}, lang: lang || 'en' });
+  res.json({ ok: true, count: subs.size });
+});
+app.post('/api/push/unsubscribe', (req, res) => {
+  const ep = req.body && req.body.endpoint; if (ep) subs.delete(ep);
+  res.json({ ok: true });
+});
+app.get('/api/push/status', (req, res) => res.json({ enabled: PUSH_ON, subscribers: subs.size, publicKey: VAPID_PUBLIC.slice(0, 12) + '…' }));
+
+// 다국어 푸시 문구 (서버측 최소 사전)
+const PL = {
+  start: { en: 'Match start', ko: '경기 시작', ja: '試合開始', zh: '比赛开始', es: 'Inicio del partido', hi: 'मैच शुरू', vi: 'Bắt đầu trận', th: 'เริ่มแข่ง', ru: 'Начало матча', de: 'Spielbeginn', fr: 'Coup d’envoi', it: 'Inizio partita' },
+  score: { en: 'Score', ko: '득점', ja: '得点', zh: '得分', es: 'Gol/Anotación', hi: 'स्कोर', vi: 'Ghi điểm', th: 'ทำแต้ม', ru: 'Гол/очко', de: 'Tor/Punkt', fr: 'But/point', it: 'Gol/punto' },
+  finish: { en: 'Full time', ko: '경기 종료', ja: '試合終了', zh: '比赛结束', es: 'Final', hi: 'समाप्त', vi: 'Kết thúc', th: 'จบเกม', ru: 'Матч окончен', de: 'Spielende', fr: 'Fin du match', it: 'Fine partita' },
+  lineup: { en: 'Lineups announced', ko: '라인업 발표', ja: 'スタメン発表', zh: '首发公布', es: 'Alineaciones', hi: 'लाइनअप घोषित', vi: 'Đội hình ra sân', th: 'ประกาศตัวจริง', ru: 'Составы', de: 'Aufstellungen', fr: 'Compositions', it: 'Formazioni' },
+  red: { en: 'Red card', ko: '퇴장', ja: '退場', zh: '罚下', es: 'Expulsión', hi: 'रेड कार्ड', vi: 'Thẻ đỏ', th: 'ใบแดง', ru: 'Удаление', de: 'Platzverweis', fr: 'Expulsion', it: 'Espulsione' }
+};
+function plabel(type, lang) { const m = PL[type] || {}; return m[lang] || m.en || type; }
+function iconOf(type) { return type === 'start' ? '⚽' : type === 'finish' ? '🏁' : type === 'lineup' ? '📋' : type === 'red' ? '🟥' : '🔴'; }
+
+async function sendPushEvent(type, prefKey, sport, g) {
+  if (!PUSH_ON || !subs.size) return;
+  const home = g.home, away = g.away;
+  const scoreLine = `${home} ${g.hs ?? 0}:${g.as ?? 0} ${away}`;
+  const vsLine = `${home} vs ${away}`;
+  for (const [ep, rec] of subs) {
+    if (!(rec.prefs && rec.prefs[prefKey])) continue;
+    if (!(favMatch(rec.fav, home) || favMatch(rec.fav, away))) continue;
+    const payload = JSON.stringify({
+      title: `${iconOf(type)} ${plabel(type, rec.lang)}`,
+      body: (type === 'finish' || type === 'score') ? scoreLine : vsLine,
+      gameId: g.id, sport
+    });
+    try { await webpush.sendNotification(rec.sub, payload); }
+    catch (err) { if (err && (err.statusCode === 404 || err.statusCode === 410)) subs.delete(ep); }
+  }
+}
+
+// 스케줄러: 구독자가 있으면 30초마다 관심 종목 감지
+const pushSnap = {};   // gameId -> {state,total,lineup,reds}
+const PUSH_SPORTS = ['football', 'baseball', 'basketball'];
+async function pushTick() {
+  if (!PUSH_ON || !subs.size || !APISPORTS_KEY) return;
+  // 구독자들의 관심팀 합집합 (하나도 없으면 스킵)
+  const anyFav = [...subs.values()].some(r => (r.fav || []).length);
+  if (!anyFav) return;
+  const date = new Date().toISOString().slice(0, 10);
+  for (const sport of PUSH_SPORTS) {
+    let games = [];
+    try { games = (await buildGamesCore(sport, date)).games || []; } catch (e) { continue; }
+    for (const g of games) {
+      const favd = [...subs.values()].some(r => favMatch(r.fav, g.home) || favMatch(r.fav, g.away));
+      if (!favd) continue;
+      const id = g.id, prev = pushSnap[id] || {}, total = (Number(g.hs) || 0) + (Number(g.as) || 0);
+      if (prev.state) {
+        if (prev.state === 'scheduled' && g.state === 'live') sendPushEvent('start', 'start', sport, g);
+        if (prev.state !== 'finished' && g.state === 'finished') sendPushEvent('finish', 'finish', sport, g);
+        if (prev.total != null && total > prev.total && g.state === 'live') sendPushEvent('score', 'score', sport, g);
+      }
+      pushSnap[id] = Object.assign({}, prev, { state: g.state, total });
+      // 라인업 (1회) — 축구/ MLB계열
+      if (!prev.lineup && (g.state === 'live' || (g.date && (new Date(g.date) - Date.now()) < 3 * 3600e3 && (new Date(g.date) - Date.now()) > -6 * 3600e3))) {
+        pushLineupCheck(sport, g).catch(() => {});
+      }
+      // 퇴장 (축구 라이브)
+      if (sport === 'football' && g.state === 'live') pushRedCheck(g, prev.reds || 0).catch(() => {});
+    }
+  }
+}
+async function pushLineupCheck(sport, g) {
+  let has = false;
+  try {
+    if (sport === 'football') { const d = await asRaw('football', `/fixtures/lineups?fixture=${g.id}`, 60000); has = (d.response || []).some(t => (t.startXI || []).length >= 11); }
+    else if (['MLB', 'LMB', 'IL', 'PCL'].includes(g.league)) { const f = await mlbFindGame(g.home, g.away, new Date().toISOString().slice(0, 10)); if (f && f.gamePk) { const bx = await mlbFetch(`/api/v1/game/${f.gamePk}/boxscore`, 30000); has = !!(bx && bx.teams && (Object.keys(bx.teams.home.players || {}).length || Object.keys(bx.teams.away.players || {}).length)); } }
+  } catch (e) {}
+  if (has && !(pushSnap[g.id] || {}).lineup) { pushSnap[g.id] = Object.assign({}, pushSnap[g.id], { lineup: true }); sendPushEvent('lineup', 'lineup', sport, g); }
+}
+async function pushRedCheck(g, prevReds) {
+  try {
+    const d = await asRaw('football', `/fixtures/events?fixture=${g.id}`, 20000);
+    const reds = (d.response || []).filter(x => x.type === 'Card' && /red/i.test((x.detail || ''))).length;
+    if (reds > prevReds) sendPushEvent('red', 'red', 'football', g);
+    pushSnap[g.id] = Object.assign({}, pushSnap[g.id], { reds });
+  } catch (e) {}
+}
+setInterval(() => { pushTick().catch(() => {}); }, 30000);
 
 // 접속인원 주기적 브로드캐스트(집계 정확도)
 setInterval(() => { for (const room of rooms.keys()) sendPresence(room); }, 15000);
