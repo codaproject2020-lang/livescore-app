@@ -607,7 +607,7 @@ async function loadEvents(silent) {
     const games = d.games || [];
     allFeedGames = games;
     feedGames = {}; games.forEach(g => feedGames[g.id] = g);
-    try { checkNotifs(games); } catch (e) {}   // ⭐ 관심팀 알림 감지
+    // (알림 감지는 서버 웹푸시가 담당 — 앱이 꺼져 있어도 동작)
     // 현재 리그 필터가 이번 데이터에 없으면 전체로 리셋
     if (state.leagueFilter !== 'all' && !games.some(g => g.league === state.leagueFilter)) state.leagueFilter = 'all';
     // ▼ 화면이 위로 튀지 않도록: 재렌더 전 스크롤 위치 저장 → 후(레이아웃 반영까지) 복원
@@ -1687,9 +1687,35 @@ function saveFav() { try { localStorage.setItem('liveup_fav', JSON.stringify(FAV
 function saveNotif() { try { localStorage.setItem('liveup_notif', JSON.stringify(NOTIF)); } catch (e) {} }
 function isFav(name) { return FAV.includes(String(name || '')); }
 function favStar(name) { return `<span class="favstar${isFav(name) ? ' on' : ''}" data-fav="${esc(name)}">${isFav(name) ? '★' : '☆'}</span>`; }
-function toggleFav(name) { name = String(name || ''); const i = FAV.indexOf(name); if (i >= 0) FAV.splice(i, 1); else FAV.push(name); saveFav(); if ($('#view-live') && !$('#view-live').classList.contains('hidden')) renderFeed(filterGames()); }
+function toggleFav(name) { name = String(name || ''); const i = FAV.indexOf(name); if (i >= 0) FAV.splice(i, 1); else FAV.push(name); saveFav(); if (NOTIF.on) syncPush(); if ($('#view-live') && !$('#view-live').classList.contains('hidden')) renderFeed(filterGames()); }
 // 별 클릭은 경기 상세로 안 넘어가게 (캡처 단계에서 가로챔)
 document.addEventListener('click', ev => { const s = ev.target.closest && ev.target.closest('.favstar'); if (s) { ev.stopPropagation(); ev.preventDefault(); toggleFav(s.dataset.fav); } }, true);
+
+// ── 서버 웹 푸시 구독 (앱 꺼져도 알림) ──
+let swReg = null, vapidKey = null;
+async function getSW() { if (swReg) return swReg; if ('serviceWorker' in navigator) { try { swReg = await navigator.serviceWorker.ready; } catch (e) {} } return swReg; }
+function urlB64ToU8(b64) { const pad = '='.repeat((4 - b64.length % 4) % 4); const s = (b64 + pad).replace(/-/g, '+').replace(/_/g, '/'); const raw = atob(s); return Uint8Array.from([...raw].map(c => c.charCodeAt(0))); }
+async function syncPush() {
+  try {
+    if (!NOTIF.on || !('serviceWorker' in navigator) || !('PushManager' in window)) return;
+    if (!('Notification' in window) || Notification.permission !== 'granted') return;
+    const reg = await getSW(); if (!reg) return;
+    if (!vapidKey) { const r = await fetch('/api/push/key').then(x => x.json()).catch(() => null); if (!r || !r.enabled) return; vapidKey = r.key; }
+    let sub = await reg.pushManager.getSubscription();
+    if (!sub) sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: urlB64ToU8(vapidKey) });
+    await fetch('/api/push/subscribe', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ subscription: sub, fav: FAV, prefs: NOTIF, lang: LANG }) });
+  } catch (e) { console.log('push sync fail', e && e.message); }
+}
+async function unsyncPush() {
+  try { const reg = await getSW(); const sub = reg && await reg.pushManager.getSubscription(); if (sub) { await fetch('/api/push/unsubscribe', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ endpoint: sub.endpoint }) }); } } catch (e) {}
+}
+// 알림 클릭 → 해당 경기 상세 열기 (SW 메시지 / URL 파라미터)
+function openEventWhenReady(id, sport) {
+  if (!id) return;
+  if (sport && sport !== state.sport) { state.sport = sport; if (typeof buildSportNav === 'function') buildSportNav(); loadEvents(); }
+  let tries = 0; const tm = setInterval(() => { if (feedGames[id]) { clearInterval(tm); openEvent(id); } else if (++tries > 24) clearInterval(tm); }, 500);
+}
+if ('serviceWorker' in navigator) navigator.serviceWorker.addEventListener('message', e => { if (e.data && e.data.type === 'openEvent') openEventWhenReady(e.data.gameId, e.data.sport); });
 
 const notifSeen = {};   // gameId -> {state,total,lineup,reds}
 function fireNotif(title, body, gameId) {
@@ -1769,8 +1795,10 @@ function openNotifSettings() {
   $('#ntfOn').onchange = async e => {
     if (e.target.checked && 'Notification' in window) { const p = await Notification.requestPermission(); if (p !== 'granted') { e.target.checked = false; NOTIF.on = false; saveNotif(); openNotifSettings(); return; } }
     NOTIF.on = e.target.checked; saveNotif();
+    if (NOTIF.on) { await syncPush(); } else { await unsyncPush(); }
+    openNotifSettings();
   };
-  $$('#notifModal [data-nk]').forEach(c => c.onchange = () => { NOTIF[c.dataset.nk] = c.checked; saveNotif(); });
+  $$('#notifModal [data-nk]').forEach(c => c.onchange = () => { NOTIF[c.dataset.nk] = c.checked; saveNotif(); if (NOTIF.on) syncPush(); });
   $$('#notifModal [data-favrm]').forEach(x => x.onclick = () => { toggleFav(x.dataset.favrm); openNotifSettings(); });
 }
 // 알림 진입 버튼 (항상 보이는 FAB)
@@ -1794,5 +1822,9 @@ async function init() {
     .catch(() => {});
   // 라이브 자동 갱신 (10초) · 상세/채팅 열려 있어도 스코어·해설 계속 갱신
   setInterval(() => { if (!$('#view-live').classList.contains('hidden') || modalEventId) loadEvents(true); }, 7000);
+  // 🔔 이전에 알림 켰던 사용자는 재구독 (재시작·재접속 대비)
+  if (NOTIF.on && 'Notification' in window && Notification.permission === 'granted') setTimeout(syncPush, 1500);
+  // 알림 클릭으로 열린 경우 (?ev=) 해당 경기 상세 자동 오픈
+  try { const ev = new URLSearchParams(location.search).get('ev'), sp = new URLSearchParams(location.search).get('sp'); if (ev) openEventWhenReady(ev, sp); } catch (e) {}
 }
 init();
