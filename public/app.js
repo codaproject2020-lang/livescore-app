@@ -221,6 +221,10 @@ function TN(name, league) {
 function mlbFace(id) {
   return id ? `https://img.mlbstatic.com/mlb-photos/image/upload/d_people:generic:headshot:67:current.png/w_120,q_auto:best/v1/people/${encodeURIComponent(id)}/headshot/67/current` : '';
 }
+// API-Football 선수 얼굴 (media.api-sports.io) — 없으면 onerror로 등번호 폴백
+function footFace(id) {
+  return id ? `https://media.api-sports.io/football/players/${encodeURIComponent(id)}.png` : '';
+}
 // 야구 기록 표 헤더 라벨 — CJK는 현지어, 그 외 언어는 국제 표준 약어(AB/H/HR…)
 const STAT_LBL = {
   batter: { en: 'Batter', ko: '타자', ja: '打者', zh: '打者' },
@@ -848,7 +852,11 @@ function renderPitch(t) {
     const line = rows[r].sort((a, b) => a.c - b.c), n = line.length;
     line.forEach((p, ci) => {
       const top = ((ri + 1) / (R + 1)) * 100, left = ((ci + 1) / (n + 1)) * 100;
-      dots.push(`<div class="lu-dot" data-pid="${esc(p.id)}" data-name="${esc(p.name)}" data-pos="${esc(p.pos || '')}" data-num="${esc(p.number || '')}" style="top:${top}%;left:${left}%"><span class="lu-num">${esc(p.number || '')}</span><span class="lu-nm">${esc(shortName(p.name))}</span></div>`);
+      const face = footFace(p.id), num = esc(p.number || '');
+      const av = face
+        ? `<span class="lu-av has-face"><img src="${face}" alt="" loading="lazy" onerror="this.parentNode.classList.remove('has-face');this.parentNode.innerHTML='${num}'"><b class="lu-badge">${num}</b></span>`
+        : `<span class="lu-av">${num}</span>`;
+      dots.push(`<div class="lu-dot" data-pid="${esc(p.id)}" data-name="${esc(p.name)}" data-pos="${esc(p.pos || '')}" data-num="${esc(p.number || '')}" style="top:${top}%;left:${left}%">${av}<span class="lu-nm">${esc(shortName(p.name))}</span></div>`);
     });
   });
   return `<div class="pitch"><div class="pitch-hd">${esc(t.team)} · <b>${esc(t.formation)}</b>${t.coach ? ` · 감독 ${esc(t.coach)}` : ''}</div><div class="pitch-field">${dots.join('')}</div></div>`;
