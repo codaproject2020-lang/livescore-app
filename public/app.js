@@ -538,28 +538,34 @@ function buildLeagueRow(games) {
     else renderFeed(filterGames());
   }));
 }
-async function loadEvents() {
+// silent=true → 자동 10초 갱신: 로딩 표시(깜빡임) 없이, 스크롤 위치 그대로 유지
+async function loadEvents(silent) {
   const feed = $('#feed');
-  feed.innerHTML = `<div class="loading">${esc(t('loadingGames'))}</div>`;
+  if (!silent) feed.innerHTML = `<div class="loading">${esc(t('loadingGames'))}</div>`;
   try {
     const d = await fetchJSON(`/api/asports/games?sport=${encodeURIComponent(state.sport)}&date=${state.date}`, {
-      onWait: (n) => { feed.innerHTML = `<div class="loading">⏳ 무료 서버를 깨우는 중이에요…<br>최초 접속은 최대 1분 정도 걸릴 수 있어요.<br><span style="color:#aeb6c0">(자동 재시도 ${n})</span></div>`; }
+      onWait: silent ? undefined : (n) => { feed.innerHTML = `<div class="loading">⏳ 무료 서버를 깨우는 중이에요…<br>최초 접속은 최대 1분 정도 걸릴 수 있어요.<br><span style="color:#aeb6c0">(자동 재시도 ${n})</span></div>`; }
     });
-    if (d.needKey) { feed.innerHTML = `<div class="loading">경기 데이터 API 키가 설정되지 않았어요.</div>`; return; }
+    if (d.needKey) { if (!silent) feed.innerHTML = `<div class="loading">경기 데이터 API 키가 설정되지 않았어요.</div>`; return; }
     const games = d.games || [];
     allFeedGames = games;
     feedGames = {}; games.forEach(g => feedGames[g.id] = g);
     // 현재 리그 필터가 이번 데이터에 없으면 전체로 리셋
     if (state.leagueFilter !== 'all' && !games.some(g => g.league === state.leagueFilter)) state.leagueFilter = 'all';
+    // ▼ 화면이 위로 튀지 않도록: 재렌더 전 스크롤 위치 저장 → 후 복원
+    const sy = window.pageYOffset || document.documentElement.scrollTop || 0;
     buildLeagueRow(games);
     renderFeed(filterGames());
-    // 상세 모달이 열려 있으면 해당 경기 상세도 실시간 갱신 (채팅은 유지)
+    if (silent) window.scrollTo(0, sy);   // 강제 상단 이동 방지
+    // 상세 모달이 열려 있으면 해당 경기 상세도 실시간 갱신 (채팅·스크롤 유지)
     if (modalEventId && feedGames[modalEventId] && modalPredict) {
+      const mb = $('#mBody'); const my = mb ? mb.scrollTop : 0;
       logChanges(modalEventId, feedGames[modalEventId]);   // 변화 감지 → 이벤트 로그 적립
       renderDetail(feedGames[modalEventId], modalPredict);
+      if (mb) mb.scrollTop = my;   // 모달 상세도 보던 위치 유지
     }
   } catch (e) {
-    feed.innerHTML = `<div class="loading">${esc(t('loading'))}<br><button onclick="loadEvents()" style="margin-top:10px;padding:9px 18px;border:none;border-radius:8px;background:#24568f;color:#fff;font-weight:800;cursor:pointer">${esc(t('retry'))}</button></div>`;
+    if (!silent) feed.innerHTML = `<div class="loading">${esc(t('loading'))}<br><button onclick="loadEvents()" style="margin-top:10px;padding:9px 18px;border:none;border-radius:8px;background:#24568f;color:#fff;font-weight:800;cursor:pointer">${esc(t('retry'))}</button></div>`;
   }
 }
 function hhmm(dateStr) {
@@ -1613,6 +1619,6 @@ async function init() {
     .then(d => { state.leagues = d.leagues || []; buildLeagueNav(); })
     .catch(() => {});
   // 라이브 자동 갱신 (10초) · 상세/채팅 열려 있어도 스코어·해설 계속 갱신
-  setInterval(() => { if (!$('#view-live').classList.contains('hidden') || modalEventId) loadEvents(); }, 10000);
+  setInterval(() => { if (!$('#view-live').classList.contains('hidden') || modalEventId) loadEvents(true); }, 7000);
 }
 init();
