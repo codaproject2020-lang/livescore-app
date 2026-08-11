@@ -818,13 +818,13 @@ function renderFeed(games) {
   if (favGames.length) {
     const live = favGames.filter(x => x.state === 'live').length;
     const head = `<div class="lghd favhd"><span class="flag">⭐</span><span class="nm">${esc(t('favTeams'))}</span><span class="cnt">(${favGames.length})</span>${live ? `<span class="live-dot" style="color:#e2231a;font-weight:800">🔴 ${live} LIVE</span>` : ''}<span class="up">∧</span></div>`;
-    const body = favGames.map(e => (e.state !== 'finished' ? predictBanner(e) : '') + matchCard(e)).join('');
+    const body = favGames.map(e => matchCard(e)).join('');
     html += `<div class="lg lg-fav">${head}${body}</div>`;
   }
   html += order.map(g => {
     const live = g.items.filter(x => x.state === 'live').length;
     const head = `<div class="lghd"><span class="flag">${badge(g.league.leagueLogo, '🏆')}</span><span class="nm">${esc(g.name)}</span><span class="cnt">(${g.items.length})</span>${live ? `<span class="live-dot" style="color:#e2231a;font-weight:800">🔴 ${live} LIVE</span>` : ''}<span class="up">∧</span></div>`;
-    const body = g.items.map(e => (e.state !== 'finished' ? predictBanner(e) : '') + matchCard(e)).join('');
+    const body = g.items.map(e => matchCard(e)).join('');
     return `<div class="lg">${head}${body}</div>`;
   }).join('');
   feed.innerHTML = html;
@@ -934,8 +934,9 @@ function renderPitch(t) {
 const BB_POS = { P: [50, 60], C: [50, 87], '1B': [72, 52], '2B': [61, 39], SS: [39, 39], '3B': [28, 52], LF: [21, 25], CF: [50, 13], RF: [79, 25] };
 function fieldDot(p, x, y) {
   const face = mlbFace(p.id);
+  const badgeTxt = esc((p.number != null && p.number !== '') ? p.number : (p.pos || ''));
   const av = face
-    ? `<div class="fd-av has-face"><img src="${face}" alt="" loading="lazy" onerror="this.parentNode.classList.remove('has-face');this.parentNode.textContent='${esc(p.pos || '')}'"><span class="fd-pos">${esc(p.pos || '')}</span></div>`
+    ? `<div class="fd-av has-face"><img src="${face}" alt="" loading="lazy" onerror="this.parentNode.classList.remove('has-face');this.parentNode.innerHTML='${esc(p.pos || '')}'"><b class="fd-badge">${badgeTxt}</b></div>`
     : `<div class="fd-av">${esc(p.pos || '')}</div>`;
   return `<div class="fd" data-pid="${esc(p.id)}" data-name="${esc(p.name)}" data-group="${p.pos === 'P' ? 'pitching' : 'hitting'}" style="left:${x}%;top:${y}%">${av}<div class="fd-nm">${esc(shortName(p.name))}</div></div>`;
 }
