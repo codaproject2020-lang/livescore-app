@@ -522,6 +522,8 @@ async function buildGamesCore(sport, date) {
   const path = `${cfg.path}?date=${date}&timezone=Asia/Seoul`;
   const j = await asRaw(sport, path, 6000);   // 라이브 신선도 우선 (6초)
   let games = (j.response || []).map(g => normAS(sport, g)).filter(Boolean);
+  // 🚫 고교야구(고시엔 등) 제외 — 로고·데이터 빈약해 제외
+  games = games.filter(g => !/koshien|senbatsu|high\s*school|甲子園|고교|highschool/i.test(String(g.league || '')));
   const STATS_LG = { 'MLB': 1, 'LMB': 23, 'IL': 11, 'PCL': 11 };
   if (sport === 'baseball' && games.some(g => STATS_LG[g.league])) {
     const sm = {};
