@@ -118,6 +118,21 @@ const STR = {
   over: ['Over', '오버', 'オーバー', '大', 'Over', 'ओवर', 'Tài', 'สูง', 'Больше', 'Über', 'Plus', 'Over'],
   under: ['Under', '언더', 'アンダー', '小', 'Under', 'अंडर', 'Xỉu', 'ต่ำ', 'Меньше', 'Unter', 'Moins', 'Under'],
   handi: ['Handicap', '핸디', 'ハンデ', '让分', 'Hándicap', 'हैंडिकैप', 'Chấp', 'แฮนดิแคป', 'Фора', 'Handicap', 'Handicap', 'Handicap'],
+  // ── 알림/즐겨찾기 ──
+  notifTitle: ['Notifications', '알림 설정', '通知設定', '通知设置', 'Notificaciones', 'सूचनाएं', 'Thông báo', 'การแจ้งเตือน', 'Уведомления', 'Benachrichtigungen', 'Notifications', 'Notifiche'],
+  notifBtn: ['Alerts', '알림', '通知', '通知', 'Alertas', 'अलर्ट', 'Thông báo', 'แจ้งเตือน', 'Уведомл.', 'Alarme', 'Alertes', 'Avvisi'],
+  notifEnable: ['Enable notifications', '알림 켜기', '通知をオン', '开启通知', 'Activar notificaciones', 'सूचनाएं चालू करें', 'Bật thông báo', 'เปิดการแจ้งเตือน', 'Включить', 'Aktivieren', 'Activer', 'Attiva'],
+  notifPerm: ['Allow browser notifications to get alerts.', '알림을 받으려면 브라우저 권한을 허용하세요.', '通知許可が必要です。', '需要浏览器通知权限。', 'Permite las notificaciones del navegador.', 'ब्राउज़र सूचना अनुमति दें।', 'Cần cấp quyền thông báo trình duyệt.', 'ต้องอนุญาตการแจ้งเตือนเบราว์เซอร์', 'Разрешите уведомления браузера.', 'Browser-Benachrichtigungen erlauben.', 'Autorisez les notifications du navigateur.', 'Consenti le notifiche del browser.'],
+  favTeams: ['Favorite teams', '관심팀', 'お気に入りチーム', '关注球队', 'Equipos favoritos', 'पसंदीदा टीमें', 'Đội yêu thích', 'ทีมโปรด', 'Избранные', 'Lieblingsteams', 'Équipes favorites', 'Squadre preferite'],
+  noFav: ['No favorites yet — tap ☆ on a match.', '관심팀이 없어요. 경기의 ☆를 눌러 추가하세요.', 'お気に入りなし。試合の☆をタップ。', '暂无关注，点击比赛的☆添加。', 'Sin favoritos — toca ☆ en un partido.', 'कोई पसंदीदा नहीं — मैच पर ☆ दबाएं।', 'Chưa có — chạm ☆ trên trận đấu.', 'ยังไม่มี — แตะ ☆ ที่แมตช์', 'Пока пусто — нажмите ☆.', 'Noch keine — ☆ antippen.', 'Aucun — touchez ☆.', 'Nessuna — tocca ☆.'],
+  evtStart: ['Match start', '경기 시작', '試合開始', '比赛开始', 'Inicio del partido', 'मैच शुरू', 'Bắt đầu trận', 'เริ่มแข่ง', 'Начало матча', 'Spielbeginn', 'Coup d’envoi', 'Inizio partita'],
+  evtLineup: ['Lineups announced', '라인업 발표', 'スタメン発表', '首发公布', 'Alineaciones', 'लाइनअप घोषित', 'Đội hình ra sân', 'ประกาศตัวจริง', 'Составы', 'Aufstellungen', 'Compositions', 'Formazioni'],
+  evtScore: ['Score', '득점', '得点', '得分', 'Gol/Anotación', 'स्कोर', 'Ghi điểm', 'ทำแต้ม', 'Гол/очко', 'Tor/Punkt', 'But/point', 'Gol/punto'],
+  evtHR: ['Home run', '홈런', '本塁打', '全垒打', 'Home run', 'होम रन', 'Home run', 'โฮมรัน', 'Хоумран', 'Homerun', 'Home run', 'Fuoricampo'],
+  evtRed: ['Red card / Ejection', '퇴장', '退場', '罚下', 'Expulsión', 'रेड कार्ड', 'Thẻ đỏ', 'ใบแดง', 'Удаление', 'Platzverweis', 'Expulsion', 'Espulsione'],
+  evtFinish: ['Full time', '경기 종료', '試合終了', '比赛结束', 'Final', 'समाप्त', 'Kết thúc', 'จบเกม', 'Матч окончен', 'Spielende', 'Fin du match', 'Fine partita'],
+  notifClosedNote: ['Alerts work while the app is open. Push when fully closed needs a paid server setup.', '알림은 앱이 열려 있을 때 동작해요. 완전히 닫힌 상태의 푸시는 별도 서버 작업이 필요해요.', 'アプリ起動中に動作します。完全終了時のプッシュは別途サーバーが必要。', '应用打开时有效。完全关闭的推送需服务器配置。', 'Funcionan con la app abierta. Push cerrada requiere servidor.', 'ऐप खुली होने पर काम करता है।', 'Hoạt động khi mở app. Push khi đóng cần máy chủ.', 'ทำงานเมื่อเปิดแอป', 'Работает при открытом приложении.', 'Funktioniert bei geöffneter App.', 'Fonctionne app ouverte.', 'Funziona ad app aperta.'],
+  save: ['Save', '저장', '保存', '保存', 'Guardar', 'सहेजें', 'Lưu', 'บันทึก', 'Сохранить', 'Speichern', 'Enregistrer', 'Salva'],
   // 종목명 (키 = SPORTS.key)
   football: ['Soccer', '축구', 'サッカー', '足球', 'Fútbol', 'फुटबॉल', 'Bóng đá', 'ฟุตบอล', 'Футбол', 'Fußball', 'Football', 'Calcio'],
   baseball: ['Baseball', '야구', '野球', '棒球', 'Béisbol', 'बेसबॉल', 'Bóng chày', 'เบสบอล', 'Бейсбол', 'Baseball', 'Baseball', 'Baseball'],
@@ -592,6 +607,7 @@ async function loadEvents(silent) {
     const games = d.games || [];
     allFeedGames = games;
     feedGames = {}; games.forEach(g => feedGames[g.id] = g);
+    try { checkNotifs(games); } catch (e) {}   // ⭐ 관심팀 알림 감지
     // 현재 리그 필터가 이번 데이터에 없으면 전체로 리셋
     if (state.leagueFilter !== 'all' && !games.some(g => g.league === state.leagueFilter)) state.leagueFilter = 'all';
     // ▼ 화면이 위로 튀지 않도록: 재렌더 전 스크롤 위치 저장 → 후(레이아웃 반영까지) 복원
@@ -767,9 +783,9 @@ function matchCard(e) {
   return `<div class="match" data-ev="${esc(e.id)}">
     <span class="bell">🔔</span>
     <div class="mrow">
-      <div class="side">${HA_HOME}<div class="ph">${badge(e.homeLogo, '🏟')}</div><div class="team">${esc(TN(e.home, e.league))}</div></div>
+      <div class="side">${HA_HOME}<div class="ph">${badge(e.homeLogo, '🏟')}</div><div class="team">${favStar(e.home)}${esc(TN(e.home, e.league))}</div></div>
       ${scoreBlock(e)}
-      <div class="side">${HA_AWAY}<div class="ph">${badge(e.awayLogo, '🏟')}</div><div class="team">${esc(TN(e.away, e.league))}</div></div>
+      <div class="side">${HA_AWAY}<div class="ph">${badge(e.awayLogo, '🏟')}</div><div class="team">${esc(TN(e.away, e.league))}${favStar(e.away)}</div></div>
     </div>
     ${bsoMini(e)}
     ${rheMini(e)}
@@ -1661,6 +1677,108 @@ function initLangSelectors() {
   applyI18n();
   refreshDateLabel();
 }
+// ============================================================
+//  ⭐ 즐겨찾기(관심팀) + 🔔 알림 (앱 열림/PWA 활성 시 브라우저 알림)
+// ============================================================
+let FAV = (function () { try { return JSON.parse(localStorage.getItem('liveup_fav') || '[]'); } catch (e) { return []; } })();
+const NOTIF_DEF = { on: false, start: true, lineup: true, score: true, hr: true, red: true, finish: true };
+let NOTIF = (function () { try { return Object.assign({}, NOTIF_DEF, JSON.parse(localStorage.getItem('liveup_notif') || '{}')); } catch (e) { return { ...NOTIF_DEF }; } })();
+function saveFav() { try { localStorage.setItem('liveup_fav', JSON.stringify(FAV)); } catch (e) {} }
+function saveNotif() { try { localStorage.setItem('liveup_notif', JSON.stringify(NOTIF)); } catch (e) {} }
+function isFav(name) { return FAV.includes(String(name || '')); }
+function favStar(name) { return `<span class="favstar${isFav(name) ? ' on' : ''}" data-fav="${esc(name)}">${isFav(name) ? '★' : '☆'}</span>`; }
+function toggleFav(name) { name = String(name || ''); const i = FAV.indexOf(name); if (i >= 0) FAV.splice(i, 1); else FAV.push(name); saveFav(); if ($('#view-live') && !$('#view-live').classList.contains('hidden')) renderFeed(filterGames()); }
+// 별 클릭은 경기 상세로 안 넘어가게 (캡처 단계에서 가로챔)
+document.addEventListener('click', ev => { const s = ev.target.closest && ev.target.closest('.favstar'); if (s) { ev.stopPropagation(); ev.preventDefault(); toggleFav(s.dataset.fav); } }, true);
+
+const notifSeen = {};   // gameId -> {state,total,lineup,reds}
+function fireNotif(title, body, gameId) {
+  if (!('Notification' in window) || Notification.permission !== 'granted') return;
+  try {
+    const n = new Notification(title, { body, tag: 'liveup-' + gameId, icon: '/logo-t.png', badge: '/logo-t.png', renotify: true });
+    n.onclick = () => { window.focus(); try { n.close(); } catch (e) {} if (gameId && feedGames[gameId]) openEvent(gameId); };
+  } catch (e) {}
+}
+function checkNotifs(games) {
+  if (!NOTIF.on || !('Notification' in window) || Notification.permission !== 'granted') return;
+  (games || []).forEach(g => {
+    if (!(isFav(g.home) || isFav(g.away))) return;
+    const id = g.id, prev = notifSeen[id] || {}, total = (Number(g.hs) || 0) + (Number(g.as) || 0);
+    const HM = TN(g.home, g.league), AW = TN(g.away, g.league), sc = `${HM} ${g.hs ?? 0}:${g.as ?? 0} ${AW}`;
+    if (prev.state) {
+      if (NOTIF.start && prev.state === 'scheduled' && g.state === 'live') fireNotif('⚽ ' + t('evtStart'), `${HM} vs ${AW}`, id);
+      if (NOTIF.finish && prev.state !== 'finished' && g.state === 'finished') fireNotif('🏁 ' + t('evtFinish'), sc, id);
+      if ((NOTIF.score || NOTIF.hr) && prev.total != null && total > prev.total && g.state === 'live') fireNotif((state.sport === 'football' ? '⚽ ' : '🔴 ') + t('evtScore'), sc, id);
+    }
+    notifSeen[id] = Object.assign({}, prev, { state: g.state, total });
+    // 라인업 발표 (경기 3시간 전~라이브 구간에서 1회)
+    if (NOTIF.lineup && !prev.lineup) {
+      const dt = g.date ? (new Date(g.date) - Date.now()) : null;
+      const near = g.state === 'live' || (dt != null && dt < 3 * 3600e3 && dt > -6 * 3600e3);
+      if (near) checkLineupNotif(g);
+    }
+    // 퇴장 (축구 라이브)
+    if (NOTIF.red && state.sport === 'football' && g.state === 'live') checkRedNotif(g, prev.reds || 0);
+  });
+}
+async function checkLineupNotif(g) {
+  try {
+    let has = false;
+    if (state.sport === 'football') { const d = await fetchJSON(`/api/asports/lineups?fixture=${encodeURIComponent(g.id)}`, { tries: 1 }); has = !!(d.teams && d.teams[0] && (d.teams[0].startXI || []).length >= 11); }
+    else if (statsLeague(g.league)) { const d = await fetchJSON(`/api/mlb/game?home=${encodeURIComponent(g.home)}&away=${encodeURIComponent(g.away)}&date=${state.date}`, { tries: 1 }); has = !!(d.found && ((d.home.lineup || []).length || (d.away.lineup || []).length)); }
+    if (has && !(notifSeen[g.id] || {}).lineup) { notifSeen[g.id] = Object.assign({}, notifSeen[g.id], { lineup: true }); fireNotif('📋 ' + t('evtLineup'), `${TN(g.home, g.league)} vs ${TN(g.away, g.league)}`, g.id); }
+  } catch (e) {}
+}
+async function checkRedNotif(g, prevReds) {
+  try {
+    const d = await fetchJSON(`/api/asports/events?fixture=${encodeURIComponent(g.id)}`, { tries: 1 });
+    const reds = (d.events || []).filter(x => x.type === 'Card' && /red/i.test(x.detail || '')).length;
+    if (reds > prevReds) fireNotif('🟥 ' + t('evtRed'), `${TN(g.home, g.league)} vs ${TN(g.away, g.league)}`, g.id);
+    notifSeen[g.id] = Object.assign({}, notifSeen[g.id], { reds });
+  } catch (e) {}
+}
+// 알림 설정 모달
+function closeNotifSettings() { $('#notifScrim')?.classList.remove('on'); $('#notifModal')?.classList.remove('on'); }
+function openNotifSettings() {
+  if (!$('#notifScrim')) {
+    const scrim = document.createElement('div'); scrim.id = 'notifScrim'; scrim.className = 'scrim';
+    const m = document.createElement('div'); m.id = 'notifModal'; m.className = 'modal';
+    document.body.appendChild(scrim); document.body.appendChild(m);
+    scrim.addEventListener('click', closeNotifSettings);
+  }
+  const perm = ('Notification' in window) ? Notification.permission : 'unsupported';
+  const chk = (k, label) => `<label class="ntf-row"><span>${esc(label)}</span><input type="checkbox" data-nk="${k}" ${NOTIF[k] ? 'checked' : ''}></label>`;
+  const favList = FAV.length ? FAV.map(f => `<span class="favchip" data-favrm="${esc(f)}">${esc(f)} ✕</span>`).join('') : `<div class="lu-note">${esc(t('noFav'))}</div>`;
+  $('#notifModal').innerHTML = `
+    <div class="mhd"><span>🔔 ${esc(t('notifTitle'))}</span><span class="x" id="ntfClose">✕</span></div>
+    <div class="mbody">
+      <label class="ntf-row master"><span><b>${esc(t('notifEnable'))}</b></span><input type="checkbox" id="ntfOn" ${NOTIF.on ? 'checked' : ''}></label>
+      ${perm !== 'granted' ? `<div class="lu-note">${esc(t('notifPerm'))}</div>` : ''}
+      ${chk('start', t('evtStart'))}
+      ${chk('lineup', t('evtLineup'))}
+      ${chk('score', t('evtScore'))}
+      ${chk('hr', t('evtHR'))}
+      ${chk('red', t('evtRed'))}
+      ${chk('finish', t('evtFinish'))}
+      <div class="odsec">⭐ ${esc(t('favTeams'))}</div>
+      <div class="favchips">${favList}</div>
+      <div class="lu-note" style="margin-top:10px">${esc(t('notifClosedNote'))}</div>
+    </div>`;
+  $('#notifScrim').classList.add('on'); $('#notifModal').classList.add('on');
+  $('#ntfClose').onclick = closeNotifSettings;
+  $('#ntfOn').onchange = async e => {
+    if (e.target.checked && 'Notification' in window) { const p = await Notification.requestPermission(); if (p !== 'granted') { e.target.checked = false; NOTIF.on = false; saveNotif(); openNotifSettings(); return; } }
+    NOTIF.on = e.target.checked; saveNotif();
+  };
+  $$('#notifModal [data-nk]').forEach(c => c.onchange = () => { NOTIF[c.dataset.nk] = c.checked; saveNotif(); });
+  $$('#notifModal [data-favrm]').forEach(x => x.onclick = () => { toggleFav(x.dataset.favrm); openNotifSettings(); });
+}
+// 알림 진입 버튼 (항상 보이는 FAB)
+(function addNotifFab() {
+  const b = document.createElement('button'); b.id = 'notifFab'; b.className = 'notif-fab'; b.innerHTML = '🔔';
+  b.addEventListener('click', openNotifSettings); document.body.appendChild(b);
+})();
+
 async function init() {
   $('#datePick').value = state.date;
   initLangSelectors();       // 언어 선택기 + 초기 번역 적용

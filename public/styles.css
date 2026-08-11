@@ -583,3 +583,16 @@ table.rhe-tbl .tn{text-align:left;padding-left:10px;font-weight:700;white-space:
 .fd-nm{font-size:10px;color:#fff;font-weight:800;text-shadow:0 1px 2px rgba(0,0,0,.7);white-space:nowrap;max-width:60px;overflow:hidden;text-overflow:ellipsis}
 .bfield-dh{margin-top:8px;text-align:center;font-size:12px;color:var(--navy);background:#fffaf0;border:1px solid var(--goldLine);border-radius:8px;padding:8px}
 .bfield-dh b{color:var(--answer)}
+
+/* ⭐ 즐겨찾기 별 + 🔔 알림 */
+.favstar{cursor:pointer;color:#f5c542;font-size:14px;margin:0 3px;line-height:1;-webkit-user-select:none;user-select:none;opacity:.55;transition:transform .1s}
+.favstar.on{opacity:1;text-shadow:0 1px 2px rgba(224,169,46,.5)}
+.favstar:hover{transform:scale(1.2)}
+.notif-fab{position:fixed;left:16px;bottom:18px;z-index:120;width:50px;height:50px;border-radius:50%;border:2px solid var(--gold);background:#16243d;color:#fff;font-size:22px;cursor:pointer;box-shadow:0 4px 14px rgba(11,15,22,.35);display:flex;align-items:center;justify-content:center}
+.notif-fab:hover{background:#1a2b47}
+.ntf-row{display:flex;align-items:center;justify-content:space-between;padding:11px 4px;border-bottom:1px solid var(--line2);font-size:14px;color:var(--navy)}
+.ntf-row.master{background:#fffaf0;border:1px solid var(--goldLine);border-radius:10px;padding:12px;margin-bottom:8px}
+.ntf-row input[type=checkbox]{width:20px;height:20px;accent-color:var(--gold)}
+.favchips{display:flex;flex-wrap:wrap;gap:7px;margin-top:6px}
+.favchip{background:#16243d;color:#fff;border-radius:14px;padding:5px 11px;font-size:12px;font-weight:700;cursor:pointer;border:1.5px solid var(--gold)}
+.favchip:hover{background:#e2231a;border-color:#e2231a}
