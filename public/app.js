@@ -800,12 +800,21 @@ function renderFeed(games) {
     feed.innerHTML = `<div class="loading">${esc(state.date)} · ${esc(t(state.sport))} · ${esc(t('noGames'))}</div>`;
     return;
   }
+  // 정렬: 라이브(진행) → 예정(시작 임박순) → 종료(아래로)
+  const stateRank = s => s === 'live' ? 0 : s === 'finished' ? 2 : 1;
+  const feedSort = (a, b) => {
+    const ra = stateRank(a.state), rb = stateRank(b.state);
+    if (ra !== rb) return ra - rb;
+    const ta = a.date ? new Date(a.date).getTime() : 0, tb = b.date ? new Date(b.date).getTime() : 0;
+    return ra === 2 ? tb - ta : ta - tb;   // 예정=빠른 시간 위, 종료=최근 위
+  };
   // ⭐ 즐겨찾기(종) 경기는 맨 위 별도 그룹으로
   const favGames = games.filter(e => isMatchFav(e));
   const rest = games.filter(e => !isMatchFav(e));
-  favGames.sort((a, b) => (b.state === 'live') - (a.state === 'live'));
+  favGames.sort(feedSort);
   const groups = {};
   rest.forEach(e => { const k = e.league || '기타'; (groups[k] = groups[k] || { league: e, name: k, items: [] }).items.push(e); });
+  Object.values(groups).forEach(g => g.items.sort(feedSort));
   const order = Object.values(groups).sort((a, b) => {
     const la = a.items.some(x => x.state === 'live'), lb = b.items.some(x => x.state === 'live');
     if (la !== lb) return (lb ? 1 : 0) - (la ? 1 : 0);
