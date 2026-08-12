@@ -575,6 +575,28 @@ async function tsFootballGames(date) {
 //    scores: ft=득점(R) / h=안타(H) / e=실책(E) / p1~p9=이닝별 득점  [모두 [home, away]]
 //    실시간 extra: base="1루2루3루"(0/1) / out=아웃 / good=스트라이크 / bad=볼
 const tsNum = v => { const n = Number(v); return (v === '' || v == null || isNaN(n)) ? null : n; };
+// ⚾ TheSports 경기별 박스스코어(match/live/history) — 팀 R/H/E/BB + 선수별 기록
+const TS_TSTAT = { 601: 'h', 602: 'e', 605: 'hr', 606: 'rbi', 608: 'bb', 609: 'k', 611: 'ab', 612: 'avg', 677: 'r' };
+const TS_PSTAT = { 613: 'pos', 614: 'ab', 615: 'r', 616: 'h', 617: 'rbi', 618: 'avg', 619: 'd2', 620: 't3', 621: 'hr', 627: 'tb', 628: 'sb', 650: 'k', 651: 'bb', 634: 'ip', 635: 'ph', 636: 'er', 637: 'pbb', 638: 'pk', 639: 'era', 640: 'np', 644: 'bf', 648: 'phr', 649: 'ra', 696: 'w', 697: 'l', 703: 'sv' };
+const POS_NAME = { '1': 'DH', '2': 'C', '3': '1B', '4': '2B', '5': '3B', '6': 'CF', '7': 'LF', '8': 'RF', '9': 'SS', '10': 'PH', '11': 'PR', '12': 'SP', '13': 'RP', '14': 'P' };
+const TS_PNAME = new Map(); // player_id -> {name, logo, pos}
+const tsDecode = (arr, map) => { const o = {}; (arr || []).forEach(p => { const k = map[p[0]]; if (k != null) o[k] = p[1]; }); return o; };
+const TS_WANT = /KBO|NPB|CPBL|Korea|Nippon|Japan|일본|한국|대만|Taiwan|Chinese Professional/i;
+async function tsBox(matchId, ttl = 60000) {
+  const h = await tsFetch('/baseball/match/live/history', { uuid: matchId }, ttl).catch(() => null);
+  const r = h && h.results; if (!r) return null;
+  const full = (r.stats || []).find(s => s[0] === 0);
+  const team = { home: {}, away: {} };
+  if (full) (full[1] || []).forEach(c => { const k = TS_TSTAT[c[0]]; if (k) { team.home[k] = c[1]; team.away[k] = c[2]; } });
+  const side = list => (list || []).map(p => Object.assign({ id: p.id }, tsDecode(p.stats, TS_PSTAT)));
+  return { team, players: { home: side(r.players && r.players.home), away: side(r.players && r.players.away) }, battingTeam: Array.isArray(r.score) ? r.score[2] : null };
+}
+async function tsName(pid) {
+  if (TS_PNAME.has(pid)) return TS_PNAME.get(pid);
+  let v = { name: null, logo: '', pos: '' };
+  try { const r = await tsFetch('/baseball/player/list', { uuid: pid }, 86400000); const p = (r.results || [])[0]; if (p) v = { name: p.name || null, logo: p.logo || '', pos: p.position || '' }; } catch (e) {}
+  TS_PNAME.set(pid, v); return v;
+}
 async function tsBaseballGames(date) {
   const ymd = String(date).replace(/-/g, '');
   const d = await tsFetch('/baseball/match/diary', { date: ymd }, 6000);
@@ -589,7 +611,7 @@ async function tsBaseballGames(date) {
     (lv.results || []).forEach(m => { const s = m.score || []; live[(s[0]) || m.id] = { inning: s[2], sc: s[3] || {}, extra: m.extra || {} }; });
   } catch (e) {}
   const now = Date.now();
-  return (d.results || []).map(m => {
+  const games = (d.results || []).map(m => {
     const ht = teams[m.home_team_id] || {}, at = teams[m.away_team_id] || {}, lg = leagues[m.unique_tournament_id] || {};
     const lvm = live[m.id];
     const sc = (lvm && lvm.sc && Object.keys(lvm.sc).length) ? lvm.sc : (m.scores || {});
@@ -619,7 +641,36 @@ async function tsBaseballGames(date) {
     }
     return g;
   });
+  // 🧮 KBO/NPB 진행·완료 경기 → 경기별 통계에서 팀 BB(및 누락된 H/E) 병합
+  const bbTargets = games.filter(g => TS_WANT.test(g.league) && g.state !== 'scheduled' && g.hs != null);
+  await Promise.all(bbTargets.map(async g => {
+    const b = await tsBox(g.id, g.state === 'live' ? 20000 : 3600000).catch(() => null);
+    if (!b || !b.team) return;
+    ['home', 'away'].forEach(s => {
+      if (b.team[s].bb != null) g.box[s].bb = b.team[s].bb;
+      if (g.box[s].h == null && b.team[s].h != null) g.box[s].h = b.team[s].h;
+      if (g.box[s].e == null && b.team[s].e != null) g.box[s].e = b.team[s].e;
+    });
+  }));
+  return games;
 }
+// ⚾ 경기별 박스스코어(선수 라인업+기록, 이름/사진 포함) — KBO/NPB 상세용
+app.get('/api/baseball/box', async (req, res) => {
+  const id = req.query.id; if (!id) return res.json({ error: 'no id' });
+  const live = req.query.live === '1';
+  try {
+    const b = await tsBox(id, live ? 20000 : 3600000);
+    if (!b) return res.json({ available: false });
+    const pids = [...new Set([...b.players.home, ...b.players.away].map(p => p.id))];
+    await Promise.all(pids.map(tsName));
+    const attach = arr => arr.map(p => {
+      const n = TS_PNAME.get(p.id) || {};
+      const posCode = p.pos != null ? String(p.pos) : '';
+      return Object.assign({}, p, { name: n.name || null, photo: n.logo || '', position: POS_NAME[posCode] || n.pos || '', pitcher: p.ip != null });
+    });
+    res.json({ available: true, team: b.team, battingTeam: b.battingTeam, players: { home: attach(b.players.home), away: attach(b.players.away) } });
+  } catch (e) { res.json({ error: String(e.message || e) }); }
+});
 // 연결 확인용 (원본 응답 전체 노출 — 에러 메시지 확인)
 app.get('/api/thesports/status', async (req, res) => {
   const sport = req.query.sport || 'baseball';
