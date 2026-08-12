@@ -595,8 +595,8 @@ async function tsBaseballGames(date) {
     const sc = (lvm && lvm.sc && Object.keys(lvm.sc).length) ? lvm.sc : (m.scores || {});
     const ft = sc.ft || [], H = sc.h || [], E = sc.e || [];
     const hs = tsNum(ft[0]), as = tsNum(ft[1]);
-    const hInn = {}, aInn = {};
-    for (let i = 1; i <= 12; i++) { const p = sc['p' + i]; if (p) { const a = tsNum(p[0]), b = tsNum(p[1]); if (a != null) hInn[i] = a; if (b != null) aInn[i] = b; } }
+    const hInn = {}, aInn = {}; let maxInn = 0;
+    for (let i = 1; i <= 12; i++) { const p = sc['p' + i]; if (p && (p[0] !== '' || p[1] !== '')) { const a = tsNum(p[0]), b = tsNum(p[1]); if (a != null) hInn[i] = a; if (b != null) aInn[i] = b; maxInn = i; } }
     const t = m.match_time ? m.match_time * 1000 : 0;
     const state = lvm ? 'live' : (t > now ? 'scheduled' : 'finished');
     const g = {
@@ -610,7 +610,7 @@ async function tsBaseballGames(date) {
       }
     };
     if (lvm) {
-      if (lvm.inning != null) { g.curInning = tsNum(lvm.inning); g.period = g.curInning; }
+      if (maxInn) { g.curInning = maxInn; g.period = maxInn; }   // 라이브 이닝 = 마지막으로 점수가 들어간 회
       const x = lvm.extra || {};
       if (x.base != null || x.out != null || x.good != null || x.bad != null) {
         const base = String(x.base || '000');
