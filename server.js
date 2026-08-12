@@ -629,29 +629,35 @@ app.get('/api/thesports/status', async (req, res) => {
     res.json({ on: TS_ON, sport, code: d && d.code, count: (d && d.results || []).length, resp: d });
   } catch (e) { res.json({ on: TS_ON, sport, error: String(e.message || e) }); }
 });
-// 야구 라인업 엔드포인트 형식 탐색 — NPB/KBO 경기 하나로 여러 경로 시도
-app.get('/api/thesports/lineupraw', async (req, res) => {
+// 라인업 구축 타당성 종합 프로브 — 팀id 매칭 + 선수이름 소스 확인
+app.get('/api/thesports/lineupbuild', async (req, res) => {
   try {
     const ymd = (req.query.date || new Date().toISOString().slice(0, 10)).replace(/-/g, '');
     const d = await tsFetch('/baseball/match/diary', { date: ymd }, 3000);
     const ex = d.results_extra || {}; const lg = {};
     (ex.unique_tournament || []).forEach(u => lg[u.id] = u.name);
-    // NPB/KBO 경기 우선, 없으면 아무거나
-    const list = d.results || [];
-    let g = list.find(m => /KBO|NPB/i.test(lg[m.unique_tournament_id] || '')) || list[0];
-    const tid = req.query.team || (g && g.home_team_id);
-    const mid = g && g.id;
-    // He Andy 안내: 라인업(스쿼드) = /v1/baseball/team/squad/list
-    const out = { league: g && lg[g.unique_tournament_id], matchId: mid, homeTeamId: g && g.home_team_id, awayTeamId: g && g.away_team_id, tried: {} };
-    const tries = [
-      ['/baseball/team/squad/list', { uuid: tid }],
-      ['/baseball/team/squad/list', { team_id: tid }],
-      ['/baseball/match/statistics/detail', { uuid: mid }],
-      ['/baseball/match/stats/detail', { uuid: mid }]
-    ];
-    for (const [p, params] of tries) {
-      try { const r = await tsFetch(p, params, 3000); out.tried[p + ' ' + JSON.stringify(params)] = r; }
-      catch (e) { out.tried[p + ' ' + JSON.stringify(params)] = { error: String(e.message || e) }; }
+    const g = (d.results || []).find(m => /KBO|NPB/i.test(lg[m.unique_tournament_id] || '')) || (d.results || [])[0];
+    const out = { game: { id: g.id, league: lg[g.unique_tournament_id], home: g.home_team_id, away: g.away_team_id, season: g.season_id }, squad: {}, player: {}, team: {} };
+    // 1) squad/list 페이지 수집 → 홈/원정 team_id 가 squad id 로 존재하나?
+    const ids = new Set(); let sqExtraKeys = null, sqSample = null;
+    for (let page = 1; page <= 8; page++) {
+      const s = await tsFetch('/baseball/team/squad/list', { page }, 4000).catch(() => null);
+      if (!s || !(s.results || []).length) break;
+      if (page === 1) { sqExtraKeys = Object.keys(s.results_extra || {}); sqSample = s.results[0]; }
+      s.results.forEach(r => ids.add(r.id));
+      if (s.results.length < 10) break;
+    }
+    out.squad = { collected: ids.size, hasHome: ids.has(g.home_team_id), hasAway: ids.has(g.away_team_id), extraKeys: sqExtraKeys, firstPlayer: sqSample && sqSample.squad && sqSample.squad[0] };
+    const pid = sqSample && sqSample.squad && sqSample.squad[0] && sqSample.squad[0].player_id;
+    // 2) squad/list 를 팀 uuid 로 직접 조회 시도
+    for (const key of ['uuid', 'team_id']) {
+      try { const r = await tsFetch('/baseball/team/squad/list', { [key]: g.home_team_id }, 3000); out.squad['byHome_' + key] = { total: r.query && r.query.total, first: (r.results || [])[0] }; }
+      catch (e) { out.squad['byHome_' + key] = { error: String(e.message || e) }; }
+    }
+    // 3) 선수 이름 엔드포인트 탐색
+    for (const [p, params] of [['/baseball/player/detail', { uuid: pid }], ['/baseball/player/list', { uuid: pid }], ['/baseball/team/detail', { uuid: g.home_team_id }]]) {
+      try { const r = await tsFetch(p, params, 3000); out.player[p] = { code: r && r.code, keys: Object.keys(r || {}), sample: (r && r.results && r.results[0]) || r }; }
+      catch (e) { out.player[p] = { error: String(e.message || e) }; }
     }
     res.json(out);
   } catch (e) { res.json({ error: String(e.message || e) }); }
