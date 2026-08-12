@@ -531,8 +531,9 @@ const TS_ON = !!(TS_USER && TS_SECRET);
 async function tsFetch(path, params, ttl = 6000) {
   if (TS_PROXY) {
     // 릴레이가 user/secret 를 붙여 TheSports로 전달 → 요청 IP = VPS 고정 IP
+    // 릴레이 base는 api.thesports.com(버전 없음)이므로 /v1 을 여기서 붙임
     const qs = new URLSearchParams(Object.assign({ token: TS_RELAY_TOKEN }, params || {})).toString();
-    return cachedJSON(`${TS_PROXY}/ts${path}?${qs}`, ttl);
+    return cachedJSON(`${TS_PROXY}/ts/v1${path}?${qs}`, ttl);
   }
   const qs = new URLSearchParams(Object.assign({ user: TS_USER, secret: TS_SECRET }, params || {})).toString();
   return cachedJSON(`${TS_BASE}${path}?${qs}`, ttl);
