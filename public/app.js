@@ -340,8 +340,12 @@ const TOP_LEAGUES = ['KBO', 'MLB', 'NPB', 'K League 1', 'Premier League', 'La Li
 const STATS_LEAGUES = ['MLB', 'LMB', 'IL', 'PCL'];
 function statsLeague(lg) { return STATS_LEAGUES.includes(lg); }
 
+// 로컬(브라우저 시간대) 기준 YYYY-MM-DD — UTC 날짜 버그 방지
+function localYMD(d = new Date()) { const x = new Date(d.getTime() - d.getTimezoneOffset() * 60000); return x.toISOString().slice(0, 10); }
+// 사용자 시간대 (예: Asia/Seoul, Asia/Ho_Chi_Minh, America/New_York)
+const USER_TZ = (function () { try { return Intl.DateTimeFormat().resolvedOptions().timeZone || 'Asia/Seoul'; } catch (e) { return 'Asia/Seoul'; } })();
 const state = {
-  date: new Date().toISOString().slice(0, 10),
+  date: localYMD(),
   sport: 'baseball',   // 여름철 진행 종목 기본
   leagues: [],
   leagueFilter: 'all'  // 상단 리그 선택 필터
@@ -600,7 +604,7 @@ async function loadEvents(silent) {
   const feed = $('#feed');
   if (!silent) feed.innerHTML = `<div class="loading">${esc(t('loadingGames'))}</div>`;
   try {
-    const d = await fetchJSON(`/api/asports/games?sport=${encodeURIComponent(state.sport)}&date=${state.date}`, {
+    const d = await fetchJSON(`/api/asports/games?sport=${encodeURIComponent(state.sport)}&date=${state.date}&tz=${encodeURIComponent(USER_TZ)}`, {
       onWait: silent ? undefined : (n) => { feed.innerHTML = `<div class="loading">⏳ 무료 서버를 깨우는 중이에요…<br>최초 접속은 최대 1분 정도 걸릴 수 있어요.<br><span style="color:#aeb6c0">(자동 재시도 ${n})</span></div>`; }
     });
     if (d.needKey) { if (!silent) feed.innerHTML = `<div class="loading">경기 데이터 API 키가 설정되지 않았어요.</div>`; return; }
@@ -1498,7 +1502,7 @@ async function initInfo() {
   const list = $('#infoList'); if (!list) return;
   list.innerHTML = `<div class="loading">${esc(t('loadingGames'))}</div>`;
   try {
-    const d = await fetchJSON(`/api/asports/games?sport=${encodeURIComponent(state.sport)}&date=${state.date}`, { tries: 2, delay: 3000 });
+    const d = await fetchJSON(`/api/asports/games?sport=${encodeURIComponent(state.sport)}&date=${state.date}&tz=${encodeURIComponent(USER_TZ)}`, { tries: 2, delay: 3000 });
     const games = d.games || [];
     games.forEach(g => { feedGames[g.id] = g; });   // openEvent가 사용
     games.sort((a, b) => (b.state === 'live') - (a.state === 'live'));
@@ -1653,17 +1657,17 @@ function connectWS() {
 // ============================================================
 function refreshDateLabel() {
   const el = $('#dateToday'); if (!el) return;
-  el.textContent = (state.date === new Date().toISOString().slice(0, 10)) ? t('today') : state.date.slice(5);
+  el.textContent = (state.date === localYMD()) ? t('today') : state.date.slice(5);
 }
 function shiftDate(days) {
-  const d = new Date(state.date); d.setDate(d.getDate() + days);
-  state.date = d.toISOString().slice(0, 10); $('#datePick').value = state.date;
+  const d = new Date(state.date + 'T12:00:00'); d.setDate(d.getDate() + days);
+  state.date = localYMD(d); $('#datePick').value = state.date;
   refreshDateLabel();
   loadEvents();
 }
 $('#datePrev').addEventListener('click', () => shiftDate(-1));
 $('#dateNext').addEventListener('click', () => shiftDate(1));
-$('#dateToday').addEventListener('click', () => { state.date = new Date().toISOString().slice(0, 10); $('#datePick').value = state.date; refreshDateLabel(); loadEvents(); });
+$('#dateToday').addEventListener('click', () => { state.date = localYMD(); $('#datePick').value = state.date; refreshDateLabel(); loadEvents(); });
 $('#datePick').addEventListener('change', e => { state.date = e.target.value; refreshDateLabel(); loadEvents(); });
 $('#btnRefresh').addEventListener('click', () => loadEvents());
 $('#btnUser')?.addEventListener('click', openLogin);
