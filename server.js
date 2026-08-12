@@ -629,6 +629,26 @@ app.get('/api/thesports/status', async (req, res) => {
     res.json({ on: TS_ON, sport, code: d && d.code, count: (d && d.results || []).length, resp: d });
   } catch (e) { res.json({ on: TS_ON, sport, error: String(e.message || e) }); }
 });
+// 야구 라인업 엔드포인트 형식 탐색 — NPB/KBO 경기 하나로 여러 경로 시도
+app.get('/api/thesports/lineupraw', async (req, res) => {
+  try {
+    const ymd = (req.query.date || new Date().toISOString().slice(0, 10)).replace(/-/g, '');
+    const d = await tsFetch('/baseball/match/diary', { date: ymd }, 3000);
+    const ex = d.results_extra || {}; const lg = {};
+    (ex.unique_tournament || []).forEach(u => lg[u.id] = u.name);
+    // NPB/KBO 경기 우선, 없으면 아무거나
+    const list = d.results || [];
+    let g = list.find(m => /KBO|NPB/i.test(lg[m.unique_tournament_id] || '')) || list[0];
+    const mid = req.query.match || (g && g.id);
+    const paths = ['/baseball/match/lineup/detail', '/baseball/match/lineup', '/baseball/lineup/detail'];
+    const out = { matchId: mid, league: g && lg[g.unique_tournament_id], tried: {} };
+    for (const p of paths) {
+      try { const r = await tsFetch(p, { uuid: mid }, 3000); out.tried[p] = { code: r && r.code, sample: r }; }
+      catch (e) { out.tried[p] = { error: String(e.message || e) }; }
+    }
+    res.json(out);
+  } catch (e) { res.json({ error: String(e.message || e) }); }
+});
 // 원시 응답 확인용 (필드 매핑 점검) — /api/thesports/raw?sport=baseball
 app.get('/api/thesports/raw', async (req, res) => {
   const sport = req.query.sport || 'baseball';
