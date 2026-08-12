@@ -815,9 +815,11 @@ function renderFeed(games) {
   const groups = {};
   rest.forEach(e => { const k = e.league || '기타'; (groups[k] = groups[k] || { league: e, name: k, items: [] }).items.push(e); });
   Object.values(groups).forEach(g => g.items.sort(feedSort));
+  // 그룹(리그) 순서: 라이브 있는 리그 → 시작예정 있는 리그 → 전부 종료된 리그(아래)
+  const groupTier = items => items.some(x => x.state === 'live') ? 0 : items.some(x => x.state === 'scheduled') ? 1 : 2;
   const order = Object.values(groups).sort((a, b) => {
-    const la = a.items.some(x => x.state === 'live'), lb = b.items.some(x => x.state === 'live');
-    if (la !== lb) return (lb ? 1 : 0) - (la ? 1 : 0);
+    const ta = groupTier(a.items), tb = groupTier(b.items);
+    if (ta !== tb) return ta - tb;
     const ra = TOP_LEAGUES.indexOf(a.name) < 0 ? 999 : TOP_LEAGUES.indexOf(a.name);
     const rb = TOP_LEAGUES.indexOf(b.name) < 0 ? 999 : TOP_LEAGUES.indexOf(b.name);
     if (ra !== rb) return ra - rb;
