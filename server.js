@@ -585,17 +585,30 @@ const TS_WANT = /KBO|NPB|CPBL|Korea|Nippon|Japan|일본|한국|대만|Taiwan|Chi
 async function tsBox(matchId, ttl = 60000) {
   const h = await tsFetch('/baseball/match/live/history', { uuid: matchId }, ttl).catch(() => null);
   const r = h && h.results; if (!r) return null;
-  const full = (r.stats || []).find(s => s[0] === 0);
-  const team = { home: {}, away: {} };
-  if (full) (full[1] || []).forEach(c => { const k = TS_TSTAT[c[0]]; if (k) { team.home[k] = c[1]; team.away[k] = c[2]; } });
-  const side = list => (list || []).map(p => Object.assign({ id: p.id }, tsDecode(p.stats, TS_PSTAT)));
-  return { team, players: { home: side(r.players && r.players.home), away: side(r.players && r.players.away) }, battingTeam: Array.isArray(r.score) ? r.score[2] : null };
+  return tsDecodeBox(r);
 }
 async function tsName(pid) {
   if (TS_PNAME.has(pid)) return TS_PNAME.get(pid);
   let v = { name: null, logo: '', pos: '' };
   try { const r = await tsFetch('/baseball/player/list', { uuid: pid }, 86400000); const p = (r.results || [])[0]; if (p) v = { name: p.name || null, logo: p.logo || '', pos: p.position || '' }; } catch (e) {}
   TS_PNAME.set(pid, v); return v;
+}
+// stats/players 배열 → 표준 박스 형태로 디코드 (실시간·완료 공용)
+function tsDecodeBox(m) {
+  const full = (m.stats || []).find(s => s[0] === 0);
+  const team = { home: {}, away: {} };
+  if (full) (full[1] || []).forEach(c => { const k = TS_TSTAT[c[0]]; if (k) { team.home[k] = c[1]; team.away[k] = c[2]; } });
+  const side = list => (list || []).map(p => Object.assign({ id: p.id }, tsDecode(p.stats, TS_PSTAT)));
+  return { team, players: { home: side(m.players && m.players.home), away: side(m.players && m.players.away) }, battingTeam: Array.isArray(m.score) ? m.score[2] : null };
+}
+// ⚡ 진행중 경기 실시간 박스(detail_live 에서 stats+players 추출)
+async function tsLiveBox(matchId, ttl = 4000) {
+  const lv = await tsFetch('/baseball/match/detail_live', {}, ttl).catch(() => null);
+  const m = lv && (lv.results || []).find(x => (Array.isArray(x.score) && x.score[0] === matchId) || x.id === matchId);
+  if (!m) return null;
+  const b = tsDecodeBox(m);
+  if (!b.players.home.length && !b.players.away.length && !Object.keys(b.team.home).length) return null;
+  return b;
 }
 async function tsBaseballGames(date) {
   const ymd = String(date).replace(/-/g, '');
@@ -608,7 +621,7 @@ async function tsBaseballGames(date) {
   const live = {};
   try {
     const lv = await tsFetch('/baseball/match/detail_live', {}, 6000);
-    (lv.results || []).forEach(m => { const s = m.score || []; live[(s[0]) || m.id] = { inning: s[2], sc: s[3] || {}, extra: m.extra || {} }; });
+    (lv.results || []).forEach(m => { const s = m.score || []; live[(s[0]) || m.id] = { inning: s[2], sc: s[3] || {}, extra: m.extra || {}, stats: m.stats || [], players: m.players || {} }; });
   } catch (e) {}
   const now = Date.now();
   const games = (d.results || []).map(m => {
@@ -638,13 +651,22 @@ async function tsBaseballGames(date) {
         const base = String(x.base || '000');
         g.bso = { balls: tsNum(x.bad), strikes: tsNum(x.good), outs: tsNum(x.out), bases: { first: base[0] === '1', second: base[1] === '1', third: base[2] === '1' } };
       }
+      // ⚡ 진행중 경기: 실시간 팀 통계에서 BB(및 누락 H/E) 바로 병합 (detail_live 에 이미 포함)
+      if (lvm.stats && lvm.stats.length) {
+        const tb = tsDecodeBox({ stats: lvm.stats }).team;
+        ['home', 'away'].forEach(s => {
+          if (tb[s].bb != null) g.box[s].bb = tb[s].bb;
+          if ((g.box[s].h == null) && tb[s].h != null) g.box[s].h = tb[s].h;
+          if ((g.box[s].e == null) && tb[s].e != null) g.box[s].e = tb[s].e;
+        });
+      }
     }
     return g;
   });
-  // 🧮 KBO/NPB 진행·완료 경기 → 경기별 통계에서 팀 BB(및 누락된 H/E) 병합
-  const bbTargets = games.filter(g => TS_WANT.test(g.league) && g.state !== 'scheduled' && g.hs != null);
+  // 🧮 KBO/NPB 완료 경기 → 경기별 통계(history)에서 팀 BB(및 누락 H/E) 병합
+  const bbTargets = games.filter(g => TS_WANT.test(g.league) && g.state === 'finished');
   await Promise.all(bbTargets.map(async g => {
-    const b = await tsBox(g.id, g.state === 'live' ? 20000 : 3600000).catch(() => null);
+    const b = await tsBox(g.id, 3600000).catch(() => null);
     if (!b || !b.team) return;
     ['home', 'away'].forEach(s => {
       if (b.team[s].bb != null) g.box[s].bb = b.team[s].bb;
@@ -659,7 +681,9 @@ app.get('/api/baseball/box', async (req, res) => {
   const id = req.query.id; if (!id) return res.json({ error: 'no id' });
   const live = req.query.live === '1';
   try {
-    const b = await tsBox(id, live ? 20000 : 3600000);
+    // 진행중 → 실시간(detail_live) 우선, 없으면 history 폴백 / 완료 → history
+    let b = live ? await tsLiveBox(id).catch(() => null) : null;
+    if (!b) b = await tsBox(id, live ? 20000 : 3600000);
     if (!b) return res.json({ available: false });
     const pids = [...new Set([...b.players.home, ...b.players.away].map(p => p.id))];
     await Promise.all(pids.map(tsName));
@@ -755,6 +779,17 @@ app.get('/api/thesports/lineupbuild', async (req, res) => {
     let playerSample = null; const firstPid = teamRows.map(r => r.squadSample && r.squadSample[0] && r.squadSample[0].player_id).find(Boolean);
     if (firstPid) { try { const r = await tsFetch('/baseball/player/list', { uuid: firstPid }, 4000); playerSample = (r.results || [])[0] || null; } catch (e) { playerSample = { error: String(e.message || e) }; } }
     res.json({ date: ymd, knGames: kn.length, teamRows, stats, playerSample });
+  } catch (e) { res.json({ error: String(e.message || e) }); }
+});
+// 진행중 경기 실시간 선수/통계 유무 확인 — detail_live 검사
+app.get('/api/thesports/liveprobe', async (req, res) => {
+  try {
+    const lv = await tsFetch('/baseball/match/detail_live', {}, 3000);
+    const rows = (lv.results || []).slice(0, 8).map(m => {
+      const b = tsDecodeBox(m);
+      return { id: Array.isArray(m.score) ? m.score[0] : m.id, status: Array.isArray(m.score) ? m.score[1] : null, teamBB: { home: b.team.home.bb, away: b.team.away.bb }, playersHome: b.players.home.length, playersAway: b.players.away.length, sample: b.players.home[0] || null };
+    });
+    res.json({ total: (lv.results || []).length, rows });
   } catch (e) { res.json({ error: String(e.message || e) }); }
 });
 // 원시 응답 확인용 (필드 매핑 점검) — /api/thesports/raw?sport=baseball
