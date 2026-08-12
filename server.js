@@ -617,12 +617,14 @@ app.get('/api/thesports/raw', async (req, res) => {
     const d = await tsFetch(`/${sport}/match/diary`, { date: ymd }, 3000);
     const lv = await tsFetch(`/${sport}/match/detail_live`, {}, 3000).catch(() => ({}));
     const ex = d.results_extra || {};
+    const exSample = {};
+    Object.keys(ex).forEach(k => { exSample[k] = Array.isArray(ex[k]) ? ex[k].slice(0, 6) : ex[k]; });
     res.json({
       code: d.code, total: d.query && d.query.total,
       diarySample: (d.results || []).slice(0, 2),
-      competitions: (ex.competition || []).map(c => c.name).slice(0, 30),
-      teamsSample: (ex.team || []).slice(0, 4),
-      liveSample: (lv.results || []).slice(0, 3)
+      extraKeys: Object.keys(ex),
+      extraSample: exSample,
+      liveSample: (lv.results || []).slice(0, 2)
     });
   } catch (e) { res.json({ error: String(e.message || e) }); }
 });
