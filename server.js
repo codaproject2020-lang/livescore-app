@@ -659,6 +659,17 @@ app.get('/api/thesports/lineupbuild', async (req, res) => {
       try { const r = await tsFetch(p, params, 3000); out.player[p] = { code: r && r.code, keys: Object.keys(r || {}), sample: (r && r.results && r.results[0]) || r }; }
       catch (e) { out.player[p] = { error: String(e.message || e) }; }
     }
+    // 4) 시즌 통계(BB) 엔드포인트 탐색 — He Andy 안내 URL
+    out.stats = {};
+    for (const [p, params] of [
+      ['/baseball/season/team/stats/detail', { uuid: g.season_id }],
+      ['/baseball/season/team/stats/detail', { season_id: g.season_id }],
+      ['/baseball/season/player/stats/detail', { uuid: g.season_id }],
+      ['/baseball/season/player/stats/detail', { season_id: g.season_id }]
+    ]) {
+      try { const r = await tsFetch(p, params, 3000); out.stats[p + ' ' + JSON.stringify(params)] = { code: r && r.code, total: r && r.query && r.query.total, keys: Object.keys(r || {}), sample: (r && r.results && r.results[0]) || r }; }
+      catch (e) { out.stats[p + ' ' + JSON.stringify(params)] = { error: String(e.message || e) }; }
+    }
     res.json(out);
   } catch (e) { res.json({ error: String(e.message || e) }); }
 });
