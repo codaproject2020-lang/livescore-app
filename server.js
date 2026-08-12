@@ -634,43 +634,39 @@ app.get('/api/thesports/lineupbuild', async (req, res) => {
   try {
     const ymd = (req.query.date || new Date().toISOString().slice(0, 10)).replace(/-/g, '');
     const d = await tsFetch('/baseball/match/diary', { date: ymd }, 3000);
-    const ex = d.results_extra || {}; const lg = {};
+    const ex = d.results_extra || {}; const lg = {}, tm = {};
     (ex.unique_tournament || []).forEach(u => lg[u.id] = u.name);
-    const g = (d.results || []).find(m => /KBO|NPB/i.test(lg[m.unique_tournament_id] || '')) || (d.results || [])[0];
-    const out = { game: { id: g.id, league: lg[g.unique_tournament_id], home: g.home_team_id, away: g.away_team_id, season: g.season_id }, squad: {}, player: {}, team: {} };
-    // 1) squad/list 페이지 수집 → 홈/원정 team_id 가 squad id 로 존재하나?
-    const ids = new Set(); let sqExtraKeys = null, sqSample = null;
-    for (let page = 1; page <= 8; page++) {
-      const s = await tsFetch('/baseball/team/squad/list', { page }, 4000).catch(() => null);
-      if (!s || !(s.results || []).length) break;
-      if (page === 1) { sqExtraKeys = Object.keys(s.results_extra || {}); sqSample = s.results[0]; }
-      s.results.forEach(r => ids.add(r.id));
-      if (s.results.length < 10) break;
+    (ex.team || []).forEach(t => tm[t.id] = t.name);
+    // KBO·NPB 경기만 골라 홈/원정 팀 전수 스캔
+    const kn = (d.results || []).filter(m => /KBO|NPB|CPBL|Korea|Nippon|Japan|일본|한국|대만|Taiwan|Chinese Professional/i.test(lg[m.unique_tournament_id] || ''));
+    const seen = new Set(); const teamRows = [];
+    for (const m of kn) {
+      for (const side of ['home_team_id', 'away_team_id']) {
+        const tid = m[side]; if (!tid || seen.has(tid)) continue; seen.add(tid);
+        const row = { league: lg[m.unique_tournament_id], team_uuid: tid, diaryName: tm[tid] || null };
+        // 팀 로스터
+        try { const r = await tsFetch('/baseball/team/squad/list', { uuid: tid }, 4000); const sq = (r.results || [])[0]; row.squadCount = sq && sq.squad ? sq.squad.length : 0; row.squadSample = sq && sq.squad ? sq.squad.slice(0, 2) : null; }
+        catch (e) { row.squadErr = String(e.message || e); }
+        // 팀 이름
+        try { const r = await tsFetch('/baseball/team/list', { uuid: tid }, 4000); const t = (r.results || [])[0]; row.teamListName = t ? (t.name || t.short_name) : null; row.teamListErr = t ? null : (r.code === 0 ? 'empty' : r.code); }
+        catch (e) { row.teamListErr = String(e.message || e); }
+        teamRows.push(row);
+        if (teamRows.length >= 12) break;
+      }
+      if (teamRows.length >= 12) break;
     }
-    out.squad = { collected: ids.size, hasHome: ids.has(g.home_team_id), hasAway: ids.has(g.away_team_id), extraKeys: sqExtraKeys, firstPlayer: sqSample && sqSample.squad && sqSample.squad[0] };
-    const pid = sqSample && sqSample.squad && sqSample.squad[0] && sqSample.squad[0].player_id;
-    // 2) squad/list 를 팀 uuid 로 직접 조회 시도
-    for (const key of ['uuid', 'team_id']) {
-      try { const r = await tsFetch('/baseball/team/squad/list', { [key]: g.home_team_id }, 3000); out.squad['byHome_' + key] = { total: r.query && r.query.total, first: (r.results || [])[0] }; }
-      catch (e) { out.squad['byHome_' + key] = { error: String(e.message || e) }; }
+    // 시즌 통계(BB) — 각 리그 대표 season_id 로 확인
+    const stats = {}; const seasons = [...new Set(kn.map(m => m.season_id).filter(Boolean))].slice(0, 3);
+    for (const sid of seasons) {
+      for (const p of ['/baseball/season/team/stats/detail', '/baseball/season/player/stats/detail']) {
+        try { const r = await tsFetch(p, { uuid: sid }, 4000); stats[p + ' @' + sid] = { code: r.code, total: r.query && r.query.total, count: (r.results || []).length, sample: (r.results || [])[0] || null }; }
+        catch (e) { stats[p + ' @' + sid] = { error: String(e.message || e) }; }
+      }
     }
-    // 3) 선수 이름 엔드포인트 탐색
-    for (const [p, params] of [['/baseball/player/detail', { uuid: pid }], ['/baseball/player/list', { uuid: pid }], ['/baseball/team/detail', { uuid: g.home_team_id }]]) {
-      try { const r = await tsFetch(p, params, 3000); out.player[p] = { code: r && r.code, keys: Object.keys(r || {}), sample: (r && r.results && r.results[0]) || r }; }
-      catch (e) { out.player[p] = { error: String(e.message || e) }; }
-    }
-    // 4) 시즌 통계(BB) 엔드포인트 탐색 — He Andy 안내 URL
-    out.stats = {};
-    for (const [p, params] of [
-      ['/baseball/season/team/stats/detail', { uuid: g.season_id }],
-      ['/baseball/season/team/stats/detail', { season_id: g.season_id }],
-      ['/baseball/season/player/stats/detail', { uuid: g.season_id }],
-      ['/baseball/season/player/stats/detail', { season_id: g.season_id }]
-    ]) {
-      try { const r = await tsFetch(p, params, 3000); out.stats[p + ' ' + JSON.stringify(params)] = { code: r && r.code, total: r && r.query && r.query.total, keys: Object.keys(r || {}), sample: (r && r.results && r.results[0]) || r }; }
-      catch (e) { out.stats[p + ' ' + JSON.stringify(params)] = { error: String(e.message || e) }; }
-    }
-    res.json(out);
+    // 선수 이름 소스 확인 (roster 에서 첫 player_id 뽑아)
+    let playerSample = null; const firstPid = teamRows.map(r => r.squadSample && r.squadSample[0] && r.squadSample[0].player_id).find(Boolean);
+    if (firstPid) { try { const r = await tsFetch('/baseball/player/list', { uuid: firstPid }, 4000); playerSample = (r.results || [])[0] || null; } catch (e) { playerSample = { error: String(e.message || e) }; } }
+    res.json({ date: ymd, knGames: kn.length, teamRows, stats, playerSample });
   } catch (e) { res.json({ error: String(e.message || e) }); }
 });
 // 원시 응답 확인용 (필드 매핑 점검) — /api/thesports/raw?sport=baseball
