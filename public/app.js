@@ -33,6 +33,7 @@ const STR = {
   finished: ['Final', '종료', '終了', '完场', 'Final', 'समाप्त', 'Kết thúc', 'จบ', 'Заверш.', 'Ende', 'Terminé', 'Finita'],
   lineup: ['Lineup', '선발 라인업', 'スタメン', '首发阵容', 'Alineación', 'लाइनअप', 'Đội hình', 'ผู้เล่นตัวจริง', 'Состав', 'Aufstellung', 'Composition', 'Formazione'],
   boxRec: ['Box Score', '경기 기록', '成績', '比赛数据', 'Estadísticas', 'रिकॉर्ड', 'Thống kê', 'สถิติ', 'Статистика', 'Statistik', 'Statistiques', 'Statistiche'],
+  boxSoon: ['Available after the game', '경기 후 제공', '試合後に表示', '比赛后提供', 'Disponible tras el partido', 'मैच के बाद उपलब्ध', 'Có sau trận đấu', 'มีให้หลังจบเกม', 'Доступно после матча', 'Nach dem Spiel verfügbar', 'Disponible après le match', 'Disponibile dopo la partita'],
   probable: ['Starting Pitchers', '선발투수', '先発投手', '先发投手', 'Abridores', 'गेंदबाज', 'Ném bóng', 'พิตเชอร์', 'Питчеры', 'Starter', 'Lanceurs', 'Lanciatori'],
   recent: ['Last 10 Games', '최근 10경기', '直近10試合', '近10场', 'Últimos 10', 'पिछले 10', '10 trận gần đây', '10 นัดล่าสุด', 'Последние 10', 'Letzte 10', '10 derniers', 'Ultime 10'],
   h2h: ['Head to Head', '맞대결', '対戦成績', '交锋记录', 'Enfrentamientos', 'आमना-सामना', 'Đối đầu', 'สถิติเจอกัน', 'Очные встречи', 'Duelle', 'Confrontations', 'Scontri diretti'],
@@ -1046,6 +1047,22 @@ async function updateMlbLive(e) {
       </div>`;
   } catch { box.innerHTML = ''; }
 }
+// ⚾ KBO/NPB/CPBL 여부 (TheSports 박스스코어 대상)
+function tsLeague(l) { return /KBO|NPB|CPBL|Korea|Nippon|Japan|일본|한국|대만|Taiwan|Chinese Professional/i.test(l || ''); }
+// ⚾ TheSports 경기별 박스스코어 한쪽(타자+투수) 렌더 (선수 사진 포함)
+function tsBoxSide(players) {
+  const list = players || [];
+  const bat = list.filter(p => !p.pitcher), pit = list.filter(p => p.pitcher);
+  const face = p => p.photo ? `<img class="bx-face" src="${esc(p.photo)}" loading="lazy" onerror="this.style.display='none'">` : '';
+  const v = x => (x == null ? '-' : esc(x));
+  const bt = `<table class="stt"><thead><tr><th>${sl('batter')}</th><th></th><th>${sl('ab')}</th><th>${sl('h')}</th><th>${sl('bb')}</th><th>${sl('rbi')}</th><th>${sl('hr')}</th><th>${sl('k')}</th></tr></thead><tbody>${
+    bat.map(b => `<tr><td class="nm">${face(b)}${esc(b.name || '-')}</td><td class="lr">${esc(b.position || '')}</td><td>${v(b.ab)}</td><td>${v(b.h)}</td><td>${v(b.bb)}</td><td>${v(b.rbi)}</td><td>${v(b.hr)}</td><td>${v(b.k)}</td></tr>`).join('') || `<tr><td colspan="8">-</td></tr>`
+    }</tbody></table>`;
+  const pt = `<table class="stt" style="margin-top:8px"><thead><tr><th>${sl('pitcher')}</th><th>${sl('ip')}</th><th>${sl('ha')}</th><th>${sl('er')}</th><th>${sl('k')}</th><th>${sl('bb')}</th></tr></thead><tbody>${
+    pit.map(p => `<tr><td class="nm">${face(p)}${esc(p.name || '-')}</td><td>${v(p.ip)}</td><td>${v(p.ph)}</td><td>${v(p.er)}</td><td>${v(p.pk)}</td><td>${v(p.pbb)}</td></tr>`).join('') || `<tr><td colspan="6">-</td></tr>`
+    }</tbody></table>`;
+  return bt + pt;
+}
 async function updateLineup(e) {
   const box = $('#mLineupWrap'); if (!box) return;
   const sp = state.sport;
@@ -1077,8 +1094,23 @@ async function updateLineup(e) {
       }));
       wirePlayerClicks('mlb'); wireFieldClicks();
     } catch { box.innerHTML = `<div class="odsec">📋 ${esc(t('lineup'))}</div><div class="lu-note">-</div>`; }
+  } else if (sp === 'baseball' && tsLeague(e.league)) {
+    box.innerHTML = `<div class="odsec">📋 ${esc(t('boxRec'))}</div><div class="lineupbox"><div class="loading" style="padding:12px">${esc(t('loading'))}</div></div>`;
+    try {
+      const d = await fetchJSON(`/api/baseball/box?id=${encodeURIComponent(e.id)}&live=${e.state === 'live' ? 1 : 0}`, { tries: 1 });
+      if (!d.available || (!(d.players && d.players.home || []).length && !(d.players && d.players.away || []).length)) {
+        box.innerHTML = `<div class="odsec">📋 ${esc(t('boxRec'))}</div><div class="lu-note">${esc(t('boxSoon'))}</div>`; return;
+      }
+      box.innerHTML = `<div class="odsec">📋 ${esc(t('boxRec'))} <span class="rhe">${sl('batter')} · ${sl('pitcher')}</span></div>
+        <div class="bfield-tabs"><span class="bft on" data-t="home">${esc(TN(e.home, e.league))}</span><span class="bft" data-t="away">${esc(TN(e.away, e.league))}</span></div>
+        <div id="tsBoxBody">${tsBoxSide(d.players.home)}</div>`;
+      $$('#mLineupWrap .bft').forEach(tb => tb.addEventListener('click', () => {
+        $$('#mLineupWrap .bft').forEach(x => x.classList.remove('on')); tb.classList.add('on');
+        $('#tsBoxBody').innerHTML = tsBoxSide(tb.dataset.t === 'home' ? d.players.home : d.players.away);
+      }));
+    } catch { box.innerHTML = `<div class="odsec">📋 ${esc(t('boxRec'))}</div><div class="lu-note">-</div>`; }
   } else {
-    box.innerHTML = `<div class="odsec">📋 ${esc(t('lineup'))}</div><div class="lu-note">${esc(t('lineup'))} — ${esc(t(sp))} · N/A (KBO·NPB)</div>`;
+    box.innerHTML = `<div class="odsec">📋 ${esc(t('lineup'))}</div><div class="lu-note">${esc(t('lineup'))} — ${esc(t(sp))} · N/A</div>`;
   }
 }
 // 경기정보방: 투수·타자 기록 (박스스코어) — MLB·LMB
@@ -1188,11 +1220,12 @@ function lineScoreTable(e) {
     const v = inn[k + 1] ?? inn[String(k + 1)];
     return `<td>${v == null || v === '' ? '' : esc(v)}</td>`;
   }).join('');
-  return `<div class="odsec">📊 ${esc(t('inningScore'))} <span class="rhe">R · H · E</span></div>
-    <table class="boxsc"><thead><tr><th></th>${head}<th class="r">R</th><th class="he">H</th><th class="he">E</th></tr></thead>
+  const showBB = (bh.bb != null || ba.bb != null);
+  return `<div class="odsec">📊 ${esc(t('inningScore'))} <span class="rhe">R · H · E${showBB ? ' · BB' : ''}</span></div>
+    <table class="boxsc"><thead><tr><th></th>${head}<th class="r">R</th><th class="he">H</th><th class="he">E</th>${showBB ? '<th class="he">BB</th>' : ''}</tr></thead>
     <tbody>
-      <tr><td class="tn">${esc(TN(e.home, e.league))}</td>${cells(hi)}<td class="r">${esc(bh.r ?? 0)}</td><td class="he">${esc(bh.h ?? 0)}</td><td class="he">${esc(bh.e ?? 0)}</td></tr>
-      <tr><td class="tn">${esc(TN(e.away, e.league))}</td>${cells(ai)}<td class="r">${esc(ba.r ?? 0)}</td><td class="he">${esc(ba.h ?? 0)}</td><td class="he">${esc(ba.e ?? 0)}</td></tr>
+      <tr><td class="tn">${esc(TN(e.home, e.league))}</td>${cells(hi)}<td class="r">${esc(bh.r ?? 0)}</td><td class="he">${esc(bh.h ?? 0)}</td><td class="he">${esc(bh.e ?? 0)}</td>${showBB ? `<td class="he">${esc(bh.bb ?? '-')}</td>` : ''}</tr>
+      <tr><td class="tn">${esc(TN(e.away, e.league))}</td>${cells(ai)}<td class="r">${esc(ba.r ?? 0)}</td><td class="he">${esc(ba.h ?? 0)}</td><td class="he">${esc(ba.e ?? 0)}</td>${showBB ? `<td class="he">${esc(ba.bb ?? '-')}</td>` : ''}</tr>
     </tbody></table>`;
 }
 function renderDetail(e, pr) {
