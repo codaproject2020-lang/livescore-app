@@ -591,11 +591,14 @@ async function tsBaseballGames(date) {
     };
   });
 }
-// 연결 확인용
+// 연결 확인용 (원본 응답 전체 노출 — 에러 메시지 확인)
 app.get('/api/thesports/status', async (req, res) => {
   const sport = req.query.sport || 'baseball';
-  try { const d = await tsFetch(`/${sport}/match/diary`, { date: new Date().toISOString().slice(0, 10).replace(/-/g, '') }, 3000); res.json({ on: TS_ON, sport, code: d.code, total: d.query && d.query.total, count: (d.results || []).length }); }
-  catch (e) { res.json({ on: TS_ON, sport, error: String(e.message || e) }); }
+  const date = (req.query.date || new Date().toISOString().slice(0, 10)).replace(/-/g, '');
+  try {
+    const d = await tsFetch(`/${sport}/match/diary`, { date }, 3000);
+    res.json({ on: TS_ON, sport, code: d && d.code, count: (d && d.results || []).length, resp: d });
+  } catch (e) { res.json({ on: TS_ON, sport, error: String(e.message || e) }); }
 });
 // 원시 응답 확인용 (필드 매핑 점검) — /api/thesports/raw?sport=baseball
 app.get('/api/thesports/raw', async (req, res) => {
@@ -617,9 +620,9 @@ app.get('/api/thesports/raw', async (req, res) => {
 
 // 경기 목록 생성 (정규화 + MLB 실시간 덮어쓰기) — 라우트/푸시 스케줄러 공용
 // ⚽ 축구=API-Sports(유료) · ⚾ MLB계열=StatsAPI · ⚾ KBO/NPB=TheSports(유료)
-async function buildGamesCore(sport, date) {
+async function buildGamesCore(sport, date, tz) {
   const cfg = AS[sport]; if (!cfg) return { games: [], j: {} };
-  const path = `${cfg.path}?date=${date}&timezone=Asia/Seoul`;
+  const path = `${cfg.path}?date=${date}&timezone=${encodeURIComponent(tz || 'Asia/Seoul')}`;
   const j = await asRaw(sport, path, 6000);   // 라이브 신선도 우선 (6초)
   let games = (j.response || []).map(g => normAS(sport, g)).filter(Boolean);
   // 🚫 고교야구(고시엔 등) 제외 — 로고·데이터 빈약해 제외
@@ -669,7 +672,7 @@ app.get('/api/asports/games', async (req, res) => {
   const date = req.query.date || new Date().toISOString().slice(0, 10);
   const cfg = AS[sport]; if (!cfg) return res.status(400).json({ error: 'bad sport' });
   try {
-    const { games, j } = await buildGamesCore(sport, date);
+    const { games, j } = await buildGamesCore(sport, date, req.query.tz);
     // ⚡ 배당 매칭:
     //   - 축구: 리그가 너무 많아 LEAGUE_TO_ODDS 매핑으로 필요한 리그만 조회
     //   - 그 외(야구/농구/하키/럭비): The Odds API 그룹 안의 활성 리그 전부 조회해 팀명으로 매칭
