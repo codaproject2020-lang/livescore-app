@@ -630,6 +630,43 @@ app.get('/api/thesports/status', async (req, res) => {
   } catch (e) { res.json({ on: TS_ON, sport, error: String(e.message || e) }); }
 });
 // 라인업 구축 타당성 종합 프로브 — 팀id 매칭 + 선수이름 소스 확인
+app.get('/api/thesports/histprobe', async (req, res) => {
+  try {
+    const ymd = (req.query.date || new Date(Date.now() - 864e5).toISOString().slice(0, 10)).replace(/-/g, '');
+    const d = await tsFetch('/baseball/match/diary', { date: ymd }, 3000);
+    const ex = d.results_extra || {}; const lg = {}, tm = {};
+    (ex.unique_tournament || []).forEach(u => lg[u.id] = u.name);
+    (ex.team || []).forEach(t => tm[t.id] = t.name);
+    const TSTAT = { 601: 'H', 602: 'E', 605: 'HR', 606: 'RBI', 608: 'BB', 609: 'K', 611: 'AB', 612: 'AVG', 677: 'R' };
+    const PSTAT = { 613: 'pos', 614: 'AB', 615: 'R', 616: 'H', 617: 'RBI', 618: 'AVG', 621: 'HR', 650: 'K', 651: 'BB', 634: 'IP', 635: 'pH', 636: 'ER', 637: 'pBB', 638: 'pK', 639: 'ERA' };
+    const dec = (arr, map) => { const o = {}; (arr || []).forEach(p => { if (map[p[0]] != null) o[map[p[0]]] = p[1]; }); return o; };
+    const kn = (d.results || []).filter(m => /KBO|NPB|CPBL|Korea|Nippon|Japan|일본|한국|대만|Taiwan|Chinese Professional/i.test(lg[m.unique_tournament_id] || ''));
+    const out = { date: ymd, knGames: kn.length, matches: [], nameLookup: {} };
+    let firstPids = [];
+    for (const m of kn.slice(0, 3)) {
+      const row = { id: m.id, league: lg[m.unique_tournament_id], home: tm[m.home_team_id], away: tm[m.away_team_id], status: m.status_id };
+      try {
+        const h = await tsFetch('/baseball/match/live/history', { uuid: m.id }, 4000);
+        const r = h.results || {};
+        // 팀 통계 decode: stats = [[type, [[code,home,away],...]]]
+        const full = (r.stats || []).find(s => s[0] === 0);
+        if (full) { const ts = { home: {}, away: {} }; (full[1] || []).forEach(c => { const k = TSTAT[c[0]]; if (k) { ts.home[k] = c[1]; ts.away[k] = c[2]; } }); row.teamStats = ts; }
+        row.playersHome = (r.players && r.players.home || []).length;
+        row.playersAway = (r.players && r.players.away || []).length;
+        const ph = (r.players && r.players.home) || [];
+        row.playerSample = ph.slice(0, 3).map(p => ({ id: p.id, stat: dec(p.stats, PSTAT) }));
+        firstPids.push(...ph.slice(0, 4).map(p => p.id));
+      } catch (e) { row.histErr = String(e.message || e); }
+      out.matches.push(row);
+    }
+    // 선수 이름/사진 resolve
+    for (const pid of [...new Set(firstPids)].slice(0, 4)) {
+      try { const r = await tsFetch('/baseball/player/list', { uuid: pid }, 4000); const p = (r.results || [])[0]; out.nameLookup[pid] = p ? { name: p.name, logo: p.logo, position: p.position } : { empty: true, code: r.code }; }
+      catch (e) { out.nameLookup[pid] = { error: String(e.message || e) }; }
+    }
+    res.json(out);
+  } catch (e) { res.json({ error: String(e.message || e) }); }
+});
 app.get('/api/thesports/lineupbuild', async (req, res) => {
   try {
     const ymd = (req.query.date || new Date().toISOString().slice(0, 10)).replace(/-/g, '');
