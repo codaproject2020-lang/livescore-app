@@ -524,8 +524,16 @@ function attachOdds(g, map) {
 const TS_BASE = 'https://api.thesports.com/v1';
 const TS_USER = (process.env.THESPORTS_USER || 'theockyplos').trim();
 const TS_SECRET = (process.env.THESPORTS_SECRET || '192924ef77e94e40b7c59cc43d585647').trim();
+// 고정 IP VPS 프록시(중계기) 경유용 — 설정 시 모든 TheSports 호출이 VPS를 거쳐 나감(화이트리스트된 고정 IP)
+const TS_PROXY = (process.env.THESPORTS_PROXY || '').trim().replace(/\/$/, '');   // 예: http://1.2.3.4:8080
+const TS_RELAY_TOKEN = (process.env.THESPORTS_RELAY_TOKEN || '').trim();
 const TS_ON = !!(TS_USER && TS_SECRET);
 async function tsFetch(path, params, ttl = 6000) {
+  if (TS_PROXY) {
+    // 릴레이가 user/secret 를 붙여 TheSports로 전달 → 요청 IP = VPS 고정 IP
+    const qs = new URLSearchParams(Object.assign({ token: TS_RELAY_TOKEN }, params || {})).toString();
+    return cachedJSON(`${TS_PROXY}/ts${path}?${qs}`, ttl);
+  }
   const qs = new URLSearchParams(Object.assign({ user: TS_USER, secret: TS_SECRET }, params || {})).toString();
   return cachedJSON(`${TS_BASE}${path}?${qs}`, ttl);
 }
