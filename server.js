@@ -639,12 +639,19 @@ app.get('/api/thesports/lineupraw', async (req, res) => {
     // NPB/KBO 경기 우선, 없으면 아무거나
     const list = d.results || [];
     let g = list.find(m => /KBO|NPB/i.test(lg[m.unique_tournament_id] || '')) || list[0];
-    const mid = req.query.match || (g && g.id);
-    const paths = ['/baseball/match/lineup/detail', '/baseball/match/lineup', '/baseball/lineup/detail'];
-    const out = { matchId: mid, league: g && lg[g.unique_tournament_id], tried: {} };
-    for (const p of paths) {
-      try { const r = await tsFetch(p, { uuid: mid }, 3000); out.tried[p] = { code: r && r.code, sample: r }; }
-      catch (e) { out.tried[p] = { error: String(e.message || e) }; }
+    const tid = req.query.team || (g && g.home_team_id);
+    const mid = g && g.id;
+    // He Andy 안내: 라인업(스쿼드) = /v1/baseball/team/squad/list
+    const out = { league: g && lg[g.unique_tournament_id], matchId: mid, homeTeamId: g && g.home_team_id, awayTeamId: g && g.away_team_id, tried: {} };
+    const tries = [
+      ['/baseball/team/squad/list', { uuid: tid }],
+      ['/baseball/team/squad/list', { team_id: tid }],
+      ['/baseball/match/statistics/detail', { uuid: mid }],
+      ['/baseball/match/stats/detail', { uuid: mid }]
+    ];
+    for (const [p, params] of tries) {
+      try { const r = await tsFetch(p, params, 3000); out.tried[p + ' ' + JSON.stringify(params)] = r; }
+      catch (e) { out.tried[p + ' ' + JSON.stringify(params)] = { error: String(e.message || e) }; }
     }
     res.json(out);
   } catch (e) { res.json({ error: String(e.message || e) }); }
