@@ -1049,6 +1049,28 @@ async function updateMlbLive(e) {
 }
 // ⚾ KBO/NPB/CPBL 여부 (TheSports 박스스코어 대상)
 function tsLeague(l) { return /KBO|NPB|CPBL|Korea|Nippon|Japan|일본|한국|대만|Taiwan|Chinese Professional/i.test(l || ''); }
+// ⚾ TheSports 야구 필드 배치도 (수비 포지션 + 선수 사진) — MLB와 동일 비주얼
+function tsFieldDot(p, x, y) {
+  const face = p.photo;
+  const av = face
+    ? `<div class="fd-av has-face"><img src="${esc(face)}" alt="" loading="lazy" onerror="this.parentNode.classList.remove('has-face');this.parentNode.innerHTML='${esc(p.position || '')}'"><b class="fd-badge">${esc(p.position || '')}</b></div>`
+    : `<div class="fd-av">${esc(p.position || '')}</div>`;
+  return `<div class="fd" style="left:${x}%;top:${y}%">${av}<div class="fd-nm">${esc(shortName(p.name || p.position || ''))}</div></div>`;
+}
+function tsField(players) {
+  const list = players || [];
+  const bat = list.filter(p => !p.pitcher), pit = list.filter(p => p.pitcher);
+  const dots = [], used = {};
+  ['C', '1B', '2B', '3B', 'SS', 'LF', 'CF', 'RF'].forEach(pos => {
+    const pl = bat.find(p => p.position === pos && !used[p.id]);
+    if (pl && BB_POS[pos]) { used[pl.id] = 1; const [x, y] = BB_POS[pos]; dots.push(tsFieldDot(pl, x, y)); }
+  });
+  const starter = pit.find(p => p.position === 'SP') || pit[0];
+  if (starter) { const [x, y] = BB_POS.P; dots.push(tsFieldDot(Object.assign({}, starter, { position: 'P' }), x, y)); }
+  const dh = bat.find(p => p.position === 'DH');
+  if (!dots.length) return '';
+  return `<div class="bfield">${dots.join('')}</div>${dh ? `<div class="bfield-dh">🏏 DH <b>${esc(dh.name || '')}</b></div>` : ''}`;
+}
 // ⚾ TheSports 경기별 박스스코어 한쪽(타자+투수) 렌더 (선수 사진 포함)
 function tsBoxSide(players) {
   const list = players || [];
@@ -1101,12 +1123,14 @@ async function updateLineup(e) {
       if (!d.available || (!(d.players && d.players.home || []).length && !(d.players && d.players.away || []).length)) {
         box.innerHTML = `<div class="odsec">📋 ${esc(t('boxRec'))}</div><div class="lu-note">${esc(t('boxSoon'))}</div>`; return;
       }
-      box.innerHTML = `<div class="odsec">📋 ${esc(t('boxRec'))} <span class="rhe">${sl('batter')} · ${sl('pitcher')}</span></div>
+      const render = side => { $('#tsFieldBox').innerHTML = tsField(side); $('#tsBoxBody').innerHTML = tsBoxSide(side); };
+      box.innerHTML = `<div class="odsec">📋 ${esc(t('boxRec'))} <span class="rhe">${esc(t('fieldPos'))} · ${sl('batter')}·${sl('pitcher')}</span></div>
         <div class="bfield-tabs"><span class="bft on" data-t="home">${esc(TN(e.home, e.league))}</span><span class="bft" data-t="away">${esc(TN(e.away, e.league))}</span></div>
+        <div id="tsFieldBox">${tsField(d.players.home)}</div>
         <div id="tsBoxBody">${tsBoxSide(d.players.home)}</div>`;
       $$('#mLineupWrap .bft').forEach(tb => tb.addEventListener('click', () => {
         $$('#mLineupWrap .bft').forEach(x => x.classList.remove('on')); tb.classList.add('on');
-        $('#tsBoxBody').innerHTML = tsBoxSide(tb.dataset.t === 'home' ? d.players.home : d.players.away);
+        render(tb.dataset.t === 'home' ? d.players.home : d.players.away);
       }));
     } catch { box.innerHTML = `<div class="odsec">📋 ${esc(t('boxRec'))}</div><div class="lu-note">-</div>`; }
   } else {
