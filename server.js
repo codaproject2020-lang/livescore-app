@@ -571,33 +571,53 @@ async function tsFootballGames(date) {
     };
   });
 }
-// ⚾ TheSports 야구(KBO·NPB) 경기목록(diary)+실시간(detail_live) → 표준 형태
+// ⚾ TheSports 야구 경기목록(diary)+실시간(detail_live) → 우리 표준 형태
+//    scores: ft=득점(R) / h=안타(H) / e=실책(E) / p1~p9=이닝별 득점  [모두 [home, away]]
+//    실시간 extra: base="1루2루3루"(0/1) / out=아웃 / good=스트라이크 / bad=볼
+const tsNum = v => { const n = Number(v); return (v === '' || v == null || isNaN(n)) ? null : n; };
 async function tsBaseballGames(date) {
   const ymd = String(date).replace(/-/g, '');
   const d = await tsFetch('/baseball/match/diary', { date: ymd }, 6000);
   const ex = d.results_extra || {};
-  const teams = {}, comps = {};
+  const teams = {}, leagues = {};
   (ex.team || []).forEach(t => teams[t.id] = { name: t.name, logo: t.logo });
-  (ex.competition || []).forEach(c => comps[c.id] = { name: c.name, logo: c.logo });
+  (ex.unique_tournament || []).forEach(u => leagues[u.id] = { name: u.name, logo: u.logo });
+  // 실시간(진행 경기): score[3]=scores객체, extra=볼카운트/주자/아웃
   const live = {};
   try {
     const lv = await tsFetch('/baseball/match/detail_live', {}, 6000);
-    (lv.results || []).forEach(m => { const s = m.score || m; if (Array.isArray(s)) live[s[0]] = { h: (s[2] || [])[0], a: (s[3] || [])[0], raw: s }; });
+    (lv.results || []).forEach(m => { const s = m.score || []; live[(s[0]) || m.id] = { inning: s[2], sc: s[3] || {}, extra: m.extra || {} }; });
   } catch (e) {}
   const now = Date.now();
   return (d.results || []).map(m => {
-    const ht = teams[m.home_team_id] || {}, at = teams[m.away_team_id] || {}, cp = comps[m.competition_id] || {};
-    const lvm = live[m.id]; const t = m.match_time ? m.match_time * 1000 : 0;
-    let hs = m.home_scores ? m.home_scores[0] : null, as = m.away_scores ? m.away_scores[0] : null;
-    if (lvm) { if (lvm.h != null) hs = lvm.h; if (lvm.a != null) as = lvm.a; }
-    // 상태: 실시간 목록에 있으면 live, 아니면 경기시각 기준 (enum 독립적으로 안정적)
+    const ht = teams[m.home_team_id] || {}, at = teams[m.away_team_id] || {}, lg = leagues[m.unique_tournament_id] || {};
+    const lvm = live[m.id];
+    const sc = (lvm && lvm.sc && Object.keys(lvm.sc).length) ? lvm.sc : (m.scores || {});
+    const ft = sc.ft || [], H = sc.h || [], E = sc.e || [];
+    const hs = tsNum(ft[0]), as = tsNum(ft[1]);
+    const hInn = {}, aInn = {};
+    for (let i = 1; i <= 12; i++) { const p = sc['p' + i]; if (p) { const a = tsNum(p[0]), b = tsNum(p[1]); if (a != null) hInn[i] = a; if (b != null) aInn[i] = b; } }
+    const t = m.match_time ? m.match_time * 1000 : 0;
     const state = lvm ? 'live' : (t > now ? 'scheduled' : 'finished');
-    return {
+    const g = {
       id: m.id, sport: 'baseball', home: ht.name || m.home_team_id, away: at.name || m.away_team_id,
-      homeLogo: ht.logo || '', awayLogo: at.logo || '', league: cp.name || '', leagueLogo: cp.logo || '',
+      homeLogo: ht.logo || '', awayLogo: at.logo || '', league: lg.name || '', leagueLogo: lg.logo || '',
       hs, as, state, status: state === 'finished' ? 'FT' : state === 'live' ? 'IN' : 'NS',
-      date: t ? new Date(t).toISOString() : null
+      date: t ? new Date(t).toISOString() : null,
+      box: {
+        home: { r: hs, h: tsNum(H[0]), e: tsNum(E[0]), bb: null, innings: hInn },
+        away: { r: as, h: tsNum(H[1]), e: tsNum(E[1]), bb: null, innings: aInn }
+      }
     };
+    if (lvm) {
+      if (lvm.inning != null) { g.curInning = tsNum(lvm.inning); g.period = g.curInning; }
+      const x = lvm.extra || {};
+      if (x.base != null || x.out != null || x.good != null || x.bad != null) {
+        const base = String(x.base || '000');
+        g.bso = { balls: tsNum(x.bad), strikes: tsNum(x.good), outs: tsNum(x.out), bases: { first: base[0] === '1', second: base[1] === '1', third: base[2] === '1' } };
+      }
+    }
+    return g;
   });
 }
 // 연결 확인용 (원본 응답 전체 노출 — 에러 메시지 확인)
@@ -617,13 +637,10 @@ app.get('/api/thesports/raw', async (req, res) => {
     const d = await tsFetch(`/${sport}/match/diary`, { date: ymd }, 3000);
     const lv = await tsFetch(`/${sport}/match/detail_live`, {}, 3000).catch(() => ({}));
     const ex = d.results_extra || {};
-    const exSample = {};
-    Object.keys(ex).forEach(k => { exSample[k] = Array.isArray(ex[k]) ? ex[k].slice(0, 6) : ex[k]; });
     res.json({
       code: d.code, total: d.query && d.query.total,
-      diarySample: (d.results || []).slice(0, 2),
-      extraKeys: Object.keys(ex),
-      extraSample: exSample,
+      allLeagues: (ex.unique_tournament || []).map(u => u.name),
+      diarySample: (d.results || []).slice(0, 1),
       liveSample: (lv.results || []).slice(0, 2)
     });
   } catch (e) { res.json({ error: String(e.message || e) }); }
@@ -666,9 +683,12 @@ async function buildGamesCore(sport, date, tz) {
   if (sport === 'baseball' && TS_ON) {
     try {
       const ts = await tsBaseballGames(date);
-      const kn = ts.filter(g => /KBO|NPB|Korea|Korean|Nippon|Japan|일본|한국/i.test(g.league || ''));
+      // KBO(한국)·NPB(일본)·CPBL(대만) 아시아 프로리그만 TheSports로 (고교/아마추어 제외)
+      const wantRe = /KBO|NPB|CPBL|Korea|Korean|Nippon|Japan|Chinese Professional|Taiwan|일본|한국|대만/i;
+      const hsRe = /koshien|senbatsu|high\s*school|甲子園|고교|amateur|university|college/i;
+      const kn = ts.filter(g => wantRe.test(g.league || '') && !hsRe.test(g.league || ''));
       if (kn.length) {
-        games = games.filter(g => !/KBO|NPB/i.test(g.league || ''));   // API-Sports KBO/NPB 제거(중복 방지)
+        games = games.filter(g => !wantRe.test(g.league || ''));   // API-Sports 동일리그 제거(중복 방지)
         games = games.concat(kn);
       }
     } catch (e) { /* TheSports 실패 시 API-Sports 유지 */ }
