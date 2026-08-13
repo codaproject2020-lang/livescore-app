@@ -116,6 +116,9 @@ const STR = {
   batNow: ['batting', '공격', '攻撃中', '进攻', 'al bate', 'बल्लेबाजी', 'đang đánh', 'กำลังตี', 'атакует', 'am Schlag', 'à la batte', 'alla battuta'],
   finishedSec: ['Finished', '종료 경기', '終了', '已结束', 'Finalizados', 'समाप्त', 'Đã kết thúc', 'จบแล้ว', 'Завершённые', 'Beendet', 'Terminés', 'Terminate'],
   last10: ['Last 10', '최근 10경기', '直近10', '近10场', 'Últimos 10', 'पिछले 10', '10 trận gần nhất', '10 นัดล่าสุด', 'Последние 10', 'Letzte 10', '10 derniers', 'Ultime 10'],
+  vibeLoaded: ['Bases loaded!', '만루 찬스!', '満塁のチャンス！', '满垒机会！', '¡Bases llenas!', 'बेस लोडेड!', 'Đầy gôn!', 'เต็มเบส!', 'Базы загружены!', 'Bases voll!', 'Bases pleines !', 'Basi piene!'],
+  vibeRISP: ['Runner in scoring position!', '득점권 주자!', '得点圏に走者！', '得分位有跑者！', '¡Corredor en posición de anotar!', 'स्कोरिंग पोजिशन में रनर!', 'Runner ở vị trí ghi điểm!', 'มีรันเนอร์ลุ้นทำแต้ม!', 'Раннер в позиции для очка!', 'Läufer in Scoring Position!', 'Coureur en position de marquer !', 'Corridore in posizione punto!'],
+  vibe2out: ['Two down, full tension!', '투아웃, 벼랑 끝!', '2アウト、崖っぷち！', '两出局，命悬一线！', '¡Dos outs, máxima tensión!', 'दो आउट, पूरा दबाव!', 'Hai out, cực căng!', 'สองเอาต์ ลุ้นสุด!', 'Два аута, предел!', 'Zwei Aus, volle Spannung!', 'Deux retraits, tension max !', 'Due out, tensione alle stelle!'],
   sumSet: ['Sets {h}:{a}, current set {sh}:{sa}. {leader} leads this set.', '세트 {h}:{a}, 현재 세트 {sh}:{sa}. {leader}이(가) 이 세트 리드 중.', 'セット {h}:{a}、現在のセット {sh}:{sa}。{leader} がリード。', '局分 {h}:{a}，当前局 {sh}:{sa}。{leader} 领先本局。', 'Sets {h}:{a}, set actual {sh}:{sa}. {leader} domina.', 'सेट {h}:{a}, वर्तमान सेट {sh}:{sa}. {leader} आगे।', 'Set {h}:{a}, set hiện tại {sh}:{sa}. {leader} dẫn.', 'เซ็ต {h}:{a} เซ็ตปัจจุบัน {sh}:{sa} {leader} นำ', 'Сеты {h}:{a}, текущий {sh}:{sa}. {leader} ведёт.', 'Sätze {h}:{a}, aktueller Satz {sh}:{sa}. {leader} führt.', 'Sets {h}:{a}, set actuel {sh}:{sa}. {leader} mène.', 'Set {h}:{a}, set attuale {sh}:{sa}. {leader} avanti.'],
   sumOdds: ['Odds: win {oh} / lose {oa}; market favors {side}.', '배당 승 {oh} / 패 {oa}, 시장은 {side} 우세를 반영.', 'オッズ 勝 {oh} / 負 {oa}、市場は {side} 優勢。', '赔率 胜 {oh} / 负 {oa}，市场看好 {side}。', 'Cuotas: gana {oh} / pierde {oa}; el mercado favorece a {side}.', 'ऑड्स: जीत {oh} / हार {oa}; बाज़ार {side} के पक्ष में।', 'Tỷ lệ: thắng {oh} / thua {oa}; thị trường nghiêng về {side}.', 'อัตราต่อรอง: ชนะ {oh} / แพ้ {oa} ตลาดเอียงไป {side}', 'Ставки: победа {oh} / поражение {oa}; рынок за {side}.', 'Quoten: Sieg {oh} / Niederlage {oa}; Markt für {side}.', 'Cotes : victoire {oh} / défaite {oa} ; marché pour {side}.', 'Quote: vittoria {oh} / sconfitta {oa}; mercato per {side}.'],
   sumFinal: ['Final {h}:{a} — {result}.', '최종 {h}:{a}, {result}.', '最終 {h}:{a}、{result}。', '终场 {h}:{a}，{result}。', 'Final {h}:{a} — {result}.', 'अंतिम {h}:{a} — {result}।', 'Chung cuộc {h}:{a} — {result}.', 'จบเกม {h}:{a} — {result}', 'Итог {h}:{a} — {result}.', 'Endstand {h}:{a} — {result}.', 'Score final {h}:{a} — {result}.', 'Finale {h}:{a} — {result}.'],
@@ -774,6 +777,46 @@ function stateBadge(e) {
   if (e.state === 'finished') return `<span class="badge-state ft">${esc(t('finished'))}</span>`;
   return `<span class="badge-state sched">${hhmm(e.date)}</span>`;
 }
+// ⚡ 생동감 있는 상황별 해설 문구 풀 (12개 언어 · 매번 조금씩 다르게)
+const VIBE = {
+  tie: [
+    ['A nerve-jangling deadlock!', '한 치도 못 물러서는 팽팽한 승부!', '一歩も譲らぬ緊迫の展開!', '势均力敌，一分必争！', '¡Empate de infarto!', 'कांटे की टक्कर!', 'Căng như dây đàn!', 'สูสีลุ้นระทึก!', 'Нервная ничья!', 'Ein nervenaufreibendes Remis!', 'Un nul à couper le souffle !', 'Un pari da batticuore!'],
+    ['Neither side blinking here.', '서로 한 점이 아쉬운 초접전이에요.', '互いに譲らぬ接戦。', '互不相让，胶着难分！', 'Nadie cede un palmo.', 'कोई झुकने को तैयार नहीं!', 'Không ai chịu nhường!', 'ไม่มีใครยอมใคร!', 'Никто не уступает!', 'Keiner gibt nach!', 'Personne ne lâche rien !', 'Nessuno molla di un centimetro!']
+  ],
+  leadSmall: [
+    ['A one-swing game — buckle up!', '한 방이면 뒤집히는 살얼음 리드!', '一発で覆る薄氷のリード！', '一击就能翻盘的微弱领先！', '¡Una sola jugada lo cambia todo!', 'एक झटके में पलट सकता है!', 'Chỉ một cú là lật kèo!', 'พลิกได้ในหนึ่งช็อต!', 'Один удар решает всё!', 'Ein Schlag, alles dreht sich!', 'Un coup et tout bascule !', 'Un colpo e si ribalta!'],
+    ['Slim edge, hearts pounding.', '아슬아슬한 리드, 심장이 쫄깃해요.', 'わずかなリード、ハラハラの展開。', '微弱优势，扣人心弦。', 'Ventaja mínima, pura tensión.', 'मामूली बढ़त, दिल थामे रखिए।', 'Dẫn mong manh, hồi hộp!', 'นำแบบเฉียดฉิว ลุ้นสุดๆ', 'Минимальный отрыв, нервы на пределе.', 'Knappe Führung, Herzklopfen.', 'Avance mince, tension à fond.', 'Vantaggio sottile, che tensione!']
+  ],
+  leadBig: [
+    ['Momentum has clearly swung!', '분위기가 확 기울었어요!', '流れが完全に傾いた！', '气势彻底倒向一边！', '¡El impulso cambió de bando!', 'पासा पूरी तरह पलट गया!', 'Thế trận đã nghiêng hẳn!', 'โมเมนตัมเทไปฝั่งเดียว!', 'Инициатива резко сместилась!', 'Das Momentum hat klar gedreht!', 'La dynamique a basculé !', 'L’inerzia è tutta da una parte!'],
+    ['Pulling away in style.', '점점 승부가 굳어지는 흐름이에요.', '徐々に試合を決めにいく展開。', '正逐渐把比赛拿下。', 'Se escapan en el marcador.', 'धीरे-धीरे पकड़ मजबूत।', 'Đang dần định đoạt trận đấu.', 'กำลังทิ้งห่างอย่างมั่นใจ', 'Уверенно уходят в отрыв.', 'Sie ziehen souverän davon.', 'Ils prennent le large.', 'Stanno prendendo il largo.']
+  ],
+  lateClose: [
+    ['Crunch time — every pitch is gold!', '종반 승부처! 공 하나하나가 손에 땀을 쥐게 해요.', '終盤の勝負所！一球一球が痺れる。', '决胜时刻！每一球都惊心动魄。', '¡Momento decisivo, cada lanzamiento cuenta!', 'निर्णायक पल, हर गेंद कीमती!', 'Thời khắc quyết định, nghẹt thở!', 'ช่วงชี้ชะตา ทุกลูกลุ้นระทึก!', 'Решающие иннинги — на нервах!', 'Die heiße Phase — jeder Wurf zählt!', 'Money time, chaque lancer compte !', 'Momento decisivo, ogni lancio pesa!'],
+    ['Late and tight — anyone’s game!', '막판까지 한 점 싸움, 누구도 모릅니다!', '終盤まで1点差、まだ分からない！', '末段一分之差，胜负难料！', '¡Recta final apretadísima!', 'आखिरी पलों में कड़ी टक्कर!', 'Cuối trận sít sao, khó lường!', 'ท้ายเกมสูสี ตัดสินยาก!', 'Концовка вплотную — всё решится!', 'Enges Finish — offen wie nie!', 'Fin serrée, tout est possible !', 'Finale tiratissimo, tutto aperto!']
+  ]
+};
+function vibeStr(e) {
+  const h = Number(e.hs) || 0, a = Number(e.as) || 0, diff = Math.abs(h - a);
+  const inn = Number(e.curInning) || 0;
+  const seed = inn + h + a + (e.bso ? (e.bso.outs || 0) : 0);
+  let key = 'leadSmall';
+  if (inn >= 7 && diff <= 2 && e.state === 'live') key = 'lateClose';
+  else if (diff === 0) key = 'tie';
+  else if (diff >= 4) key = 'leadBig';
+  const pool = VIBE[key], row = pool[Math.abs(seed) % pool.length];
+  const i = LANGS.indexOf(LANG);
+  return row[i >= 0 ? i : 0];
+}
+// 라이브 긴장 태그 (만루/득점권/투아웃)
+function vibeTag(e) {
+  if (e.state !== 'live' || state.sport !== 'baseball' || !e.bso) return '';
+  const b = e.bso.bases || {};
+  if (b.first && b.second && b.third) return t('vibeLoaded');
+  if (b.second || b.third) return t('vibeRISP');
+  if (e.bso.outs === 2) return t('vibe2out');
+  return '';
+}
 // AI 실시간 해설 (라이브 경기)
 function aiLive(e) {
   if (e.state !== 'live') return '';
@@ -797,6 +840,11 @@ function aiLive(e) {
       msg += ` <span class="aihit">${ai('aiHits', { home: esc(TN(e.home, e.league)), hh: bh.h ?? 0, away: esc(TN(e.away, e.league)), ah: ba.h ?? 0 })}</span>`;
     }
   }
+  // ⚡ 생동감: 상황별 문구 앞에 + 긴장 태그(만루/득점권/투아웃) 뒤에
+  if (state.sport === 'baseball') {
+    const vb = vibeStr(e), tg = vibeTag(e);
+    msg = `<span class="aivibe">${esc(vb)}</span> ${msg}${tg ? ` <span class="aitag">🔥 ${esc(tg)}</span>` : ''}`;
+  }
   return `<div class="ailive">🤖 <b>${esc(t('aiComm'))}</b> ${msg}</div>`;
 }
 // AI 총정리 (상세보기 · 여러 문장)
@@ -814,6 +862,8 @@ function aiSummary(e) {
   }
   const diff = (!isNaN(h) && !isNaN(a)) ? h - a : 0;
   const leadName = esc(TN(diff > 0 ? e.home : e.away, e.league)), ld = Math.abs(diff);
+  // ⚡ 야구 라이브: 생동감 있는 상황 문구를 맨 앞에
+  if (sp === 'baseball' && e.state === 'live') { const vb = vibeStr(e), tg = vibeTag(e); lines.push(`<b>${esc(vb)}</b>${tg ? ` 🔥 ${esc(tg)}` : ''}`); }
   // 1) 현재 상황
   if (diff === 0) lines.push(ai('sumTie', { st, h, a }));
   else lines.push(ai('sumLead', { st, lead: `<b>${leadName}</b>`, hi: Math.max(h, a), lo: Math.min(h, a), d: ld }));
@@ -1314,8 +1364,17 @@ async function updateInfo(e) {
       if (!d.found) return;
       const col = (nm, arr) => `<div class="recol"><div class="rec-hd">${esc(nm)}</div>${(arr || []).map(g => `<div class="rec-row"><span class="rb ${g.win ? 'W' : (g.draw ? 'D' : 'L')}">${g.win ? 'W' : (g.draw ? 'D' : 'L')}</span><span class="ro">${esc(teamShort(TN(g.opp, e.league)))}</span><span class="rs">${esc(g.ts)}:${esc(g.os)}</span></div>`).join('') || `<div class="rec-empty">-</div>`}</div>`;
       const h = d.home && d.home.games || [], a = d.away && d.away.games || [];
-      if (!h.length && !a.length) return;
-      box.innerHTML = `<div class="odsec">📅 ${esc(t('recent'))} <span class="rhe">${esc(t('last10') || '')}</span></div><div class="recent2">${col(TN(e.away, e.league), a)}${col(TN(e.home, e.league), h)}</div>`;
+      let html = '';
+      if (h.length || a.length) html += `<div class="odsec">📅 ${esc(t('recent'))} <span class="rhe">${esc(t('last10'))}</span></div><div class="recent2">${col(TN(e.away, e.league), a)}${col(TN(e.home, e.league), h)}</div>`;
+      // 🆚 상대전적(H2H)
+      const hh = d.h2h || [];
+      if (hh.length) {
+        html += `<div class="odsec">⚔️ ${esc(t('h2h'))}</div><div class="h2hbox">${hh.map(g => {
+          const md = (g.date ? new Date(g.date).toISOString() : '').slice(5, 10);
+          return `<div class="h2h-row"><span class="h2h-d">${esc(md)}</span><span class="h2h-t">${esc(teamShort(TN(g.aName, e.league)))}</span><span class="h2h-s">${esc(g.as)}:${esc(g.hs)}</span><span class="h2h-t r">${esc(teamShort(TN(g.hName, e.league)))}</span></div>`;
+        }).join('')}</div>`;
+      }
+      box.innerHTML = html;
     } catch { }
     return;
   }
