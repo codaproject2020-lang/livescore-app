@@ -581,7 +581,11 @@ const TS_PSTAT = { 613: 'pos', 614: 'ab', 615: 'r', 616: 'h', 617: 'rbi', 618: '
 const POS_NAME = { '1': 'DH', '2': 'C', '3': '1B', '4': '2B', '5': '3B', '6': 'CF', '7': 'LF', '8': 'RF', '9': 'SS', '10': 'PH', '11': 'PR', '12': 'SP', '13': 'RP', '14': 'P' };
 const TS_PNAME = new Map(); // player_id -> {name, logo, pos}
 let KBO_KO = {};            // player_id -> 한글 이름 (KBO 선수 현지화)
+let KBO_KO_NAME = {};       // 정규화 영문명 -> 한글 (id 안 맞을 때 이름으로 폴백)
 try { KBO_KO = require('./kbo_names.json'); } catch (e) { KBO_KO = {}; }
+try { KBO_KO_NAME = require('./kbo_names_byname.json'); } catch (e) { KBO_KO_NAME = {}; }
+const koNorm = s => String(s || '').toLowerCase().replace(/[^a-z]/g, '');
+function koName(pid, engName) { return KBO_KO[pid] || KBO_KO_NAME[koNorm(engName)] || null; }
 const tsDecode = (arr, map) => { const o = {}; (arr || []).forEach(p => { const k = map[p[0]]; if (k != null) o[k] = p[1]; }); return o; };
 // ⚾ 경기상태 코드 → {inning, half}  (top=초·원정공격 / bottom=말·홈공격)
 const TS_STATUS = {
@@ -590,6 +594,8 @@ const TS_STATUS = {
   414: [7, 'top'], 415: [7, 'bottom'], 416: [8, 'top'], 417: [8, 'bottom'], 418: [9, 'top'], 419: [9, 'bottom'],
   420: [10, 'top'], 421: [10, 'bottom']
 };
+// 비정상 상태 코드 → 라벨 키 (우천취소·연기·중단 등)
+const TS_ABN = { 0: 'abnormal', 14: 'postponed', 15: 'delayed', 16: 'canceled', 17: 'suspended', 19: 'halved', 99: 'tbd' };
 const TS_WANT = /KBO|NPB|CPBL|Korea|Nippon|Japan|일본|한국|대만|Taiwan|Chinese Professional/i;
 async function tsBox(matchId, ttl = 60000) {
   const h = await tsFetch('/baseball/match/live/history', { uuid: matchId }, ttl).catch(() => null);
@@ -643,21 +649,24 @@ async function tsBaseballGames(date) {
     for (let i = 1; i <= 12; i++) { const p = sc['p' + i]; if (p && (p[0] !== '' || p[1] !== '')) { const a = tsNum(p[0]), b = tsNum(p[1]); if (a != null) hInn[i] = a; if (b != null) aInn[i] = b; maxInn = i; } }
     const t = m.match_time ? m.match_time * 1000 : 0;
     // 상태: detail_live에 있어도 "경기상태 코드"로 정확히 판정 (시작 120분 전이면 detail_live에 잡히지만 아직 예정)
+    const stCode = lvm ? lvm.status : m.status_id;
+    const abn = TS_ABN[stCode] || null;   // 우천취소·연기·중단 등
     let state;
     if (lvm) {
       const st = lvm.status;
       if (TS_STATUS[st]) state = 'live';
       else if (st === 100) state = 'finished';
       else if (st === 1) state = 'scheduled';
+      else if (abn) state = (abn === 'delayed' || abn === 'suspended') ? 'live' : 'finished';
       else state = (t > now ? 'scheduled' : 'live');
     } else {
-      state = (t > now ? 'scheduled' : 'finished');
+      state = abn ? (abn === 'postponed' || abn === 'tbd' ? 'scheduled' : 'finished') : (t > now ? 'scheduled' : 'finished');
     }
     const isLive = state === 'live';
     const g = {
       id: m.id, sport: 'baseball', home: ht.name || m.home_team_id, away: at.name || m.away_team_id,
       homeLogo: ht.logo || '', awayLogo: at.logo || '', league: lg.name || '', leagueLogo: lg.logo || '',
-      hs, as, state, status: state === 'finished' ? 'FT' : state === 'live' ? 'IN' : 'NS',
+      hs, as, state, status: state === 'finished' ? 'FT' : state === 'live' ? 'IN' : 'NS', abnStatus: abn,
       date: t ? new Date(t).toISOString() : null,
       box: {
         home: { r: hs, h: tsNum(H[0]), e: tsNum(E[0]), bb: null, innings: hInn },
@@ -719,7 +728,7 @@ app.get('/api/baseball/box', async (req, res) => {
     const attach = arr => arr.map(p => {
       const n = TS_PNAME.get(p.id) || {};
       const posCode = p.pos != null ? String(p.pos) : '';
-      return Object.assign({}, p, { name: n.name || null, name_ko: KBO_KO[p.id] || null, photo: n.logo || '', position: POS_NAME[posCode] || n.pos || '', pitcher: p.ip != null });
+      return Object.assign({}, p, { name: n.name || null, name_ko: koName(p.id, n.name), photo: n.logo || '', position: POS_NAME[posCode] || n.pos || '', pitcher: p.ip != null });
     });
     res.json({ available: true, src, team: b.team, battingTeam: b.battingTeam, players: { home: attach(b.players.home), away: attach(b.players.away) } });
   } catch (e) { res.json({ error: String(e.message || e) }); }
@@ -760,7 +769,7 @@ app.get('/api/baseball/playerlog', async (req, res) => {
     }
     await tsName(pid); const nm = TS_PNAME.get(pid) || {};
     const role = games.some(g => g.stat.ip != null) ? 'pitcher' : 'batter';
-    res.json({ found: games.length > 0, name: nm.name || null, name_ko: KBO_KO[pid] || null, photo: nm.logo || '', role, games });
+    res.json({ found: games.length > 0, name: nm.name || null, name_ko: koName(pid, nm.name), photo: nm.logo || '', role, games });
   } catch (e) { res.json({ error: String(e.message || e) }); }
 });
 // ⚾ KBO/NPB 양팀 최근 10경기 (승패·상대·스코어) — diary 최종스코어로 계산
@@ -774,7 +783,7 @@ app.get('/api/baseball/teamrecent', async (req, res) => {
     const tmCur = {}; ((dcur.results_extra || {}).team || []).forEach(t => tmCur[t.id] = t.name);
     const homeId = m0.home_team_id, awayId = m0.away_team_id;
     const now = Date.now(); const buckets = { [homeId]: [], [awayId]: [] }; const h2h = [];
-    for (let i = 0; i < 45; i++) {
+    for (let i = 0; i < 80; i++) {
       if (buckets[homeId].length >= 10 && buckets[awayId].length >= 10 && h2h.length >= 10) break;
       const ymd = new Date(Date.parse(date + 'T12:00:00Z') - i * 864e5).toISOString().slice(0, 10).replace(/-/g, '');
       const d = await tsFetch('/baseball/match/diary', { date: ymd }, 3600000).catch(() => null);
@@ -1000,7 +1009,7 @@ async function buildGamesCore(sport, date, tz) {
   if (sport === 'baseball' && TS_ON) {
     try {
       // KBO(한국)·NPB(일본)·CPBL(대만) 아시아 프로리그만 TheSports로 (고교/아마추어 제외)
-      const wantRe = /KBO|NPB|CPBL|Korea|Korean|Nippon|Japan|Chinese Professional|Taiwan|일본|한국|대만/i;
+      const wantRe = /KBO|NPB|CPBL|Korea|Korean|Nippon|Japan|Chinese Professional|Taiwan|일본|한국|대만|Futures|퓨처스|퓨쳐스|Eastern League|Western League/i;
       const hsRe = /koshien|senbatsu|high\s*school|甲子園|고교|amateur|university|college/i;
       let kn = []; const knSeen = new Set();
       for (const dt of apiDates) {
