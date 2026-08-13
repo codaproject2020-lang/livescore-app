@@ -763,6 +763,43 @@ app.get('/api/baseball/playerlog', async (req, res) => {
     res.json({ found: games.length > 0, name: nm.name || null, name_ko: KBO_KO[pid] || null, photo: nm.logo || '', role, games });
   } catch (e) { res.json({ error: String(e.message || e) }); }
 });
+// ⚾ KBO/NPB 양팀 최근 10경기 (승패·상대·스코어) — diary 최종스코어로 계산
+app.get('/api/baseball/teamrecent', async (req, res) => {
+  const mid = req.query.match, date = req.query.date;
+  if (!mid || !date) return res.json({ error: 'missing params' });
+  try {
+    const dcur = await tsFetch('/baseball/match/diary', { date: String(date).replace(/-/g, '') }, 60000).catch(() => null);
+    const m0 = dcur && (dcur.results || []).find(x => x.id === mid);
+    if (!m0) return res.json({ found: false });
+    const tmCur = {}; ((dcur.results_extra || {}).team || []).forEach(t => tmCur[t.id] = t.name);
+    const homeId = m0.home_team_id, awayId = m0.away_team_id;
+    const now = Date.now(); const buckets = { [homeId]: [], [awayId]: [] };
+    for (let i = 0; i < 30; i++) {
+      if (buckets[homeId].length >= 10 && buckets[awayId].length >= 10) break;
+      const ymd = new Date(Date.parse(date + 'T12:00:00Z') - i * 864e5).toISOString().slice(0, 10).replace(/-/g, '');
+      const d = await tsFetch('/baseball/match/diary', { date: ymd }, 3600000).catch(() => null);
+      if (!d) continue;
+      const tm = {}; ((d.results_extra || {}).team || []).forEach(t => tm[t.id] = t.name);
+      (d.results || []).forEach(x => {
+        if (x.id === mid) return;
+        const t = x.match_time ? x.match_time * 1000 : 0;
+        const finished = x.status_id === 100 || (t && t < now - 3 * 3600e3);
+        if (!finished) return;
+        const ft = (x.scores || {}).ft; if (!ft) return;
+        [homeId, awayId].forEach(teamId => {
+          if (x.home_team_id !== teamId && x.away_team_id !== teamId) return;
+          if (buckets[teamId].length >= 10) return;
+          const isHome = x.home_team_id === teamId;
+          const my = tsNum(ft[isHome ? 0 : 1]), op = tsNum(ft[isHome ? 1 : 0]);
+          if (my == null || op == null) return;
+          buckets[teamId].push({ date: t, opp: tm[isHome ? x.away_team_id : x.home_team_id] || '', ts: my, os: op, win: my > op, draw: my === op, isHome });
+        });
+      });
+    }
+    const sortTake = arr => arr.sort((a, b) => b.date - a.date).slice(0, 10);
+    res.json({ found: true, home: { name: tmCur[homeId] || '', games: sortTake(buckets[homeId]) }, away: { name: tmCur[awayId] || '', games: sortTake(buckets[awayId]) } });
+  } catch (e) { res.json({ error: String(e.message || e) }); }
+});
 // 연결 확인용 (원본 응답 전체 노출 — 에러 메시지 확인)
 app.get('/api/thesports/status', async (req, res) => {
   const sport = req.query.sport || 'baseball';
