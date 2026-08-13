@@ -97,6 +97,10 @@ const STR = {
   sumInn: ['{x} — {tb}.', '{x} · {tb} 국면입니다.', '{x}・{tb}。', '{x}·{tb}。', '{x} — {tb}.', '{x} — {tb}।', '{x} — {tb}.', '{x} — {tb}', '{x} — {tb}.', '{x} — {tb}.', '{x} — {tb}.', '{x} — {tb}.'],
   tbTop: ['top · away batting', '초 · 원정팀 공격', '表・ビジター攻撃', '上·客队进攻', 'alta · batea visitante', 'ऊपरी · अवे बल्लेबाजी', 'đầu · đội khách đánh', 'ครึ่งบน · ทีมเยือนตี', 'верх · бьёт гость', 'oben · Gäste am Schlag', 'haute · visiteurs à la batte', 'alta · battono gli ospiti'],
   tbBot: ['bottom · home batting', '말 · 홈팀 공격', '裏・ホーム攻撃', '下·主队进攻', 'baja · batea local', 'निचली · होम बल्लेबाजी', 'cuối · đội nhà đánh', 'ครึ่งล่าง · ทีมเหย้าตี', 'низ · бьёт хозяин', 'unten · Heim am Schlag', 'basse · domicile à la batte', 'bassa · battono i padroni'],
+  topShort: ['Top', '초', '表', '上', 'Alta', 'ऊपर', 'Đầu', 'บน', 'Верх', 'Oben', 'Haut', 'Alta'],
+  botShort: ['Bot', '말', '裏', '下', 'Baja', 'नीचे', 'Cuối', 'ล่าง', 'Низ', 'Unten', 'Bas', 'Bassa'],
+  batNow: ['batting', '공격', '攻撃中', '进攻', 'al bate', 'बल्लेबाजी', 'đang đánh', 'กำลังตี', 'атакует', 'am Schlag', 'à la batte', 'alla battuta'],
+  finishedSec: ['Finished', '종료 경기', '終了', '已结束', 'Finalizados', 'समाप्त', 'Đã kết thúc', 'จบแล้ว', 'Завершённые', 'Beendet', 'Terminés', 'Terminate'],
   sumSet: ['Sets {h}:{a}, current set {sh}:{sa}. {leader} leads this set.', '세트 {h}:{a}, 현재 세트 {sh}:{sa}. {leader}이(가) 이 세트 리드 중.', 'セット {h}:{a}、現在のセット {sh}:{sa}。{leader} がリード。', '局分 {h}:{a}，当前局 {sh}:{sa}。{leader} 领先本局。', 'Sets {h}:{a}, set actual {sh}:{sa}. {leader} domina.', 'सेट {h}:{a}, वर्तमान सेट {sh}:{sa}. {leader} आगे।', 'Set {h}:{a}, set hiện tại {sh}:{sa}. {leader} dẫn.', 'เซ็ต {h}:{a} เซ็ตปัจจุบัน {sh}:{sa} {leader} นำ', 'Сеты {h}:{a}, текущий {sh}:{sa}. {leader} ведёт.', 'Sätze {h}:{a}, aktueller Satz {sh}:{sa}. {leader} führt.', 'Sets {h}:{a}, set actuel {sh}:{sa}. {leader} mène.', 'Set {h}:{a}, set attuale {sh}:{sa}. {leader} avanti.'],
   sumOdds: ['Odds: win {oh} / lose {oa}; market favors {side}.', '배당 승 {oh} / 패 {oa}, 시장은 {side} 우세를 반영.', 'オッズ 勝 {oh} / 負 {oa}、市場は {side} 優勢。', '赔率 胜 {oh} / 负 {oa}，市场看好 {side}。', 'Cuotas: gana {oh} / pierde {oa}; el mercado favorece a {side}.', 'ऑड्स: जीत {oh} / हार {oa}; बाज़ार {side} के पक्ष में।', 'Tỷ lệ: thắng {oh} / thua {oa}; thị trường nghiêng về {side}.', 'อัตราต่อรอง: ชนะ {oh} / แพ้ {oa} ตลาดเอียงไป {side}', 'Ставки: победа {oh} / поражение {oa}; рынок за {side}.', 'Quoten: Sieg {oh} / Niederlage {oa}; Markt für {side}.', 'Cotes : victoire {oh} / défaite {oa} ; marché pour {side}.', 'Quote: vittoria {oh} / sconfitta {oa}; mercato per {side}.'],
   sumFinal: ['Final {h}:{a} — {result}.', '최종 {h}:{a}, {result}.', '最終 {h}:{a}、{result}。', '终场 {h}:{a}，{result}。', 'Final {h}:{a} — {result}.', 'अंतिम {h}:{a} — {result}।', 'Chung cuộc {h}:{a} — {result}.', 'จบเกม {h}:{a} — {result}', 'Итог {h}:{a} — {result}.', 'Endstand {h}:{a} — {result}.', 'Score final {h}:{a} — {result}.', 'Finale {h}:{a} — {result}.'],
@@ -813,36 +817,43 @@ function renderFeed(games) {
     const ta = a.date ? new Date(a.date).getTime() : 0, tb = b.date ? new Date(b.date).getTime() : 0;
     return ra === 2 ? tb - ta : ta - tb;   // 예정=빠른 시간 위, 종료=최근 위
   };
-  // ⭐ 즐겨찾기(종) 경기는 맨 위 별도 그룹으로
-  const favGames = games.filter(e => isMatchFav(e));
+  // 리그별 그룹핑 + 정렬 헬퍼
+  const groupBy = list => {
+    const gr = {};
+    list.forEach(e => { const k = e.league || '기타'; (gr[k] = gr[k] || { league: e, name: k, items: [] }).items.push(e); });
+    Object.values(gr).forEach(g => g.items.sort(feedSort));
+    const groupTier = items => items.some(x => x.state === 'live') ? 0 : items.some(x => x.state === 'scheduled') ? 1 : 2;
+    return Object.values(gr).sort((a, b) => {
+      const ta = groupTier(a.items), tb = groupTier(b.items);
+      if (ta !== tb) return ta - tb;
+      const ra = TOP_LEAGUES.indexOf(a.name) < 0 ? 999 : TOP_LEAGUES.indexOf(a.name);
+      const rb = TOP_LEAGUES.indexOf(b.name) < 0 ? 999 : TOP_LEAGUES.indexOf(b.name);
+      if (ra !== rb) return ra - rb;
+      return b.items.length - a.items.length;
+    });
+  };
+  const groupHtml = g => {
+    const live = g.items.filter(x => x.state === 'live').length;
+    const head = `<div class="lghd"><span class="flag">${badge(g.league.leagueLogo, '🏆')}</span><span class="nm">${esc(g.name)}</span><span class="cnt">(${g.items.length})</span>${live ? `<span class="live-dot" style="color:#e2231a;font-weight:800">🔴 ${live} LIVE</span>` : ''}<span class="up">∧</span></div>`;
+    return `<div class="lg">${head}${g.items.map(e => matchCard(e)).join('')}</div>`;
+  };
+  // ⭐ 즐겨찾기(종) → 진행·예정 경기(리그별) → 🔻 종료 경기(맨 아래, 리그별)
+  const favGames = games.filter(e => isMatchFav(e)); favGames.sort(feedSort);
   const rest = games.filter(e => !isMatchFav(e));
-  favGames.sort(feedSort);
-  const groups = {};
-  rest.forEach(e => { const k = e.league || '기타'; (groups[k] = groups[k] || { league: e, name: k, items: [] }).items.push(e); });
-  Object.values(groups).forEach(g => g.items.sort(feedSort));
-  // 그룹(리그) 순서: 라이브 있는 리그 → 시작예정 있는 리그 → 전부 종료된 리그(아래)
-  const groupTier = items => items.some(x => x.state === 'live') ? 0 : items.some(x => x.state === 'scheduled') ? 1 : 2;
-  const order = Object.values(groups).sort((a, b) => {
-    const ta = groupTier(a.items), tb = groupTier(b.items);
-    if (ta !== tb) return ta - tb;
-    const ra = TOP_LEAGUES.indexOf(a.name) < 0 ? 999 : TOP_LEAGUES.indexOf(a.name);
-    const rb = TOP_LEAGUES.indexOf(b.name) < 0 ? 999 : TOP_LEAGUES.indexOf(b.name);
-    if (ra !== rb) return ra - rb;
-    return b.items.length - a.items.length;
-  });
+  const activeG = groupBy(rest.filter(e => e.state !== 'finished'));
+  const finG = groupBy(rest.filter(e => e.state === 'finished'));
   let html = '';
   if (favGames.length) {
     const live = favGames.filter(x => x.state === 'live').length;
     const head = `<div class="lghd favhd"><span class="flag">⭐</span><span class="nm">${esc(t('favTeams'))}</span><span class="cnt">(${favGames.length})</span>${live ? `<span class="live-dot" style="color:#e2231a;font-weight:800">🔴 ${live} LIVE</span>` : ''}<span class="up">∧</span></div>`;
-    const body = favGames.map(e => matchCard(e)).join('');
-    html += `<div class="lg lg-fav">${head}${body}</div>`;
+    html += `<div class="lg lg-fav">${head}${favGames.map(e => matchCard(e)).join('')}</div>`;
   }
-  html += order.map(g => {
-    const live = g.items.filter(x => x.state === 'live').length;
-    const head = `<div class="lghd"><span class="flag">${badge(g.league.leagueLogo, '🏆')}</span><span class="nm">${esc(g.name)}</span><span class="cnt">(${g.items.length})</span>${live ? `<span class="live-dot" style="color:#e2231a;font-weight:800">🔴 ${live} LIVE</span>` : ''}<span class="up">∧</span></div>`;
-    const body = g.items.map(e => matchCard(e)).join('');
-    return `<div class="lg">${head}${body}</div>`;
-  }).join('');
+  html += activeG.map(groupHtml).join('');
+  if (finG.length) {
+    const finCount = finG.reduce((n, g) => n + g.items.length, 0);
+    html += `<div class="fin-divider">🔻 ${esc(t('finishedSec'))} (${finCount})</div>`;
+    html += finG.map(groupHtml).join('');
+  }
   feed.innerHTML = html;
   $$('#feed .lghd').forEach(h => h.addEventListener('click', () => {
     let el = h.nextElementSibling; const arr = h.querySelector('.up'); const col = arr.textContent === '∨';
@@ -1014,10 +1025,18 @@ function basesSvg(b) {
   </svg>`;
 }
 // 카드용 B/S/O + 주자 다이아몬드 (라이브 MLB만)
+// ⚾ 공격팀 표시 (초=원정공격 ▲ / 말=홈공격 ▼)
+function batLine(e) {
+  if (state.sport !== 'baseball' || e.state !== 'live' || !e.batting || !e.inningHalf) return '';
+  const nm = e.batting === 'home' ? TN(e.home, e.league) : TN(e.away, e.league);
+  const arrow = e.inningHalf === 'top' ? '▲' : '▼';
+  const half = e.inningHalf === 'top' ? t('topShort') : t('botShort');
+  return `<div class="batline"><span class="bat-ar ${e.inningHalf}">${arrow} ${esc(half)}</span> 🏏 <b>${esc(nm)}</b> ${esc(t('batNow'))}</div>`;
+}
 function bsoMini(e) {
-  if (state.sport !== 'baseball' || e.state !== 'live' || !e.bso) return '';
+  if (state.sport !== 'baseball' || e.state !== 'live' || !e.bso) return batLine(e);
   const b = e.bso, dot = (n, max) => { let s = ''; for (let i = 0; i < max; i++) s += `<span class="cdm${i < (n || 0) ? ' on' : ''}"></span>`; return s; };
-  return `<div class="bsomini"><span class="bl">B</span>${dot(b.balls, 3)}<span class="bl">S</span>${dot(b.strikes, 2)}<span class="bl o">O</span>${dot(b.outs, 2)}<span class="bso-dia">${basesSvg(b.bases)}</span></div>`;
+  return `${batLine(e)}<div class="bsomini"><span class="bl">B</span>${dot(b.balls, 3)}<span class="bl">S</span>${dot(b.strikes, 2)}<span class="bl o">O</span>${dot(b.outs, 2)}<span class="bso-dia">${basesSvg(b.bases)}</span></div>`;
 }
 async function updateMlbLive(e) {
   const box = $('#mMlbLive'); if (!box) return;
