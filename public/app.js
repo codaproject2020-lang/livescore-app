@@ -1235,7 +1235,7 @@ async function updateLineup(e) {
         box.innerHTML = `<div class="odsec">📋 ${esc(t('boxRec'))}</div><div class="lu-note">${esc(t('boxSoon'))}</div>`; return;
       }
       const render = side => { $('#tsFieldBox').innerHTML = tsField(side); $('#tsBoxBody').innerHTML = tsBoxSide(side); };
-      box.innerHTML = `<div class="odsec">📋 ${esc(t('boxRec'))} <span class="rhe">${esc(t('fieldPos'))} · ${sl('batter')}·${sl('pitcher')}</span></div>
+      box.innerHTML = `<div class="odsec">📋 ${esc(t('lineup'))} <span class="rhe">${esc(t('fieldPos'))} · ${sl('batter')}·${sl('pitcher')}</span></div>
         <div class="bfield-tabs"><span class="bft on" data-t="home">${esc(TN(e.home, e.league))}</span><span class="bft" data-t="away">${esc(TN(e.away, e.league))}</span></div>
         <div id="tsFieldBox">${tsField(d.players.home)}</div>
         <div id="tsBoxBody">${tsBoxSide(d.players.home)}</div>`;
