@@ -956,9 +956,9 @@ function matchCard(e) {
       ${scoreBlock(e)}
       <div class="side">${HA_AWAY}<div class="ph">${badge(e.awayLogo, '🏟')}</div><div class="team">${esc(TN(e.away, e.league))}</div></div>
     </div>
+    ${aiLive(e)}
     ${bsoMini(e)}
     ${rheMini(e)}
-    ${aiLive(e)}
     ${oddsLine(e)}
     <span class="pick">${esc(t('pick'))}</span>
   </div>`;
