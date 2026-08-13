@@ -115,6 +115,7 @@ const STR = {
   botShort: ['Bot', '말', '裏', '下', 'Baja', 'नीचे', 'Cuối', 'ล่าง', 'Низ', 'Unten', 'Bas', 'Bassa'],
   batNow: ['batting', '공격', '攻撃中', '进攻', 'al bate', 'बल्लेबाजी', 'đang đánh', 'กำลังตี', 'атакует', 'am Schlag', 'à la batte', 'alla battuta'],
   finishedSec: ['Finished', '종료 경기', '終了', '已结束', 'Finalizados', 'समाप्त', 'Đã kết thúc', 'จบแล้ว', 'Завершённые', 'Beendet', 'Terminés', 'Terminate'],
+  last10: ['Last 10', '최근 10경기', '直近10', '近10场', 'Últimos 10', 'पिछले 10', '10 trận gần nhất', '10 นัดล่าสุด', 'Последние 10', 'Letzte 10', '10 derniers', 'Ultime 10'],
   sumSet: ['Sets {h}:{a}, current set {sh}:{sa}. {leader} leads this set.', '세트 {h}:{a}, 현재 세트 {sh}:{sa}. {leader}이(가) 이 세트 리드 중.', 'セット {h}:{a}、現在のセット {sh}:{sa}。{leader} がリード。', '局分 {h}:{a}，当前局 {sh}:{sa}。{leader} 领先本局。', 'Sets {h}:{a}, set actual {sh}:{sa}. {leader} domina.', 'सेट {h}:{a}, वर्तमान सेट {sh}:{sa}. {leader} आगे।', 'Set {h}:{a}, set hiện tại {sh}:{sa}. {leader} dẫn.', 'เซ็ต {h}:{a} เซ็ตปัจจุบัน {sh}:{sa} {leader} นำ', 'Сеты {h}:{a}, текущий {sh}:{sa}. {leader} ведёт.', 'Sätze {h}:{a}, aktueller Satz {sh}:{sa}. {leader} führt.', 'Sets {h}:{a}, set actuel {sh}:{sa}. {leader} mène.', 'Set {h}:{a}, set attuale {sh}:{sa}. {leader} avanti.'],
   sumOdds: ['Odds: win {oh} / lose {oa}; market favors {side}.', '배당 승 {oh} / 패 {oa}, 시장은 {side} 우세를 반영.', 'オッズ 勝 {oh} / 負 {oa}、市場は {side} 優勢。', '赔率 胜 {oh} / 负 {oa}，市场看好 {side}。', 'Cuotas: gana {oh} / pierde {oa}; el mercado favorece a {side}.', 'ऑड्स: जीत {oh} / हार {oa}; बाज़ार {side} के पक्ष में।', 'Tỷ lệ: thắng {oh} / thua {oa}; thị trường nghiêng về {side}.', 'อัตราต่อรอง: ชนะ {oh} / แพ้ {oa} ตลาดเอียงไป {side}', 'Ставки: победа {oh} / поражение {oa}; рынок за {side}.', 'Quoten: Sieg {oh} / Niederlage {oa}; Markt für {side}.', 'Cotes : victoire {oh} / défaite {oa} ; marché pour {side}.', 'Quote: vittoria {oh} / sconfitta {oa}; mercato per {side}.'],
   sumFinal: ['Final {h}:{a} — {result}.', '최종 {h}:{a}, {result}.', '最終 {h}:{a}、{result}。', '终场 {h}:{a}，{result}。', 'Final {h}:{a} — {result}.', 'अंतिम {h}:{a} — {result}।', 'Chung cuộc {h}:{a} — {result}.', 'จบเกม {h}:{a} — {result}', 'Итог {h}:{a} — {result}.', 'Endstand {h}:{a} — {result}.', 'Score final {h}:{a} — {result}.', 'Finale {h}:{a} — {result}.'],
@@ -1305,6 +1306,19 @@ async function updateBox(e) {
 // 경기정보방: 예상 선발투수 + 양팀 최근 10경기 (MLB·LMB)
 async function updateInfo(e) {
   const box = $('#mInfoWrap'); if (!box) return;
+  // ⚾ KBO/NPB: 양팀 최근 10경기 (TheSports diary 기반)
+  if (!statsLeague(e.league) && state.sport === 'baseball' && tsLeague(e.league)) {
+    box.innerHTML = '';
+    try {
+      const d = await fetchJSON(`/api/baseball/teamrecent?match=${encodeURIComponent(e.id)}&date=${state.date}`, { tries: 1 });
+      if (!d.found) return;
+      const col = (nm, arr) => `<div class="recol"><div class="rec-hd">${esc(nm)}</div>${(arr || []).map(g => `<div class="rec-row"><span class="rb ${g.win ? 'W' : (g.draw ? 'D' : 'L')}">${g.win ? 'W' : (g.draw ? 'D' : 'L')}</span><span class="ro">${esc(teamShort(TN(g.opp, e.league)))}</span><span class="rs">${esc(g.ts)}:${esc(g.os)}</span></div>`).join('') || `<div class="rec-empty">-</div>`}</div>`;
+      const h = d.home && d.home.games || [], a = d.away && d.away.games || [];
+      if (!h.length && !a.length) return;
+      box.innerHTML = `<div class="odsec">📅 ${esc(t('recent'))} <span class="rhe">${esc(t('last10') || '')}</span></div><div class="recent2">${col(TN(e.away, e.league), a)}${col(TN(e.home, e.league), h)}</div>`;
+    } catch { }
+    return;
+  }
   if (!statsLeague(e.league)) { box.innerHTML = ''; return; }
   box.innerHTML = '';
   try {
