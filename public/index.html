@@ -8,7 +8,7 @@
 <link rel="manifest" href="/manifest.json">
 <link rel="apple-touch-icon" href="/logo.png.jpg">
 <link rel="icon" href="/logo.png.jpg">
-<link rel="stylesheet" href="styles.css?v=40">
+<link rel="stylesheet" href="styles.css?v=41">
 </head>
 <body>
 <div class="shell">
@@ -43,6 +43,7 @@
       <a href="/" class="mbrand-logo"><img src="/logo-t.png" alt="LIVE UP" onerror="this.replaceWith(Object.assign(document.createElement('span'),{className:'mbrand-txt',innerHTML:'LIVE<b>UP</b>'}))"></a>
       <div class="mbrand-btns">
         <button class="dlbtn sm" id="btnDownloadM">⬇ <span data-i18n="download">바탕화면 설치</span></button>
+        <select id="langSelM" class="langsel langsel-m"></select>
         <button class="dlbtn sm share" id="btnShareM">📤 <span data-i18n="share">공유</span></button>
       </div>
     </div>
@@ -238,6 +239,6 @@
     window.addEventListener('load', () => navigator.serviceWorker.register('/sw.js').catch(() => {}));
   }
 </script>
-<script src="app.js?v=56"></script>
+<script src="app.js?v=57"></script>
 </body>
 </html>

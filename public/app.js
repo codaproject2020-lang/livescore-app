@@ -12,6 +12,7 @@ const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '
 // ============================================================
 const LANGS = ['en', 'ko', 'ja', 'zh', 'es', 'hi', 'vi', 'th', 'ru', 'de', 'fr', 'it'];
 const LANG_NAMES = { en: 'English', ko: '한국어', ja: '日本語', zh: '中文', es: 'Español', hi: 'हिन्दी', vi: 'Tiếng Việt', th: 'ไทย', ru: 'Русский', de: 'Deutsch', fr: 'Français', it: 'Italiano' };
+const LANG_FLAGS = { en: '🇺🇸', ko: '🇰🇷', ja: '🇯🇵', zh: '🇨🇳', es: '🇪🇸', hi: '🇮🇳', vi: '🇻🇳', th: '🇹🇭', ru: '🇷🇺', de: '🇩🇪', fr: '🇫🇷', it: '🇮🇹' };
 // 값 순서: en, ko, ja, zh, es, hi, vi, th, ru, de, fr, it
 const STR = {
   live: ['Live', '라이브', 'ライブ', '直播', 'En vivo', 'लाइव', 'Trực tiếp', 'สด', 'Лайв', 'Live', 'Direct', 'Live'],
@@ -1867,8 +1868,8 @@ function initBackButtonHandling() {
 //  INIT
 // ============================================================
 function initLangSelectors() {
-  const opts = LANGS.map(l => `<option value="${l}"${l === LANG ? ' selected' : ''}>${LANG_NAMES[l]}</option>`).join('');
-  ['#langSel', '#langSelD'].forEach(sel => { const el = $(sel); if (el) { el.innerHTML = opts; el.value = LANG; el.addEventListener('change', () => setLang(el.value)); } });
+  const opts = LANGS.map(l => `<option value="${l}"${l === LANG ? ' selected' : ''}>${LANG_FLAGS[l]} ${LANG_NAMES[l]}</option>`).join('');
+  ['#langSel', '#langSelD', '#langSelM'].forEach(sel => { const el = $(sel); if (el) { el.innerHTML = opts; el.value = LANG; el.addEventListener('change', () => setLang(el.value)); } });
   applyI18n();
   refreshDateLabel();
 }
