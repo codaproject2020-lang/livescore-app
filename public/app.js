@@ -866,7 +866,7 @@ function rheMini(e) {
   const h = e.box.home || {}, a = e.box.away || {};
   if ([h.h, h.e, a.h, a.e].every(v => v == null)) return '';
   const nm = x => { const s = TN(x, e.league); const p = String(s || '').trim().split(' '); return (LANG === 'en' || LANG === 'es' || LANG === 'de' || LANG === 'fr' || LANG === 'it' || LANG === 'vi') && p.length > 1 ? p[p.length - 1] : s; };
-  const showBB = (h.bb != null || a.bb != null);
+  const showBB = true;   // BB 칸 항상 표시 (데이터 없으면 "-") — 생겼다 사라지는 혼란 방지
   return `<div class="rhemini"><table>
     <thead><tr><th></th><th>R</th><th>H</th><th>E</th>${showBB ? '<th>BB</th>' : ''}</tr></thead>
     <tbody>
@@ -1355,7 +1355,7 @@ function lineScoreTable(e) {
     const v = inn[k + 1] ?? inn[String(k + 1)];
     return `<td>${v == null || v === '' ? '' : esc(v)}</td>`;
   }).join('');
-  const showBB = (bh.bb != null || ba.bb != null);
+  const showBB = true;
   return `<div class="odsec">📊 ${esc(t('inningScore'))} <span class="rhe">R · H · E${showBB ? ' · BB' : ''}</span></div>
     <table class="boxsc"><thead><tr><th></th>${head}<th class="r">R</th><th class="he">H</th><th class="he">E</th>${showBB ? '<th class="he">BB</th>' : ''}</tr></thead>
     <tbody>
