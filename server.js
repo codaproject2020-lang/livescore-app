@@ -708,9 +708,11 @@ app.get('/api/baseball/box', async (req, res) => {
   const id = req.query.id; if (!id) return res.json({ error: 'no id' });
   const live = req.query.live === '1';
   try {
-    // 진행중 → 실시간(detail_live) 우선, 없으면 history 폴백 / 완료 → history
-    let b = live ? await tsLiveBox(id).catch(() => null) : null;
-    if (!b) b = await tsBox(id, live ? 20000 : 3600000);
+    // ⚾ 항상 실시간(detail_live) 먼저 — 경기 전 "확정 라인업"·진행중 데이터가 여기 들어옴
+    //    없으면 완료경기 history 폴백
+    let b = await tsLiveBox(id).catch(() => null);
+    let src = b ? 'live' : '';
+    if (!b) { b = await tsBox(id, live ? 20000 : 3600000); src = b ? 'history' : ''; }
     if (!b) return res.json({ available: false });
     const pids = [...new Set([...b.players.home, ...b.players.away].map(p => p.id))];
     await Promise.all(pids.map(tsName));
@@ -719,7 +721,7 @@ app.get('/api/baseball/box', async (req, res) => {
       const posCode = p.pos != null ? String(p.pos) : '';
       return Object.assign({}, p, { name: n.name || null, name_ko: KBO_KO[p.id] || null, photo: n.logo || '', position: POS_NAME[posCode] || n.pos || '', pitcher: p.ip != null });
     });
-    res.json({ available: true, team: b.team, battingTeam: b.battingTeam, players: { home: attach(b.players.home), away: attach(b.players.away) } });
+    res.json({ available: true, src, team: b.team, battingTeam: b.battingTeam, players: { home: attach(b.players.home), away: attach(b.players.away) } });
   } catch (e) { res.json({ error: String(e.message || e) }); }
 });
 // 연결 확인용 (원본 응답 전체 노출 — 에러 메시지 확인)
