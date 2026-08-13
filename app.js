@@ -7,6 +7,324 @@ const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
+// ============================================================
+//  다국어(i18n) · 12개 언어 (기본 영어)
+// ============================================================
+const LANGS = ['en', 'ko', 'ja', 'zh', 'es', 'hi', 'vi', 'th', 'ru', 'de', 'fr', 'it'];
+const LANG_NAMES = { en: 'English', ko: '한국어', ja: '日本語', zh: '中文', es: 'Español', hi: 'हिन्दी', vi: 'Tiếng Việt', th: 'ไทย', ru: 'Русский', de: 'Deutsch', fr: 'Français', it: 'Italiano' };
+// 값 순서: en, ko, ja, zh, es, hi, vi, th, ru, de, fr, it
+const STR = {
+  live: ['Live', '라이브', 'ライブ', '直播', 'En vivo', 'लाइव', 'Trực tiếp', 'สด', 'Лайв', 'Live', 'Direct', 'Live'],
+  info: ['Match Info', '경기 정보방', '試合情報', '比赛信息', 'Partidos', 'मैच जानकारी', 'Thông tin', 'ข้อมูลแมตช์', 'Матчи', 'Spielinfo', 'Infos match', 'Info partite'],
+  rank: ['Standings', '순위', '順位', '排名', 'Clasificación', 'रैंकिंग', 'BXH', 'อันดับ', 'Таблица', 'Tabelle', 'Classement', 'Classifica'],
+  odds: ['Odds', '배당', 'オッズ', '赔率', 'Cuotas', 'ऑड्स', 'Tỷ lệ', 'อัตราต่อรอง', 'Ставки', 'Quoten', 'Cotes', 'Quote'],
+  community: ['Community', '커뮤니티', 'コミュニティ', '社区', 'Comunidad', 'समुदाय', 'Cộng đồng', 'ชุมชน', 'Сообщество', 'Community', 'Communauté', 'Community'],
+  chat: ['Chat', '채팅', 'チャット', '聊天', 'Chat', 'चैट', 'Trò chuyện', 'แชท', 'Чат', 'Chat', 'Chat', 'Chat'],
+  login: ['Login', '로그인', 'ログイン', '登录', 'Entrar', 'लॉगिन', 'Đăng nhập', 'เข้าสู่ระบบ', 'Вход', 'Anmelden', 'Connexion', 'Accedi'],
+  download: ['Install App', '앱 다운로드', 'アプリ', '安装应用', 'Instalar app', 'ऐप इंस्टॉल', 'Cài đặt', 'ติดตั้งแอป', 'Установить', 'App holen', 'Installer', 'Installa app'],
+  all: ['All', '전체', '全て', '全部', 'Todos', 'सभी', 'Tất cả', 'ทั้งหมด', 'Все', 'Alle', 'Tout', 'Tutti'],
+  today: ['Today', '오늘', '今日', '今天', 'Hoy', 'आज', 'Hôm nay', 'วันนี้', 'Сегодня', 'Heute', "Aujourd'hui", 'Oggi'],
+  refresh: ['Refresh', '새로고침', '更新', '刷新', 'Actualizar', 'रिफ्रेश', 'Làm mới', 'รีเฟรช', 'Обновить', 'Aktualisieren', 'Actualiser', 'Aggiorna'],
+  allRoom: ['All-Games Chat', '전경기 대화방', '全試合チャット', '全场聊天', 'Chat general', 'सभी मैच चैट', 'Chat tất cả', 'แชทรวม', 'Общий чат', 'Alle-Spiele-Chat', 'Chat général', 'Chat generale'],
+  liveChat: ['All-Games Live Chat', '전경기 실시간 채팅', '全試合ライブチャット', '全场实时聊天', 'Chat en vivo', 'लाइव चैट', 'Chat trực tiếp', 'แชทสด', 'Живой чат', 'Live-Chat', 'Chat en direct', 'Chat dal vivo'],
+  online: ['online', '접속', '接続', '在线', 'en línea', 'ऑनलाइन', 'trực tuyến', 'ออนไลน์', 'онлайн', 'online', 'en ligne', 'online'],
+  chatPh: ['Type a message…', '메시지 입력…', 'メッセージ入力…', '输入消息…', 'Escribe…', 'संदेश लिखें…', 'Nhập tin nhắn…', 'พิมพ์ข้อความ…', 'Сообщение…', 'Nachricht…', 'Message…', 'Messaggio…'],
+  send: ['Send', '전송', '送信', '发送', 'Enviar', 'भेजें', 'Gửi', 'ส่ง', 'Отпр.', 'Senden', 'Envoyer', 'Invia'],
+  finished: ['Final', '종료', '終了', '完场', 'Final', 'समाप्त', 'Kết thúc', 'จบ', 'Заверш.', 'Ende', 'Terminé', 'Finita'],
+  lineup: ['Lineup', '선발 라인업', 'スタメン', '首发阵容', 'Alineación', 'लाइनअप', 'Đội hình', 'ผู้เล่นตัวจริง', 'Состав', 'Aufstellung', 'Composition', 'Formazione'],
+  boxRec: ['Box Score', '경기 기록', '成績', '比赛数据', 'Estadísticas', 'रिकॉर्ड', 'Thống kê', 'สถิติ', 'Статистика', 'Statistik', 'Statistiques', 'Statistiche'],
+  boxSoon: ['Available after the game', '경기 후 제공', '試合後に表示', '比赛后提供', 'Disponible tras el partido', 'मैच के बाद उपलब्ध', 'Có sau trận đấu', 'มีให้หลังจบเกม', 'Доступно после матча', 'Nach dem Spiel verfügbar', 'Disponible après le match', 'Disponibile dopo la partita'],
+  probable: ['Starting Pitchers', '선발투수', '先発投手', '先发投手', 'Abridores', 'गेंदबाज', 'Ném bóng', 'พิตเชอร์', 'Питчеры', 'Starter', 'Lanceurs', 'Lanciatori'],
+  recent: ['Last 10 Games', '최근 10경기', '直近10試合', '近10场', 'Últimos 10', 'पिछले 10', '10 trận gần đây', '10 นัดล่าสุด', 'Последние 10', 'Letzte 10', '10 derniers', 'Ultime 10'],
+  h2h: ['Head to Head', '맞대결', '対戦成績', '交锋记录', 'Enfrentamientos', 'आमना-सामना', 'Đối đầu', 'สถิติเจอกัน', 'Очные встречи', 'Duelle', 'Confrontations', 'Scontri diretti'],
+  standings: ['Standings', '팀 순위', '順位表', '积分榜', 'Clasificación', 'अंक तालिका', 'BXH', 'ตารางคะแนน', 'Таблица', 'Tabelle', 'Classement', 'Classifica'],
+  highlight: ['Highlights', '경기 하이라이트', 'ハイライト', '比赛集锦', 'Resúmenes', 'हाइलाइट्स', 'Điểm nhấn', 'ไฮไลต์', 'Обзор матча', 'Highlights', 'Résumé', 'Highlights'],
+  playHi: ['▶ Play Highlights', '▶ 하이라이트 재생', '▶ ハイライト再生', '▶ 播放集锦', '▶ Ver resumen', '▶ हाइलाइट चलाएं', '▶ Xem điểm nhấn', '▶ เล่นไฮไลต์', '▶ Смотреть обзор', '▶ Highlights', '▶ Voir le résumé', '▶ Guarda highlights'],
+  aiSum: ['AI Summary', 'AI 총정리', 'AI要約', 'AI总结', 'Resumen IA', 'AI सारांश', 'Tóm tắt AI', 'สรุป AI', 'AI-обзор', 'KI-Zusammenfassung', 'Résumé IA', 'Riepilogo IA'],
+  liveEv: ['Live Events', '실시간 이벤트', 'ライブ速報', '实时事件', 'Eventos en vivo', 'लाइव इवेंट', 'Sự kiện trực tiếp', 'เหตุการณ์สด', 'События', 'Live-Events', 'Événements', 'Eventi live'],
+  aiPred: ['AI Prediction', 'AI 승부 예측', 'AI予想', 'AI预测', 'Predicción IA', 'AI भविष्यवाणी', 'Dự đoán AI', 'ทำนายผล AI', 'AI-прогноз', 'KI-Prognose', 'Pronostic IA', 'Pronostico IA'],
+  liveSit: ['Live Situation', '실시간 상황', 'ライブ状況', '实时状况', 'En directo', 'लाइव स्थिति', 'Tình huống', 'สถานการณ์สด', 'Ситуация', 'Live-Lage', 'En direct', 'Situazione live'],
+  league: ['League', '리그', 'リーグ', '联赛', 'Liga', 'लीग', 'Giải', 'ลีก', 'Лига', 'Liga', 'Ligue', 'Lega'],
+  dt: ['Date', '일시', '日時', '时间', 'Fecha', 'तारीख', 'Thời gian', 'เวลา', 'Дата', 'Datum', 'Date', 'Data'],
+  status: ['Status', '상태', '状態', '状态', 'Estado', 'स्थिति', 'Trạng thái', 'สถานะ', 'Статус', 'Status', 'Statut', 'Stato'],
+  loading: ['Loading…', '불러오는 중…', '読み込み中…', '加载中…', 'Cargando…', 'लोड हो रहा…', 'Đang tải…', 'กำลังโหลด…', 'Загрузка…', 'Lädt…', 'Chargement…', 'Caricamento…'],
+  langLabel: ['Language', '언어', '言語', '语言', 'Idioma', 'भाषा', 'Ngôn ngữ', 'ภาษา', 'Язык', 'Sprache', 'Langue', 'Lingua'],
+  news: ['Latest sports news', '스포츠 최신 뉴스', 'スポーツ最新ニュース', '体育最新新闻', 'Últimas noticias', 'ताज़ा खबरें', 'Tin thể thao', 'ข่าวกีฬา', 'Спортновости', 'Sport-News', 'Actus sport', 'Notizie sport'],
+  interest: ['Leagues', '관심 리그', 'リーグ', '联赛', 'Ligas', 'लीग', 'Giải đấu', 'ลีก', 'Лиги', 'Ligen', 'Ligues', 'Leghe'],
+  sportsHd: ['Sports', '종목', 'スポーツ', '项目', 'Deportes', 'खेल', 'Môn', 'กีฬา', 'Спорт', 'Sportart', 'Sports', 'Sport'],
+  pick: ['Pick', '픽', 'ピック', '精选', 'Pick', 'पिक', 'Chọn', 'พิค', 'Пик', 'Pick', 'Pick', 'Pick'],
+  newsMore: ['· via Daum Sports', '· 다음스포츠에서 보기', '· Daumスポーツで見る', '· 在Daum体育查看', '· en Daum Sports', '· Daum Sports पर देखें', '· trên Daum Sports', '· ดูที่ Daum Sports', '· на Daum Sports', '· auf Daum Sports', '· sur Daum Sports', '· su Daum Sports'],
+  noGames: ['No games scheduled', '경기가 없습니다', '試合がありません', '暂无比赛', 'Sin partidos', 'कोई मैच नहीं', 'Không có trận đấu', 'ไม่มีการแข่งขัน', 'Нет матчей', 'Keine Spiele', 'Aucun match', 'Nessuna partita'],
+  loadingGames: ['Loading games…', '경기 불러오는 중…', '試合を読み込み中…', '加载比赛中…', 'Cargando partidos…', 'मैच लोड हो रहे…', 'Đang tải trận…', 'กำลังโหลด…', 'Загрузка матчей…', 'Spiele laden…', 'Chargement…', 'Caricamento…'],
+  retry: ['Retry', '다시 시도', '再試行', '重试', 'Reintentar', 'पुनः प्रयास', 'Thử lại', 'ลองใหม่', 'Повторить', 'Erneut', 'Réessayer', 'Riprova'],
+  order: ['Order', '타순표', '打順', '打序', 'Orden', 'क्रम', 'Thứ tự đánh', 'ลำดับตี', 'Порядок', 'Reihenfolge', 'Ordre', 'Ordine'],
+  fieldPos: ['Field Positions', '야구장 배치', '守備位置', '防守位置', 'Posiciones', 'फील्ड', 'Vị trí sân', 'ตำแหน่ง', 'Позиции', 'Feldpositionen', 'Positions', 'Posizioni'],
+  tapPlayer: ['tap a player · last 10 games', '선수 누르면 최근 10경기', '選手をタップで直近10試合', '点击球员看近10场', 'toca un jugador · últimos 10', 'खिलाड़ी पर टैप', 'chạm cầu thủ · 10 trận', 'แตะผู้เล่น · 10 นัด', 'нажми игрока · 10 игр', 'Spieler antippen', 'toucher un joueur', 'tocca un giocatore'],
+  freeReal: ['MLB · free real data', 'MLB · 무료 실데이터', 'MLB · 無料実データ', 'MLB · 免费实时数据', 'MLB · datos reales', 'MLB · मुफ्त डेटा', 'MLB · dữ liệu miễn phí', 'MLB · ข้อมูลฟรี', 'MLB · бесплатно', 'MLB · Echtdaten', 'MLB · données réelles', 'MLB · dati reali'],
+  atBat: ['At bat', '타석', '打席', '打席', 'Al bate', 'बल्लेबाजी', 'Đang đánh', 'กำลังตี', 'На бите', 'Am Schlag', 'À la batte', 'Alla battuta'],
+  aiAuto: ['AI auto-summary', 'AI 자동 정리', 'AI自動まとめ', 'AI自动整理', 'Resumen IA', 'AI स्वतः', 'AI tự động', 'AI อัตโนมัติ', 'AI-сводка', 'KI-Auto', 'IA auto', 'IA auto'],
+  confidence: ['Confidence', '신뢰도', '信頼度', '可信度', 'Confianza', 'विश्वास', 'Độ tin cậy', 'ความมั่นใจ', 'Достоверность', 'Konfidenz', 'Confiance', 'Affidabilità'],
+  win: ['Win', '승', '勝', '胜', 'Gana', 'जीत', 'Thắng', 'ชนะ', 'Победа', 'Sieg', 'Victoire', 'Vittoria'],
+  draw: ['Draw', '무', '分', '平', 'Empate', 'ड्रॉ', 'Hòa', 'เสมอ', 'Ничья', 'Remis', 'Nul', 'Pareggio'],
+  tapDetail: ['tap a game for details', '경기 눌러 상세', '試合をタップで詳細', '点击比赛看详情', 'toca un partido', 'मैच पर टैप', 'chạm để xem', 'แตะดูรายละเอียด', 'нажми для деталей', 'Spiel antippen', 'toucher un match', 'tocca una partita'],
+  scoreDetail: ['Match Details', '경기 상세', '試合詳細', '比赛详情', 'Detalles', 'मैच विवरण', 'Chi tiết', 'รายละเอียด', 'Детали', 'Spieldetails', 'Détails', 'Dettagli'],
+  goalsCards: ['goals/cards/subs', '골/퇴장/교체', 'ゴール/退場/交代', '进球/红牌/换人', 'goles/tarjetas', 'गोल/कार्ड', 'bàn/thẻ/thay', 'ประตู/ใบ/เปลี่ยน', 'голы/карты', 'Tore/Karten', 'buts/cartons', 'gol/cartellini'],
+  runsHits: ['runs/hits/errors', '득점/안타/실책', '得点/安打/失策', '得分/安打/失误', 'carreras/hits', 'रन/हिट', 'điểm/hit/lỗi', 'แต้ม/ฮิต/พลาด', 'очки/хиты', 'Runs/Hits', 'points/coups', 'punti/valide'],
+  halftime: ['Half Time', '하프타임', 'ハーフタイム', '中场休息', 'Descanso', 'हाफ टाइम', 'Nghỉ giữa hiệp', 'พักครึ่ง', 'Перерыв', 'Halbzeit', 'Mi-temps', 'Intervallo'],
+  penalties: ['Penalties', '승부차기', 'PK戦', '点球大战', 'Penales', 'पेनल्टी', 'Luân lưu', 'ดวลจุดโทษ', 'Пенальти', 'Elfmeter', 'Tirs au but', 'Rigori'],
+  extraTime: ['Extra Time', '연장', '延長', '加时', 'Prórroga', 'अतिरिक्त समय', 'Hiệp phụ', 'ต่อเวลา', 'Доп. время', 'Verläng.', 'Prolong.', 'Supplem.'],
+  inplay: ['In play', '진행 중', '進行中', '进行中', 'En juego', 'जारी', 'Đang đấu', 'กำลังแข่ง', 'Идёт игра', 'Läuft', 'En cours', 'In corso'],
+  fh: ['1H', '전반', '前半', '上半场', '1ª parte', 'पहला हाफ', 'Hiệp 1', 'ครึ่งแรก', '1-й тайм', '1. HZ', '1re', '1° tempo'],
+  sh: ['2H', '후반', '後半', '下半场', '2ª parte', 'दूसरा हाफ', 'Hiệp 2', 'ครึ่งหลัง', '2-й тайм', '2. HZ', '2e', '2° tempo'],
+  close: ['✕ Close', '✕ 닫기', '✕ 閉じる', '✕ 关闭', '✕ Cerrar', '✕ बंद', '✕ Đóng', '✕ ปิด', '✕ Закрыть', '✕ Schließen', '✕ Fermer', '✕ Chiudi'],
+  loss: ['Loss', '패', '負', '负', 'Pierde', 'हार', 'Thua', 'แพ้', 'Пораж.', 'Nied.', 'Défaite', 'Sconf.'],
+  inningScore: ['Line Score', '이닝별 스코어', 'イニング別スコア', '逐局比分', 'Por entrada', 'पारी स्कोर', 'Điểm từng hiệp', 'คะแนนรายอินนิ่ง', 'По иннингам', 'Inning-Score', 'Score par manche', 'Punteggio inning'],
+  noEvents: ['No events yet', '아직 이벤트가 없어요', 'まだイベントなし', '暂无事件', 'Sin eventos', 'कोई इवेंट नहीं', 'Chưa có sự kiện', 'ยังไม่มีเหตุการณ์', 'Событий пока нет', 'Noch keine Events', "Pas d'événement", 'Nessun evento'],
+  setWord: ['Sets', '세트', 'セット', '局', 'Sets', 'सेट', 'Set', 'เซ็ต', 'Сеты', 'Sätze', 'Sets', 'Set'],
+  now: ['Now', '현재', '現在', '当前', 'Ahora', 'अभी', 'Hiện tại', 'ตอนนี้', 'Сейчас', 'Jetzt', 'Actuel', 'Ora'],
+  scheduled: ['Scheduled', '예정', '予定', '预定', 'Programado', 'निर्धारित', 'Dự kiến', 'ตามกำหนด', 'По расписанию', 'Geplant', 'Prévu', 'In programma'],
+  // ── AI 해설·이벤트 문장 템플릿 ({토큰} 치환) ──
+  aiComm: ['AI Commentary', 'AI 해설', 'AI解説', 'AI解说', 'Comentario IA', 'AI कमेंट्री', 'Bình luận AI', 'คำบรรยาย AI', 'AI-комментарий', 'KI-Kommentar', 'Commentaire IA', 'Commento IA'],
+  aiTie: ['{st}, {home} vs {away} {h}:{a} — neck and neck.', '{st}, {home} vs {away} {h}:{a} 팽팽한 접전이에요.', '{st}、{home} 対 {away} {h}:{a} の接戦です。', '{st}，{home} vs {away} {h}:{a}，势均力敌。', '{st}, {home} vs {away} {h}:{a}, muy igualado.', '{st}, {home} बनाम {away} {h}:{a} — कांटे की टक्कर।', '{st}, {home} vs {away} {h}:{a} — cân tài cân sức.', '{st}, {home} พบ {away} {h}:{a} สูสีมาก', '{st}, {home} — {away} {h}:{a}, борьба на равных.', '{st}, {home} vs {away} {h}:{a} — Kopf-an-Kopf.', '{st}, {home} vs {away} {h}:{a} — au coude à coude.', '{st}, {home} vs {away} {h}:{a} — equilibratissima.'],
+  aiLead: ['{st} · {lead} leads by {d} ({h}:{a}).', '{st} · {lead} {d}점 차로 앞서는 흐름 ({h}:{a}).', '{st}・{lead} が {d} 点差でリード（{h}:{a}）。', '{st}·{lead} 领先 {d} 分（{h}:{a}）。', '{st} · {lead} gana por {d} ({h}:{a}).', '{st} · {lead} {d} से आगे ({h}:{a})।', '{st} · {lead} dẫn {d} ({h}:{a}).', '{st} · {lead} นำอยู่ {d} ({h}:{a})', '{st} · {lead} впереди на {d} ({h}:{a}).', '{st} · {lead} führt mit {d} ({h}:{a}).', '{st} · {lead} mène de {d} ({h}:{a}).', '{st} · {lead} avanti di {d} ({h}:{a}).'],
+  aiHits: ['Hits {home} {hh} · {away} {ah}', '안타 {home} {hh} · {away} {ah}', '安打 {home} {hh} · {away} {ah}', '安打 {home} {hh} · {away} {ah}', 'Hits {home} {hh} · {away} {ah}', 'हिट {home} {hh} · {away} {ah}', 'Hit {home} {hh} · {away} {ah}', 'ฮิต {home} {hh} · {away} {ah}', 'Хиты {home} {hh} · {away} {ah}', 'Hits {home} {hh} · {away} {ah}', 'Coups {home} {hh} · {away} {ah}', 'Valide {home} {hh} · {away} {ah}'],
+  sumSched1: ['Upcoming: {home} vs {away}.', '곧 시작하는 {home} vs {away} 경기입니다.', 'まもなく開始：{home} 対 {away}。', '即将开始：{home} vs {away}。', 'Próximo: {home} vs {away}.', 'आगामी: {home} बनाम {away}।', 'Sắp diễn ra: {home} vs {away}.', 'กำลังจะเริ่ม: {home} พบ {away}', 'Скоро: {home} — {away}.', 'Bald: {home} vs {away}.', 'À venir : {home} vs {away}.', 'In arrivo: {home} vs {away}.'],
+  sumSched2: ['Odds slightly favor {side}.', '배당 기준 {side} 쪽이 근소 우위예요.', 'オッズ的には {side} がやや優勢。', '赔率略微看好 {side}。', 'Las cuotas favorecen algo a {side}.', 'ऑड्स में {side} थोड़ा आगे।', 'Tỷ lệ nghiêng nhẹ về {side}.', 'อัตราต่อรองเอียงไป {side} เล็กน้อย', 'Ставки слегка за {side}.', 'Quoten leicht für {side}.', 'Les cotes favorisent {side}.', 'Le quote favoriscono {side}.'],
+  sumSched3: ['Live score & commentary will auto-update here.', '시작 후 실시간 스코어·해설이 자동 갱신됩니다.', '開始後、ライブスコアと解説が自動更新されます。', '开赛后实时比分与解说将自动更新。', 'El marcador y comentarios se actualizarán aquí.', 'शुरू होने पर लाइव स्कोर व कमेंट्री अपडेट होंगे।', 'Tỷ số & bình luận sẽ tự cập nhật ở đây.', 'สกอร์และคำบรรยายสดจะอัปเดตอัตโนมัติ', 'Счёт и комментарии обновятся автоматически.', 'Live-Score & Kommentar aktualisieren sich hier.', 'Score et commentaires se mettront à jour ici.', 'Punteggio e commento si aggiorneranno qui.'],
+  sumTie: ['{st}: tied {h}:{a}, extremely close.', '{st} 현재 {h}:{a} 동점, 초박빙 승부예요.', '{st} 現在 {h}:{a} の同点、大接戦です。', '{st} 目前 {h}:{a} 平局，非常胶着。', '{st}: empate {h}:{a}, muy reñido.', '{st}: {h}:{a} बराबरी, बेहद करीबी।', '{st}: hòa {h}:{a}, cực sát nút.', '{st}: เสมอ {h}:{a} สูสีมาก', '{st}: ничья {h}:{a}, очень напряжённо.', '{st}: {h}:{a} unentschieden, sehr eng.', '{st} : égalité {h}:{a}, très serré.', '{st}: pari {h}:{a}, molto equilibrata.'],
+  sumLead: ['{st}: {lead} leads {hi}:{lo}, by {d}.', '{st} 현재 {lead}이(가) {hi}:{lo}, {d}점 차로 앞섭니다.', '{st} 現在 {lead} が {hi}:{lo}、{d} 点差でリード。', '{st} {lead} 以 {hi}:{lo} 领先 {d} 分。', '{st}: {lead} gana {hi}:{lo}, por {d}.', '{st}: {lead} {hi}:{lo} से {d} आगे।', '{st}: {lead} dẫn {hi}:{lo}, cách {d}.', '{st}: {lead} นำ {hi}:{lo} ห่าง {d}', '{st}: {lead} ведёт {hi}:{lo}, на {d}.', '{st}: {lead} führt {hi}:{lo}, mit {d}.', '{st} : {lead} mène {hi}:{lo}, de {d}.', '{st}: {lead} avanti {hi}:{lo}, di {d}.'],
+  sumBB: ['Hits: {home} {hh} · {away} {ah}. Errors {he}:{ae}.', '안타 {home} {hh} · {away} {ah}, 실책 {he}:{ae}.', '安打 {home} {hh} · {away} {ah}、失策 {he}:{ae}。', '安打 {home} {hh} · {away} {ah}，失误 {he}:{ae}。', 'Hits: {home} {hh} · {away} {ah}. Errores {he}:{ae}.', 'हिट: {home} {hh} · {away} {ah}. एरर {he}:{ae}.', 'Hit: {home} {hh} · {away} {ah}. Lỗi {he}:{ae}.', 'ฮิต: {home} {hh} · {away} {ah} เออเรอร์ {he}:{ae}', 'Хиты: {home} {hh} · {away} {ah}. Ошибки {he}:{ae}.', 'Hits: {home} {hh} · {away} {ah}. Fehler {he}:{ae}.', 'Coups : {home} {hh} · {away} {ah}. Erreurs {he}:{ae}.', 'Valide: {home} {hh} · {away} {ah}. Errori {he}:{ae}.'],
+  sumInn: ['{x} — {tb}.', '{x} · {tb} 국면입니다.', '{x}・{tb}。', '{x}·{tb}。', '{x} — {tb}.', '{x} — {tb}।', '{x} — {tb}.', '{x} — {tb}', '{x} — {tb}.', '{x} — {tb}.', '{x} — {tb}.', '{x} — {tb}.'],
+  tbTop: ['top · away batting', '초 · 원정팀 공격', '表・ビジター攻撃', '上·客队进攻', 'alta · batea visitante', 'ऊपरी · अवे बल्लेबाजी', 'đầu · đội khách đánh', 'ครึ่งบน · ทีมเยือนตี', 'верх · бьёт гость', 'oben · Gäste am Schlag', 'haute · visiteurs à la batte', 'alta · battono gli ospiti'],
+  tbBot: ['bottom · home batting', '말 · 홈팀 공격', '裏・ホーム攻撃', '下·主队进攻', 'baja · batea local', 'निचली · होम बल्लेबाजी', 'cuối · đội nhà đánh', 'ครึ่งล่าง · ทีมเหย้าตี', 'низ · бьёт хозяин', 'unten · Heim am Schlag', 'basse · domicile à la batte', 'bassa · battono i padroni'],
+  sumSet: ['Sets {h}:{a}, current set {sh}:{sa}. {leader} leads this set.', '세트 {h}:{a}, 현재 세트 {sh}:{sa}. {leader}이(가) 이 세트 리드 중.', 'セット {h}:{a}、現在のセット {sh}:{sa}。{leader} がリード。', '局分 {h}:{a}，当前局 {sh}:{sa}。{leader} 领先本局。', 'Sets {h}:{a}, set actual {sh}:{sa}. {leader} domina.', 'सेट {h}:{a}, वर्तमान सेट {sh}:{sa}. {leader} आगे।', 'Set {h}:{a}, set hiện tại {sh}:{sa}. {leader} dẫn.', 'เซ็ต {h}:{a} เซ็ตปัจจุบัน {sh}:{sa} {leader} นำ', 'Сеты {h}:{a}, текущий {sh}:{sa}. {leader} ведёт.', 'Sätze {h}:{a}, aktueller Satz {sh}:{sa}. {leader} führt.', 'Sets {h}:{a}, set actuel {sh}:{sa}. {leader} mène.', 'Set {h}:{a}, set attuale {sh}:{sa}. {leader} avanti.'],
+  sumOdds: ['Odds: win {oh} / lose {oa}; market favors {side}.', '배당 승 {oh} / 패 {oa}, 시장은 {side} 우세를 반영.', 'オッズ 勝 {oh} / 負 {oa}、市場は {side} 優勢。', '赔率 胜 {oh} / 负 {oa}，市场看好 {side}。', 'Cuotas: gana {oh} / pierde {oa}; el mercado favorece a {side}.', 'ऑड्स: जीत {oh} / हार {oa}; बाज़ार {side} के पक्ष में।', 'Tỷ lệ: thắng {oh} / thua {oa}; thị trường nghiêng về {side}.', 'อัตราต่อรอง: ชนะ {oh} / แพ้ {oa} ตลาดเอียงไป {side}', 'Ставки: победа {oh} / поражение {oa}; рынок за {side}.', 'Quoten: Sieg {oh} / Niederlage {oa}; Markt für {side}.', 'Cotes : victoire {oh} / défaite {oa} ; marché pour {side}.', 'Quote: vittoria {oh} / sconfitta {oa}; mercato per {side}.'],
+  sumFinal: ['Final {h}:{a} — {result}.', '최종 {h}:{a}, {result}.', '最終 {h}:{a}、{result}。', '终场 {h}:{a}，{result}。', 'Final {h}:{a} — {result}.', 'अंतिम {h}:{a} — {result}।', 'Chung cuộc {h}:{a} — {result}.', 'จบเกม {h}:{a} — {result}', 'Итог {h}:{a} — {result}.', 'Endstand {h}:{a} — {result}.', 'Score final {h}:{a} — {result}.', 'Finale {h}:{a} — {result}.'],
+  resultDraw: ['draw', '무승부', '引き分け', '平局', 'empate', 'ड्रॉ', 'hòa', 'เสมอ', 'ничья', 'Unentschieden', 'match nul', 'pareggio'],
+  resultWin: ['{lead} win', '{lead} 승리', '{lead} の勝利', '{lead} 获胜', 'victoria de {lead}', '{lead} की जीत', '{lead} thắng', '{lead} ชนะ', 'победа {lead}', '{lead} Sieg', 'victoire de {lead}', 'vittoria di {lead}'],
+  sumCont: ['Still anyone’s game — worth watching. (auto-updates ~15s)', '남은 시간 변수로 흐름이 바뀔 수 있어 끝까지 볼 만해요. (약 15초 자동 갱신)', '残り時間で流れは変わり得ます。最後まで注目。（約15秒更新）', '剩余时间仍有变数，值得看到最后。（约15秒更新）', 'Aún puede cambiar; vale la pena verlo. (~15s)', 'अभी कुछ भी हो सकता है, अंत तक देखें। (~15s)', 'Vẫn khó lường, đáng xem đến cuối. (~15s)', 'ยังพลิกได้ ควรดูจนจบ (~15 วิ)', 'Всё ещё может измениться. (~15с)', 'Noch offen — dranbleiben. (~15s)', 'Tout reste possible, à suivre. (~15s)', 'Ancora tutto aperto, da seguire. (~15s)'],
+  evScore: ['Score! {team} ({h}:{a})', '득점! {team} ({h}:{a})', '得点！{team}（{h}:{a}）', '得分！{team}（{h}:{a}）', '¡Anota! {team} ({h}:{a})', 'स्कोर! {team} ({h}:{a})', 'Ghi điểm! {team} ({h}:{a})', 'ได้แต้ม! {team} ({h}:{a})', 'Очко! {team} ({h}:{a})', 'Punkt! {team} ({h}:{a})', 'But ! {team} ({h}:{a})', 'Punto! {team} ({h}:{a})'],
+  evHit: ['Hit! {team} (total {n})', '안타! {team} (누적 {n})', '安打！{team}（計 {n}）', '安打！{team}（累计 {n}）', '¡Hit! {team} (total {n})', 'हिट! {team} (कुल {n})', 'Hit! {team} (tổng {n})', 'ฮิต! {team} (รวม {n})', 'Хит! {team} (всего {n})', 'Hit! {team} (gesamt {n})', 'Coup ! {team} (total {n})', 'Valida! {team} (tot {n})'],
+  evError: ['Error {team} ({n})', '실책 {team} ({n})', '失策 {team}（{n}）', '失误 {team}（{n}）', 'Error {team} ({n})', 'एरर {team} ({n})', 'Lỗi {team} ({n})', 'เออเรอร์ {team} ({n})', 'Ошибка {team} ({n})', 'Fehler {team} ({n})', 'Erreur {team} ({n})', 'Errore {team} ({n})'],
+  evInnStart: ['Start of {x}', '{x} 시작', '{x} 開始', '{x} 开始', 'Comienza {x}', '{x} शुरू', 'Bắt đầu {x}', 'เริ่ม {x}', 'Начало {x}', '{x} beginnt', 'Début {x}', 'Inizio {x}'],
+  evSet: ['Current set {s}', '현재 세트 {s}', '現在のセット {s}', '当前局 {s}', 'Set actual {s}', 'वर्तमान सेट {s}', 'Set hiện tại {s}', 'เซ็ตปัจจุบัน {s}', 'Текущий сет {s}', 'Aktueller Satz {s}', 'Set actuel {s}', 'Set attuale {s}'],
+  fbGoal: ['Goal!', '골!', 'ゴール！', '进球！', '¡Gol!', 'गोल!', 'Bàn thắng!', 'ประตู!', 'Гол!', 'Tor!', 'But !', 'Gol!'],
+  fbOwn: ['Own goal', '자책골', 'オウンゴール', '乌龙球', 'Autogol', 'आत्मघाती गोल', 'Phản lưới', 'ทำเข้าประตูตัวเอง', 'Автогол', 'Eigentor', 'But c.s.c.', 'Autogol'],
+  fbPk: ['Penalty goal!', 'PK 골!', 'PKゴール！', '点球得分！', '¡Gol de penalti!', 'पेनल्टी गोल!', 'Bàn phạt đền!', 'จุดโทษ!', 'Гол с пенальти!', 'Elfmetertor!', 'But sur penalty !', 'Gol su rigore!'],
+  fbRed: ['Red card!', '퇴장!', '退場！', '红牌！', '¡Roja!', 'लाल कार्ड!', 'Thẻ đỏ!', 'ใบแดง!', 'Красная!', 'Rote Karte!', 'Carton rouge !', 'Rosso!'],
+  fbYellow: ['Yellow card', '경고', '警告', '黄牌', 'Amarilla', 'पीला कार्ड', 'Thẻ vàng', 'ใบเหลือง', 'Жёлтая', 'Gelbe Karte', 'Carton jaune', 'Giallo'],
+  fbSub: ['Substitution', '교체', '交代', '换人', 'Cambio', 'बदलाव', 'Thay người', 'เปลี่ยนตัว', 'Замена', 'Wechsel', 'Remplacement', 'Sostituzione'],
+  fbAssist: ['assist', '도움', 'アシスト', '助攻', 'asist.', 'असिस्ट', 'kiến tạo', 'แอสซิสต์', 'пас', 'Vorlage', 'passe déc.', 'assist'],
+  ansTag: ['Pick', '답', '予想', '推荐', 'Pick', 'पिक', 'Chọn', 'พิค', 'Прогноз', 'Tipp', 'Pari', 'Scelta'],
+  over: ['Over', '오버', 'オーバー', '大', 'Over', 'ओवर', 'Tài', 'สูง', 'Больше', 'Über', 'Plus', 'Over'],
+  under: ['Under', '언더', 'アンダー', '小', 'Under', 'अंडर', 'Xỉu', 'ต่ำ', 'Меньше', 'Unter', 'Moins', 'Under'],
+  handi: ['Handicap', '핸디', 'ハンデ', '让分', 'Hándicap', 'हैंडिकैप', 'Chấp', 'แฮนดิแคป', 'Фора', 'Handicap', 'Handicap', 'Handicap'],
+  // ── 알림/즐겨찾기 ──
+  notifTitle: ['Notifications', '알림 설정', '通知設定', '通知设置', 'Notificaciones', 'सूचनाएं', 'Thông báo', 'การแจ้งเตือน', 'Уведомления', 'Benachrichtigungen', 'Notifications', 'Notifiche'],
+  notifBtn: ['Alerts', '알림', '通知', '通知', 'Alertas', 'अलर्ट', 'Thông báo', 'แจ้งเตือน', 'Уведомл.', 'Alarme', 'Alertes', 'Avvisi'],
+  notifEnable: ['Enable notifications', '알림 켜기', '通知をオン', '开启通知', 'Activar notificaciones', 'सूचनाएं चालू करें', 'Bật thông báo', 'เปิดการแจ้งเตือน', 'Включить', 'Aktivieren', 'Activer', 'Attiva'],
+  notifPerm: ['Allow browser notifications to get alerts.', '알림을 받으려면 브라우저 권한을 허용하세요.', '通知許可が必要です。', '需要浏览器通知权限。', 'Permite las notificaciones del navegador.', 'ब्राउज़र सूचना अनुमति दें।', 'Cần cấp quyền thông báo trình duyệt.', 'ต้องอนุญาตการแจ้งเตือนเบราว์เซอร์', 'Разрешите уведомления браузера.', 'Browser-Benachrichtigungen erlauben.', 'Autorisez les notifications du navigateur.', 'Consenti le notifiche del browser.'],
+  favTeams: ['Favorite teams', '관심팀', 'お気に入りチーム', '关注球队', 'Equipos favoritos', 'पसंदीदा टीमें', 'Đội yêu thích', 'ทีมโปรด', 'Избранные', 'Lieblingsteams', 'Équipes favorites', 'Squadre preferite'],
+  noFav: ['No favorites yet — tap ☆ on a match.', '관심팀이 없어요. 경기의 ☆를 눌러 추가하세요.', 'お気に入りなし。試合の☆をタップ。', '暂无关注，点击比赛的☆添加。', 'Sin favoritos — toca ☆ en un partido.', 'कोई पसंदीदा नहीं — मैच पर ☆ दबाएं।', 'Chưa có — chạm ☆ trên trận đấu.', 'ยังไม่มี — แตะ ☆ ที่แมตช์', 'Пока пусто — нажмите ☆.', 'Noch keine — ☆ antippen.', 'Aucun — touchez ☆.', 'Nessuna — tocca ☆.'],
+  evtStart: ['Match start', '경기 시작', '試合開始', '比赛开始', 'Inicio del partido', 'मैच शुरू', 'Bắt đầu trận', 'เริ่มแข่ง', 'Начало матча', 'Spielbeginn', 'Coup d’envoi', 'Inizio partita'],
+  evtLineup: ['Lineups announced', '라인업 발표', 'スタメン発表', '首发公布', 'Alineaciones', 'लाइनअप घोषित', 'Đội hình ra sân', 'ประกาศตัวจริง', 'Составы', 'Aufstellungen', 'Compositions', 'Formazioni'],
+  evtScore: ['Score', '득점', '得点', '得分', 'Gol/Anotación', 'स्कोर', 'Ghi điểm', 'ทำแต้ม', 'Гол/очко', 'Tor/Punkt', 'But/point', 'Gol/punto'],
+  evtHR: ['Home run', '홈런', '本塁打', '全垒打', 'Home run', 'होम रन', 'Home run', 'โฮมรัน', 'Хоумран', 'Homerun', 'Home run', 'Fuoricampo'],
+  evtRed: ['Red card / Ejection', '퇴장', '退場', '罚下', 'Expulsión', 'रेड कार्ड', 'Thẻ đỏ', 'ใบแดง', 'Удаление', 'Platzverweis', 'Expulsion', 'Espulsione'],
+  evtFinish: ['Full time', '경기 종료', '試合終了', '比赛结束', 'Final', 'समाप्त', 'Kết thúc', 'จบเกม', 'Матч окончен', 'Spielende', 'Fin du match', 'Fine partita'],
+  notifClosedNote: ['Alerts work while the app is open. Push when fully closed needs a paid server setup.', '알림은 앱이 열려 있을 때 동작해요. 완전히 닫힌 상태의 푸시는 별도 서버 작업이 필요해요.', 'アプリ起動中に動作します。完全終了時のプッシュは別途サーバーが必要。', '应用打开时有效。完全关闭的推送需服务器配置。', 'Funcionan con la app abierta. Push cerrada requiere servidor.', 'ऐप खुली होने पर काम करता है।', 'Hoạt động khi mở app. Push khi đóng cần máy chủ.', 'ทำงานเมื่อเปิดแอป', 'Работает при открытом приложении.', 'Funktioniert bei geöffneter App.', 'Fonctionne app ouverte.', 'Funziona ad app aperta.'],
+  save: ['Save', '저장', '保存', '保存', 'Guardar', 'सहेजें', 'Lưu', 'บันทึก', 'Сохранить', 'Speichern', 'Enregistrer', 'Salva'],
+  // 종목명 (키 = SPORTS.key)
+  football: ['Soccer', '축구', 'サッカー', '足球', 'Fútbol', 'फुटबॉल', 'Bóng đá', 'ฟุตบอล', 'Футбол', 'Fußball', 'Football', 'Calcio'],
+  baseball: ['Baseball', '야구', '野球', '棒球', 'Béisbol', 'बेसबॉल', 'Bóng chày', 'เบสบอล', 'Бейсбол', 'Baseball', 'Baseball', 'Baseball'],
+  basketball: ['Basketball', '농구', 'バスケ', '篮球', 'Baloncesto', 'बास्केटबॉल', 'Bóng rổ', 'บาสเกตบอล', 'Баскетбол', 'Basketball', 'Basket', 'Basket'],
+  volleyball: ['Volleyball', '배구', 'バレー', '排球', 'Voleibol', 'वॉलीबॉल', 'Bóng chuyền', 'วอลเลย์บอล', 'Волейбол', 'Volleyball', 'Volley', 'Pallavolo'],
+  hockey: ['Hockey', '하키', 'ホッケー', '冰球', 'Hockey', 'हॉकी', 'Khúc côn cầu', 'ฮอกกี้', 'Хоккей', 'Hockey', 'Hockey', 'Hockey'],
+  handball: ['Handball', '핸드볼', 'ハンド', '手球', 'Balonmano', 'हैंडबॉल', 'Bóng ném', 'แฮนด์บอล', 'Гандбол', 'Handball', 'Handball', 'Pallamano'],
+  rugby: ['Rugby', '럭비', 'ラグビー', '橄榄球', 'Rugby', 'रग्बी', 'Bóng bầu dục', 'รักบี้', 'Регби', 'Rugby', 'Rugby', 'Rugby']
+};
+let LANG = (function () { try { return localStorage.getItem('liveup_lang') || 'en'; } catch (e) { return 'en'; } })();
+function t(key) { const a = STR[key]; if (!a) return key; const i = LANGS.indexOf(LANG); return a[i] || a[0]; }
+// 템플릿 문장 치환: ai('aiLead', {st,lead,d,h,a}) → 선택 언어 문장
+function ai(key, v) { let s = t(key); if (v) for (const k in v) s = s.split('{' + k + '}').join(v[k]); return s; }
+function applyI18n() {
+  document.documentElement.lang = LANG;
+  $$('[data-i18n]').forEach(el => { el.textContent = t(el.dataset.i18n); });
+  $$('[data-i18n-ph]').forEach(el => { el.placeholder = t(el.dataset.i18nPh); });
+}
+function setLang(l) {
+  LANG = l; try { localStorage.setItem('liveup_lang', l); } catch (e) {}
+  applyI18n();
+  if (typeof buildSportNav === 'function') buildSportNav();
+  if (typeof loadEvents === 'function' && $('#view-live') && !$('#view-live').classList.contains('hidden')) loadEvents();
+  if (typeof renderInfoList === 'function' && $('#view-info') && !$('#view-info').classList.contains('hidden')) renderInfoList();
+  if (typeof refreshDateLabel === 'function') refreshDateLabel();
+}
+
+// ============================================================
+//  팀 이름 번역 (MLB·NPB·KBO·LMB · CJK) · 그 외 언어/리그는 영문 원문 유지
+//  key = 닉네임(마지막 단어, Sox/Jays 예외) → { ko, ja, zh }  · 리그별 사전으로 충돌 방지
+// ============================================================
+const MLB_TEAMS = {
+  'diamondbacks': { ko: '애리조나', ja: 'アリゾナ', zh: '亚利桑那' },
+  'braves': { ko: '애틀랜타', ja: 'アトランタ', zh: '亚特兰大' },
+  'orioles': { ko: '볼티모어', ja: 'ボルチモア', zh: '巴尔的摩' },
+  'red sox': { ko: '보스턴', ja: 'ボストン', zh: '波士顿红袜' },
+  'cubs': { ko: '시카고 컵스', ja: 'カブス', zh: '芝加哥小熊' },
+  'white sox': { ko: '시카고 화이트삭스', ja: 'ホワイトソックス', zh: '芝加哥白袜' },
+  'reds': { ko: '신시내티', ja: 'シンシナティ', zh: '辛辛那提' },
+  'guardians': { ko: '클리블랜드', ja: 'クリーブランド', zh: '克利夫兰' },
+  'rockies': { ko: '콜로라도', ja: 'コロラド', zh: '科罗拉多' },
+  'tigers': { ko: '디트로이트', ja: 'デトロイト', zh: '底特律' },
+  'astros': { ko: '휴스턴', ja: 'ヒューストン', zh: '休斯顿' },
+  'royals': { ko: '캔자스시티', ja: 'カンザスシティ', zh: '堪萨斯城' },
+  'angels': { ko: 'LA 에인절스', ja: 'エンゼルス', zh: '洛杉矶天使' },
+  'dodgers': { ko: 'LA 다저스', ja: 'ドジャース', zh: '洛杉矶道奇' },
+  'marlins': { ko: '마이애미', ja: 'マイアミ', zh: '迈阿密' },
+  'brewers': { ko: '밀워키', ja: 'ミルウォーキー', zh: '密尔沃基' },
+  'twins': { ko: '미네소타', ja: 'ミネソタ', zh: '明尼苏达' },
+  'mets': { ko: '뉴욕 메츠', ja: 'メッツ', zh: '纽约大都会' },
+  'yankees': { ko: '뉴욕 양키스', ja: 'ヤンキース', zh: '纽约洋基' },
+  'athletics': { ko: '애슬레틱스', ja: 'アスレチックス', zh: '运动家' },
+  'phillies': { ko: '필라델피아', ja: 'フィリーズ', zh: '费城' },
+  'pirates': { ko: '피츠버그', ja: 'パイレーツ', zh: '匹兹堡' },
+  'padres': { ko: '샌디에이고', ja: 'パドレス', zh: '圣地亚哥' },
+  'giants': { ko: '샌프란시스코', ja: 'ジャイアンツ', zh: '旧金山巨人' },
+  'mariners': { ko: '시애틀', ja: 'マリナーズ', zh: '西雅图水手' },
+  'cardinals': { ko: '세인트루이스', ja: 'カージナルス', zh: '圣路易斯红雀' },
+  'rays': { ko: '탬파베이', ja: 'レイズ', zh: '坦帕湾光芒' },
+  'rangers': { ko: '텍사스', ja: 'レンジャーズ', zh: '德州游骑兵' },
+  'blue jays': { ko: '토론토', ja: 'ブルージェイズ', zh: '多伦多蓝鸟' },
+  'nationals': { ko: '워싱턴', ja: 'ナショナルズ', zh: '华盛顿国民' }
+};
+// 일본프로야구(NPB) 12팀 — key = 닉네임(마지막 단어)
+const NPB_TEAMS = {
+  'eagles': { ko: '라쿠텐', ja: '楽天', zh: '乐天' },
+  'buffaloes': { ko: '오릭스', ja: 'オリックス', zh: '欧力士' },
+  'giants': { ko: '요미우리', ja: '巨人', zh: '读卖巨人' },
+  'tigers': { ko: '한신', ja: '阪神', zh: '阪神' },
+  'carp': { ko: '히로시마', ja: '広島', zh: '广岛' },
+  'swallows': { ko: '야쿠르트', ja: 'ヤクルト', zh: '养乐多' },
+  'baystars': { ko: '요코하마', ja: '横浜', zh: '横滨' },
+  'dragons': { ko: '주니치', ja: '中日', zh: '中日' },
+  'hawks': { ko: '소프트뱅크', ja: 'ソフトバンク', zh: '软银' },
+  'lions': { ko: '세이부', ja: '西武', zh: '西武' },
+  'marines': { ko: '롯데', ja: 'ロッテ', zh: '罗德' },
+  'fighters': { ko: '니혼햄', ja: '日本ハム', zh: '日本火腿' }
+};
+// 한국프로야구(KBO) 10팀
+const KBO_TEAMS = {
+  'bears': { ko: '두산', ja: '斗山', zh: '斗山' },
+  'twins': { ko: 'LG', ja: 'LG', zh: 'LG' },
+  'tigers': { ko: 'KIA', ja: 'KIA', zh: '起亚' },
+  'lions': { ko: '삼성', ja: 'サムスン', zh: '三星' },
+  'giants': { ko: '롯데', ja: 'ロッテ', zh: '乐天巨人' },
+  'eagles': { ko: '한화', ja: 'ハンファ', zh: '韩华' },
+  'landers': { ko: 'SSG', ja: 'SSG', zh: 'SSG' },
+  'wiz': { ko: 'KT', ja: 'KT', zh: 'KT' },
+  'heroes': { ko: '키움', ja: 'キウム', zh: '英雄' },
+  'dinos': { ko: 'NC', ja: 'NC', zh: 'NC' }
+};
+// 멕시코리그(LMB) — 도시/닉네임 표기 혼용 → 둘 다 키로 (음차)
+const LMB_TEAMS = {
+  'rojos': { ko: '디아블로스', ja: 'ディアブロス', zh: '红魔' },
+  'diablos': { ko: '디아블로스', ja: 'ディアブロス', zh: '红魔' },
+  'oaxaca': { ko: '오아하카', ja: 'オアハカ', zh: '瓦哈卡' },
+  'guerreros': { ko: '오아하카', ja: 'オアハカ', zh: '瓦哈卡' },
+  'campeche': { ko: '캄페체', ja: 'カンペチェ', zh: '坎佩切' },
+  'queretaro': { ko: '케레타로', ja: 'ケレタロ', zh: '克雷塔罗' },
+  'sultanes': { ko: '몬테레이', ja: 'モンテレイ', zh: '蒙特雷' },
+  'monterrey': { ko: '몬테레이', ja: 'モンテレイ', zh: '蒙特雷' },
+  'acereros': { ko: '몬클로바', ja: 'モンクロバ', zh: '蒙克洛瓦' },
+  'toros': { ko: '티후아나', ja: 'ティフアナ', zh: '蒂华纳' },
+  'tijuana': { ko: '티후아나', ja: 'ティフアナ', zh: '蒂华纳' },
+  'pericos': { ko: '푸에블라', ja: 'プエブラ', zh: '普埃布拉' },
+  'leones': { ko: '유카탄', ja: 'ユカタン', zh: '尤卡坦' },
+  'tigres': { ko: '킨타나로오', ja: 'キンタナロー', zh: '金塔纳罗奥' },
+  'rieleros': { ko: '아과스칼리엔테스', ja: 'アグアスカリエンテス', zh: '阿瓜斯卡连特斯' },
+  'saraperos': { ko: '살티요', ja: 'サルティージョ', zh: '萨尔蒂略' },
+  'algodoneros': { ko: '우니온라구나', ja: 'ウニオンラグナ', zh: '拉古纳联合' },
+  'olmecas': { ko: '타바스코', ja: 'タバスコ', zh: '塔巴斯科' },
+  'generales': { ko: '두랑고', ja: 'ドゥランゴ', zh: '杜兰戈' },
+  'mariachis': { ko: '과달라하라', ja: 'グアダラハラ', zh: '瓜达拉哈拉' },
+  'dorados': { ko: '치와와', ja: 'チワワ', zh: '奇瓦瓦' },
+  'bravos': { ko: '레온', ja: 'レオン', zh: '莱昂' }
+};
+function tmNick(s) {
+  const w = String(s || '').toLowerCase().replace(/[.]/g, '').trim().split(/\s+/);
+  const last2 = w.slice(-2).join(' ');
+  if (['red sox', 'white sox', 'blue jays'].includes(last2)) return last2;
+  return w[w.length - 1] || '';
+}
+function leagueDict(league) {
+  if (league === 'NPB') return NPB_TEAMS;
+  if (league === 'KBO') return KBO_TEAMS;
+  if (league === 'LMB') return LMB_TEAMS;
+  return MLB_TEAMS;   // MLB·IL·PCL(미국) 및 기본
+}
+// 표시용 팀명: CJK 언어에서만, 리그별 사전 매칭 → 없으면 원문 유지
+function TN(name, league) {
+  if (!name || (LANG !== 'ko' && LANG !== 'ja' && LANG !== 'zh')) return name;
+  const d = leagueDict(league);
+  const nick = tmNick(name);
+  let e = d[nick] || d[String(name).toLowerCase()];
+  if (!e && d !== MLB_TEAMS) e = MLB_TEAMS[nick];   // 미국팀 섞여 나올 때 대비
+  return (e && e[LANG]) ? e[LANG] : name;
+}
+// MLB StatsAPI 선수 얼굴 (없으면 generic 실루엣 자동 반환)
+function mlbFace(id) {
+  return id ? `https://img.mlbstatic.com/mlb-photos/image/upload/d_people:generic:headshot:67:current.png/w_120,q_auto:best/v1/people/${encodeURIComponent(id)}/headshot/67/current` : '';
+}
+// API-Football 선수 얼굴 (media.api-sports.io) — 없으면 onerror로 등번호 폴백
+function footFace(id) {
+  return id ? `https://media.api-sports.io/football/players/${encodeURIComponent(id)}.png` : '';
+}
+// 야구 기록 표 헤더 라벨 — CJK는 현지어, 그 외 언어는 국제 표준 약어(AB/H/HR…)
+const STAT_LBL = {
+  batter: { en: 'Batter', ko: '타자', ja: '打者', zh: '打者' },
+  pitcher: { en: 'Pitcher', ko: '투수', ja: '投手', zh: '投手' },
+  ab: { en: 'AB', ko: '타수', ja: '打数', zh: '打数' },
+  h: { en: 'H', ko: '안타', ja: '安打', zh: '安打' },
+  bb: { en: 'BB', ko: 'BB', ja: '四球', zh: '保送' },
+  rbi: { en: 'RBI', ko: '타점', ja: '打点', zh: '打点' },
+  hr: { en: 'HR', ko: 'HR', ja: '本塁打', zh: '全垒打' },
+  k: { en: 'K', ko: 'K', ja: '三振', zh: '三振' },
+  ip: { en: 'IP', ko: '이닝', ja: '回', zh: '局' },
+  np: { en: 'NP', ko: '투구', ja: '球数', zh: '投球' },
+  ha: { en: 'H', ko: '피안타', ja: '被安打', zh: '被安打' },
+  er: { en: 'ER', ko: '자책', ja: '自責', zh: '自责' },
+  era: { en: 'ERA', ko: '방어율', ja: '防御率', zh: '防御率' },
+  avg: { en: 'AVG', ko: '타율', ja: '打率', zh: '打率' },
+  g: { en: 'G', ko: '경기', ja: '試合', zh: '场次' },
+  w: { en: 'W', ko: '승', ja: '勝', zh: '胜' },
+  l: { en: 'L', ko: '패', ja: '負', zh: '负' },
+  sv: { en: 'SV', ko: '세', ja: 'S', zh: '救' },
+  pos: { en: 'Pos', ko: '포지션', ja: '守備', zh: '位置' },
+  team: { en: 'Team', ko: '팀', ja: 'チーム', zh: '球队' },
+  pct: { en: 'PCT', ko: '승률', ja: '勝率', zh: '胜率' },
+  rs: { en: 'RS', ko: '득점', ja: '得点', zh: '得分' },
+  ra: { en: 'RA', ko: '실점', ja: '失点', zh: '失分' },
+  streak: { en: 'STRK', ko: '연속', ja: '連続', zh: '连续' },
+  date: { en: 'Date', ko: '날짜', ja: '日付', zh: '日期' },
+  opp: { en: 'Opp', ko: '상대', ja: '相手', zh: '对手' }
+};
+function sl(key) { const e = STAT_LBL[key]; if (!e) return key; return (LANG === 'ko' || LANG === 'ja' || LANG === 'zh') ? (e[LANG] || e.en) : e.en; }
+// 이닝 표기 (3회초 / Top 3 / 3回表 / 3局上)
+function inningLabel(inn, half) {
+  const top = half === 'top', bot = half === 'bottom';
+  if (LANG === 'ko') return `${inn}회${top ? '초' : bot ? '말' : ''}`;
+  if (LANG === 'ja') return `${inn}回${top ? '表' : bot ? '裏' : ''}`;
+  if (LANG === 'zh') return `${inn}局${top ? '上' : bot ? '下' : ''}`;
+  return `${top ? 'Top ' : bot ? 'Bot ' : ''}${inn}`;
+}
+// 쿼터/세트/피리어드 표기
+function periodLabel(n, kind) {
+  if (LANG === 'ko') return `${n}${kind === 'set' ? '세트' : kind === 'period' ? '피리어드' : '쿼터'}`;
+  if (LANG === 'ja') return `${n}${kind === 'set' ? 'セット' : kind === 'period' ? 'ピリオド' : 'Q'}`;
+  if (LANG === 'zh') return `第${n}${kind === 'set' ? '局' : kind === 'period' ? '节' : '节'}`;
+  return `${kind === 'set' ? 'Set ' : kind === 'period' ? 'P' : 'Q'}${n}`;
+}
+
 // API-Sports 종목 (키 = 서버 /api/asports/games?sport=)
 const SPORTS = [
   { key: 'football', ko: '축구', em: '⚽' },
@@ -19,11 +337,19 @@ const SPORTS = [
 ];
 // 주요 리그 우선 정렬 (이 리그들을 상단에)
 const TOP_LEAGUES = ['KBO', 'MLB', 'NPB', 'K League 1', 'Premier League', 'La Liga', 'Serie A', 'Bundesliga', 'NBA', 'WNBA', 'KBL', 'CPBL', 'NHL', 'UEFA Champions League'];
+// MLB StatsAPI(무료)로 라인업·투수/타자·최근경기까지 되는 야구 리그
+const STATS_LEAGUES = ['MLB', 'LMB', 'IL', 'PCL'];
+function statsLeague(lg) { return STATS_LEAGUES.includes(lg); }
 
+// 로컬(브라우저 시간대) 기준 YYYY-MM-DD — UTC 날짜 버그 방지
+function localYMD(d = new Date()) { const x = new Date(d.getTime() - d.getTimezoneOffset() * 60000); return x.toISOString().slice(0, 10); }
+// 사용자 시간대 (예: Asia/Seoul, Asia/Ho_Chi_Minh, America/New_York)
+const USER_TZ = (function () { try { return Intl.DateTimeFormat().resolvedOptions().timeZone || 'Asia/Seoul'; } catch (e) { return 'Asia/Seoul'; } })();
 const state = {
-  date: new Date().toISOString().slice(0, 10),
+  date: localYMD(),
   sport: 'baseball',   // 여름철 진행 종목 기본
-  leagues: []
+  leagues: [],
+  leagueFilter: 'all'  // 상단 리그 선택 필터
 };
 
 // ---------- 팀 뱃지/엠블럼 ----------
@@ -215,10 +541,10 @@ $('#wSubmit')?.addEventListener('click', async () => {
 function buildSportNav() {
   const row = SPORTS.map(s => `<div class="sp ${s.key === state.sport ? 'on' : ''}" data-sport="${s.key}" title="${s.ko}">${s.em}</div>`).join('');
   $('#sportRow').innerHTML = row;
-  const list = SPORTS.map(s => `<a data-sport="${s.key}" class="${s.key === state.sport ? 'on' : ''}"><span class="em">${s.em}</span>${s.ko}</a>`).join('');
+  const list = SPORTS.map(s => `<a data-sport="${s.key}" class="${s.key === state.sport ? 'on' : ''}"><span class="em">${s.em}</span>${esc(t(s.key))}</a>`).join('');
   $('#sportNav').innerHTML = list;
   $('#sportNavD').innerHTML = list;
-  $$('[data-sport]').forEach(el => el.addEventListener('click', () => { state.sport = el.dataset.sport; buildSportNav(); loadEvents(); closeDrawer(); }));
+  $$('[data-sport]').forEach(el => el.addEventListener('click', () => { state.sport = el.dataset.sport; state.leagueFilter = 'all'; buildSportNav(); loadEvents(); closeDrawer(); }));
 }
 function buildLeagueNav() {
   // API-Sports는 종목 단위로 조회 → 리그 네비는 현재 종목의 리그로 동적 표시(렌더 후 갱신)
@@ -249,77 +575,275 @@ async function fetchJSON(url, { tries = 15, delay = 4000, onWait } = {}) {
 //  이벤트 로드 & 렌더
 // ============================================================
 let feedGames = {};   // id -> game (상세 모달용)
-async function loadEvents() {
+let allFeedGames = [];   // 필터 전 전체 경기
+function filterGames() { return state.leagueFilter === 'all' ? allFeedGames : allFeedGames.filter(g => g.league === state.leagueFilter); }
+// 상단 리그 선택 바 (전체 / KBO / MLB / … · 모든 종목 공통)
+function buildLeagueRow(games) {
+  const row = $('#leagueRow'); if (!row) return;
+  const counts = {};
+  games.forEach(g => { const k = g.league || '기타'; counts[k] = (counts[k] || 0) + 1; });
+  const leagues = Object.entries(counts).sort((a, b) => {
+    const ra = TOP_LEAGUES.indexOf(a[0]), rb = TOP_LEAGUES.indexOf(b[0]);
+    const ia = ra < 0 ? 999 : ra, ib = rb < 0 ? 999 : rb;
+    if (ia !== ib) return ia - ib;
+    return b[1] - a[1];
+  });
+  if (!leagues.length) { row.style.display = 'none'; row.innerHTML = ''; return; }
+  row.style.display = 'flex';
+  row.innerHTML = `<div class="lgchip ${state.leagueFilter === 'all' ? 'on' : ''}" data-lg="all">${esc(t('all'))} <b>${games.length}</b></div>`
+    + leagues.map(([nm, n]) => `<div class="lgchip ${state.leagueFilter === nm ? 'on' : ''}" data-lg="${esc(nm)}">${esc(nm)} <b>${n}</b></div>`).join('');
+  $$('#leagueRow .lgchip').forEach(c => c.addEventListener('click', () => {
+    state.leagueFilter = c.dataset.lg;
+    $$('#leagueRow .lgchip').forEach(x => x.classList.remove('on')); c.classList.add('on');
+    // 활성 화면에 필터 적용 (경기 정보방 / 라이브)
+    if ($('#view-info') && !$('#view-info').classList.contains('hidden')) renderInfoList();
+    else renderFeed(filterGames());
+  }));
+}
+// silent=true → 자동 10초 갱신: 로딩 표시(깜빡임) 없이, 스크롤 위치 그대로 유지
+async function loadEvents(silent) {
   const feed = $('#feed');
-  feed.innerHTML = `<div class="loading">경기 불러오는 중…</div>`;
+  if (!silent) feed.innerHTML = `<div class="loading">${esc(t('loadingGames'))}</div>`;
   try {
-    const d = await fetchJSON(`/api/asports/games?sport=${encodeURIComponent(state.sport)}&date=${state.date}`, {
-      onWait: (n) => { feed.innerHTML = `<div class="loading">⏳ 무료 서버를 깨우는 중이에요…<br>최초 접속은 최대 1분 정도 걸릴 수 있어요.<br><span style="color:#aeb6c0">(자동 재시도 ${n})</span></div>`; }
+    const d = await fetchJSON(`/api/asports/games?sport=${encodeURIComponent(state.sport)}&date=${state.date}&tz=${encodeURIComponent(USER_TZ)}`, {
+      onWait: silent ? undefined : (n) => { feed.innerHTML = `<div class="loading">⏳ 무료 서버를 깨우는 중이에요…<br>최초 접속은 최대 1분 정도 걸릴 수 있어요.<br><span style="color:#aeb6c0">(자동 재시도 ${n})</span></div>`; }
     });
-    if (d.needKey) { feed.innerHTML = `<div class="loading">경기 데이터 API 키가 설정되지 않았어요.</div>`; return; }
+    if (d.needKey) { if (!silent) feed.innerHTML = `<div class="loading">경기 데이터 API 키가 설정되지 않았어요.</div>`; return; }
     const games = d.games || [];
+    allFeedGames = games;
     feedGames = {}; games.forEach(g => feedGames[g.id] = g);
-    renderFeed(games);
+    // (알림 감지는 서버 웹푸시가 담당 — 앱이 꺼져 있어도 동작)
+    // 현재 리그 필터가 이번 데이터에 없으면 전체로 리셋
+    if (state.leagueFilter !== 'all' && !games.some(g => g.league === state.leagueFilter)) state.leagueFilter = 'all';
+    // ▼ 화면이 위로 튀지 않도록: 재렌더 전 스크롤 위치 저장 → 후(레이아웃 반영까지) 복원
+    const sy = window.pageYOffset || document.documentElement.scrollTop || document.body.scrollTop || 0;
+    const modalEl = $('#modal'); const moy = modalEl ? modalEl.scrollTop : 0;
+    buildLeagueRow(games);
+    renderFeed(filterGames());
+    // 상세 모달이 열려 있으면 해당 경기 상세도 실시간 갱신 (채팅·스크롤 유지)
+    if (modalEventId && feedGames[modalEventId] && modalPredict) {
+      logChanges(modalEventId, feedGames[modalEventId]);   // 변화 감지 → 이벤트 로그 적립
+      renderDetail(feedGames[modalEventId], modalPredict);
+    }
+    if (silent) {
+      const restore = () => {
+        window.scrollTo(0, sy);
+        if (document.scrollingElement) document.scrollingElement.scrollTop = sy;
+        if (modalEl && modalEl.classList.contains('on')) modalEl.scrollTop = moy;
+      };
+      restore();                       // 즉시
+      requestAnimationFrame(restore);  // 레이아웃 반영 직후 한 번 더 (브라우저 자동 스크롤 보정 무력화)
+    }
   } catch (e) {
-    feed.innerHTML = `<div class="loading">데이터를 불러오지 못했습니다.<br><button onclick="loadEvents()" style="margin-top:10px;padding:9px 18px;border:none;border-radius:8px;background:#24568f;color:#fff;font-weight:800;cursor:pointer">다시 시도</button></div>`;
+    if (!silent) feed.innerHTML = `<div class="loading">${esc(t('loading'))}<br><button onclick="loadEvents()" style="margin-top:10px;padding:9px 18px;border:none;border-radius:8px;background:#24568f;color:#fff;font-weight:800;cursor:pointer">${esc(t('retry'))}</button></div>`;
   }
 }
 function hhmm(dateStr) {
-  const t = dateStr ? new Date(dateStr) : null;
-  return t ? `${String(t.getHours()).padStart(2, '0')}:${String(t.getMinutes()).padStart(2, '0')}` : '예정';
+  const dd = dateStr ? new Date(dateStr) : null;
+  return dd ? `${String(dd.getHours()).padStart(2, '0')}:${String(dd.getMinutes()).padStart(2, '0')}` : t('scheduled');
+}
+// 라이브 상태를 선택 언어로 (회차/쿼터/분) · 함수명은 호환 위해 koStatus 유지
+function koStatus(e) {
+  const sp = state.sport;
+  const s = String(e.status || '').toUpperCase();
+  const long = String(e.statusLong || '');
+  const L = long.toLowerCase();
+  if (sp === 'football') {
+    if (s === 'HT') return t('halftime');
+    if (s === '1H') return `${t('fh')} ${e.elapsed || ''}'`;
+    if (s === '2H') return `${t('sh')} ${e.elapsed || ''}'`;
+    if (s === 'ET') return `${t('extraTime')} ${e.elapsed || ''}'`;
+    if (s === 'P' || s === 'PEN') return t('penalties');
+    if (e.elapsed != null) return `${e.elapsed}'`;
+    return long || t('inplay');
+  }
+  if (sp === 'baseball') {
+    const inn = e.curInning || e.period || (long.match(/(\d+)/) || [])[1] || (s.match(/(\d+)/) || [])[1];
+    let half = '';
+    if (e.inningHalf === 'top' || /top/.test(L) || /^T/.test(s)) half = 'top';
+    else if (e.inningHalf === 'bottom' || /bot/.test(L) || /^B/.test(s)) half = 'bottom';
+    if (inn) return inningLabel(inn, half);
+    return long || t('inplay');
+  }
+  if (sp === 'basketball') {
+    if (s === 'HT') return t('halftime');
+    const q = (s.match(/Q?(\d)/) || [])[1];
+    if (q) return periodLabel(q, 'quarter');
+    return long || t('inplay');
+  }
+  const p = e.period || (s.match(/(\d+)/) || [])[1];
+  if (p) return periodLabel(p, sp === 'volleyball' ? 'set' : sp === 'hockey' ? 'period' : 'quarter');
+  return long || e.status || t('inplay');
 }
 function stateBadge(e) {
-  if (e.state === 'live') return `<span class="badge-state live">● ${esc(e.elapsed ? e.elapsed + "'" : (e.status || 'LIVE'))}</span>`;
-  if (e.state === 'finished') return `<span class="badge-state ft">종료</span>`;
+  if (e.state === 'live') return `<span class="badge-state live">● ${esc(koStatus(e))}</span>`;
+  if (e.state === 'finished') return `<span class="badge-state ft">${esc(t('finished'))}</span>`;
   return `<span class="badge-state sched">${hhmm(e.date)}</span>`;
 }
+// AI 실시간 해설 (라이브 경기)
+function aiLive(e) {
+  if (e.state !== 'live') return '';
+  const setSports = (state.sport === 'volleyball' || state.sport === 'hockey');
+  let h, a;
+  if (setSports && e.livePts) { h = Number(e.livePts.home); a = Number(e.livePts.away); }
+  else { h = Number(e.hs); a = Number(e.as); }
+  if (isNaN(h) || isNaN(a)) return '';
+  const st = koStatus(e), diff = h - a;
+  const HM = `<b>${esc(TN(e.home, e.league))}</b>`, AW = `<b>${esc(TN(e.away, e.league))}</b>`;
+  let msg;
+  if (diff === 0) msg = ai('aiTie', { st, home: HM, away: AW, h, a });
+  else {
+    const lead = `<b>${esc(TN(diff > 0 ? e.home : e.away, e.league))}</b>`, ld = Math.abs(diff);
+    msg = ai('aiLead', { st, lead, d: ld, h, a });
+  }
+  // 야구: 안타 흐름 한 줄 추가
+  if (state.sport === 'baseball' && e.box) {
+    const bh = e.box.home, ba = e.box.away;
+    if (bh && ba && (bh.h != null || ba.h != null)) {
+      msg += ` <span class="aihit">${ai('aiHits', { home: esc(TN(e.home, e.league)), hh: bh.h ?? 0, away: esc(TN(e.away, e.league)), ah: ba.h ?? 0 })}</span>`;
+    }
+  }
+  return `<div class="ailive">🤖 <b>${esc(t('aiComm'))}</b> ${msg}</div>`;
+}
+// AI 총정리 (상세보기 · 여러 문장)
+function aiSummary(e) {
+  const sp = state.sport;
+  const h = Number(e.hs), a = Number(e.as);
+  const lines = [];
+  const st = e.state === 'live' ? koStatus(e) : (e.state === 'finished' ? t('finished') : t('scheduled'));
+  const HM = esc(TN(e.home, e.league)), AW = esc(TN(e.away, e.league));
+  if (e.state === 'scheduled') {
+    lines.push(ai('sumSched1', { home: `<b>${HM}</b>`, away: `<b>${AW}</b>` }));
+    if (e.odds) lines.push(ai('sumSched2', { side: (Number(e.odds.home) || 9) < (Number(e.odds.away) || 9) ? HM : AW }));
+    lines.push(ai('sumSched3'));
+    return lines;
+  }
+  const diff = (!isNaN(h) && !isNaN(a)) ? h - a : 0;
+  const leadName = esc(TN(diff > 0 ? e.home : e.away, e.league)), ld = Math.abs(diff);
+  // 1) 현재 상황
+  if (diff === 0) lines.push(ai('sumTie', { st, h, a }));
+  else lines.push(ai('sumLead', { st, lead: `<b>${leadName}</b>`, hi: Math.max(h, a), lo: Math.min(h, a), d: ld }));
+  // 2) 종목별 디테일
+  if (sp === 'baseball' && e.box) {
+    const bh = e.box.home, ba = e.box.away;
+    const hh = bh?.h ?? 0, ah = ba?.h ?? 0, he = bh?.e ?? 0, ae = ba?.e ?? 0;
+    lines.push(ai('sumBB', { home: HM, hh, away: AW, ah, he, ae }));
+    if (e.inningHalf) lines.push(ai('sumInn', { x: inningLabel(e.curInning || '', e.inningHalf), tb: e.inningHalf === 'top' ? t('tbTop') : t('tbBot') }));
+  } else if ((sp === 'volleyball' || sp === 'hockey') && e.livePts) {
+    const lh = Number(e.livePts.home), la = Number(e.livePts.away);
+    lines.push(ai('sumSet', { h, a, sh: e.livePts.home ?? 0, sa: e.livePts.away ?? 0, leader: lh > la ? HM : la > lh ? AW : '—' }));
+  }
+  // 3) 배당/전망
+  if (e.odds) {
+    const oh = Number(e.odds.home), oa = Number(e.odds.away);
+    if (oh && oa) lines.push(ai('sumOdds', { oh: oh.toFixed(2), oa: oa.toFixed(2), side: oh < oa ? HM : AW }));
+  }
+  if (e.state === 'finished') lines.push(ai('sumFinal', { h, a, result: diff === 0 ? t('resultDraw') : ai('resultWin', { lead: leadName }) }));
+  else lines.push(ai('sumCont'));
+  return lines;
+}
 function scoreBlock(e) {
-  if (e.state === 'scheduled' || (e.hs == null && e.as == null)) {
+  const hasScore = e.hs != null || e.as != null;
+  if (!hasScore) {
     return `<div class="mid">${stateBadge(e)}<div class="vs">VS</div></div>`;
   }
   const cls = e.state === 'live' ? 'score live' : 'score';
-  return `<div class="mid">${stateBadge(e)}<div class="scores"><span class="${cls}">${esc(e.hs ?? 0)}</span><span class="vs">:</span><span class="${cls}">${esc(e.as ?? 0)}</span></div></div>`;
+  // 세트제 종목(배구/하키)은 현재 세트 실시간 점수 추가 표시
+  const setSports = (state.sport === 'volleyball' || state.sport === 'hockey');
+  const sub = (setSports && e.livePts && e.state === 'live') ? `<div class="setpts">${esc(t('now'))} ${esc(e.livePts.home ?? 0)}:${esc(e.livePts.away ?? 0)}</div>` : '';
+  const mainLbl = setSports ? `<div class="scorelbl">${esc(t('setWord'))}</div>` : '';
+  return `<div class="mid">${stateBadge(e)}<div class="scores"><span class="${cls}">${esc(e.hs ?? 0)}</span><span class="vs">:</span><span class="${cls}">${esc(e.as ?? 0)}</span></div>${mainLbl}${sub}</div>`;
+}
+function oddsLine(e) {
+  if (!e.odds) return '';
+  const o = e.odds, c = (v, l) => v ? `<span>${l} <b>${Number(v).toFixed(2)}</b></span>` : '';
+  const parts = [c(o.home, t('win')), o.draw ? c(o.draw, t('draw')) : '', c(o.away, t('loss'))].filter(Boolean).join('');
+  return parts ? `<div class="modds">💰 ${esc(t('odds'))} ${parts}</div>` : '';
 }
 function predictBanner(e) {
   const h = Number(e.hs), a = Number(e.as);
   let side = e.home, pct = 50;
   if (!isNaN(h) && !isNaN(a) && h !== a) { side = h > a ? e.home : e.away; pct = 55 + Math.min(35, Math.abs(h - a) * 9); }
-  const ou = (!isNaN(h) && !isNaN(a) && (h + a) >= 5) ? '오버' : '언더';
-  return `<div class="ansban" data-ev="${esc(e.id)}"><span class="badge">답</span><span class="t"><b>${esc(side)} ${pct}%</b> <span class="g">/ 핸디 / ${ou}</span></span><span class="go">›</span></div>`;
+  const ou = (!isNaN(h) && !isNaN(a) && (h + a) >= 5) ? t('over') : t('under');
+  return `<div class="ansban" data-ev="${esc(e.id)}"><span class="badge">${esc(t('ansTag'))}</span><span class="t"><b>${esc(TN(side, e.league))} ${pct}%</b> <span class="g">/ ${esc(t('handi'))} / ${esc(ou)}</span></span><span class="go">›</span></div>`;
 }
+// 야구 R·H·E 미니 스코어보드 (득점·안타·실책)
+function rheMini(e) {
+  if (state.sport !== 'baseball' || !e.box) return '';
+  const h = e.box.home || {}, a = e.box.away || {};
+  if ([h.h, h.e, a.h, a.e].every(v => v == null)) return '';
+  const nm = x => { const s = TN(x, e.league); const p = String(s || '').trim().split(' '); return (LANG === 'en' || LANG === 'es' || LANG === 'de' || LANG === 'fr' || LANG === 'it' || LANG === 'vi') && p.length > 1 ? p[p.length - 1] : s; };
+  const showBB = (h.bb != null || a.bb != null);
+  return `<div class="rhemini"><table>
+    <thead><tr><th></th><th>R</th><th>H</th><th>E</th>${showBB ? '<th>BB</th>' : ''}</tr></thead>
+    <tbody>
+      <tr><td class="tn">${esc(nm(e.home))}</td><td class="r">${esc(h.r ?? e.hs ?? 0)}</td><td>${esc(h.h ?? 0)}</td><td>${esc(h.e ?? 0)}</td>${showBB ? `<td>${esc(h.bb ?? '-')}</td>` : ''}</tr>
+      <tr><td class="tn">${esc(nm(e.away))}</td><td class="r">${esc(a.r ?? e.as ?? 0)}</td><td>${esc(a.h ?? 0)}</td><td>${esc(a.e ?? 0)}</td>${showBB ? `<td>${esc(a.bb ?? '-')}</td>` : ''}</tr>
+    </tbody></table></div>`;
+}
+// 홈/원정 배지 (이모지 대신 또렷한 아이콘 칩)
+const HA_HOME = '<span class="haic home" title="HOME" aria-label="HOME"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.6 1.5 11.2l1.5 1.9L5 11.9V21h5.2v-5.6h3.6V21H19v-9.1l2 1.2 1.5-1.9z"/></svg></span>';
+const HA_AWAY = '<span class="haic away" title="AWAY" aria-label="AWAY"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21.5 15.6 14 11.2V4.9a2 2 0 0 0-4 0v6.3l-7.5 4.4v1.9L10 15.4v3.9l-2.3 1.6V22L12 20.8 16.3 22v-1.1L14 19.3v-3.9l7.5 2.1z"/></svg></span>';
 function matchCard(e) {
   return `<div class="match" data-ev="${esc(e.id)}">
-    <span class="bell">🔔</span>
+    <span class="bell favbell${isMatchFav(e) ? ' on' : ''}" data-favmatch="${esc(e.id)}" title="${esc(t('favTeams'))}">${isMatchFav(e) ? '🔔' : '🔕'}</span>
     <div class="mrow">
-      <div class="side"><div class="ph">${badge(e.homeLogo, '🏟')}</div><div class="team">${esc(e.home)}</div></div>
+      <div class="side">${HA_HOME}<div class="ph">${badge(e.homeLogo, '🏟')}</div><div class="team">${esc(TN(e.home, e.league))}</div></div>
       ${scoreBlock(e)}
-      <div class="side"><div class="ph">${badge(e.awayLogo, '🏟')}</div><div class="team">${esc(e.away)}</div></div>
+      <div class="side">${HA_AWAY}<div class="ph">${badge(e.awayLogo, '🏟')}</div><div class="team">${esc(TN(e.away, e.league))}</div></div>
     </div>
-    <span class="pick">픽</span>
+    ${bsoMini(e)}
+    ${rheMini(e)}
+    ${aiLive(e)}
+    ${oddsLine(e)}
+    <span class="pick">${esc(t('pick'))}</span>
   </div>`;
 }
 function renderFeed(games) {
   const feed = $('#feed');
   if (!games.length) {
-    feed.innerHTML = `<div class="loading">${esc(state.date)} · ${SPORTS.find(s => s.key === state.sport)?.ko || state.sport} 경기가 없습니다.<br>날짜를 바꾸거나 다른 종목을 선택해 보세요.</div>`;
+    feed.innerHTML = `<div class="loading">${esc(state.date)} · ${esc(t(state.sport))} · ${esc(t('noGames'))}</div>`;
     return;
   }
+  // 정렬: 라이브(진행) → 예정(시작 임박순) → 종료(아래로)
+  const stateRank = s => s === 'live' ? 0 : s === 'finished' ? 2 : 1;
+  const feedSort = (a, b) => {
+    const ra = stateRank(a.state), rb = stateRank(b.state);
+    if (ra !== rb) return ra - rb;
+    const ta = a.date ? new Date(a.date).getTime() : 0, tb = b.date ? new Date(b.date).getTime() : 0;
+    return ra === 2 ? tb - ta : ta - tb;   // 예정=빠른 시간 위, 종료=최근 위
+  };
+  // ⭐ 즐겨찾기(종) 경기는 맨 위 별도 그룹으로
+  const favGames = games.filter(e => isMatchFav(e));
+  const rest = games.filter(e => !isMatchFav(e));
+  favGames.sort(feedSort);
   const groups = {};
-  games.forEach(e => { const k = e.league || '기타'; (groups[k] = groups[k] || { league: e, name: k, items: [] }).items.push(e); });
+  rest.forEach(e => { const k = e.league || '기타'; (groups[k] = groups[k] || { league: e, name: k, items: [] }).items.push(e); });
+  Object.values(groups).forEach(g => g.items.sort(feedSort));
+  // 그룹(리그) 순서: 라이브 있는 리그 → 시작예정 있는 리그 → 전부 종료된 리그(아래)
+  const groupTier = items => items.some(x => x.state === 'live') ? 0 : items.some(x => x.state === 'scheduled') ? 1 : 2;
   const order = Object.values(groups).sort((a, b) => {
-    const la = a.items.some(x => x.state === 'live'), lb = b.items.some(x => x.state === 'live');
-    if (la !== lb) return (lb ? 1 : 0) - (la ? 1 : 0);
+    const ta = groupTier(a.items), tb = groupTier(b.items);
+    if (ta !== tb) return ta - tb;
     const ra = TOP_LEAGUES.indexOf(a.name) < 0 ? 999 : TOP_LEAGUES.indexOf(a.name);
     const rb = TOP_LEAGUES.indexOf(b.name) < 0 ? 999 : TOP_LEAGUES.indexOf(b.name);
     if (ra !== rb) return ra - rb;
     return b.items.length - a.items.length;
   });
-  feed.innerHTML = order.map(g => {
+  let html = '';
+  if (favGames.length) {
+    const live = favGames.filter(x => x.state === 'live').length;
+    const head = `<div class="lghd favhd"><span class="flag">⭐</span><span class="nm">${esc(t('favTeams'))}</span><span class="cnt">(${favGames.length})</span>${live ? `<span class="live-dot" style="color:#e2231a;font-weight:800">🔴 ${live} LIVE</span>` : ''}<span class="up">∧</span></div>`;
+    const body = favGames.map(e => matchCard(e)).join('');
+    html += `<div class="lg lg-fav">${head}${body}</div>`;
+  }
+  html += order.map(g => {
     const live = g.items.filter(x => x.state === 'live').length;
     const head = `<div class="lghd"><span class="flag">${badge(g.league.leagueLogo, '🏆')}</span><span class="nm">${esc(g.name)}</span><span class="cnt">(${g.items.length})</span>${live ? `<span class="live-dot" style="color:#e2231a;font-weight:800">🔴 ${live} LIVE</span>` : ''}<span class="up">∧</span></div>`;
-    const body = g.items.map(e => (e.state !== 'finished' ? predictBanner(e) : '') + matchCard(e)).join('');
+    const body = g.items.map(e => matchCard(e)).join('');
     return `<div class="lg">${head}${body}</div>`;
   }).join('');
+  feed.innerHTML = html;
   $$('#feed .lghd').forEach(h => h.addEventListener('click', () => {
     let el = h.nextElementSibling; const arr = h.querySelector('.up'); const col = arr.textContent === '∨';
     while (el && !el.classList.contains('lghd')) { el.style.display = col ? '' : 'none'; el = el.nextElementSibling; }
@@ -331,36 +855,500 @@ function renderFeed(games) {
 // ============================================================
 //  경기 상세 모달 (메모리 데이터 사용 · 추가 호출 없음)
 // ============================================================
-async function openEvent(id) {
-  const e = feedGames[id]; if (!e) return;
-  $('#scrim').classList.add('on'); $('#modal').classList.add('on');
-  $('#mTitle').textContent = e.league || '경기 상세';
-  const pr = await fetch(`/api/predict?h=${e.hs ?? ''}&a=${e.as ?? ''}`).then(r => r.json()).catch(() => ({ home: 40, draw: 25, away: 35, confidence: 60 }));
-  const st = e.state === 'live' ? (e.elapsed ? `● ${e.elapsed}'` : '● LIVE') : (e.state === 'finished' ? '종료' : hhmm(e.date));
+let modalChatUI = null, modalEventId = null, modalPredict = null;
+// ===== 실시간 이벤트 피드 (축구=실제 이벤트 / 야구·기타=변화감지 AI 로그) =====
+const eventLogs = {};   // id -> [{t, icon, text}]
+const snapForLog = {};  // id -> 직전 스냅샷
+function nowHM() { const d = new Date(); return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`; }
+function pushLog(id, icon, text) {
+  const arr = (eventLogs[id] = eventLogs[id] || []);
+  const last = arr[arr.length - 1];
+  if (last && last.text === text) return;         // 연속 중복 방지
+  arr.push({ t: nowHM(), icon, text });
+  if (arr.length > 40) arr.shift();
+}
+function logChanges(id, e) {
+  const p = snapForLog[id];
+  const snap = {
+    hs: Number(e.hs) || 0, as: Number(e.as) || 0,
+    hh: e.box && e.box.home ? e.box.home.h : null, ah: e.box && e.box.away ? e.box.away.h : null,
+    he: e.box && e.box.home ? e.box.home.e : null, ae: e.box && e.box.away ? e.box.away.e : null,
+    inn: e.curInning != null ? e.curInning : null, half: e.inningHalf || null,
+    sp: e.livePts ? `${e.livePts.home}:${e.livePts.away}` : null
+  };
+  const HM = `<b>${esc(TN(e.home, e.league))}</b>`, AW = `<b>${esc(TN(e.away, e.league))}</b>`;
+  if (p) {
+    if (state.sport === 'baseball') {
+      if (snap.hs > p.hs) pushLog(id, '🔴', ai('evScore', { team: HM, h: snap.hs, a: snap.as }));
+      if (snap.as > p.as) pushLog(id, '🔴', ai('evScore', { team: AW, h: snap.hs, a: snap.as }));
+      if (snap.hh != null && p.hh != null && snap.hh > p.hh) pushLog(id, '🏏', ai('evHit', { team: HM, n: snap.hh }));
+      if (snap.ah != null && p.ah != null && snap.ah > p.ah) pushLog(id, '🏏', ai('evHit', { team: AW, n: snap.ah }));
+      if (snap.he != null && p.he != null && snap.he > p.he) pushLog(id, '⚠️', ai('evError', { team: HM, n: snap.he }));
+      if (snap.ae != null && p.ae != null && snap.ae > p.ae) pushLog(id, '⚠️', ai('evError', { team: AW, n: snap.ae }));
+      if (snap.inn !== p.inn || snap.half !== p.half) { if (snap.inn) pushLog(id, '🔄', ai('evInnStart', { x: inningLabel(snap.inn, snap.half) })); }
+    } else {
+      if (snap.hs > p.hs) pushLog(id, '🔴', ai('evScore', { team: HM, h: snap.hs, a: snap.as }));
+      if (snap.as > p.as) pushLog(id, '🔴', ai('evScore', { team: AW, h: snap.hs, a: snap.as }));
+      if (snap.sp && snap.sp !== p.sp) pushLog(id, '🏐', ai('evSet', { s: snap.sp }));
+    }
+  }
+  snapForLog[id] = snap;
+}
+function eventEmpty() {
+  return `<div class="ev-empty">🤖 ${esc(t('noEvents'))}</div>`;
+}
+async function updateEvents(e) {
+  const box = $('#mEvents'); if (!box) return;
+  if (state.sport === 'football') {
+    try {
+      const d = await fetchJSON(`/api/asports/events?fixture=${encodeURIComponent(e.id)}`, { tries: 1 });
+      const evs = d.events || [];
+      if (!evs.length) { box.innerHTML = eventEmpty(); return; }
+      box.innerHTML = evs.slice().reverse().map(ev => {
+        let icon = '•', label = ev.detail || ev.type;
+        if (ev.type === 'Goal') { icon = '⚽'; label = /own/i.test(ev.detail) ? t('fbOwn') : /penalty/i.test(ev.detail) ? t('fbPk') : t('fbGoal'); }
+        else if (ev.type === 'Card' && /red/i.test(ev.detail)) { icon = '🟥'; label = t('fbRed'); }
+        else if (ev.type === 'Card') { icon = '🟨'; label = t('fbYellow'); }
+        else if (/subst/i.test(ev.type)) { icon = '🔄'; label = t('fbSub'); }
+        else if (/var/i.test(ev.type)) { icon = '📺'; label = 'VAR'; }
+        const mm = ev.minute != null ? `${ev.minute}${ev.extra ? '+' + ev.extra : ''}'` : '';
+        const who = /subst/i.test(ev.type) ? `${esc(ev.assist)} → ${esc(ev.player)}` : `${esc(ev.player)}${ev.assist ? ` (${esc(t('fbAssist'))} ${esc(ev.assist)})` : ''}`;
+        return `<div class="evrow"><span class="evm">${esc(mm)}</span><span class="evi">${icon}</span><span class="evt"><b>${esc(label)}</b> ${who} · ${esc(ev.team)}</span></div>`;
+      }).join('');
+    } catch { box.innerHTML = eventEmpty(); }
+  } else {
+    const log = eventLogs[e.id] || [];
+    if (!log.length) { box.innerHTML = eventEmpty(); return; }
+    box.innerHTML = log.slice().reverse().map(x => `<div class="evrow"><span class="evm">${esc(x.t)}</span><span class="evi">${x.icon}</span><span class="evt">${x.text}</span></div>`).join('');
+  }
+}
+// ===== 선발 라인업 (축구=포메이션 배치도 / MLB=타순·선수 최근경기) =====
+function shortName(n) { const p = String(n || '').trim().split(' '); return p.length > 1 ? p[p.length - 1] : n; }
+function teamShort(n) { return shortName(n); }
+function renderPitch(t) {
+  const xi = (t.startXI || []).filter(p => p.grid);
+  if (!xi.length) return `<div class="pitch"><div class="pitch-hd">${esc(t.team)} · ${esc(t.formation)}</div><div class="lu-note">배치 좌표 없음</div></div>`;
+  const rows = {};
+  xi.forEach(p => { const g = String(p.grid).split(':'); const r = +g[0], c = +g[1]; (rows[r] = rows[r] || []).push({ ...p, c }); });
+  const rk = Object.keys(rows).map(Number).sort((a, b) => a - b);
+  const R = rk.length || 1;
+  const dots = [];
+  rk.forEach((r, ri) => {
+    const line = rows[r].sort((a, b) => a.c - b.c), n = line.length;
+    line.forEach((p, ci) => {
+      const top = ((ri + 1) / (R + 1)) * 100, left = ((ci + 1) / (n + 1)) * 100;
+      const face = footFace(p.id), num = esc(p.number || '');
+      const av = face
+        ? `<span class="lu-av has-face"><img src="${face}" alt="" loading="lazy" onerror="this.parentNode.classList.remove('has-face');this.parentNode.innerHTML='${num}'"><b class="lu-badge">${num}</b></span>`
+        : `<span class="lu-av">${num}</span>`;
+      dots.push(`<div class="lu-dot" data-pid="${esc(p.id)}" data-name="${esc(p.name)}" data-pos="${esc(p.pos || '')}" data-num="${esc(p.number || '')}" style="top:${top}%;left:${left}%">${av}<span class="lu-nm">${esc(shortName(p.name))}</span></div>`);
+    });
+  });
+  return `<div class="pitch"><div class="pitch-hd">${esc(t.team)} · <b>${esc(t.formation)}</b>${t.coach ? ` · 감독 ${esc(t.coach)}` : ''}</div><div class="pitch-field">${dots.join('')}</div></div>`;
+}
+// 야구장 수비 배치도 (포지션별 좌표) — 얼굴 대신 포지션 캐릭터 원
+const BB_POS = { P: [50, 60], C: [50, 87], '1B': [72, 52], '2B': [61, 39], SS: [39, 39], '3B': [28, 52], LF: [21, 25], CF: [50, 13], RF: [79, 25] };
+function fieldDot(p, x, y) {
+  const face = mlbFace(p.id);
+  const badgeTxt = esc((p.number != null && p.number !== '') ? p.number : (p.pos || ''));
+  const av = face
+    ? `<div class="fd-av has-face"><img src="${face}" alt="" loading="lazy" onerror="this.parentNode.classList.remove('has-face');this.parentNode.innerHTML='${esc(p.pos || '')}'"><b class="fd-badge">${badgeTxt}</b></div>`
+    : `<div class="fd-av">${esc(p.pos || '')}</div>`;
+  return `<div class="fd" data-pid="${esc(p.id)}" data-name="${esc(p.name)}" data-group="${p.pos === 'P' ? 'pitching' : 'hitting'}" style="left:${x}%;top:${y}%">${av}<div class="fd-nm">${esc(shortName(p.name))}</div></div>`;
+}
+function mlbField(side, teamName) {
+  const dots = [];
+  (side.lineup || []).forEach(p => { if (p.pos && p.pos !== 'DH' && BB_POS[p.pos]) { const [x, y] = BB_POS[p.pos]; dots.push(fieldDot(p, x, y)); } });
+  if (side.pitcher) { const [x, y] = BB_POS.P; dots.push(fieldDot({ ...side.pitcher, pos: 'P' }, x, y)); }
+  const dh = (side.lineup || []).find(p => p.pos === 'DH');
+  if (!dots.length) return `<div class="lu-note">라인업 미확정</div>`;
+  return `<div class="bfield">${dots.join('')}</div>${dh ? `<div class="bfield-dh">🏏 DH <b>${esc(dh.name)}</b></div>` : ''}`;
+}
+function wireFieldClicks() { $$('#mLineupWrap .fd').forEach(el => el.addEventListener('click', () => showMlbPlayer(el.dataset.pid, el.dataset.name, el.dataset.group || 'hitting'))); }
+function mlbFaceEl(id) {
+  const f = mlbFace(id);
+  return f ? `<span class="mlb-face"><img src="${f}" alt="" loading="lazy" onerror="this.parentNode.style.display='none'"></span>` : '';
+}
+function mlbCol(side, teamName, league) {
+  const rows = (side.lineup || []).map(p => `<div class="mlb-p" data-pid="${esc(p.id)}" data-name="${esc(p.name)}" data-group="hitting"><span class="mlb-o">${esc(p.order)}</span>${mlbFaceEl(p.id)}<span class="mlb-pos">${esc(p.pos)}</span><span class="mlb-nm">${esc(p.name)}</span></div>`).join('');
+  const pit = side.pitcher ? `<div class="mlb-p pit" data-pid="${esc(side.pitcher.id)}" data-name="${esc(side.pitcher.name)}" data-group="pitching"><span class="mlb-o">P</span>${mlbFaceEl(side.pitcher.id)}<span class="mlb-pos">${esc(t('probable'))}</span><span class="mlb-nm">${esc(side.pitcher.name)}</span></div>` : '';
+  return `<div class="mlb-side"><div class="mlb-hd">${esc(TN(teamName, league))}</div>${rows || '<div class="lu-note">-</div>'}${pit}</div>`;
+}
+async function showMlbPlayer(id, name, group) {
+  const box = $('#mPlayer'); if (!box) return;
+  box.innerHTML = `<div class="pl-card"><div class="pl-hd">${esc(name)} · ${esc(t('recent'))}</div><div class="loading" style="padding:10px">${esc(t('loading'))}</div></div>`;
+  try {
+    const d = await fetchJSON(`/api/mlb/player?id=${encodeURIComponent(id)}&group=${group || 'hitting'}`, { tries: 1 });
+    const gs = d.games || [];
+    if (!gs.length) { box.innerHTML = `<div class="pl-card"><div class="pl-hd">${esc(name)}</div><div class="lu-note">-</div></div>`; return; }
+    const isPit = (group === 'pitching');
+    const head = isPit ? `<th>${sl('date')}</th><th>${sl('opp')}</th><th>${sl('ip')}</th><th>${sl('er')}</th><th>${sl('k')}</th><th>${sl('era')}</th>` : `<th>${sl('date')}</th><th>${sl('opp')}</th><th>${sl('ab')}</th><th>${sl('h')}</th><th>${sl('hr')}</th><th>${sl('rbi')}</th>`;
+    const rows = gs.map(g => {
+      const s = g.stat || {}, md = (g.date || '').slice(5);
+      if (isPit) return `<tr><td>${esc(md)}</td><td>${esc(teamShort(g.opp))}</td><td>${esc(s.inningsPitched ?? '-')}</td><td>${esc(s.earnedRuns ?? '-')}</td><td>${esc(s.strikeOuts ?? '-')}</td><td>${esc(s.era ?? '-')}</td></tr>`;
+      return `<tr><td>${esc(md)}</td><td>${esc(teamShort(g.opp))}</td><td>${esc(s.atBats ?? '-')}</td><td>${esc(s.hits ?? '-')}</td><td>${esc(s.homeRuns ?? '-')}</td><td>${esc(s.rbi ?? '-')}</td></tr>`;
+    }).join('');
+    box.innerHTML = `<div class="pl-card"><div class="pl-hd">🧢 ${esc(name)} · ${esc(t('recent'))}</div><table class="pllog"><thead><tr>${head}</tr></thead><tbody>${rows}</tbody></table></div>`;
+    box.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  } catch { box.innerHTML = `<div class="pl-card"><div class="lu-note">-</div></div>`; }
+}
+function wirePlayerClicks(kind) {
+  if (kind === 'mlb') {
+    $$('#mLineupWrap .mlb-p').forEach(el => el.addEventListener('click', () => showMlbPlayer(el.dataset.pid, el.dataset.name, el.dataset.group || 'hitting')));
+  } else {
+    $$('#mLineupWrap .lu-dot').forEach(el => el.addEventListener('click', () => {
+      const box = $('#mPlayer'); if (!box) return;
+      box.innerHTML = `<div class="pl-card"><div class="pl-hd">⚽ ${esc(el.dataset.name)}</div><div class="pl-meta">등번호 <b>${esc(el.dataset.num || '-')}</b> · 포지션 <b>${esc(el.dataset.pos || '-')}</b></div><div class="lu-note">축구는 선수별 최근 경기 로그를 데이터 소스가 제공하지 않아, 이름·등번호·포지션까지 표시돼요.</div></div>`;
+      box.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }));
+  }
+}
+// MLB 실시간 상황 (볼·스트라이크·아웃 · 주자 · 타자/투수 · R/H/E/BB)
+function basesSvg(b) {
+  const on = '#e2231a', off = '#c3c9d2';
+  return `<svg class="diamond" viewBox="0 0 46 50" width="46" height="50" aria-hidden="true">
+    <rect x="18" y="5" width="10" height="10" transform="rotate(45 23 10)" fill="${b && b.second ? on : off}"/>
+    <rect x="30" y="17" width="10" height="10" transform="rotate(45 35 22)" fill="${b && b.first ? on : off}"/>
+    <rect x="6" y="17" width="10" height="10" transform="rotate(45 11 22)" fill="${b && b.third ? on : off}"/>
+    <rect x="16" y="33" width="14" height="14" transform="rotate(45 23 40)" fill="#fff" stroke="#16243d" stroke-width="3.5"/>
+  </svg>`;
+}
+// 카드용 B/S/O + 주자 다이아몬드 (라이브 MLB만)
+function bsoMini(e) {
+  if (state.sport !== 'baseball' || e.state !== 'live' || !e.bso) return '';
+  const b = e.bso, dot = (n, max) => { let s = ''; for (let i = 0; i < max; i++) s += `<span class="cdm${i < (n || 0) ? ' on' : ''}"></span>`; return s; };
+  return `<div class="bsomini"><span class="bl">B</span>${dot(b.balls, 3)}<span class="bl">S</span>${dot(b.strikes, 2)}<span class="bl o">O</span>${dot(b.outs, 2)}<span class="bso-dia">${basesSvg(b.bases)}</span></div>`;
+}
+async function updateMlbLive(e) {
+  const box = $('#mMlbLive'); if (!box) return;
+  try {
+    const d = await fetchJSON(`/api/mlb/live?home=${encodeURIComponent(e.home)}&away=${encodeURIComponent(e.away)}&date=${state.date}`, { tries: 1 });
+    if (!d.found || (d.inning == null && d.balls == null && d.outs == null)) { box.innerHTML = ''; return; }
+    const halfEn = d.half === 'Top' ? 'top' : d.half === 'Bottom' ? 'bottom' : '';
+    const innTxt = d.inning != null ? inningLabel(d.inning, halfEn) : '-';
+    const dot = (n, max) => { let s = ''; for (let i = 0; i < max; i++) s += `<span class="cd${i < (n || 0) ? ' on' : ''}"></span>`; return s; };
+    const bh = d.box.home || {}, ba = d.box.away || {};
+    box.innerHTML = `
+      <div class="odsec">⚾ ${esc(t('liveSit'))} <span class="rhe">${esc(t('freeReal'))}</span></div>
+      <div class="mlbstate">
+        <div class="ms-top">
+          <span class="ms-inn">${esc(innTxt)}</span>
+          <div class="bso"><span class="bso-l">B</span>${dot(d.balls, 3)}<span class="bso-l">S</span>${dot(d.strikes, 2)}<span class="bso-l o">O</span>${dot(d.outs, 2)}</div>
+          ${basesSvg(d.bases)}
+        </div>
+        <div class="ms-players">
+          <div>🏏 ${esc(t('atBat'))} <b>${esc(d.batter || '-')}</b>${d.batterLine ? ` <span class="ms-stat">${d.batterLine.h}/${d.batterLine.ab} · K${d.batterLine.k} · ${d.batterLine.bb}BB</span>` : ''}</div>
+          <div>⚾ ${sl('pitcher')} <b>${esc(d.pitcher || '-')}</b>${d.pitcherLine ? ` <span class="ms-stat">${d.pitcherLine.ip}${sl('ip')}${d.pitcherLine.np != null ? ' · ' + d.pitcherLine.np + 'P' : ''} · ${d.pitcherLine.k}K · ${d.pitcherLine.er}${sl('er')}</span>` : ''}</div>
+        </div>
+        <table class="rhe-tbl"><thead><tr><th></th><th>R</th><th>H</th><th>E</th><th>BB</th></tr></thead><tbody>
+          <tr><td class="tn">${esc(TN(e.away, e.league))}</td><td>${esc(ba.r ?? 0)}</td><td>${esc(ba.h ?? 0)}</td><td>${esc(ba.e ?? 0)}</td><td>${esc(ba.bb ?? '-')}</td></tr>
+          <tr><td class="tn">${esc(TN(e.home, e.league))}</td><td>${esc(bh.r ?? 0)}</td><td>${esc(bh.h ?? 0)}</td><td>${esc(bh.e ?? 0)}</td><td>${esc(bh.bb ?? '-')}</td></tr>
+        </tbody></table>
+      </div>`;
+  } catch { box.innerHTML = ''; }
+}
+// ⚾ KBO/NPB/CPBL 여부 (TheSports 박스스코어 대상)
+function tsLeague(l) { return /KBO|NPB|CPBL|Korea|Nippon|Japan|일본|한국|대만|Taiwan|Chinese Professional/i.test(l || ''); }
+// ⚾ TheSports 야구 필드 배치도 (수비 포지션 + 선수 사진) — MLB와 동일 비주얼
+// 선수 표시 이름 — 한국어 UI면 한글명(있을 때) 우선
+function pName(p) { return (LANG === 'ko' && p && p.name_ko) ? p.name_ko : (p && p.name) || ''; }
+function tsFieldDot(p, x, y) {
+  const face = p.photo;
+  const av = face
+    ? `<div class="fd-av has-face"><img src="${esc(face)}" alt="" loading="lazy" onerror="this.parentNode.classList.remove('has-face');this.parentNode.innerHTML='${esc(p.position || '')}'"><b class="fd-badge">${esc(p.position || '')}</b></div>`
+    : `<div class="fd-av">${esc(p.position || '')}</div>`;
+  const dnm = LANG === 'ko' && p.name_ko ? p.name_ko : shortName(p.name || p.position || '');
+  return `<div class="fd" style="left:${x}%;top:${y}%">${av}<div class="fd-nm">${esc(dnm)}</div></div>`;
+}
+function tsField(players) {
+  const list = players || [];
+  const bat = list.filter(p => !p.pitcher), pit = list.filter(p => p.pitcher);
+  const dots = [], used = {};
+  ['C', '1B', '2B', '3B', 'SS', 'LF', 'CF', 'RF'].forEach(pos => {
+    const pl = bat.find(p => p.position === pos && !used[p.id]);
+    if (pl && BB_POS[pos]) { used[pl.id] = 1; const [x, y] = BB_POS[pos]; dots.push(tsFieldDot(pl, x, y)); }
+  });
+  const starter = pit.find(p => p.position === 'SP') || pit[0];
+  if (starter) { const [x, y] = BB_POS.P; dots.push(tsFieldDot(Object.assign({}, starter, { position: 'P' }), x, y)); }
+  const dh = bat.find(p => p.position === 'DH');
+  if (!dots.length) return '';
+  return `<div class="bfield">${dots.join('')}</div>${dh ? `<div class="bfield-dh">🏏 DH <b>${esc(pName(dh))}</b></div>` : ''}`;
+}
+// ⚾ TheSports 경기별 박스스코어 한쪽(타자+투수) 렌더 (선수 사진 포함)
+function tsBoxSide(players) {
+  const list = players || [];
+  const bat = list.filter(p => !p.pitcher), pit = list.filter(p => p.pitcher);
+  const face = p => p.photo ? `<img class="bx-face" src="${esc(p.photo)}" loading="lazy" onerror="this.style.display='none'">` : '';
+  const v = x => (x == null ? '-' : esc(x));
+  const bt = `<table class="stt"><thead><tr><th>${sl('batter')}</th><th></th><th>${sl('ab')}</th><th>${sl('h')}</th><th>${sl('bb')}</th><th>${sl('rbi')}</th><th>${sl('hr')}</th><th>${sl('k')}</th></tr></thead><tbody>${
+    bat.map(b => `<tr><td class="nm">${face(b)}${esc(pName(b) || '-')}</td><td class="lr">${esc(b.position || '')}</td><td>${v(b.ab)}</td><td>${v(b.h)}</td><td>${v(b.bb)}</td><td>${v(b.rbi)}</td><td>${v(b.hr)}</td><td>${v(b.k)}</td></tr>`).join('') || `<tr><td colspan="8">-</td></tr>`
+    }</tbody></table>`;
+  const pt = `<table class="stt" style="margin-top:8px"><thead><tr><th>${sl('pitcher')}</th><th>${sl('ip')}</th><th>${sl('ha')}</th><th>${sl('er')}</th><th>${sl('k')}</th><th>${sl('bb')}</th></tr></thead><tbody>${
+    pit.map(p => `<tr><td class="nm">${face(p)}${esc(pName(p) || '-')}</td><td>${v(p.ip)}</td><td>${v(p.ph)}</td><td>${v(p.er)}</td><td>${v(p.pk)}</td><td>${v(p.pbb)}</td></tr>`).join('') || `<tr><td colspan="6">-</td></tr>`
+    }</tbody></table>`;
+  return bt + pt;
+}
+async function updateLineup(e) {
+  const box = $('#mLineupWrap'); if (!box) return;
+  const sp = state.sport;
+  if (sp === 'football') {
+    box.innerHTML = `<div class="odsec">📋 ${esc(t('lineup'))}</div><div class="lineupbox"><div class="loading" style="padding:12px">${esc(t('loading'))}</div></div>`;
+    try {
+      const d = await fetchJSON(`/api/asports/lineups?fixture=${encodeURIComponent(e.id)}`, { tries: 1 });
+      const teams = d.teams || [];
+      if (teams.length < 2 || !(teams[0].startXI || []).length) { box.innerHTML = `<div class="odsec">📋 ${esc(t('lineup'))}</div><div class="lu-note">-</div>`; return; }
+      box.innerHTML = `<div class="odsec">📋 ${esc(t('lineup'))} <span class="rhe">${esc(teams[0].formation)} · ${esc(teams[1].formation)}</span></div>${teams.map(renderPitch).join('')}<div id="mPlayer"></div>`;
+      wirePlayerClicks('football');
+    } catch { box.innerHTML = `<div class="odsec">📋 ${esc(t('lineup'))}</div><div class="lu-note">-</div>`; }
+  } else if (statsLeague(e.league)) {
+    box.innerHTML = `<div class="odsec">📋 ${esc(t('lineup'))}</div><div class="lineupbox"><div class="loading" style="padding:12px">${esc(t('loading'))}</div></div>`;
+    try {
+      const d = await fetchJSON(`/api/mlb/game?home=${encodeURIComponent(e.home)}&away=${encodeURIComponent(e.away)}&date=${state.date}`, { tries: 1 });
+      if (!d.found || (!(d.home.lineup || []).length && !(d.away.lineup || []).length)) { box.innerHTML = `<div class="odsec">📋 ${esc(t('lineup'))}</div><div class="lu-note">-</div>`; return; }
+      box.innerHTML = `
+        <div class="odsec">📋 ${esc(t('lineup'))} <span class="rhe">${esc(t('fieldPos'))} · ${esc(t('tapPlayer'))}</span></div>
+        <div class="bfield-tabs"><span class="bft on" data-t="home">${esc(TN(e.home, e.league))}</span><span class="bft" data-t="away">${esc(TN(e.away, e.league))}</span></div>
+        <div id="bfieldBox">${mlbField(d.home, e.home)}</div>
+        <div class="odsec">${esc(t('order'))}</div>
+        <div class="mlb-lu">${mlbCol(d.home, e.home, e.league)}${mlbCol(d.away, e.away, e.league)}</div>
+        <div id="mPlayer"></div>`;
+      $$('#mLineupWrap .bft').forEach(t => t.addEventListener('click', () => {
+        $$('#mLineupWrap .bft').forEach(x => x.classList.remove('on')); t.classList.add('on');
+        const side = t.dataset.t === 'home' ? d.home : d.away, nm = t.dataset.t === 'home' ? e.home : e.away;
+        $('#bfieldBox').innerHTML = mlbField(side, nm); wireFieldClicks();
+      }));
+      wirePlayerClicks('mlb'); wireFieldClicks();
+    } catch { box.innerHTML = `<div class="odsec">📋 ${esc(t('lineup'))}</div><div class="lu-note">-</div>`; }
+  } else if (sp === 'baseball' && tsLeague(e.league)) {
+    box.innerHTML = `<div class="odsec">📋 ${esc(t('boxRec'))}</div><div class="lineupbox"><div class="loading" style="padding:12px">${esc(t('loading'))}</div></div>`;
+    try {
+      const d = await fetchJSON(`/api/baseball/box?id=${encodeURIComponent(e.id)}&live=${e.state === 'live' ? 1 : 0}`, { tries: 1 });
+      if (!d.available || (!(d.players && d.players.home || []).length && !(d.players && d.players.away || []).length)) {
+        box.innerHTML = `<div class="odsec">📋 ${esc(t('boxRec'))}</div><div class="lu-note">${esc(t('boxSoon'))}</div>`; return;
+      }
+      const render = side => { $('#tsFieldBox').innerHTML = tsField(side); $('#tsBoxBody').innerHTML = tsBoxSide(side); };
+      box.innerHTML = `<div class="odsec">📋 ${esc(t('boxRec'))} <span class="rhe">${esc(t('fieldPos'))} · ${sl('batter')}·${sl('pitcher')}</span></div>
+        <div class="bfield-tabs"><span class="bft on" data-t="home">${esc(TN(e.home, e.league))}</span><span class="bft" data-t="away">${esc(TN(e.away, e.league))}</span></div>
+        <div id="tsFieldBox">${tsField(d.players.home)}</div>
+        <div id="tsBoxBody">${tsBoxSide(d.players.home)}</div>`;
+      $$('#mLineupWrap .bft').forEach(tb => tb.addEventListener('click', () => {
+        $$('#mLineupWrap .bft').forEach(x => x.classList.remove('on')); tb.classList.add('on');
+        render(tb.dataset.t === 'home' ? d.players.home : d.players.away);
+      }));
+    } catch { box.innerHTML = `<div class="odsec">📋 ${esc(t('boxRec'))}</div><div class="lu-note">-</div>`; }
+  } else {
+    box.innerHTML = `<div class="odsec">📋 ${esc(t('lineup'))}</div><div class="lu-note">${esc(t('lineup'))} — ${esc(t(sp))} · N/A</div>`;
+  }
+}
+// 경기정보방: 투수·타자 기록 (박스스코어) — MLB·LMB
+function boxTables(side) {
+  const pit = `<table class="stt"><thead><tr><th>${sl('pitcher')}</th><th>${sl('ip')}</th><th>${sl('np')}</th><th>${sl('ha')}</th><th>${sl('er')}</th><th>${sl('k')}</th><th>${sl('bb')}</th></tr></thead><tbody>${
+    (side.pitchers || []).map(p => `<tr><td class="nm">${esc(p.name)}</td><td>${esc(p.ip)}</td><td>${esc(p.np)}</td><td>${esc(p.h)}</td><td>${esc(p.er)}</td><td>${esc(p.k)}</td><td>${esc(p.bb)}</td></tr>`).join('') || '<tr><td colspan="7">-</td></tr>'
+    }</tbody></table>`;
+  const bat = `<table class="stt" style="margin-top:8px"><thead><tr><th>${sl('batter')}</th><th></th><th>${sl('ab')}</th><th>${sl('h')}</th><th>${sl('bb')}</th><th>${sl('rbi')}</th><th>${sl('hr')}</th><th>${sl('k')}</th></tr></thead><tbody>${
+    (side.batters || []).map(b => `<tr><td class="nm">${esc(b.name)}</td><td class="lr">${esc(b.pos)}</td><td>${esc(b.ab)}</td><td>${esc(b.h)}</td><td>${esc(b.bb)}</td><td>${esc(b.rbi)}</td><td>${esc(b.hr)}</td><td>${esc(b.k)}</td></tr>`).join('') || '<tr><td colspan="8">-</td></tr>'
+    }</tbody></table>`;
+  return pit + bat;
+}
+async function updateBox(e) {
+  const box = $('#mBoxWrap'); if (!box) return;
+  if (!statsLeague(e.league)) { box.innerHTML = ''; return; }
+  box.innerHTML = `<div class="odsec">📋 ${esc(t('boxRec'))}</div><div class="lu-note">${esc(t('loading'))}</div>`;
+  try {
+    const d = await fetchJSON(`/api/mlb/boxscore?home=${encodeURIComponent(e.home)}&away=${encodeURIComponent(e.away)}&date=${state.date}`, { tries: 1 });
+    if (!d.found || (!(d.home.batters || []).length && !(d.away.batters || []).length)) { box.innerHTML = `<div class="odsec">📋 ${esc(t('boxRec'))}</div><div class="lu-note">-</div>`; return; }
+    box.innerHTML = `<div class="odsec">📋 ${esc(t('boxRec'))} <span class="rhe">${sl('pitcher')}·${sl('batter')}</span></div>
+      <div class="bfield-tabs"><span class="bft on" data-t="home">${esc(TN(e.home, e.league))}</span><span class="bft" data-t="away">${esc(TN(e.away, e.league))}</span></div>
+      <div id="boxBody">${boxTables(d.home)}</div>`;
+    $$('#mBoxWrap .bft').forEach(t => t.addEventListener('click', () => {
+      $$('#mBoxWrap .bft').forEach(x => x.classList.remove('on')); t.classList.add('on');
+      $('#boxBody').innerHTML = boxTables(t.dataset.t === 'home' ? d.home : d.away);
+    }));
+  } catch { box.innerHTML = `<div class="odsec">📋 ${esc(t('boxRec'))}</div><div class="lu-note">-</div>`; }
+}
+// 경기정보방: 예상 선발투수 + 양팀 최근 10경기 (MLB·LMB)
+async function updateInfo(e) {
+  const box = $('#mInfoWrap'); if (!box) return;
+  if (!statsLeague(e.league)) { box.innerHTML = ''; return; }
+  box.innerHTML = '';
+  try {
+    const d = await fetchJSON(`/api/mlb/info?home=${encodeURIComponent(e.home)}&away=${encodeURIComponent(e.away)}&date=${state.date}`, { tries: 1 });
+    if (!d.found) return;
+    let html = '';
+    const p = d.probable || {};
+    if (p.home || p.away) {
+      const row = (nm, pp) => pp ? `<tr><td class="tn">${esc(nm)}</td><td class="nm">${esc(pp.name)}</td><td><b>${esc(pp.w)}${sl('w')} ${esc(pp.l)}${sl('l')}</b> ${esc(pp.era)}</td><td>${esc(pp.ip)}${sl('ip')} ${esc(pp.k)}K ${esc(pp.bb)}BB</td></tr>` : '';
+      html += `<div class="odsec">🎯 ${esc(t('probable'))}</div><table class="stt inf"><tbody>${row(TN(e.home, e.league), p.home)}${row(TN(e.away, e.league), p.away)}</tbody></table>`;
+    }
+    const rc = d.recent || {};
+    const col = (nm, arr) => `<div class="recol"><div class="rec-hd">${esc(nm)}</div>${(arr || []).map(g => `<div class="rec-row clik" data-gp="${esc(g.gamePk || '')}"><span class="rb ${g.win ? 'W' : 'L'}">${g.win ? 'W' : 'L'}</span><span class="ro">${esc(teamShort(g.opp))}</span><span class="rs">${esc(g.ts)}:${esc(g.os)}</span></div>`).join('') || '<div class="rec-empty">-</div>'}</div>`;
+    if ((rc.home && rc.home.length) || (rc.away && rc.away.length)) {
+      html += `<div class="odsec">📅 ${esc(t('recent'))}</div><div class="recent2">${col(TN(e.home, e.league), rc.home)}${col(TN(e.away, e.league), rc.away)}</div>`;
+    }
+    // 맞대결(H2H)
+    const h = d.h2h || [];
+    if (h.length) {
+      html += `<div class="odsec">⚔️ ${esc(t('h2h'))} <span class="rhe">${esc(t('tapDetail'))}</span></div><div class="h2hbox">${h.map(g => {
+        const md = (g.date || '').slice(5);
+        return `<div class="h2h-row clik" data-gp="${esc(g.gamePk || '')}"><span class="h2h-d">${esc(md)}</span><span class="h2h-t">${esc(teamShort(g.home))}</span><span class="h2h-s">${esc(g.hs)}:${esc(g.as)}</span><span class="h2h-t r">${esc(teamShort(g.away))}</span></div>`;
+      }).join('')}</div>`;
+    }
+    // 팀 순위표
+    const st = d.standings || [];
+    if (st.length) {
+      html += `<div class="odsec">🏆 ${esc(t('standings'))}</div><table class="stt stdtbl"><thead><tr><th>#</th><th>${sl('team')}</th><th>${sl('w')}</th><th>${sl('l')}</th><th>${sl('pct')}</th><th>${sl('rs')}</th><th>${sl('ra')}</th><th>${sl('streak')}</th></tr></thead><tbody>${
+        st.map(r => `<tr class="${r.hl ? 'hl' : ''}"><td>${esc(r.rank)}</td><td class="nm">${esc(teamShort(r.name))}</td><td>${esc(r.w)}</td><td>${esc(r.l)}</td><td>${esc(String(r.pct).replace(/^0/, ''))}</td><td>${esc(r.rs)}</td><td>${esc(r.ra)}</td><td>${esc(r.streak)}</td></tr>`).join('')
+        }</tbody></table>`;
+    }
+    html += `<div id="mMini"></div>`;
+    box.innerHTML = html;
+    // 최근경기·맞대결 행 클릭 → 그 경기 상세(이닝스코어+투수/타자) 펼쳐보기
+    $$('#mInfoWrap .clik[data-gp]').forEach(el => el.addEventListener('click', () => showMini(el.dataset.gp)));
+  } catch {}
+}
+async function showMini(gp) {
+  const box = $('#mMini'); if (!box || !gp) return;
+  box.innerHTML = `<div class="minigame"><div class="lu-note">${esc(t('loading'))}</div></div>`;
+  box.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  try {
+    const d = await fetchJSON('/api/mlb/gamebox?gamePk=' + encodeURIComponent(gp), { tries: 1 });
+    const nInn = Math.max(9, ...((d.innings || []).map(i => i.num)));
+    const head = Array.from({ length: nInn }, (_, k) => `<th>${k + 1}</th>`).join('');
+    const cell = who => Array.from({ length: nInn }, (_, k) => { const i = (d.innings || []).find(x => x.num === k + 1); const v = i ? i[who] : null; return `<td>${v == null ? '' : esc(v)}</td>`; }).join('');
+    const ls = `<table class="boxsc"><thead><tr><th></th>${head}<th class="r">R</th><th class="he">H</th><th class="he">E</th></tr></thead><tbody>
+      <tr><td class="tn">${esc(teamShort(d.away.name))}</td>${cell('away')}<td class="r">${esc(d.away.r ?? 0)}</td><td class="he">${esc(d.away.h ?? 0)}</td><td class="he">${esc(d.away.e ?? 0)}</td></tr>
+      <tr><td class="tn">${esc(teamShort(d.home.name))}</td>${cell('home')}<td class="r">${esc(d.home.r ?? 0)}</td><td class="he">${esc(d.home.h ?? 0)}</td><td class="he">${esc(d.home.e ?? 0)}</td></tr>
+    </tbody></table>`;
+    const pit = s => `<table class="stt"><thead><tr><th>${sl('pitcher')}</th><th>${sl('ip')}</th><th>${sl('h')}</th><th>${sl('er')}</th><th>${sl('k')}</th></tr></thead><tbody>${(s.pitchers || []).map(p => `<tr><td class="nm">${esc(p.name)}</td><td>${esc(p.ip)}</td><td>${esc(p.h)}</td><td>${esc(p.er)}</td><td>${esc(p.k)}</td></tr>`).join('')}</tbody></table>`;
+    const bat = s => `<table class="stt" style="margin-top:6px"><thead><tr><th>${sl('batter')}</th><th></th><th>${sl('ab')}</th><th>${sl('h')}</th><th>${sl('rbi')}</th></tr></thead><tbody>${(s.batters || []).map(b => `<tr><td class="nm">${esc(b.name)}</td><td class="lr">${esc(b.pos)}</td><td>${esc(b.ab)}</td><td>${esc(b.h)}</td><td>${esc(b.rbi)}</td></tr>`).join('')}</tbody></table>`;
+    box.innerHTML = `<div class="minigame">
+      <div class="mini-hd">📋 ${esc(teamShort(d.away.name))} ${esc(d.away.r ?? 0)} : ${esc(d.home.r ?? 0)} ${esc(teamShort(d.home.name))} <span class="mini-x" id="miniX">${esc(t('close'))}</span></div>
+      ${ls}
+      <div class="bfield-tabs"><span class="mgt on" data-s="away">${esc(teamShort(d.away.name))}</span><span class="mgt" data-s="home">${esc(teamShort(d.home.name))}</span></div>
+      <div id="mgBody">${pit(d.away)}${bat(d.away)}</div></div>`;
+    $('#miniX')?.addEventListener('click', () => { box.innerHTML = ''; });
+    $$('#mMini .mgt').forEach(t => t.addEventListener('click', () => {
+      $$('#mMini .mgt').forEach(x => x.classList.remove('on')); t.classList.add('on');
+      const s = t.dataset.s === 'home' ? d.home : d.away;
+      $('#mgBody').innerHTML = pit(s) + bat(s);
+    }));
+    box.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  } catch { box.innerHTML = `<div class="minigame"><div class="lu-note">불러오기 실패</div></div>`; }
+}
+// 야구 이닝별 라인스코어(R·H·E) 표
+function lineScoreTable(e) {
+  if (state.sport !== 'baseball' || !e.box) return '';
+  const bh = e.box.home, ba = e.box.away;
+  const hi = bh.innings || {}, ai = ba.innings || {};
+  const nums = Object.keys(hi).concat(Object.keys(ai)).map(Number).filter(Boolean);
+  const nInn = Math.min(Math.max(nums.length ? Math.max.apply(null, nums) : 9, 9), 12);
+  const head = Array.from({ length: nInn }, (_, k) => `<th>${k + 1}</th>`).join('');
+  const cells = inn => Array.from({ length: nInn }, (_, k) => {
+    const v = inn[k + 1] ?? inn[String(k + 1)];
+    return `<td>${v == null || v === '' ? '' : esc(v)}</td>`;
+  }).join('');
+  const showBB = (bh.bb != null || ba.bb != null);
+  return `<div class="odsec">📊 ${esc(t('inningScore'))} <span class="rhe">R · H · E${showBB ? ' · BB' : ''}</span></div>
+    <table class="boxsc"><thead><tr><th></th>${head}<th class="r">R</th><th class="he">H</th><th class="he">E</th>${showBB ? '<th class="he">BB</th>' : ''}</tr></thead>
+    <tbody>
+      <tr><td class="tn">${esc(TN(e.home, e.league))}</td>${cells(hi)}<td class="r">${esc(bh.r ?? 0)}</td><td class="he">${esc(bh.h ?? 0)}</td><td class="he">${esc(bh.e ?? 0)}</td>${showBB ? `<td class="he">${esc(bh.bb ?? '-')}</td>` : ''}</tr>
+      <tr><td class="tn">${esc(TN(e.away, e.league))}</td>${cells(ai)}<td class="r">${esc(ba.r ?? 0)}</td><td class="he">${esc(ba.h ?? 0)}</td><td class="he">${esc(ba.e ?? 0)}</td>${showBB ? `<td class="he">${esc(ba.bb ?? '-')}</td>` : ''}</tr>
+    </tbody></table>`;
+}
+function renderDetail(e, pr) {
+  const el = $('#mDetail'); if (!el) return;
+  const st = e.state === 'live' ? ('● ' + koStatus(e)) : (e.state === 'finished' ? t('finished') : hhmm(e.date));
   const scoreTxt = (e.state === 'scheduled' || (e.hs == null && e.as == null)) ? 'VS' : `${esc(e.hs ?? 0)} : ${esc(e.as ?? 0)}`;
-  const t = e.date ? new Date(e.date) : null;
-  const when = t ? `${t.getMonth() + 1}/${t.getDate()} ${hhmm(e.date)}` : '';
-  $('#mBody').innerHTML = `
+  const setSports = (state.sport === 'volleyball' || state.sport === 'hockey');
+  const setpts = (setSports && e.livePts && e.state === 'live') ? `<div class="msc-set">${esc(t('now'))} ${esc(t('setWord'))} ${esc(e.livePts.home ?? 0)}:${esc(e.livePts.away ?? 0)}</div>` : '';
+  const dd = e.date ? new Date(e.date) : null;
+  const when = dd ? `${dd.getMonth() + 1}/${dd.getDate()} ${hhmm(e.date)}` : '';
+  const odds = e.odds ? `<div class="odsec">💰 ${esc(t('odds'))}</div><div class="modds-detail">${esc(t('win'))} <b>${e.odds.home ? Number(e.odds.home).toFixed(2) : '-'}</b>${e.odds.draw ? ` · ${esc(t('draw'))} <b>${Number(e.odds.draw).toFixed(2)}</b>` : ''} · ${esc(t('loss'))} <b>${e.odds.away ? Number(e.odds.away).toFixed(2) : '-'}</b></div>` : '';
+  // 점수판은 별도 영역(#mScore)에 — 그 바로 밑에 하이라이트(#mYtWrap)가 오도록
+  const sc = $('#mScore');
+  if (sc) sc.innerHTML = `
     <div class="mteams">
-      <div class="mt"><div class="ph">${badge(e.homeLogo, '🏟')}</div><div class="nm">${esc(e.home)}</div></div>
-      <div class="msc"><div class="n">${scoreTxt}</div><div class="st" style="color:${e.state === 'live' ? '#e2231a' : '#8b93a0'}">${esc(st)}</div></div>
-      <div class="mt"><div class="ph">${badge(e.awayLogo, '🏟')}</div><div class="nm">${esc(e.away)}</div></div>
+      <div class="mt">${HA_HOME}<div class="ph">${badge(e.homeLogo, '🏟')}</div><div class="nm">${esc(TN(e.home, e.league))}</div></div>
+      <div class="msc"><div class="n">${scoreTxt}</div><div class="st" style="color:${e.state === 'live' ? '#e2231a' : '#8b93a0'}">${esc(st)}</div>${setpts}</div>
+      <div class="mt">${HA_AWAY}<div class="ph">${badge(e.awayLogo, '🏟')}</div><div class="nm">${esc(TN(e.away, e.league))}</div></div>
+    </div>`;
+  el.innerHTML = `
+    <div id="mMlbLive"></div>
+    ${lineScoreTable(e)}
+    ${odds}
+    <div class="aisum">
+      <div class="aisum-hd">🤖 ${esc(t('aiSum'))} ${e.state === 'live' ? '<span class="aisum-live">● LIVE</span>' : ''}</div>
+      ${aiSummary(e).map(l => `<p>${l}</p>`).join('')}
     </div>
+    <div class="odsec">📻 ${esc(t('liveEv'))} <span class="rhe">${esc(t('aiAuto'))}${state.sport === 'football' ? ' · ' + esc(t('goalsCards')) : ' · ' + esc(t('runsHits'))}</span></div>
+    <div id="mEvents" class="evfeed">${eventEmpty()}</div>
     <div class="probwrap">
-      <div class="probttl"><span>🤖 AI 승부 예측</span><span>신뢰도 ${pr.confidence}%</span></div>
+      <div class="probttl"><span>🤖 ${esc(t('aiPred'))}</span><span>${esc(t('confidence'))} ${pr.confidence}%</span></div>
       <div class="probbar"><div class="pw" style="width:${pr.home}%">${pr.home}%</div><div class="pd" style="width:${pr.draw}%">${pr.draw}%</div><div class="pl" style="width:${pr.away}%">${pr.away}%</div></div>
-      <div class="problbl"><span>${esc(e.home)} 승</span><span>무</span><span>${esc(e.away)} 승</span></div>
+      <div class="problbl"><span>${esc(TN(e.home, e.league))} ${esc(t('win'))}</span><span>${esc(t('draw'))}</span><span>${esc(TN(e.away, e.league))} ${esc(t('win'))}</span></div>
     </div>
     <div class="minfo">
-      <div><span class="k">리그</span> ${esc(e.league)}</div>
-      <div><span class="k">일시</span> ${esc(when)}</div>
-      <div><span class="k">상태</span> ${esc(e.status || '-')}</div>
-    </div>
-    <div class="mchat-open" id="joinRoom" data-room="event:${esc(e.id)}">💬 이 경기 대화방 입장 (${esc(e.home)} vs ${esc(e.away)})</div>
-  `;
-  $('#joinRoom')?.addEventListener('click', () => { joinRoom($('#joinRoom').dataset.room, `${e.home} vs ${e.away}`); closeModal(); setTab('comm'); });
+      <div><span class="k">${esc(t('league'))}</span> ${esc(e.league)}</div>
+      <div><span class="k">${esc(t('dt'))}</span> ${esc(when)}</div>
+      <div><span class="k">${esc(t('status'))}</span> ${esc(koStatus(e))}</div>
+    </div>`;
+  updateEvents(e);   // 실시간 이벤트 피드 채우기 (축구=API / 그외=변화감지 로그)
+  if (statsLeague(e.league)) updateMlbLive(e);   // MLB·LMB·IL·PCL 실시간 볼카운트·주자·타자/투수 (10초 갱신)
 }
-function closeModal() { $('#scrim').classList.remove('on'); $('#modal').classList.remove('on'); }
+async function openEvent(id) {
+  const e = feedGames[id]; if (!e) return;
+  modalEventId = id;
+  $('#scrim').classList.add('on'); $('#modal').classList.add('on');
+  $('#mTitle').textContent = e.league || '경기 상세';
+  $('#mBody').innerHTML = `
+    <div id="mScore"></div>
+    <div id="mYtWrap"></div>
+    <div id="mDetail"><div class="loading">${esc(t('loading'))}</div></div>
+    <div id="mBoxWrap"></div>
+    <div id="mInfoWrap"></div>
+    <div id="mLineupWrap"></div>
+    <div class="mchat-embed">
+      <div class="mce-hd">💬 <b>${esc(TN(e.home, e.league))} vs ${esc(TN(e.away, e.league))}</b> 대화방 <span class="mce-tag">보면서 채팅</span> <span class="mce-on">🟢 <b id="onlineM">0</b></span></div>
+      <div id="mChatPane" class="chatpane embed"></div>
+    </div>`;
+  // 상세를 보면서 채팅 — 별도 입장 없이 이 경기 방에 바로 연결
+  modalChatUI = buildChatUI($('#mChatPane'));
+  joinRoom(`event:${e.id}`, `${e.home} vs ${e.away}`);
+  const pr = await fetch(`/api/predict?h=${e.hs ?? ''}&a=${e.as ?? ''}`).then(r => r.json()).catch(() => ({ home: 40, draw: 25, away: 35, confidence: 60 }));
+  modalPredict = pr;
+  logChanges(id, feedGames[id] || e);   // 스냅샷 시드 (이후 변화만 이벤트로 기록)
+  renderDetail(feedGames[id] || e, pr);
+  updateLineup(feedGames[id] || e);     // 라인업은 한 번만 로드 (10초 갱신 때 초기화 방지)
+  updateBox(feedGames[id] || e);        // 경기정보방: 투수·타자 기록
+  updateInfo(feedGames[id] || e);       // 예상 선발투수 + 최근 10경기
+  buildYt(feedGames[id] || e);          // 하이라이트 재생 버튼 (한 번만 · 재생 유지)
+}
+// YouTube 하이라이트 — 화면 안에서 ▶ 재생 (키 있으면 인라인, 없으면 링크 폴백)
+function ytFallback(q, msg) {
+  return `<div class="odsec">📺 경기 하이라이트</div>${msg ? `<div class="lu-note">${esc(msg)}</div>` : ''}<a class="ythl" href="https://www.youtube.com/results?search_query=${encodeURIComponent(q)}" target="_blank" rel="noopener">📺 YouTube에서 보기 ›</a>`;
+}
+function buildYt(e) {
+  const box = $('#mYtWrap'); if (!box) return;
+  const q = e.away + ' vs ' + e.home + ' ' + (e.league || '') + ' highlights';
+  box.innerHTML = `<div class="odsec">📺 경기 하이라이트</div><button class="ythl-play" id="ytPlay">▶ 하이라이트 재생</button>`;
+  $('#ytPlay')?.addEventListener('click', async () => {
+    const btn = $('#ytPlay'); if (btn) { btn.textContent = '불러오는 중…'; btn.disabled = true; }
+    try {
+      const d = await fetchJSON('/api/youtube?q=' + encodeURIComponent(q), { tries: 1 });
+      if (d.needKey) { box.innerHTML = ytFallback(q, 'YouTube 재생 키가 아직 없어요 (설정하면 화면 안에서 바로 재생돼요)'); return; }
+      if (!d.videoId) { box.innerHTML = ytFallback(q, '영상을 찾지 못했어요'); return; }
+      box.innerHTML = `<div class="odsec">📺 경기 하이라이트 <span class="rhe">${esc((d.title || '').slice(0, 40))}</span></div><div class="ytembed"><iframe src="https://www.youtube.com/embed/${encodeURIComponent(d.videoId)}?autoplay=1&rel=0" title="highlights" allow="autoplay; encrypted-media; fullscreen" allowfullscreen frameborder="0"></iframe></div>`;
+    } catch { box.innerHTML = ytFallback(q, '불러오기 실패 — 링크로 열립니다'); }
+  });
+}
+function closeModal() {
+  $('#scrim').classList.remove('on'); $('#modal').classList.remove('on');
+  if (modalChatUI) {
+    const i = chatUIs.indexOf(modalChatUI); if (i >= 0) chatUIs.splice(i, 1);
+    modalChatUI = null; joinRoom('all', '전경기 대화방');
+  }
+  modalEventId = null; modalPredict = null;
+}
 $('#mClose').addEventListener('click', closeModal);
 $('#scrim').addEventListener('click', closeModal);
 
@@ -568,25 +1556,46 @@ const INFO = [
 ];
 
 let infoBuilt = false;
-function initInfo() {
+let infoGames = [];   // 정보방 전체 경기(필터 전)
+// 경기 정보방: 현재 종목의 실제 경기 목록 → 클릭 시 실제 상세(라인업·투수/타자 기록 포함)
+async function initInfo() {
   const list = $('#infoList'); if (!list) return;
-  list.innerHTML = INFO.map((m, i) => `<div class="infocard" data-i="${i}">
-    <div class="ic-no">${m.no}</div>
-    <div class="ic-mid">
-      <div class="ic-lg">⚾ ${m.league} · ${m.date} · ${m.venue}</div>
-      <div class="ic-tm"><span class="ic-b" style="background:${m.home.color}">${m.home.logo}</span> ${esc(m.home.name)} <span class="ic-vs">vs</span> ${esc(m.away.name)} <span class="ic-b" style="background:${m.away.color}">${m.away.logo}</span></div>
-    </div>
-    <div class="ic-go">상세 ›</div>
-  </div>`).join('');
-  $$('#infoList .infocard').forEach(c => c.addEventListener('click', () => openInfoDetail(+c.dataset.i)));
+  list.innerHTML = `<div class="loading">${esc(t('loadingGames'))}</div>`;
+  try {
+    const d = await fetchJSON(`/api/asports/games?sport=${encodeURIComponent(state.sport)}&date=${state.date}&tz=${encodeURIComponent(USER_TZ)}`, { tries: 2, delay: 3000 });
+    const games = d.games || [];
+    games.forEach(g => { feedGames[g.id] = g; });   // openEvent가 사용
+    games.sort((a, b) => (b.state === 'live') - (a.state === 'live'));
+    infoGames = games;
+    renderInfoList();
+  } catch { list.innerHTML = `<div class="loading">불러오지 못했습니다.</div>`; }
+}
+// 정보방 목록 렌더 (상단 리그 칩 필터 적용)
+function renderInfoList() {
+  const list = $('#infoList'); if (!list) return;
+  const games = state.leagueFilter === 'all' ? infoGames : infoGames.filter(g => g.league === state.leagueFilter);
+  if (!games.length) { list.innerHTML = `<div class="loading">${esc(t('noGames'))}</div>`; return; }
+  list.innerHTML = games.map(g => {
+    const stx = g.state === 'live' ? `<span style="color:var(--red);font-weight:800">● ${esc(koStatus(g))}</span>` : g.state === 'finished' ? esc(t('finished')) : hhmm(g.date);
+    const sc = (g.hs == null && g.as == null) ? 'VS' : `${esc(g.hs ?? 0)} : ${esc(g.as ?? 0)}`;
+    const info = statsLeague(g.league) ? `<span class="ic-full">${esc(t('info'))} ✓</span>` : '';
+    return `<div class="infocard" data-ev="${esc(g.id)}">
+      <div class="ic-mid">
+        <div class="ic-lg">⚾ ${esc(g.league)} · ${stx} ${info}</div>
+        <div class="ic-tm"><b>${esc(TN(g.home, g.league))}</b> <span class="ic-vs">${sc}</span> ${esc(TN(g.away, g.league))}</div>
+      </div>
+      <div class="ic-go">${esc(t('scoreDetail'))} ›</div>
+    </div>`;
+  }).join('');
+  $$('#infoList .infocard').forEach(c => c.addEventListener('click', () => openEvent(c.dataset.ev)));
 }
 function pitTable(team) {
-  return `<table class="stt"><thead><tr><th>투수</th><th></th><th>방어율</th><th>경기</th><th>승</th><th>패</th><th>세</th><th>이닝</th></tr></thead><tbody>${
+  return `<table class="stt"><thead><tr><th>${sl('pitcher')}</th><th></th><th>${sl('era')}</th><th>${sl('g')}</th><th>${sl('w')}</th><th>${sl('l')}</th><th>${sl('sv')}</th><th>${sl('ip')}</th></tr></thead><tbody>${
     team.pit.map(p => `<tr><td class="nm">${esc(p.nm)}</td><td class="lr ${p.h === 'L' ? 'l' : 'r'}">${p.h}</td><td>${p.era.toFixed(2)}</td><td>${p.g}</td><td>${p.w}</td><td>${p.l}</td><td>${p.sv}</td><td>${p.ip.toFixed(1)}</td></tr>`).join('')
     }</tbody></table>`;
 }
 function batTable(team) {
-  return `<table class="stt"><thead><tr><th>타자</th><th></th><th>타율</th><th>경기</th><th>타수</th><th>안타</th><th>홈런</th></tr></thead><tbody>${
+  return `<table class="stt"><thead><tr><th>${sl('batter')}</th><th></th><th>${sl('avg')}</th><th>${sl('g')}</th><th>${sl('ab')}</th><th>${sl('h')}</th><th>${sl('hr')}</th></tr></thead><tbody>${
     team.bat.map(b => `<tr><td class="nm">${esc(b.nm)}</td><td class="lr ${b.h === 'L' ? 'l' : 'r'}">${b.h}</td><td>${b.avg.toFixed(3).replace(/^0/, '')}</td><td>${b.g}</td><td>${b.ab}</td><td>${b.hit}</td><td>${b.hr}</td></tr>`).join('')
     }</tbody></table>`;
 }
@@ -614,17 +1623,17 @@ function openInfoDetail(i) {
       <div class="lu"><div class="lu-hd" style="border-color:${m.away.color}">${esc(m.away.name)}</div>${m.away.lineup.map((p, n) => `<div class="lu-row"><span class="lu-n">${n + 1}</span>${esc(p)}</div>`).join('')}</div>
     </div>
 
-    <div class="odsec">🧢 선수 정보 <span class="teamtog"><span class="tg on" data-t="home">${esc(m.home.name)}</span><span class="tg" data-t="away">${esc(m.away.name)}</span></span></div>
+    <div class="odsec">🧢 ${esc(t('boxRec'))} <span class="teamtog"><span class="tg on" data-t="home">${esc(TN(m.home.name, m.league))}</span><span class="tg" data-t="away">${esc(TN(m.away.name, m.league))}</span></span></div>
     <div id="iiPit">${pitTable(m.home)}</div>
     <div id="iiBat" style="margin-top:8px">${batTable(m.home)}</div>
 
-    <div class="odsec">📊 이닝별 스코어</div>
+    <div class="odsec">📊 ${esc(t('inningScore'))}</div>
     <table class="boxsc"><thead><tr><th></th><th>1</th><th>2</th><th>3</th><th>4</th><th>5</th><th>6</th><th>7</th><th>8</th><th>9</th><th class="r">R</th></tr></thead>
       <tbody><tr><td class="tn">${esc(m.home.name)}</td>${innings('home')}<td class="r">${sum('home')}</td></tr>
       <tr><td class="tn">${esc(m.away.name)}</td>${innings('away')}<td class="r">${sum('away')}</td></tr></tbody></table>
 
-    <div class="odsec">📅 최근 경기</div>
-    <div class="recent2"><div class="recol"><div class="rec-hd">${esc(m.home.name)}</div>${recentRows(m.recent.home)}</div><div class="recol"><div class="rec-hd">${esc(m.away.name)}</div>${recentRows(m.recent.away)}</div></div>
+    <div class="odsec">📅 ${esc(t('recent'))}</div>
+    <div class="recent2"><div class="recol"><div class="rec-hd">${esc(TN(m.home.name, m.league))}</div>${recentRows(m.recent.home)}</div><div class="recol"><div class="rec-hd">${esc(TN(m.away.name, m.league))}</div>${recentRows(m.recent.away)}</div></div>
     <div class="foot" style="padding:12px 0 0">라인업·선수기록·국내배당은 <b>샘플 데이터</b>입니다. 실제 연동은 유료 스포츠데이터가 필요합니다.</div>
   `;
   // 배당 탭
@@ -653,6 +1662,7 @@ function buildChatUI(container) {
   container.innerHTML = '';
   container.appendChild(tpl);
   const msgs = $('.chat-msgs', container), input = $('.ci', container), send = $('.cs', container);
+  input.placeholder = t('chatPh'); send.textContent = t('send');
   const doSend = () => { const v = input.value.trim(); if (!v || !ws || ws.readyState !== 1) return; ws.send(JSON.stringify({ type: 'chat', text: v })); input.value = ''; };
   send.addEventListener('click', doSend);
   input.addEventListener('keydown', e => { if (e.key === 'Enter') doSend(); });
@@ -677,7 +1687,7 @@ function addMsg(m) {
   });
 }
 function clearMsgs() { chatUIs.forEach(ui => ui.msgs.innerHTML = ''); seenMsgs.clear(); }
-function setOnline(total) { ['#onlineAll', '#onlineR', '#onlineD'].forEach(s => { const el = $(s); if (el) el.textContent = total; }); }
+function setOnline(total) { ['#onlineAll', '#onlineR', '#onlineD', '#onlineM'].forEach(s => { const el = $(s); if (el) el.textContent = total; }); }
 
 function joinRoom(room, label) {
   if (!ws || ws.readyState !== 1) return;
@@ -705,16 +1715,20 @@ function connectWS() {
 // ============================================================
 //  날짜 네비 / 드로어 / 기타
 // ============================================================
+function refreshDateLabel() {
+  const el = $('#dateToday'); if (!el) return;
+  el.textContent = (state.date === localYMD()) ? t('today') : state.date.slice(5);
+}
 function shiftDate(days) {
-  const d = new Date(state.date); d.setDate(d.getDate() + days);
-  state.date = d.toISOString().slice(0, 10); $('#datePick').value = state.date;
-  $('#dateToday').textContent = (state.date === new Date().toISOString().slice(0, 10)) ? '오늘' : state.date.slice(5);
+  const d = new Date(state.date + 'T12:00:00'); d.setDate(d.getDate() + days);
+  state.date = localYMD(d); $('#datePick').value = state.date;
+  refreshDateLabel();
   loadEvents();
 }
 $('#datePrev').addEventListener('click', () => shiftDate(-1));
 $('#dateNext').addEventListener('click', () => shiftDate(1));
-$('#dateToday').addEventListener('click', () => { state.date = new Date().toISOString().slice(0, 10); $('#datePick').value = state.date; $('#dateToday').textContent = '오늘'; loadEvents(); });
-$('#datePick').addEventListener('change', e => { state.date = e.target.value; $('#dateToday').textContent = (state.date === new Date().toISOString().slice(0,10)) ? '오늘' : state.date.slice(5); loadEvents(); });
+$('#dateToday').addEventListener('click', () => { state.date = localYMD(); $('#datePick').value = state.date; refreshDateLabel(); loadEvents(); });
+$('#datePick').addEventListener('change', e => { state.date = e.target.value; refreshDateLabel(); loadEvents(); });
 $('#btnRefresh').addEventListener('click', () => loadEvents());
 $('#btnUser')?.addEventListener('click', openLogin);
 $('#btnMenu').addEventListener('click', openDrawer);
@@ -723,20 +1737,200 @@ function closeDrawer() { $('#drawer').classList.remove('on'); $('#scrimD').class
 $('#scrimD').addEventListener('click', closeDrawer);
 
 // ============================================================
+//  뒤로가기(휴대폰/브라우저) → 앱 종료 대신 "열린 팝업만" 닫기
+// ============================================================
+const OVERLAY_IDS = ['modal', 'loginModal', 'writeModal', 'drawer'];
+function anyOverlayOpen() { return OVERLAY_IDS.some(id => { const el = document.getElementById(id); return el && el.classList.contains('on'); }); }
+function closeAllOverlays() {
+  if ($('#modal') && $('#modal').classList.contains('on')) closeModal();
+  if ($('#loginModal') && $('#loginModal').classList.contains('on')) closeLogin();
+  if ($('#writeModal') && $('#writeModal').classList.contains('on')) closeWrite();
+  if ($('#drawer') && $('#drawer').classList.contains('on')) closeDrawer();
+}
+function pushOverlayState() { try { if (!(history.state && history.state.liveupOverlay)) history.pushState({ liveupOverlay: true }, ''); } catch (e) {} }
+function initBackButtonHandling() {
+  // 팝업/드로어가 열리면 히스토리 상태를 하나 쌓아둠 → 뒤로가기가 그걸 먼저 소비
+  const mo = new MutationObserver(() => { if (anyOverlayOpen()) pushOverlayState(); });
+  OVERLAY_IDS.forEach(id => { const el = document.getElementById(id); if (el) mo.observe(el, { attributes: true, attributeFilter: ['class'] }); });
+  // 뒤로가기 → 열린 게 있으면 그것만 닫음 (앱은 안 꺼짐)
+  window.addEventListener('popstate', () => { if (anyOverlayOpen()) closeAllOverlays(); });
+}
+
+// ============================================================
 //  INIT
 // ============================================================
+function initLangSelectors() {
+  const opts = LANGS.map(l => `<option value="${l}"${l === LANG ? ' selected' : ''}>${LANG_NAMES[l]}</option>`).join('');
+  ['#langSel', '#langSelD'].forEach(sel => { const el = $(sel); if (el) { el.innerHTML = opts; el.value = LANG; el.addEventListener('change', () => setLang(el.value)); } });
+  applyI18n();
+  refreshDateLabel();
+}
+// ============================================================
+//  ⭐ 즐겨찾기(관심팀) + 🔔 알림 (앱 열림/PWA 활성 시 브라우저 알림)
+// ============================================================
+let FAV = (function () { try { return JSON.parse(localStorage.getItem('liveup_fav') || '[]'); } catch (e) { return []; } })();
+const NOTIF_DEF = { on: false, start: true, lineup: true, score: true, hr: true, red: true, finish: true };
+let NOTIF = (function () { try { return Object.assign({}, NOTIF_DEF, JSON.parse(localStorage.getItem('liveup_notif') || '{}')); } catch (e) { return { ...NOTIF_DEF }; } })();
+function saveFav() { try { localStorage.setItem('liveup_fav', JSON.stringify(FAV)); } catch (e) {} }
+function saveNotif() { try { localStorage.setItem('liveup_notif', JSON.stringify(NOTIF)); } catch (e) {} }
+function isFav(name) { return FAV.includes(String(name || '')); }
+function favStar(name) { return `<span class="favstar${isFav(name) ? ' on' : ''}" data-fav="${esc(name)}">${isFav(name) ? '★' : '☆'}</span>`; }
+function toggleFav(name) { name = String(name || ''); const i = FAV.indexOf(name); if (i >= 0) FAV.splice(i, 1); else FAV.push(name); saveFav(); if (NOTIF.on) syncPush(); if ($('#view-live') && !$('#view-live').classList.contains('hidden')) renderFeed(filterGames()); }
+// 경기 단위 즐겨찾기 (종 아이콘) — 양 팀을 관심팀에 등록/해제
+function isMatchFav(e) { return isFav(e.home) && isFav(e.away); }
+function toggleMatchFav(id) {
+  const e = feedGames[id]; if (!e) return;
+  if (isMatchFav(e)) { FAV = FAV.filter(x => x !== e.home && x !== e.away); }
+  else { if (!isFav(e.home)) FAV.push(e.home); if (!isFav(e.away)) FAV.push(e.away); if (!NOTIF.on) autoEnableNotif(); }
+  saveFav(); if (NOTIF.on) syncPush();
+  if ($('#view-live') && !$('#view-live').classList.contains('hidden')) renderFeed(filterGames());
+}
+// 종을 처음 누르면 알림 자동 활성화(권한 요청) → 앱 꺼도 푸시
+async function autoEnableNotif() {
+  try { if ('Notification' in window && Notification.permission !== 'denied') { const p = await Notification.requestPermission(); if (p === 'granted') { NOTIF.on = true; saveNotif(); syncPush(); } } } catch (e) {}
+}
+// 종/별 클릭은 경기 상세로 안 넘어가게 (캡처 단계에서 가로챔)
+document.addEventListener('click', ev => {
+  const b = ev.target.closest && ev.target.closest('.favbell');
+  if (b) { ev.stopPropagation(); ev.preventDefault(); toggleMatchFav(b.dataset.favmatch); return; }
+  const s = ev.target.closest && ev.target.closest('.favstar');
+  if (s) { ev.stopPropagation(); ev.preventDefault(); toggleFav(s.dataset.fav); }
+}, true);
+
+// ── 서버 웹 푸시 구독 (앱 꺼져도 알림) ──
+let swReg = null, vapidKey = null;
+async function getSW() { if (swReg) return swReg; if ('serviceWorker' in navigator) { try { swReg = await navigator.serviceWorker.ready; } catch (e) {} } return swReg; }
+function urlB64ToU8(b64) { const pad = '='.repeat((4 - b64.length % 4) % 4); const s = (b64 + pad).replace(/-/g, '+').replace(/_/g, '/'); const raw = atob(s); return Uint8Array.from([...raw].map(c => c.charCodeAt(0))); }
+async function syncPush() {
+  try {
+    if (!NOTIF.on || !('serviceWorker' in navigator) || !('PushManager' in window)) return;
+    if (!('Notification' in window) || Notification.permission !== 'granted') return;
+    const reg = await getSW(); if (!reg) return;
+    if (!vapidKey) { const r = await fetch('/api/push/key').then(x => x.json()).catch(() => null); if (!r || !r.enabled) return; vapidKey = r.key; }
+    let sub = await reg.pushManager.getSubscription();
+    if (!sub) sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: urlB64ToU8(vapidKey) });
+    await fetch('/api/push/subscribe', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ subscription: sub, fav: FAV, prefs: NOTIF, lang: LANG }) });
+  } catch (e) { console.log('push sync fail', e && e.message); }
+}
+async function unsyncPush() {
+  try { const reg = await getSW(); const sub = reg && await reg.pushManager.getSubscription(); if (sub) { await fetch('/api/push/unsubscribe', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ endpoint: sub.endpoint }) }); } } catch (e) {}
+}
+// 알림 클릭 → 해당 경기 상세 열기 (SW 메시지 / URL 파라미터)
+function openEventWhenReady(id, sport) {
+  if (!id) return;
+  if (sport && sport !== state.sport) { state.sport = sport; if (typeof buildSportNav === 'function') buildSportNav(); loadEvents(); }
+  let tries = 0; const tm = setInterval(() => { if (feedGames[id]) { clearInterval(tm); openEvent(id); } else if (++tries > 24) clearInterval(tm); }, 500);
+}
+if ('serviceWorker' in navigator) navigator.serviceWorker.addEventListener('message', e => { if (e.data && e.data.type === 'openEvent') openEventWhenReady(e.data.gameId, e.data.sport); });
+
+const notifSeen = {};   // gameId -> {state,total,lineup,reds}
+function fireNotif(title, body, gameId) {
+  if (!('Notification' in window) || Notification.permission !== 'granted') return;
+  try {
+    const n = new Notification(title, { body, tag: 'liveup-' + gameId, icon: '/logo-t.png', badge: '/logo-t.png', renotify: true });
+    n.onclick = () => { window.focus(); try { n.close(); } catch (e) {} if (gameId && feedGames[gameId]) openEvent(gameId); };
+  } catch (e) {}
+}
+function checkNotifs(games) {
+  if (!NOTIF.on || !('Notification' in window) || Notification.permission !== 'granted') return;
+  (games || []).forEach(g => {
+    if (!(isFav(g.home) || isFav(g.away))) return;
+    const id = g.id, prev = notifSeen[id] || {}, total = (Number(g.hs) || 0) + (Number(g.as) || 0);
+    const HM = TN(g.home, g.league), AW = TN(g.away, g.league), sc = `${HM} ${g.hs ?? 0}:${g.as ?? 0} ${AW}`;
+    if (prev.state) {
+      if (NOTIF.start && prev.state === 'scheduled' && g.state === 'live') fireNotif('⚽ ' + t('evtStart'), `${HM} vs ${AW}`, id);
+      if (NOTIF.finish && prev.state !== 'finished' && g.state === 'finished') fireNotif('🏁 ' + t('evtFinish'), sc, id);
+      if ((NOTIF.score || NOTIF.hr) && prev.total != null && total > prev.total && g.state === 'live') fireNotif((state.sport === 'football' ? '⚽ ' : '🔴 ') + t('evtScore'), sc, id);
+    }
+    notifSeen[id] = Object.assign({}, prev, { state: g.state, total });
+    // 라인업 발표 (경기 3시간 전~라이브 구간에서 1회)
+    if (NOTIF.lineup && !prev.lineup) {
+      const dt = g.date ? (new Date(g.date) - Date.now()) : null;
+      const near = g.state === 'live' || (dt != null && dt < 3 * 3600e3 && dt > -6 * 3600e3);
+      if (near) checkLineupNotif(g);
+    }
+    // 퇴장 (축구 라이브)
+    if (NOTIF.red && state.sport === 'football' && g.state === 'live') checkRedNotif(g, prev.reds || 0);
+  });
+}
+async function checkLineupNotif(g) {
+  try {
+    let has = false;
+    if (state.sport === 'football') { const d = await fetchJSON(`/api/asports/lineups?fixture=${encodeURIComponent(g.id)}`, { tries: 1 }); has = !!(d.teams && d.teams[0] && (d.teams[0].startXI || []).length >= 11); }
+    else if (statsLeague(g.league)) { const d = await fetchJSON(`/api/mlb/game?home=${encodeURIComponent(g.home)}&away=${encodeURIComponent(g.away)}&date=${state.date}`, { tries: 1 }); has = !!(d.found && ((d.home.lineup || []).length || (d.away.lineup || []).length)); }
+    if (has && !(notifSeen[g.id] || {}).lineup) { notifSeen[g.id] = Object.assign({}, notifSeen[g.id], { lineup: true }); fireNotif('📋 ' + t('evtLineup'), `${TN(g.home, g.league)} vs ${TN(g.away, g.league)}`, g.id); }
+  } catch (e) {}
+}
+async function checkRedNotif(g, prevReds) {
+  try {
+    const d = await fetchJSON(`/api/asports/events?fixture=${encodeURIComponent(g.id)}`, { tries: 1 });
+    const reds = (d.events || []).filter(x => x.type === 'Card' && /red/i.test(x.detail || '')).length;
+    if (reds > prevReds) fireNotif('🟥 ' + t('evtRed'), `${TN(g.home, g.league)} vs ${TN(g.away, g.league)}`, g.id);
+    notifSeen[g.id] = Object.assign({}, notifSeen[g.id], { reds });
+  } catch (e) {}
+}
+// 알림 설정 모달
+function closeNotifSettings() { $('#notifScrim')?.classList.remove('on'); $('#notifModal')?.classList.remove('on'); }
+function openNotifSettings() {
+  if (!$('#notifScrim')) {
+    const scrim = document.createElement('div'); scrim.id = 'notifScrim'; scrim.className = 'scrim';
+    const m = document.createElement('div'); m.id = 'notifModal'; m.className = 'modal';
+    document.body.appendChild(scrim); document.body.appendChild(m);
+    scrim.addEventListener('click', closeNotifSettings);
+  }
+  const perm = ('Notification' in window) ? Notification.permission : 'unsupported';
+  const chk = (k, label) => `<label class="ntf-row"><span>${esc(label)}</span><input type="checkbox" data-nk="${k}" ${NOTIF[k] ? 'checked' : ''}></label>`;
+  const favList = FAV.length ? FAV.map(f => `<span class="favchip" data-favrm="${esc(f)}">${esc(f)} ✕</span>`).join('') : `<div class="lu-note">${esc(t('noFav'))}</div>`;
+  $('#notifModal').innerHTML = `
+    <div class="mhd"><span>🔔 ${esc(t('notifTitle'))}</span><span class="x" id="ntfClose">✕</span></div>
+    <div class="mbody">
+      <label class="ntf-row master"><span><b>${esc(t('notifEnable'))}</b></span><input type="checkbox" id="ntfOn" ${NOTIF.on ? 'checked' : ''}></label>
+      ${perm !== 'granted' ? `<div class="lu-note">${esc(t('notifPerm'))}</div>` : ''}
+      ${chk('start', t('evtStart'))}
+      ${chk('lineup', t('evtLineup'))}
+      ${chk('score', t('evtScore'))}
+      ${chk('hr', t('evtHR'))}
+      ${chk('red', t('evtRed'))}
+      ${chk('finish', t('evtFinish'))}
+      <div class="odsec">⭐ ${esc(t('favTeams'))}</div>
+      <div class="favchips">${favList}</div>
+      <div class="lu-note" style="margin-top:10px">${esc(t('notifClosedNote'))}</div>
+    </div>`;
+  $('#notifScrim').classList.add('on'); $('#notifModal').classList.add('on');
+  $('#ntfClose').onclick = closeNotifSettings;
+  $('#ntfOn').onchange = async e => {
+    if (e.target.checked && 'Notification' in window) { const p = await Notification.requestPermission(); if (p !== 'granted') { e.target.checked = false; NOTIF.on = false; saveNotif(); openNotifSettings(); return; } }
+    NOTIF.on = e.target.checked; saveNotif();
+    if (NOTIF.on) { await syncPush(); } else { await unsyncPush(); }
+    openNotifSettings();
+  };
+  $$('#notifModal [data-nk]').forEach(c => c.onchange = () => { NOTIF[c.dataset.nk] = c.checked; saveNotif(); if (NOTIF.on) syncPush(); });
+  $$('#notifModal [data-favrm]').forEach(x => x.onclick = () => { toggleFav(x.dataset.favrm); openNotifSettings(); });
+}
+// 알림 진입 버튼 (항상 보이는 FAB)
+(function addNotifFab() {
+  const b = document.createElement('button'); b.id = 'notifFab'; b.className = 'notif-fab'; b.innerHTML = '🔔';
+  b.addEventListener('click', openNotifSettings); document.body.appendChild(b);
+})();
+
 async function init() {
   $('#datePick').value = state.date;
+  initLangSelectors();       // 언어 선택기 + 초기 번역 적용
   buildChatUI($('#chatDesk'));
   buildChatUI($('#chatMobile'));
   connectWS();
   buildSportNav();          // 종목 메뉴 즉시 표시(네트워크 불필요)
+  initBackButtonHandling(); // 휴대폰 뒤로가기 = 팝업만 닫기
   loadEvents();             // 경기 즉시 로드(자체 자동 재시도 내장)
   // 관심 리그는 백그라운드로, 서버 깰 때까지 재시도
   fetchJSON('/api/leagues', { tries: 15, delay: 4000 })
     .then(d => { state.leagues = d.leagues || []; buildLeagueNav(); })
     .catch(() => {});
-  // 라이브 자동 갱신 (30초)
-  setInterval(() => { if (!$('#view-live').classList.contains('hidden')) loadEvents(); }, 30000);
+  // 라이브 자동 갱신 (10초) · 상세/채팅 열려 있어도 스코어·해설 계속 갱신
+  setInterval(() => { if (!$('#view-live').classList.contains('hidden') || modalEventId) loadEvents(true); }, 7000);
+  // 🔔 이전에 알림 켰던 사용자는 재구독 (재시작·재접속 대비)
+  if (NOTIF.on && 'Notification' in window && Notification.permission === 'granted') setTimeout(syncPush, 1500);
+  // 알림 클릭으로 열린 경우 (?ev=) 해당 경기 상세 자동 오픈
+  try { const ev = new URLSearchParams(location.search).get('ev'), sp = new URLSearchParams(location.search).get('sp'); if (ev) openEventWhenReady(ev, sp); } catch (e) {}
 }
 init();

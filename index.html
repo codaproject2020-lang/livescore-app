@@ -8,7 +8,7 @@
 <link rel="manifest" href="/manifest.json">
 <link rel="apple-touch-icon" href="/logo.png.jpg">
 <link rel="icon" href="/logo.png.jpg">
-<link rel="stylesheet" href="styles.css?v=2">
+<link rel="stylesheet" href="styles.css?v=37">
 </head>
 <body>
 <div class="shell">
@@ -16,35 +16,36 @@
   <!-- ================= 좌측 사이드(PC 전용) ================= -->
   <aside class="side-l">
     <a class="brand brand-logo" href="/">
-      <img src="/logo.png.jpg" alt="LIVE UP" class="brandimg" onerror="this.replaceWith(Object.assign(document.createElement('span'),{className:'wm',innerHTML:'LIVE<b>UP</b>'}))">
+      <img src="/logo-t.png" alt="LIVE UP" class="brandimg" onerror="this.replaceWith(Object.assign(document.createElement('span'),{className:'wm',innerHTML:'LIVE<b>UP</b>'}))">
     </a>
-    <button class="dlbtn" id="btnDownload">⬇ 앱 다운로드</button>
-    <button class="loginbtn" id="btnLogin">🔑 로그인</button>
+    <button class="dlbtn" id="btnDownload">⬇ <span data-i18n="download">앱 다운로드</span></button>
+    <button class="loginbtn" id="btnLogin">🔑 <span data-i18n="login">로그인</span></button>
+    <select id="langSel" class="langsel"></select>
     <div class="sidenav topnav">
-      <a data-tab="live" class="on"><span class="em">⚡</span>라이브</a>
-      <a data-tab="info"><span class="em">📊</span>경기 정보방</a>
-      <a data-tab="table"><span class="em">🏆</span>순위</a>
-      <a data-tab="odds"><span class="em">💰</span>배당</a>
-      <a data-tab="board"><span class="em">📋</span>커뮤니티</a>
+      <a data-tab="live" class="on"><span class="em">⚡</span><span data-i18n="live">라이브</span></a>
+      <a data-tab="info"><span class="em">📊</span><span data-i18n="info">경기 정보방</span></a>
+      <a data-tab="table"><span class="em">🏆</span><span data-i18n="rank">순위</span></a>
+      <a data-tab="odds"><span class="em">💰</span><span data-i18n="odds">배당</span></a>
+      <a data-tab="board"><span class="em">📋</span><span data-i18n="community">커뮤니티</span></a>
     </div>
-    <div class="side-hd">종목</div>
+    <div class="side-hd" data-i18n="sportsHd">종목</div>
     <div id="sportNav" class="sidenav"></div>
-    <div class="side-hd">관심 리그</div>
+    <div class="side-hd" data-i18n="interest">관심 리그</div>
     <div id="leagueNav" class="sidenav"></div>
-    <div class="side-note">데이터: TheSportsDB · 실시간 연동</div>
+    <div class="side-note">데이터: API-Sports · 실시간 연동</div>
   </aside>
 
   <!-- ================= 중앙(경기 피드) ================= -->
   <main class="center">
     <!-- 모바일 브랜드 바 (로고 + 다운로드) -->
     <div class="mbrand">
-      <a href="/" class="mbrand-logo"><img src="/logo.png.jpg" alt="LIVE UP" onerror="this.replaceWith(Object.assign(document.createElement('span'),{className:'mbrand-txt',innerHTML:'LIVE<b>UP</b>'}))"></a>
+      <a href="/" class="mbrand-logo"><img src="/logo-t.png" alt="LIVE UP" onerror="this.replaceWith(Object.assign(document.createElement('span'),{className:'mbrand-txt',innerHTML:'LIVE<b>UP</b>'}))"></a>
       <button class="dlbtn sm" id="btnDownloadM">⬇ 앱 다운로드</button>
     </div>
     <!-- 상단 아이콘 탭바 (모바일) -->
     <div class="topbar">
       <div class="tt icon" id="btnMenu">☰</div>
-      <div class="tt on" data-tab="live">LIVE</div>
+      <div class="tt on" data-tab="live" data-i18n="live">LIVE</div>
       <div class="tt" data-tab="info">📊</div>
       <div class="tt" data-tab="odds">💰</div>
       <div class="tt" data-tab="comm">💬</div>
@@ -55,28 +56,31 @@
     <!-- 종목 아이콘 줄 (모바일) -->
     <div class="sportrow" id="sportRow"></div>
 
+    <!-- 리그 선택 바 (전체/KBO/MLB/… · 종목별) -->
+    <div class="leaguerow" id="leagueRow" style="display:none"></div>
+
     <!-- 날짜 이동 -->
     <div class="datenav">
       <div class="arw" id="datePrev">‹</div>
       <input type="date" id="datePick" class="datepick">
       <div class="today" id="dateToday">오늘</div>
       <div class="arw" id="dateNext">›</div>
-      <div class="refresh" id="btnRefresh">↻ 새로고침</div>
+      <div class="refresh" id="btnRefresh">↻ <span data-i18n="refresh">새로고침</span></div>
     </div>
 
     <!-- 뉴스 티커 -->
     <div class="ticker">
       <span class="spk">🔊</span>
-      <a class="txt" href="https://sports.daum.net/" target="_blank" rel="noopener">스포츠 최신 뉴스 · 다음스포츠에서 보기</a>
-      <span class="pick">픽</span>
+      <a class="txt" href="https://sports.daum.net/" target="_blank" rel="noopener"><span data-i18n="news">스포츠 최신 뉴스</span> <span data-i18n="newsMore">· 다음스포츠에서 보기</span></a>
+      <span class="pick" data-i18n="pick">픽</span>
     </div>
 
     <!-- 전경기 대화방 -->
     <div class="chatban" id="chatbanBtn">
       <span class="all">All</span>
-      <span class="nm">전경기 대화방</span>
-      <span class="cnt">접속 <b id="onlineAll">0</b>명</span>
-      <div class="prize" id="chatbanGo">채팅<br>입장 ›</div>
+      <span class="nm" data-i18n="allRoom">전경기 대화방</span>
+      <span class="cnt"><span data-i18n="online">접속</span> <b id="onlineAll">0</b></span>
+      <div class="prize" id="chatbanGo" data-i18n="chat">채팅 입장 ›</div>
     </div>
 
     <!-- ===== LIVE 뷰 ===== -->
@@ -108,8 +112,8 @@
 
     <!-- ===== 경기 정보방 뷰 ===== -->
     <section class="view hidden" id="view-info">
-      <div class="infohd">📊 경기 정보방 <span class="sample-badge">샘플 데이터</span></div>
-      <div class="infonote">라인업·투수/타자 기록·국내배당은 <b>샘플(예시) 데이터</b>입니다. 실데이터는 유료 스포츠데이터 연동이 필요해요.</div>
+      <div class="infohd">📊 경기 정보방</div>
+      <div class="infonote">경기를 누르면 상세 정보가 열려요. <b>MLB·LMB</b>는 라인업·투수/타자 기록·볼카운트까지 실데이터, KBO·NPB는 점수·이닝·안타·실책까지 제공돼요.</div>
       <div id="infoList" class="infolist"></div>
     </section>
 
@@ -138,7 +142,7 @@
 
   <!-- ================= 우측(채팅/상세, PC 전용) ================= -->
   <aside class="side-r">
-    <div class="side-hd">💬 전경기 실시간 채팅 <span class="online-pill">🟢 <b id="onlineR">0</b></span></div>
+    <div class="side-hd">💬 <span data-i18n="liveChat">전경기 실시간 채팅</span> <span class="online-pill">🟢 <b id="onlineR">0</b></span></div>
     <div id="chatDesk" class="chatpane"></div>
   </aside>
 </div>
@@ -186,17 +190,19 @@
 <aside class="drawer" id="drawer">
   <div class="dprof"><div class="av">👤</div><div><div class="who" id="drawerName">손님</div><div class="blog">실시간 접속 <b id="onlineD">0</b>명</div></div></div>
   <div class="sidenav dmenu">
-    <a data-tab="live"><span class="em">⚡</span>라이브</a>
-    <a data-tab="info"><span class="em">📊</span>경기 정보방</a>
-    <a data-tab="table"><span class="em">🏆</span>순위</a>
-    <a data-tab="odds"><span class="em">💰</span>배당</a>
-    <a data-tab="comm"><span class="em">💬</span>채팅</a>
-    <a data-tab="board"><span class="em">📋</span>커뮤니티</a>
-    <a id="drawerLogin"><span class="em">🔑</span>로그인</a>
+    <a data-tab="live"><span class="em">⚡</span><span data-i18n="live">라이브</span></a>
+    <a data-tab="info"><span class="em">📊</span><span data-i18n="info">경기 정보방</span></a>
+    <a data-tab="table"><span class="em">🏆</span><span data-i18n="rank">순위</span></a>
+    <a data-tab="odds"><span class="em">💰</span><span data-i18n="odds">배당</span></a>
+    <a data-tab="comm"><span class="em">💬</span><span data-i18n="chat">채팅</span></a>
+    <a data-tab="board"><span class="em">📋</span><span data-i18n="community">커뮤니티</span></a>
+    <a id="drawerLogin"><span class="em">🔑</span><span data-i18n="login">로그인</span></a>
   </div>
-  <div class="side-hd" style="padding:12px 16px 6px">종목</div>
+  <div class="side-hd" style="padding:12px 16px 6px" data-i18n="langLabel">언어</div>
+  <select id="langSelD" class="langsel" style="margin:0 16px 8px"></select>
+  <div class="side-hd" style="padding:12px 16px 6px" data-i18n="sportsHd">종목</div>
   <div id="sportNavD" class="sidenav"></div>
-  <div class="side-hd" style="padding:12px 16px 6px">관심 리그</div>
+  <div class="side-hd" style="padding:12px 16px 6px" data-i18n="interest">관심 리그</div>
   <div id="leagueNavD" class="sidenav"></div>
 </aside>
 
@@ -204,8 +210,8 @@
 <template id="chatTpl">
   <div class="chat-msgs"></div>
   <div class="chat-input">
-    <input type="text" class="ci" placeholder="메시지 입력…" maxlength="300">
-    <button class="cs">전송</button>
+    <input type="text" class="ci" placeholder="메시지 입력…" data-i18n-ph="chatPh" maxlength="300">
+    <button class="cs" data-i18n="send">전송</button>
   </div>
 </template>
 
@@ -213,7 +219,7 @@
 <div class="dloverlay" id="dlOverlay">
   <div class="dlbox">
     <div class="dl-glow"></div>
-    <img src="/logo.png.jpg" alt="LIVE UP" class="dllogo" onerror="this.style.display='none'">
+    <img src="/logo-t.png" alt="LIVE UP" class="dllogo" onerror="this.style.display='none'">
     <div class="dltitle" id="dlTitle">LIVE UP 설치 중…</div>
     <div class="dlbar"><div class="dlfill" id="dlFill"></div></div>
     <div class="dlrow"><span class="dlpct" id="dlPct">0%</span><span class="dlmsg" id="dlMsg">다운로드 준비 중…</span></div>
@@ -228,6 +234,6 @@
     window.addEventListener('load', () => navigator.serviceWorker.register('/sw.js').catch(() => {}));
   }
 </script>
-<script src="app.js?v=2"></script>
+<script src="app.js?v=53"></script>
 </body>
 </html>
