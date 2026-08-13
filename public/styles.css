@@ -152,6 +152,7 @@ table.stdtbl tr.hl td{font-weight:800;color:var(--navy)}
 .mid .badge-state.live{background:#8a2b24;color:#fff}
 .mid .badge-state.sched{background:var(--blueDark);color:#fff}
 .mid .badge-state.ft{background:#eef1f4;color:var(--sub)}
+.mid .badge-state.abn{background:#7a5b16;color:#ffe9b0}
 .mid .score{font-size:22px;font-weight:900}
 .mid .score.live{color:var(--red)}
 .mid .vs{font-size:14px;color:var(--dim);font-weight:800}

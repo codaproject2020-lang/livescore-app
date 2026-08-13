@@ -116,6 +116,13 @@ const STR = {
   batNow: ['batting', '공격', '攻撃中', '进攻', 'al bate', 'बल्लेबाजी', 'đang đánh', 'กำลังตี', 'атакует', 'am Schlag', 'à la batte', 'alla battuta'],
   finishedSec: ['Finished', '종료 경기', '終了', '已结束', 'Finalizados', 'समाप्त', 'Đã kết thúc', 'จบแล้ว', 'Завершённые', 'Beendet', 'Terminés', 'Terminate'],
   last10: ['Last 10', '최근 10경기', '直近10', '近10场', 'Últimos 10', 'पिछले 10', '10 trận gần nhất', '10 นัดล่าสุด', 'Последние 10', 'Letzte 10', '10 derniers', 'Ultime 10'],
+  stPostponed: ['Postponed', '연기', '延期', '延期', 'Aplazado', 'स्थगित', 'Hoãn', 'เลื่อน', 'Отложен', 'Verschoben', 'Reporté', 'Rinviata'],
+  stCanceled: ['Canceled', '취소', '中止', '取消', 'Cancelado', 'रद्द', 'Hủy', 'ยกเลิก', 'Отменён', 'Abgesagt', 'Annulé', 'Annullata'],
+  stDelayed: ['Delayed', '지연', '中断', '延误', 'Retrasado', 'विलंबित', 'Trì hoãn', 'ล่าช้า', 'Задержан', 'Verzögert', 'Retardé', 'Ritardata'],
+  stSuspended: ['Suspended', '중단', 'サスペンド', '中断', 'Suspendido', 'निलंबित', 'Tạm dừng', 'พักการแข่ง', 'Приостановлен', 'Unterbrochen', 'Suspendu', 'Sospesa'],
+  stAbnormal: ['—', '—', '—', '—', '—', '—', '—', '—', '—', '—', '—', '—'],
+  stHalved: ['Called (half)', '콜드', 'コールド', '提前结束', 'Acortado', 'संक्षिप्त', 'Rút gọn', 'จบก่อนกำหนด', 'Сокращён', 'Verkürzt', 'Écourté', 'Ridotta'],
+  stTbd: ['TBD', '미정', '未定', '待定', 'Por definir', 'तय नहीं', 'Chưa xác định', 'ยังไม่กำหนด', 'Не определено', 'Offen', 'À définir', 'Da definire'],
   vibeLoaded: ['Bases loaded!', '만루 찬스!', '満塁のチャンス！', '满垒机会！', '¡Bases llenas!', 'बेस लोडेड!', 'Đầy gôn!', 'เต็มเบส!', 'Базы загружены!', 'Bases voll!', 'Bases pleines !', 'Basi piene!'],
   vibeRISP: ['Runner in scoring position!', '득점권 주자!', '得点圏に走者！', '得分位有跑者！', '¡Corredor en posición de anotar!', 'स्कोरिंग पोजिशन में रनर!', 'Runner ở vị trí ghi điểm!', 'มีรันเนอร์ลุ้นทำแต้ม!', 'Раннер в позиции для очка!', 'Läufer in Scoring Position!', 'Coureur en position de marquer !', 'Corridore in posizione punto!'],
   vibe2out: ['Two down, full tension!', '투아웃, 벼랑 끝!', '2アウト、崖っぷち！', '两出局，命悬一线！', '¡Dos outs, máxima tensión!', 'दो आउट, पूरा दबाव!', 'Hai out, cực căng!', 'สองเอาต์ ลุ้นสุด!', 'Два аута, предел!', 'Zwei Aus, volle Spannung!', 'Deux retraits, tension max !', 'Due out, tensione alle stelle!'],
@@ -740,7 +747,19 @@ function hhmm(dateStr) {
   return dd ? `${String(dd.getHours()).padStart(2, '0')}:${String(dd.getMinutes()).padStart(2, '0')}` : t('scheduled');
 }
 // 라이브 상태를 선택 언어로 (회차/쿼터/분) · 함수명은 호환 위해 koStatus 유지
+const ABN_KEY = { postponed: 'stPostponed', canceled: 'stCanceled', delayed: 'stDelayed', suspended: 'stSuspended', abnormal: 'stAbnormal', halved: 'stHalved', tbd: 'stTbd' };
+function abnLabel(e) {
+  if (e && e.abnStatus) return t(ABN_KEY[e.abnStatus] || 'stAbnormal');
+  const s = String(e && e.status || '').toUpperCase(), L = String(e && e.statusLong || '').toLowerCase();
+  if (s === 'PST' || /postpon/.test(L)) return t('stPostponed');
+  if (s === 'CANC' || /cancel/.test(L)) return t('stCanceled');
+  if (s === 'SUSP' || /suspend/.test(L)) return t('stSuspended');
+  if (s === 'ABD' || s === 'AWD' || /abandon/.test(L)) return t('stCanceled');
+  if (s === 'INT' || /interrupt/.test(L)) return t('stSuspended');
+  return '';
+}
 function koStatus(e) {
+  const ab = abnLabel(e); if (ab && ab !== '—') return ab;
   const sp = state.sport;
   const s = String(e.status || '').toUpperCase();
   const long = String(e.statusLong || '');
@@ -773,6 +792,7 @@ function koStatus(e) {
   return long || e.status || t('inplay');
 }
 function stateBadge(e) {
+  const ab = abnLabel(e); if (ab && ab !== '—') return `<span class="badge-state abn">${esc(ab)}</span>`;
   if (e.state === 'live') return `<span class="badge-state live">● ${esc(koStatus(e))}</span>`;
   if (e.state === 'finished') return `<span class="badge-state ft">${esc(t('finished'))}</span>`;
   return `<span class="badge-state sched">${hhmm(e.date)}</span>`;
@@ -1475,12 +1495,15 @@ function renderDetail(e, pr) {
   const odds = e.odds ? `<div class="odsec">💰 ${esc(t('odds'))}</div><div class="modds-detail">${esc(t('win'))} <b>${e.odds.home ? Number(e.odds.home).toFixed(2) : '-'}</b>${e.odds.draw ? ` · ${esc(t('draw'))} <b>${Number(e.odds.draw).toFixed(2)}</b>` : ''} · ${esc(t('loss'))} <b>${e.odds.away ? Number(e.odds.away).toFixed(2) : '-'}</b></div>` : '';
   // 점수판은 별도 영역(#mScore)에 — 그 바로 밑에 하이라이트(#mYtWrap)가 오도록
   const sc = $('#mScore');
+  // 팀 이름 바로 아래 AI 해설 (라이브=생동감 한 줄 / 그 외=요약 첫 줄)
+  const topAI = e.state === 'live' ? aiLive(e) : `<div class="ailive">🤖 <b>${esc(t('aiComm'))}</b> ${aiSummary(e)[0] || ''}</div>`;
   if (sc) sc.innerHTML = `
     <div class="mteams">
       <div class="mt">${HA_HOME}<div class="ph">${badge(e.homeLogo, '🏟')}</div><div class="nm">${esc(TN(e.home, e.league))}</div></div>
       <div class="msc"><div class="n">${scoreTxt}</div><div class="st" style="color:${e.state === 'live' ? '#e2231a' : '#8b93a0'}">${esc(st)}</div>${setpts}</div>
       <div class="mt">${HA_AWAY}<div class="ph">${badge(e.awayLogo, '🏟')}</div><div class="nm">${esc(TN(e.away, e.league))}</div></div>
-    </div>`;
+    </div>
+    ${topAI}`;
   el.innerHTML = `
     <div id="mMlbLive"></div>
     ${lineScoreTable(e)}
