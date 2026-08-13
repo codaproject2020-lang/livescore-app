@@ -30,6 +30,11 @@ const STR = {
   installAndroid: ['Tap ⋮ menu → "Install app" / "Add to Home screen".', '브라우저 메뉴 <b>⋮ → "앱 설치"</b> 또는 <b>"홈 화면에 추가"</b> 를 누르면 돼요.', 'メニュー<b>⋮→「アプリをインストール」</b>をタップ。', '浏览器菜单<b>⋮→"安装应用"</b>。', 'Menú ⋮ → "Instalar app" / "Añadir a inicio".', 'ब्राउज़र मेनू ⋮ → "ऐप इंस्टॉल करें" दबाएँ।', 'Menu ⋮ → "Cài đặt ứng dụng" / "Thêm vào màn hình".', 'เมนู ⋮ → "ติดตั้งแอป" / "เพิ่มลงหน้าจอหลัก"', 'Меню ⋮ → «Установить приложение».', 'Menü ⋮ → „App installieren".', 'Menu ⋮ → « Installer l\'application ».', 'Menu ⋮ → "Installa app".'],
   alreadyInst: ['Already installed ✓ Open LIVE UP from your home screen.', '이미 설치돼 있어요 ✓ 홈 화면의 <b>LIVE UP</b> 아이콘으로 실행하세요.', 'インストール済み ✓ ホームの<b>LIVE UP</b>から起動。', '已安装 ✓ 从主屏幕打开 <b>LIVE UP</b>。', 'Ya instalado ✓ Abre LIVE UP desde tu inicio.', 'पहले से इंस्टॉल ✓ होम स्क्रीन से LIVE UP खोलें।', 'Đã cài ✓ Mở LIVE UP từ màn hình chính.', 'ติดตั้งแล้ว ✓ เปิด LIVE UP จากหน้าจอหลัก', 'Уже установлено ✓ Откройте LIVE UP с главного экрана.', 'Bereits installiert ✓ LIVE UP über den Startbildschirm öffnen.', 'Déjà installé ✓ Ouvrez LIVE UP depuis votre accueil.', 'Già installato ✓ Apri LIVE UP dalla Home.'],
   closeBtn: ['Close', '닫기', '閉じる', '关闭', 'Cerrar', 'बंद करें', 'Đóng', 'ปิด', 'Закрыть', 'Schließen', 'Fermer', 'Chiudi'],
+  inAppTitle: ['Open in a browser', '브라우저에서 열어주세요', 'ブラウザで開いてください', '请用浏览器打开', 'Abre en un navegador', 'ब्राउज़र में खोलें', 'Mở bằng trình duyệt', 'เปิดในเบราว์เซอร์', 'Откройте в браузере', 'Im Browser öffnen', 'Ouvrir dans un navigateur', 'Apri nel browser'],
+  inAppAndroid: ["In-app browsers (KakaoTalk etc.) can't install apps. Tap below to open in Chrome, then install.", '카카오톡 등 <b>인앱 브라우저</b>에서는 설치가 안 돼요.<br>아래 버튼으로 <b>Chrome에서 열고</b> 다시 <b>바탕화면 설치</b>를 눌러주세요.', 'アプリ内ブラウザでは設置できません。下のボタンでChromeで開いてください。', '应用内浏览器无法安装。请点击下方用 Chrome 打开。', 'Los navegadores in-app no pueden instalar. Abre en Chrome abajo.', 'इन-ऐप ब्राउज़र इंस्टॉल नहीं कर सकते। नीचे Chrome में खोलें।', 'Trình duyệt trong ứng dụng không cài được. Mở bằng Chrome bên dưới.', 'เบราว์เซอร์ในแอปติดตั้งไม่ได้ แตะด้านล่างเพื่อเปิดใน Chrome', 'Встроенные браузеры не устанавливают приложения. Откройте в Chrome ниже.', 'In-App-Browser können nicht installieren. Unten in Chrome öffnen.', "Les navigateurs intégrés ne peuvent pas installer. Ouvrez dans Chrome ci-dessous.", "I browser in-app non installano. Apri in Chrome qui sotto."],
+  inAppIOS: ["In-app browsers can't install. Tap the menu (top/bottom) → \"Open in Safari\", then install.", '카카오톡 등 <b>인앱 브라우저</b>에서는 설치가 안 돼요.<br>메뉴(우측 위/아래) → <b>"Safari로 열기"</b> 후 <b>바탕화면 설치</b>를 눌러주세요.', 'アプリ内ブラウザでは設置できません。メニュー→「Safariで開く」後に設置してください。', '应用内浏览器无法安装。菜单→"用 Safari 打开"后再安装。', 'Los navegadores in-app no pueden instalar. Menú → "Abrir en Safari".', 'इन-ऐप ब्राउज़र इंस्टॉल नहीं कर सकते। मेनू → "Safari में खोलें"।', 'Trình duyệt trong ứng dụng không cài được. Menu → "Mở bằng Safari".', 'เบราว์เซอร์ในแอปติดตั้งไม่ได้ เมนู → "เปิดใน Safari"', 'Встроенные браузеры не устанавливают. Меню → «Открыть в Safari».', 'In-App-Browser können nicht installieren. Menü → „In Safari öffnen".', 'Les navigateurs intégrés ne peuvent pas installer. Menu → « Ouvrir dans Safari ».', 'I browser in-app non installano. Menu → "Apri in Safari".'],
+  openBrowser: ['Open in Chrome', 'Chrome으로 열기', 'Chromeで開く', '用 Chrome 打开', 'Abrir en Chrome', 'Chrome में खोलें', 'Mở bằng Chrome', 'เปิดใน Chrome', 'Открыть в Chrome', 'In Chrome öffnen', 'Ouvrir dans Chrome', 'Apri in Chrome'],
+  copyLinkGuide: ['Or copy the link and paste it in Chrome/Safari.', '또는 링크를 복사해 Chrome·Safari 주소창에 붙여넣으세요.', 'またはリンクをコピーしてブラウザに貼り付け。', '或复制链接粘贴到浏览器。', 'O copia el enlace y pégalo en el navegador.', 'या लिंक कॉपी करके ब्राउज़र में पेस्ट करें।', 'Hoặc sao chép liên kết và dán vào trình duyệt.', 'หรือคัดลอกลิงก์ไปวางในเบราว์เซอร์', 'Или скопируйте ссылку в браузер.', 'Oder Link kopieren und im Browser einfügen.', 'Ou copiez le lien dans le navigateur.', 'Oppure copia il link nel browser.'],
   all: ['All', '전체', '全て', '全部', 'Todos', 'सभी', 'Tất cả', 'ทั้งหมด', 'Все', 'Alle', 'Tout', 'Tutti'],
   today: ['Today', '오늘', '今日', '今天', 'Hoy', 'आज', 'Hôm nay', 'วันนี้', 'Сегодня', 'Heute', "Aujourd'hui", 'Oggi'],
   refresh: ['Refresh', '새로고침', '更新', '刷新', 'Actualizar', 'रिफ्रेश', 'Làm mới', 'รีเฟรช', 'Обновить', 'Aktualisieren', 'Actualiser', 'Aggiorna'],
@@ -398,8 +403,20 @@ $('#drawerLogin')?.addEventListener('click', () => { closeDrawer(); openLogin();
 // ============================================================
 let deferredPrompt = null;
 window.addEventListener('beforeinstallprompt', (e) => { e.preventDefault(); deferredPrompt = e; });
-const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
+const UA = navigator.userAgent || '';
+const isIOS = /iphone|ipad|ipod/i.test(UA);
+const isAndroid = /android/i.test(UA);
+// 카카오톡·인스타·페북·라인·네이버·다음 등 "인앱 브라우저"(PWA 설치 불가) 감지
+const isInApp = /KAKAOTALK|Instagram|FBAN|FBAV|FB_IAB|Line\/|NAVER|DaumApps|Snapchat|Twitter|everytimeApp|; wv\)/i.test(UA);
 const isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
+// 인앱 브라우저 → 실제 Chrome으로 다시 열기 (안드로이드 intent)
+window.openInChrome = function () {
+  const target = location.host + location.pathname + location.search;
+  if (isAndroid) {
+    location.href = 'intent://' + target + '#Intent;scheme=https;package=com.android.chrome;end';
+    setTimeout(() => { try { location.href = 'https://' + target; } catch { } }, 1200);
+  } else { shareApp(); }
+};
 
 function runProgress(done) {
   const fill = $('#dlFill'), pct = $('#dlPct'), msg = $('#dlMsg'), guide = $('#dlGuide'), close = $('#dlClose');
@@ -431,6 +448,18 @@ function showAlreadyInstalled() {
 }
 async function openDownload() {
   const ov = $('#dlOverlay'); if (!ov) return;
+  // 📵 인앱 브라우저(카톡 등)면 설치 불가 → 실제 브라우저로 열기 안내
+  if (isInApp && !isStandalone) {
+    ov.classList.add('on');
+    $('#dlTitle').textContent = t('inAppTitle'); $('#dlMsg').textContent = '';
+    $('#dlFill').style.width = '100%'; $('#dlPct').textContent = '100%';
+    let g = isIOS ? t('inAppIOS') : t('inAppAndroid');
+    if (isAndroid) g += `<br><br><button class="dl-openbtn" onclick="openInChrome()">🌐 ${t('openBrowser')}</button>`;
+    g += `<br><br><span class="dl-sub">${t('copyLinkGuide')}</span> <button class="dl-copybtn" onclick="shareApp()">🔗</button>`;
+    $('#dlGuide').innerHTML = g; $('#dlGuide').style.display = 'block';
+    $('#dlClose').style.display = 'inline-block'; $('#dlClose').textContent = t('closeBtn');
+    return;
+  }
   // ✅ 네이티브 설치 프롬프트는 반드시 "클릭 제스처 안에서 즉시" 호출해야 함
   //    (애니메이션 뒤에 부르면 일부 폰에서 브라우저가 차단해 '눌러도 안됨' 발생)
   if (deferredPrompt) {
