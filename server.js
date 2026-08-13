@@ -773,9 +773,9 @@ app.get('/api/baseball/teamrecent', async (req, res) => {
     if (!m0) return res.json({ found: false });
     const tmCur = {}; ((dcur.results_extra || {}).team || []).forEach(t => tmCur[t.id] = t.name);
     const homeId = m0.home_team_id, awayId = m0.away_team_id;
-    const now = Date.now(); const buckets = { [homeId]: [], [awayId]: [] };
-    for (let i = 0; i < 30; i++) {
-      if (buckets[homeId].length >= 10 && buckets[awayId].length >= 10) break;
+    const now = Date.now(); const buckets = { [homeId]: [], [awayId]: [] }; const h2h = [];
+    for (let i = 0; i < 45; i++) {
+      if (buckets[homeId].length >= 10 && buckets[awayId].length >= 10 && h2h.length >= 10) break;
       const ymd = new Date(Date.parse(date + 'T12:00:00Z') - i * 864e5).toISOString().slice(0, 10).replace(/-/g, '');
       const d = await tsFetch('/baseball/match/diary', { date: ymd }, 3600000).catch(() => null);
       if (!d) continue;
@@ -794,10 +794,16 @@ app.get('/api/baseball/teamrecent', async (req, res) => {
           if (my == null || op == null) return;
           buckets[teamId].push({ date: t, opp: tm[isHome ? x.away_team_id : x.home_team_id] || '', ts: my, os: op, win: my > op, draw: my === op, isHome });
         });
+        // 🆚 두 팀 맞대결(H2H)
+        const ids = [x.home_team_id, x.away_team_id];
+        if (h2h.length < 10 && ids.includes(homeId) && ids.includes(awayId)) {
+          const hs = tsNum(ft[0]), as = tsNum(ft[1]);
+          if (hs != null && as != null) h2h.push({ date: t, homeId: x.home_team_id, awayId: x.away_team_id, hName: tm[x.home_team_id] || '', aName: tm[x.away_team_id] || '', hs, as });
+        }
       });
     }
     const sortTake = arr => arr.sort((a, b) => b.date - a.date).slice(0, 10);
-    res.json({ found: true, home: { name: tmCur[homeId] || '', games: sortTake(buckets[homeId]) }, away: { name: tmCur[awayId] || '', games: sortTake(buckets[awayId]) } });
+    res.json({ found: true, home: { name: tmCur[homeId] || '', games: sortTake(buckets[homeId]) }, away: { name: tmCur[awayId] || '', games: sortTake(buckets[awayId]) }, h2h: sortTake(h2h) });
   } catch (e) { res.json({ error: String(e.message || e) }); }
 });
 // 연결 확인용 (원본 응답 전체 노출 — 에러 메시지 확인)
