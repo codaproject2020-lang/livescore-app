@@ -870,8 +870,8 @@ function rheMini(e) {
   return `<div class="rhemini"><table>
     <thead><tr><th></th><th>R</th><th>H</th><th>E</th>${showBB ? '<th>BB</th>' : ''}</tr></thead>
     <tbody>
-      <tr><td class="tn">${esc(nm(e.home))}</td><td class="r">${esc(h.r ?? e.hs ?? 0)}</td><td>${esc(h.h ?? 0)}</td><td>${esc(h.e ?? 0)}</td>${showBB ? `<td>${esc(h.bb ?? '-')}</td>` : ''}</tr>
       <tr><td class="tn">${esc(nm(e.away))}</td><td class="r">${esc(a.r ?? e.as ?? 0)}</td><td>${esc(a.h ?? 0)}</td><td>${esc(a.e ?? 0)}</td>${showBB ? `<td>${esc(a.bb ?? '-')}</td>` : ''}</tr>
+      <tr><td class="tn">${esc(nm(e.home))}</td><td class="r">${esc(h.r ?? e.hs ?? 0)}</td><td>${esc(h.h ?? 0)}</td><td>${esc(h.e ?? 0)}</td>${showBB ? `<td>${esc(h.bb ?? '-')}</td>` : ''}</tr>
     </tbody></table></div>`;
 }
 // 홈/원정 배지 (이모지 대신 또렷한 아이콘 칩)
@@ -1160,42 +1160,68 @@ function tsLeague(l) { return /KBO|NPB|CPBL|Korea|Nippon|Japan|일본|한국|대
 // ⚾ TheSports 야구 필드 배치도 (수비 포지션 + 선수 사진) — MLB와 동일 비주얼
 // 선수 표시 이름 — 한국어 UI면 한글명(있을 때) 우선
 function pName(p) { return (LANG === 'ko' && p && p.name_ko) ? p.name_ko : (p && p.name) || ''; }
-function tsFieldDot(p, x, y) {
+function tsFieldDot(p, x, y, side) {
   const face = p.photo;
   const av = face
     ? `<div class="fd-av has-face"><img src="${esc(face)}" alt="" loading="lazy" onerror="this.parentNode.classList.remove('has-face');this.parentNode.innerHTML='${esc(p.position || '')}'"><b class="fd-badge">${esc(p.position || '')}</b></div>`
     : `<div class="fd-av">${esc(p.position || '')}</div>`;
   const dnm = LANG === 'ko' && p.name_ko ? p.name_ko : shortName(p.name || p.position || '');
-  return `<div class="fd" style="left:${x}%;top:${y}%">${av}<div class="fd-nm">${esc(dnm)}</div></div>`;
+  return `<div class="fd tsp" data-pid="${esc(p.id)}" data-side="${esc(side || '')}" style="left:${x}%;top:${y}%">${av}<div class="fd-nm">${esc(dnm)}</div></div>`;
 }
-function tsField(players) {
+function tsField(players, side) {
   const list = players || [];
   const bat = list.filter(p => !p.pitcher), pit = list.filter(p => p.pitcher);
   const dots = [], used = {};
   ['C', '1B', '2B', '3B', 'SS', 'LF', 'CF', 'RF'].forEach(pos => {
     const pl = bat.find(p => p.position === pos && !used[p.id]);
-    if (pl && BB_POS[pos]) { used[pl.id] = 1; const [x, y] = BB_POS[pos]; dots.push(tsFieldDot(pl, x, y)); }
+    if (pl && BB_POS[pos]) { used[pl.id] = 1; const [x, y] = BB_POS[pos]; dots.push(tsFieldDot(pl, x, y, side)); }
   });
   const starter = pit.find(p => p.position === 'SP') || pit[0];
-  if (starter) { const [x, y] = BB_POS.P; dots.push(tsFieldDot(Object.assign({}, starter, { position: 'P' }), x, y)); }
+  if (starter) { const [x, y] = BB_POS.P; dots.push(tsFieldDot(Object.assign({}, starter, { position: 'P' }), x, y, side)); }
   const dh = bat.find(p => p.position === 'DH');
   if (!dots.length) return '';
   return `<div class="bfield">${dots.join('')}</div>${dh ? `<div class="bfield-dh">🏏 DH <b>${esc(pName(dh))}</b></div>` : ''}`;
 }
 // ⚾ TheSports 경기별 박스스코어 한쪽(타자+투수) 렌더 (선수 사진 포함)
-function tsBoxSide(players) {
+function tsBoxSide(players, side) {
   const list = players || [];
   const bat = list.filter(p => !p.pitcher), pit = list.filter(p => p.pitcher);
   const face = p => p.photo ? `<img class="bx-face" src="${esc(p.photo)}" loading="lazy" onerror="this.style.display='none'">` : '';
   const v = x => (x == null ? '-' : esc(x));
+  const sd = esc(side || '');
   const bt = `<table class="stt"><thead><tr><th>${sl('batter')}</th><th></th><th>${sl('ab')}</th><th>${sl('h')}</th><th>${sl('bb')}</th><th>${sl('rbi')}</th><th>${sl('hr')}</th><th>${sl('k')}</th></tr></thead><tbody>${
-    bat.map(b => `<tr><td class="nm">${face(b)}${esc(pName(b) || '-')}</td><td class="lr">${esc(b.position || '')}</td><td>${v(b.ab)}</td><td>${v(b.h)}</td><td>${v(b.bb)}</td><td>${v(b.rbi)}</td><td>${v(b.hr)}</td><td>${v(b.k)}</td></tr>`).join('') || `<tr><td colspan="8">-</td></tr>`
+    bat.map(b => `<tr class="tsp" data-pid="${esc(b.id)}" data-side="${sd}"><td class="nm">${face(b)}${esc(pName(b) || '-')}</td><td class="lr">${esc(b.position || '')}</td><td>${v(b.ab)}</td><td>${v(b.h)}</td><td>${v(b.bb)}</td><td>${v(b.rbi)}</td><td>${v(b.hr)}</td><td>${v(b.k)}</td></tr>`).join('') || `<tr><td colspan="8">-</td></tr>`
     }</tbody></table>`;
   const pt = `<table class="stt" style="margin-top:8px"><thead><tr><th>${sl('pitcher')}</th><th>${sl('ip')}</th><th>${sl('ha')}</th><th>${sl('er')}</th><th>${sl('k')}</th><th>${sl('bb')}</th></tr></thead><tbody>${
-    pit.map(p => `<tr><td class="nm">${face(p)}${esc(pName(p) || '-')}</td><td>${v(p.ip)}</td><td>${v(p.ph)}</td><td>${v(p.er)}</td><td>${v(p.pk)}</td><td>${v(p.pbb)}</td></tr>`).join('') || `<tr><td colspan="6">-</td></tr>`
+    pit.map(p => `<tr class="tsp" data-pid="${esc(p.id)}" data-side="${sd}"><td class="nm">${face(p)}${esc(pName(p) || '-')}</td><td>${v(p.ip)}</td><td>${v(p.ph)}</td><td>${v(p.er)}</td><td>${v(p.pk)}</td><td>${v(p.pbb)}</td></tr>`).join('') || `<tr><td colspan="6">-</td></tr>`
     }</tbody></table>`;
   return bt + pt;
 }
+// ⚾ KBO/NPB 선수 클릭 → 최근 경기 기록 (서버가 그 팀 최근 완료경기에서 추출)
+async function showTsPlayer(pid, side) {
+  const box = $('#mPlayer'); if (!box || !pid) return;
+  const e = feedGames[modalEventId]; if (!e) return;
+  box.innerHTML = `<div class="pl-card"><div class="loading" style="padding:10px">${esc(t('loading'))}</div></div>`;
+  box.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  try {
+    const d = await fetchJSON(`/api/baseball/playerlog?pid=${encodeURIComponent(pid)}&match=${encodeURIComponent(e.id)}&side=${encodeURIComponent(side || '')}&date=${state.date}`, { tries: 1 });
+    if (!d.found || !(d.games || []).length) { box.innerHTML = `<div class="pl-card"><div class="lu-note">${esc(t('boxSoon'))}</div></div>`; return; }
+    const nm = (LANG === 'ko' && d.name_ko) ? d.name_ko : (d.name || '');
+    const isPit = d.role === 'pitcher';
+    const head = isPit
+      ? `<th>${sl('date')}</th><th>${sl('opp')}</th><th>${sl('ip')}</th><th>${sl('er')}</th><th>${sl('k')}</th><th>BB</th>`
+      : `<th>${sl('date')}</th><th>${sl('opp')}</th><th>${sl('ab')}</th><th>${sl('h')}</th><th>${sl('hr')}</th><th>${sl('rbi')}</th>`;
+    const rows = d.games.map(g => {
+      const s = g.stat || {}, md = (g.date || '').slice(5, 10), opp = teamShort(TN(g.opp, e.league));
+      if (isPit) return `<tr><td>${esc(md)}</td><td>${esc(opp)}</td><td>${esc(s.ip ?? '-')}</td><td>${esc(s.er ?? '-')}</td><td>${esc(s.pk ?? '-')}</td><td>${esc(s.pbb ?? '-')}</td></tr>`;
+      return `<tr><td>${esc(md)}</td><td>${esc(opp)}</td><td>${esc(s.ab ?? '-')}</td><td>${esc(s.h ?? '-')}</td><td>${esc(s.hr ?? '-')}</td><td>${esc(s.rbi ?? '-')}</td></tr>`;
+    }).join('');
+    const pic = d.photo ? `<img class="pl-face" src="${esc(d.photo)}" onerror="this.style.display='none'">` : '';
+    box.innerHTML = `<div class="pl-card"><div class="pl-hd">${pic}🧢 ${esc(nm)} · ${esc(t('recent'))}</div><table class="pllog"><thead><tr>${head}</tr></thead><tbody>${rows}</tbody></table></div>`;
+    box.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  } catch { box.innerHTML = `<div class="pl-card"><div class="lu-note">-</div></div>`; }
+}
+function wireTsPlayers() { $$('#mLineupWrap .tsp').forEach(el => el.addEventListener('click', () => showTsPlayer(el.dataset.pid, el.dataset.side))); }
 async function updateLineup(e) {
   const box = $('#mLineupWrap'); if (!box) return;
   const sp = state.sport;
@@ -1234,15 +1260,17 @@ async function updateLineup(e) {
       if (!d.available || (!(d.players && d.players.home || []).length && !(d.players && d.players.away || []).length)) {
         box.innerHTML = `<div class="odsec">📋 ${esc(t('boxRec'))}</div><div class="lu-note">${esc(t('boxSoon'))}</div>`; return;
       }
-      const render = side => { $('#tsFieldBox').innerHTML = tsField(side); $('#tsBoxBody').innerHTML = tsBoxSide(side); };
-      box.innerHTML = `<div class="odsec">📋 ${esc(t('lineup'))} <span class="rhe">${esc(t('fieldPos'))} · ${sl('batter')}·${sl('pitcher')}</span></div>
+      const render = t => { const side = t === 'home' ? 'home' : 'away'; const arr = side === 'home' ? d.players.home : d.players.away; $('#tsFieldBox').innerHTML = tsField(arr, side); $('#tsBoxBody').innerHTML = tsBoxSide(arr, side); wireTsPlayers(); };
+      box.innerHTML = `<div class="odsec">📋 ${esc(t('lineup'))} <span class="rhe">${esc(t('fieldPos'))} · ${esc(t('tapPlayer'))}</span></div>
         <div class="bfield-tabs"><span class="bft on" data-t="home">${esc(TN(e.home, e.league))}</span><span class="bft" data-t="away">${esc(TN(e.away, e.league))}</span></div>
-        <div id="tsFieldBox">${tsField(d.players.home)}</div>
-        <div id="tsBoxBody">${tsBoxSide(d.players.home)}</div>`;
+        <div id="tsFieldBox">${tsField(d.players.home, 'home')}</div>
+        <div id="tsBoxBody">${tsBoxSide(d.players.home, 'home')}</div>
+        <div id="mPlayer"></div>`;
       $$('#mLineupWrap .bft').forEach(tb => tb.addEventListener('click', () => {
         $$('#mLineupWrap .bft').forEach(x => x.classList.remove('on')); tb.classList.add('on');
-        render(tb.dataset.t === 'home' ? d.players.home : d.players.away);
+        render(tb.dataset.t);
       }));
+      wireTsPlayers();
     } catch { box.innerHTML = `<div class="odsec">📋 ${esc(t('boxRec'))}</div><div class="lu-note">-</div>`; }
   } else {
     box.innerHTML = `<div class="odsec">📋 ${esc(t('lineup'))}</div><div class="lu-note">${esc(t('lineup'))} — ${esc(t(sp))} · N/A</div>`;
@@ -1359,8 +1387,8 @@ function lineScoreTable(e) {
   return `<div class="odsec">📊 ${esc(t('inningScore'))} <span class="rhe">R · H · E${showBB ? ' · BB' : ''}</span></div>
     <table class="boxsc"><thead><tr><th></th>${head}<th class="r">R</th><th class="he">H</th><th class="he">E</th>${showBB ? '<th class="he">BB</th>' : ''}</tr></thead>
     <tbody>
-      <tr><td class="tn">${esc(TN(e.home, e.league))}</td>${cells(hi)}<td class="r">${esc(bh.r ?? 0)}</td><td class="he">${esc(bh.h ?? 0)}</td><td class="he">${esc(bh.e ?? 0)}</td>${showBB ? `<td class="he">${esc(bh.bb ?? '-')}</td>` : ''}</tr>
       <tr><td class="tn">${esc(TN(e.away, e.league))}</td>${cells(ai)}<td class="r">${esc(ba.r ?? 0)}</td><td class="he">${esc(ba.h ?? 0)}</td><td class="he">${esc(ba.e ?? 0)}</td>${showBB ? `<td class="he">${esc(ba.bb ?? '-')}</td>` : ''}</tr>
+      <tr><td class="tn">${esc(TN(e.home, e.league))}</td>${cells(hi)}<td class="r">${esc(bh.r ?? 0)}</td><td class="he">${esc(bh.h ?? 0)}</td><td class="he">${esc(bh.e ?? 0)}</td>${showBB ? `<td class="he">${esc(bh.bb ?? '-')}</td>` : ''}</tr>
     </tbody></table>`;
 }
 function renderDetail(e, pr) {
