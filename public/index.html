@@ -8,7 +8,7 @@
 <link rel="manifest" href="/manifest.json">
 <link rel="apple-touch-icon" href="/logo.png.jpg">
 <link rel="icon" href="/logo.png.jpg">
-<link rel="stylesheet" href="styles.css?v=38">
+<link rel="stylesheet" href="styles.css?v=39">
 </head>
 <body>
 <div class="shell">
@@ -18,7 +18,8 @@
     <a class="brand brand-logo" href="/">
       <img src="/logo-t.png" alt="LIVE UP" class="brandimg" onerror="this.replaceWith(Object.assign(document.createElement('span'),{className:'wm',innerHTML:'LIVE<b>UP</b>'}))">
     </a>
-    <button class="dlbtn" id="btnDownload">⬇ <span data-i18n="download">앱 다운로드</span></button>
+    <button class="dlbtn" id="btnDownload">⬇ <span data-i18n="download">바탕화면 설치</span></button>
+    <button class="dlbtn share" id="btnShare">📤 <span data-i18n="share">공유</span></button>
     <button class="loginbtn" id="btnLogin">🔑 <span data-i18n="login">로그인</span></button>
     <select id="langSel" class="langsel"></select>
     <div class="sidenav topnav">
@@ -40,7 +41,10 @@
     <!-- 모바일 브랜드 바 (로고 + 다운로드) -->
     <div class="mbrand">
       <a href="/" class="mbrand-logo"><img src="/logo-t.png" alt="LIVE UP" onerror="this.replaceWith(Object.assign(document.createElement('span'),{className:'mbrand-txt',innerHTML:'LIVE<b>UP</b>'}))"></a>
-      <button class="dlbtn sm" id="btnDownloadM">⬇ 앱 다운로드</button>
+      <div class="mbrand-btns">
+        <button class="dlbtn sm" id="btnDownloadM">⬇ <span data-i18n="download">바탕화면 설치</span></button>
+        <button class="dlbtn sm share" id="btnShareM">📤 <span data-i18n="share">공유</span></button>
+      </div>
     </div>
     <!-- 상단 아이콘 탭바 (모바일) -->
     <div class="topbar">
@@ -150,7 +154,7 @@
 <!-- ===== 경기 상세 모달 ===== -->
 <div class="scrim" id="scrim"></div>
 <div class="modal" id="modal">
-  <div class="mhd"><span id="mTitle">경기 상세</span><span class="x" id="mClose">✕</span></div>
+  <div class="mhd"><span id="mTitle">경기 상세</span><span class="mhd-r"><span class="mshare" id="mShare" title="공유">📤</span><span class="x" id="mClose">✕</span></span></div>
   <div class="mbody" id="mBody"></div>
 </div>
 
@@ -234,6 +238,6 @@
     window.addEventListener('load', () => navigator.serviceWorker.register('/sw.js').catch(() => {}));
   }
 </script>
-<script src="app.js?v=54"></script>
+<script src="app.js?v=55"></script>
 </body>
 </html>

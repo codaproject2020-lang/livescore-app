@@ -21,7 +21,15 @@ const STR = {
   community: ['Community', '커뮤니티', 'コミュニティ', '社区', 'Comunidad', 'समुदाय', 'Cộng đồng', 'ชุมชน', 'Сообщество', 'Community', 'Communauté', 'Community'],
   chat: ['Chat', '채팅', 'チャット', '聊天', 'Chat', 'चैट', 'Trò chuyện', 'แชท', 'Чат', 'Chat', 'Chat', 'Chat'],
   login: ['Login', '로그인', 'ログイン', '登录', 'Entrar', 'लॉगिन', 'Đăng nhập', 'เข้าสู่ระบบ', 'Вход', 'Anmelden', 'Connexion', 'Accedi'],
-  download: ['Install App', '앱 다운로드', 'アプリ', '安装应用', 'Instalar app', 'ऐप इंस्टॉल', 'Cài đặt', 'ติดตั้งแอป', 'Установить', 'App holen', 'Installer', 'Installa app'],
+  download: ['Add to Home', '바탕화면 설치', 'ホームに追加', '添加到主屏', 'Añadir a inicio', 'होम में जोड़ें', 'Thêm vào màn hình', 'เพิ่มลงหน้าจอ', 'На главный экран', 'Zum Startbildschirm', "Ajouter à l'accueil", 'Aggiungi a Home'],
+  share: ['Share', '공유', '共有', '分享', 'Compartir', 'शेयर', 'Chia sẻ', 'แชร์', 'Поделиться', 'Teilen', 'Partager', 'Condividi'],
+  shareText: ['LIVE UP · Real-time scores', 'LIVE UP · 실시간 스코어', 'LIVE UP · リアルタイムスコア', 'LIVE UP · 实时比分', 'LIVE UP · Marcadores en vivo', 'LIVE UP · लाइव स्कोर', 'LIVE UP · Tỷ số trực tiếp', 'LIVE UP · สกอร์สด', 'LIVE UP · Счёт в реальном времени', 'LIVE UP · Live-Ergebnisse', 'LIVE UP · Scores en direct', 'LIVE UP · Punteggi live'],
+  linkCopied: ['Link copied!', '링크 복사됨!', 'リンクをコピー', '已复制链接', '¡Enlace copiado!', 'लिंक कॉपी हुआ!', 'Đã sao chép liên kết!', 'คัดลอกลิงก์แล้ว!', 'Ссылка скопирована!', 'Link kopiert!', 'Lien copié !', 'Link copiato!'],
+  installTitle: ['Add to Home Screen', '바탕화면에 설치', 'ホーム画面に追加', '添加到主屏幕', 'Añadir a pantalla de inicio', 'होम स्क्रीन में जोड़ें', 'Thêm vào màn hình chính', 'เพิ่มลงหน้าจอหลัก', 'Добавить на главный экран', 'Zum Startbildschirm', "Ajouter à l'écran d'accueil", 'Aggiungi a Home'],
+  installIOS: ['Tap Share ⬆️ in Safari, then "Add to Home Screen".', 'Safari 하단 <b>공유 ⬆️</b> → <b>"홈 화면에 추가"</b> 를 누르면 설치돼요.', 'Safariの<b>共有⬆️</b>→<b>「ホーム画面に追加」</b>をタップ。', '在 Safari 点<b>分享⬆️</b>→<b>"添加到主屏幕"</b>。', 'En Safari, toca Compartir ⬆️ y "Añadir a pantalla de inicio".', 'Safari में शेयर ⬆️ → "होम स्क्रीन में जोड़ें" दबाएँ।', 'Trong Safari, chạm Chia sẻ ⬆️ → "Thêm vào màn hình chính".', 'ใน Safari แตะ แชร์ ⬆️ → "เพิ่มลงหน้าจอหลัก"', 'В Safari нажмите Поделиться ⬆️ → «На экран «Домой».', 'In Safari auf Teilen ⬆️ → „Zum Home-Bildschirm".', "Dans Safari, touchez Partager ⬆️ puis « Sur l'écran d'accueil ».", 'In Safari tocca Condividi ⬆️ → "Aggiungi a Home".'],
+  installAndroid: ['Tap ⋮ menu → "Install app" / "Add to Home screen".', '브라우저 메뉴 <b>⋮ → "앱 설치"</b> 또는 <b>"홈 화면에 추가"</b> 를 누르면 돼요.', 'メニュー<b>⋮→「アプリをインストール」</b>をタップ。', '浏览器菜单<b>⋮→"安装应用"</b>。', 'Menú ⋮ → "Instalar app" / "Añadir a inicio".', 'ब्राउज़र मेनू ⋮ → "ऐप इंस्टॉल करें" दबाएँ।', 'Menu ⋮ → "Cài đặt ứng dụng" / "Thêm vào màn hình".', 'เมนู ⋮ → "ติดตั้งแอป" / "เพิ่มลงหน้าจอหลัก"', 'Меню ⋮ → «Установить приложение».', 'Menü ⋮ → „App installieren".', 'Menu ⋮ → « Installer l\'application ».', 'Menu ⋮ → "Installa app".'],
+  alreadyInst: ['Already installed ✓ Open LIVE UP from your home screen.', '이미 설치돼 있어요 ✓ 홈 화면의 <b>LIVE UP</b> 아이콘으로 실행하세요.', 'インストール済み ✓ ホームの<b>LIVE UP</b>から起動。', '已安装 ✓ 从主屏幕打开 <b>LIVE UP</b>。', 'Ya instalado ✓ Abre LIVE UP desde tu inicio.', 'पहले से इंस्टॉल ✓ होम स्क्रीन से LIVE UP खोलें।', 'Đã cài ✓ Mở LIVE UP từ màn hình chính.', 'ติดตั้งแล้ว ✓ เปิด LIVE UP จากหน้าจอหลัก', 'Уже установлено ✓ Откройте LIVE UP с главного экрана.', 'Bereits installiert ✓ LIVE UP über den Startbildschirm öffnen.', 'Déjà installé ✓ Ouvrez LIVE UP depuis votre accueil.', 'Già installato ✓ Apri LIVE UP dalla Home.'],
+  closeBtn: ['Close', '닫기', '閉じる', '关闭', 'Cerrar', 'बंद करें', 'Đóng', 'ปิด', 'Закрыть', 'Schließen', 'Fermer', 'Chiudi'],
   all: ['All', '전체', '全て', '全部', 'Todos', 'सभी', 'Tất cả', 'ทั้งหมด', 'Все', 'Alle', 'Tout', 'Tutti'],
   today: ['Today', '오늘', '今日', '今天', 'Hoy', 'आज', 'Hôm nay', 'วันนี้', 'Сегодня', 'Heute', "Aujourd'hui", 'Oggi'],
   refresh: ['Refresh', '새로고침', '更新', '刷新', 'Actualizar', 'रिफ्रेश', 'Làm mới', 'รีเฟรช', 'Обновить', 'Aktualisieren', 'Actualiser', 'Aggiorna'],
@@ -415,20 +423,34 @@ async function isAppInstalled() {
   return false;
 }
 function showAlreadyInstalled() {
-  $('#dlTitle').innerHTML = '이미 설치되어 있어요 ✓';
+  $('#dlTitle').innerHTML = t('alreadyInst').split('.')[0].split('<')[0] + ' ✓';
   $('#dlFill').style.width = '100%'; $('#dlPct').textContent = '100%'; $('#dlMsg').textContent = '';
   const guide = $('#dlGuide');
-  guide.innerHTML = '<b>LIVE UP</b> 앱이 이 기기에 이미 설치돼 있어요.<br>홈 화면의 <b>LIVE UP</b> 아이콘으로 실행하면 앱처럼 쓸 수 있어요. 🎉';
-  guide.style.display = 'block'; $('#dlClose').style.display = 'inline-block';
+  guide.innerHTML = t('alreadyInst');
+  guide.style.display = 'block'; $('#dlClose').style.display = 'inline-block'; $('#dlClose').textContent = t('closeBtn');
 }
 async function openDownload() {
   const ov = $('#dlOverlay'); if (!ov) return;
+  // ✅ 네이티브 설치 프롬프트는 반드시 "클릭 제스처 안에서 즉시" 호출해야 함
+  //    (애니메이션 뒤에 부르면 일부 폰에서 브라우저가 차단해 '눌러도 안됨' 발생)
+  if (deferredPrompt) {
+    ov.classList.add('on');
+    $('#dlTitle').textContent = t('installTitle'); $('#dlMsg').textContent = '';
+    $('#dlFill').style.width = '100%'; $('#dlPct').textContent = '100%';
+    $('#dlGuide').innerHTML = t('installAndroid'); $('#dlGuide').style.display = 'block';
+    $('#dlClose').style.display = 'inline-block'; $('#dlClose').textContent = t('closeBtn');
+    try {
+      deferredPrompt.prompt();
+      deferredPrompt.userChoice.finally(() => { deferredPrompt = null; });
+    } catch { }
+    return;
+  }
   ov.classList.add('on');
   $('#dlGuide').style.display = 'none'; $('#dlClose').style.display = 'none';
   if (await isAppInstalled()) {
-    $('#dlTitle').textContent = '확인 중…'; $('#dlMsg').textContent = '';
+    $('#dlTitle').textContent = '…'; $('#dlMsg').textContent = '';
     let p = 0; $('#dlFill').style.width = '0%';
-    const t = setInterval(() => { p += 14; const v = Math.min(p, 100); $('#dlFill').style.width = v + '%'; $('#dlPct').textContent = v + '%'; if (p >= 100) { clearInterval(t); setTimeout(showAlreadyInstalled, 280); } }, 60);
+    const t2 = setInterval(() => { p += 20; const v = Math.min(p, 100); $('#dlFill').style.width = v + '%'; $('#dlPct').textContent = v + '%'; if (p >= 100) { clearInterval(t2); setTimeout(showAlreadyInstalled, 200); } }, 50);
     return;
   }
   runProgress(finishDownload);
@@ -436,24 +458,61 @@ async function openDownload() {
 function finishDownload() {
   const guide = $('#dlGuide'), close = $('#dlClose');
   $('#dlMsg').textContent = '';
+  $('#dlTitle').textContent = t('installTitle');
   if (deferredPrompt) {
-    $('#dlTitle').textContent = '설치하기';
-    guide.innerHTML = '화면에 뜨는 <b>"설치"</b> 버튼을 누르면 홈 화면에 <b>LIVE UP</b> 앱이 추가돼요.';
-    deferredPrompt.prompt();
-    deferredPrompt.userChoice.finally(() => { deferredPrompt = null; });
+    guide.innerHTML = t('installAndroid');
+    try {
+      deferredPrompt.prompt();
+      deferredPrompt.userChoice.finally(() => { deferredPrompt = null; });
+    } catch { }
   } else if (isIOS) {
-    $('#dlTitle').textContent = '홈 화면에 추가';
-    guide.innerHTML = 'Safari 하단 <b>공유 ⬆️</b> → <b>"홈 화면에 추가"</b> 를 누르면 앱처럼 설치돼요.';
+    guide.innerHTML = t('installIOS');
   } else {
-    $('#dlTitle').textContent = '홈 화면에 추가';
-    guide.innerHTML = '주소창 오른쪽 <b>설치 ⊕</b> 아이콘, 또는 브라우저 메뉴 <b>⋮ → 앱 설치</b> 를 누르면 돼요.';
+    guide.innerHTML = t('installAndroid');
   }
   guide.style.display = 'block';
-  close.style.display = 'inline-block';
+  close.style.display = 'inline-block'; close.textContent = t('closeBtn');
 }
 $('#btnDownload')?.addEventListener('click', openDownload);
 $('#btnDownloadM')?.addEventListener('click', openDownload);
 $('#dlClose')?.addEventListener('click', () => $('#dlOverlay').classList.remove('on'));
+
+// ============================================================
+//  📤 공유 (카톡·메시지 등 — Web Share API, 폴백: 링크 복사)
+// ============================================================
+async function shareApp(customUrl, customText) {
+  const url = customUrl || (location.origin + '/');
+  const text = customText || t('shareText');
+  if (navigator.share) {
+    try { await navigator.share({ title: 'LIVE UP', text, url }); return; }
+    catch (e) { if (e && e.name === 'AbortError') return; }
+  }
+  // 폴백: 클립보드 복사
+  try {
+    await navigator.clipboard.writeText(url);
+    toast(t('linkCopied'));
+  } catch {
+    // 최후 폴백: 프롬프트
+    try { prompt(t('share'), url); } catch { }
+  }
+}
+function toast(msg) {
+  let el = document.getElementById('liveupToast');
+  if (!el) { el = document.createElement('div'); el.id = 'liveupToast'; el.className = 'lu-toast'; document.body.appendChild(el); }
+  el.textContent = msg; el.classList.add('on');
+  clearTimeout(toast._t); toast._t = setTimeout(() => el.classList.remove('on'), 1800);
+}
+$('#btnShare')?.addEventListener('click', () => shareApp());
+$('#btnShareM')?.addEventListener('click', () => shareApp());
+// 상세화면 공유: 해당 경기 딥링크 + 팀·스코어 문구
+$('#mShare')?.addEventListener('click', () => {
+  const e = (typeof feedGames !== 'undefined' && modalEventId) ? feedGames[modalEventId] : null;
+  if (!e) return shareApp();
+  const url = location.origin + '/?ev=' + encodeURIComponent(e.id);
+  const score = (e.hs != null && e.as != null) ? ` ${e.hs}:${e.as}` : '';
+  const text = `${TN(e.home, e.league)} vs ${TN(e.away, e.league)}${score} · LIVE UP`;
+  shareApp(url, text);
+});
 
 // 설치된 앱(홈 화면)으로 실행 중이면 다운로드 버튼 숨김
 function hideDownloadUI() { ['#btnDownload', '#btnDownloadM'].forEach(s => { const el = $(s); if (el) el.style.display = 'none'; }); }

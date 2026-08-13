@@ -314,7 +314,11 @@ table.rank td.pt{font-weight:900;color:var(--blue)}
 .mbrand{display:flex;align-items:center;gap:10px;padding:10px 14px;background:radial-gradient(120% 160% at 22% 0%,#1a2740 0%,#0b0f16 72%);border-bottom:2px solid var(--gold)}
 .mbrand-logo{display:flex}.mbrand-logo img{height:50px;width:auto;display:block;filter:drop-shadow(0 2px 8px rgba(0,0,0,.5))}
 .mbrand-txt{font-style:italic;font-weight:900;font-size:19px;color:#f0c14e}
-.mbrand .dlbtn.sm{margin-left:auto}
+.mbrand-btns{margin-left:auto;display:flex;gap:6px}
+.dlbtn.share{background:linear-gradient(135deg,#7fc7ff,#2f8fe0);color:#06233d;box-shadow:0 4px 14px rgba(47,143,224,.35)}
+.dlbtn.sm.share{box-shadow:0 3px 10px rgba(47,143,224,.4)}
+.lu-toast{position:fixed;left:50%;bottom:64px;transform:translateX(-50%) translateY(10px);background:#222;color:#fff;padding:10px 18px;border-radius:22px;font-size:13px;font-weight:700;z-index:9999;opacity:0;pointer-events:none;transition:opacity .2s,transform .2s;box-shadow:0 6px 20px rgba(0,0,0,.3)}
+.lu-toast.on{opacity:1;transform:translateX(-50%) translateY(0)}
 @media(min-width:1024px){ .mbrand{display:none} }
 
 /* ===== 다운로드 로딩 오버레이 ===== */
@@ -412,6 +416,8 @@ table.boxsc .r{font-weight:900;color:var(--red);background:#fbfaf4}
 .modal.on{opacity:1;pointer-events:auto;transform:translate(-50%,-50%) scale(1)}
 .mhd{position:sticky;top:0;background:#fff;display:flex;align-items:center;justify-content:space-between;padding:14px 16px;border-bottom:1px solid var(--line);font-weight:800}
 .mhd .x{cursor:pointer;color:var(--sub);font-size:16px}
+.mhd-r{display:flex;align-items:center;gap:14px}
+.mshare{cursor:pointer;font-size:16px}
 .mbody{padding:16px}
 
 /* modal content */
