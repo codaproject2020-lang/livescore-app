@@ -642,7 +642,18 @@ async function tsBaseballGames(date) {
     const hInn = {}, aInn = {}; let maxInn = 0;
     for (let i = 1; i <= 12; i++) { const p = sc['p' + i]; if (p && (p[0] !== '' || p[1] !== '')) { const a = tsNum(p[0]), b = tsNum(p[1]); if (a != null) hInn[i] = a; if (b != null) aInn[i] = b; maxInn = i; } }
     const t = m.match_time ? m.match_time * 1000 : 0;
-    const state = lvm ? 'live' : (t > now ? 'scheduled' : 'finished');
+    // 상태: detail_live에 있어도 "경기상태 코드"로 정확히 판정 (시작 120분 전이면 detail_live에 잡히지만 아직 예정)
+    let state;
+    if (lvm) {
+      const st = lvm.status;
+      if (TS_STATUS[st]) state = 'live';
+      else if (st === 100) state = 'finished';
+      else if (st === 1) state = 'scheduled';
+      else state = (t > now ? 'scheduled' : 'live');
+    } else {
+      state = (t > now ? 'scheduled' : 'finished');
+    }
+    const isLive = state === 'live';
     const g = {
       id: m.id, sport: 'baseball', home: ht.name || m.home_team_id, away: at.name || m.away_team_id,
       homeLogo: ht.logo || '', awayLogo: at.logo || '', league: lg.name || '', leagueLogo: lg.logo || '',
@@ -653,7 +664,7 @@ async function tsBaseballGames(date) {
         away: { r: as, h: tsNum(H[1]), e: tsNum(E[1]), bb: null, innings: aInn }
       }
     };
-    if (lvm) {
+    if (lvm && isLive) {
       // 이닝·초말·공격팀 = 경기상태 코드 우선(정확), 없으면 점수 들어간 마지막 회
       const sd = TS_STATUS[lvm.status];
       if (sd) { g.curInning = sd[0]; g.period = sd[0]; g.inningHalf = sd[1]; }
