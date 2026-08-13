@@ -1050,12 +1050,15 @@ async function updateMlbLive(e) {
 // ⚾ KBO/NPB/CPBL 여부 (TheSports 박스스코어 대상)
 function tsLeague(l) { return /KBO|NPB|CPBL|Korea|Nippon|Japan|일본|한국|대만|Taiwan|Chinese Professional/i.test(l || ''); }
 // ⚾ TheSports 야구 필드 배치도 (수비 포지션 + 선수 사진) — MLB와 동일 비주얼
+// 선수 표시 이름 — 한국어 UI면 한글명(있을 때) 우선
+function pName(p) { return (LANG === 'ko' && p && p.name_ko) ? p.name_ko : (p && p.name) || ''; }
 function tsFieldDot(p, x, y) {
   const face = p.photo;
   const av = face
     ? `<div class="fd-av has-face"><img src="${esc(face)}" alt="" loading="lazy" onerror="this.parentNode.classList.remove('has-face');this.parentNode.innerHTML='${esc(p.position || '')}'"><b class="fd-badge">${esc(p.position || '')}</b></div>`
     : `<div class="fd-av">${esc(p.position || '')}</div>`;
-  return `<div class="fd" style="left:${x}%;top:${y}%">${av}<div class="fd-nm">${esc(shortName(p.name || p.position || ''))}</div></div>`;
+  const dnm = LANG === 'ko' && p.name_ko ? p.name_ko : shortName(p.name || p.position || '');
+  return `<div class="fd" style="left:${x}%;top:${y}%">${av}<div class="fd-nm">${esc(dnm)}</div></div>`;
 }
 function tsField(players) {
   const list = players || [];
@@ -1069,7 +1072,7 @@ function tsField(players) {
   if (starter) { const [x, y] = BB_POS.P; dots.push(tsFieldDot(Object.assign({}, starter, { position: 'P' }), x, y)); }
   const dh = bat.find(p => p.position === 'DH');
   if (!dots.length) return '';
-  return `<div class="bfield">${dots.join('')}</div>${dh ? `<div class="bfield-dh">🏏 DH <b>${esc(dh.name || '')}</b></div>` : ''}`;
+  return `<div class="bfield">${dots.join('')}</div>${dh ? `<div class="bfield-dh">🏏 DH <b>${esc(pName(dh))}</b></div>` : ''}`;
 }
 // ⚾ TheSports 경기별 박스스코어 한쪽(타자+투수) 렌더 (선수 사진 포함)
 function tsBoxSide(players) {
@@ -1078,10 +1081,10 @@ function tsBoxSide(players) {
   const face = p => p.photo ? `<img class="bx-face" src="${esc(p.photo)}" loading="lazy" onerror="this.style.display='none'">` : '';
   const v = x => (x == null ? '-' : esc(x));
   const bt = `<table class="stt"><thead><tr><th>${sl('batter')}</th><th></th><th>${sl('ab')}</th><th>${sl('h')}</th><th>${sl('bb')}</th><th>${sl('rbi')}</th><th>${sl('hr')}</th><th>${sl('k')}</th></tr></thead><tbody>${
-    bat.map(b => `<tr><td class="nm">${face(b)}${esc(b.name || '-')}</td><td class="lr">${esc(b.position || '')}</td><td>${v(b.ab)}</td><td>${v(b.h)}</td><td>${v(b.bb)}</td><td>${v(b.rbi)}</td><td>${v(b.hr)}</td><td>${v(b.k)}</td></tr>`).join('') || `<tr><td colspan="8">-</td></tr>`
+    bat.map(b => `<tr><td class="nm">${face(b)}${esc(pName(b) || '-')}</td><td class="lr">${esc(b.position || '')}</td><td>${v(b.ab)}</td><td>${v(b.h)}</td><td>${v(b.bb)}</td><td>${v(b.rbi)}</td><td>${v(b.hr)}</td><td>${v(b.k)}</td></tr>`).join('') || `<tr><td colspan="8">-</td></tr>`
     }</tbody></table>`;
   const pt = `<table class="stt" style="margin-top:8px"><thead><tr><th>${sl('pitcher')}</th><th>${sl('ip')}</th><th>${sl('ha')}</th><th>${sl('er')}</th><th>${sl('k')}</th><th>${sl('bb')}</th></tr></thead><tbody>${
-    pit.map(p => `<tr><td class="nm">${face(p)}${esc(p.name || '-')}</td><td>${v(p.ip)}</td><td>${v(p.ph)}</td><td>${v(p.er)}</td><td>${v(p.pk)}</td><td>${v(p.pbb)}</td></tr>`).join('') || `<tr><td colspan="6">-</td></tr>`
+    pit.map(p => `<tr><td class="nm">${face(p)}${esc(pName(p) || '-')}</td><td>${v(p.ip)}</td><td>${v(p.ph)}</td><td>${v(p.er)}</td><td>${v(p.pk)}</td><td>${v(p.pbb)}</td></tr>`).join('') || `<tr><td colspan="6">-</td></tr>`
     }</tbody></table>`;
   return bt + pt;
 }
