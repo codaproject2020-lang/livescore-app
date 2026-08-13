@@ -854,20 +854,36 @@ app.get('/api/thesports/raw', async (req, res) => {
 
 // 경기 목록 생성 (정규화 + MLB 실시간 덮어쓰기) — 라우트/푸시 스케줄러 공용
 // ⚽ 축구=API-Sports(유료) · ⚾ MLB계열=StatsAPI · ⚾ KBO/NPB=TheSports(유료)
+// ISO 시각 → 특정 타임존의 YYYY-MM-DD (뷰어 로컬 날짜 판정용)
+function ymdInTz(iso, tz) {
+  try { return new Intl.DateTimeFormat('en-CA', { timeZone: tz || 'Asia/Seoul', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date(iso)); }
+  catch { return String(iso || '').slice(0, 10); }
+}
 async function buildGamesCore(sport, date, tz) {
   const cfg = AS[sport]; if (!cfg) return { games: [], j: {} };
-  const path = `${cfg.path}?date=${date}&timezone=${encodeURIComponent(tz || 'Asia/Seoul')}`;
-  const j = await asRaw(sport, path, 6000);   // 라이브 신선도 우선 (6초)
-  let games = (j.response || []).map(g => normAS(sport, g)).filter(Boolean);
+  tz = tz || 'Asia/Seoul';
+  // 기준일 + 전날(미국 야간=한국 새벽 경기)까지 받아, 마지막에 뷰어 로컬 날짜로 필터
+  const prevDate = new Date(Date.parse(date + 'T12:00:00Z') - 864e5).toISOString().slice(0, 10);
+  const apiDates = (sport === 'baseball') ? [prevDate, date] : [date];
+  let j = {}; let games = []; const _seen = new Set();
+  for (const dt of apiDates) {
+    const jj = await asRaw(sport, `${cfg.path}?date=${dt}&timezone=${encodeURIComponent(tz)}`, 6000).catch(() => ({ response: [] }));
+    if (dt === date) j = jj;
+    (jj.response || []).map(g => normAS(sport, g)).filter(Boolean).forEach(g => { if (!_seen.has(g.id)) { _seen.add(g.id); g._apiDate = dt; games.push(g); } });
+  }
   // 🚫 고교야구(고시엔 등) 제외 — 로고·데이터 빈약해 제외
   games = games.filter(g => !/koshien|senbatsu|high\s*school|甲子園|고교|highschool/i.test(String(g.league || '')));
   const STATS_LG = { 'MLB': 1, 'LMB': 23, 'IL': 11, 'PCL': 11 };
   if (sport === 'baseball' && games.some(g => STATS_LG[g.league])) {
-    const sm = {};
-    const needSids = [...new Set(games.map(g => STATS_LG[g.league]).filter(Boolean))];
-    for (const sid of needSids) Object.assign(sm, await mlbScoreMap(date, sid).catch(() => ({})));
+    const smByDate = {};
+    for (const dt of apiDates) {
+      const need = [...new Set(games.filter(g => g._apiDate === dt && STATS_LG[g.league]).map(g => STATS_LG[g.league]))];
+      if (!need.length) continue;
+      const sm = {}; for (const sid of need) Object.assign(sm, await mlbScoreMap(dt, sid).catch(() => ({}))); smByDate[dt] = sm;
+    }
     games.forEach(g => {
       if (!STATS_LG[g.league]) return;
+      const sm = smByDate[g._apiDate] || {};
       const hN = mlbNick(g.home), aN = mlbNick(g.away), e = sm[[hN, aN].sort().join('|')];
       if (!e) return;
       const H = e.byNick[hN] || {}, A = e.byNick[aN] || {};
@@ -888,17 +904,22 @@ async function buildGamesCore(sport, date, tz) {
   // ⚾ KBO(한국)·NPB(일본) = TheSports 실시간으로 교체 (API-Sports 지연 보정)
   if (sport === 'baseball' && TS_ON) {
     try {
-      const ts = await tsBaseballGames(date);
       // KBO(한국)·NPB(일본)·CPBL(대만) 아시아 프로리그만 TheSports로 (고교/아마추어 제외)
       const wantRe = /KBO|NPB|CPBL|Korea|Korean|Nippon|Japan|Chinese Professional|Taiwan|일본|한국|대만/i;
       const hsRe = /koshien|senbatsu|high\s*school|甲子園|고교|amateur|university|college/i;
-      const kn = ts.filter(g => wantRe.test(g.league || '') && !hsRe.test(g.league || ''));
+      let kn = []; const knSeen = new Set();
+      for (const dt of apiDates) {
+        const ts = await tsBaseballGames(dt).catch(() => []);
+        ts.filter(g => wantRe.test(g.league || '') && !hsRe.test(g.league || '')).forEach(g => { if (!knSeen.has(g.id)) { knSeen.add(g.id); kn.push(g); } });
+      }
       if (kn.length) {
         games = games.filter(g => !wantRe.test(g.league || ''));   // API-Sports 동일리그 제거(중복 방지)
         games = games.concat(kn);
       }
     } catch (e) { /* TheSports 실패 시 API-Sports 유지 */ }
   }
+  // 🗓️ 야구: 뷰어 로컬(한국) 날짜 기준으로만 노출 — 미국 새벽 경기가 엉뚱한 날짜 탭에 뜨는 것 방지
+  if (sport === 'baseball') games = games.filter(g => !g.date || ymdInTz(g.date, tz) === date);
   return { games, j };
 }
 
