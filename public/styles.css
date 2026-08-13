@@ -142,8 +142,8 @@ table.stdtbl tr.hl td{font-weight:800;color:var(--navy)}
 .mini-hd{font-weight:800;color:var(--navy);font-size:13px;margin-bottom:8px;display:flex;align-items:center}
 .mini-x{margin-left:auto;color:var(--sub);font-size:12px;cursor:pointer;font-weight:700}
 /* 언어 선택기 */
-.langsel{display:block;width:calc(100% - 32px);margin:0 16px 8px;padding:9px 10px;border:1px solid var(--line);border-radius:10px;font-size:13px;font-weight:700;color:var(--navy);background:#fff;font-family:inherit;cursor:pointer}
-.langsel-m{width:auto;margin:0;padding:8px 6px;border-radius:10px;font-size:12.5px;max-width:96px}
+.langsel{display:block;width:calc(100% - 32px);margin:0 16px 8px;padding:9px 10px;border:1px solid var(--line);border-radius:10px;font-size:14.5px;font-weight:700;color:var(--navy);background:#fff;font-family:inherit;cursor:pointer}
+.langsel-m{width:auto;margin:0;padding:8px 6px;border-radius:10px;font-size:14px;max-width:104px}
 @media(min-width:1024px){ .langsel-m{display:none} }
 .ytembed{position:relative;width:100%;padding-top:56.25%;border-radius:10px;overflow:hidden;background:#000}
 .ytembed iframe{position:absolute;inset:0;width:100%;height:100%;border:0}
