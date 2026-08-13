@@ -580,6 +580,8 @@ const TS_TSTAT = { 601: 'h', 602: 'e', 605: 'hr', 606: 'rbi', 608: 'bb', 609: 'k
 const TS_PSTAT = { 613: 'pos', 614: 'ab', 615: 'r', 616: 'h', 617: 'rbi', 618: 'avg', 619: 'd2', 620: 't3', 621: 'hr', 627: 'tb', 628: 'sb', 650: 'k', 651: 'bb', 634: 'ip', 635: 'ph', 636: 'er', 637: 'pbb', 638: 'pk', 639: 'era', 640: 'np', 644: 'bf', 648: 'phr', 649: 'ra', 696: 'w', 697: 'l', 703: 'sv' };
 const POS_NAME = { '1': 'DH', '2': 'C', '3': '1B', '4': '2B', '5': '3B', '6': 'CF', '7': 'LF', '8': 'RF', '9': 'SS', '10': 'PH', '11': 'PR', '12': 'SP', '13': 'RP', '14': 'P' };
 const TS_PNAME = new Map(); // player_id -> {name, logo, pos}
+let KBO_KO = {};            // player_id -> 한글 이름 (KBO 선수 현지화)
+try { KBO_KO = require('./kbo_names.json'); } catch (e) { KBO_KO = {}; }
 const tsDecode = (arr, map) => { const o = {}; (arr || []).forEach(p => { const k = map[p[0]]; if (k != null) o[k] = p[1]; }); return o; };
 const TS_WANT = /KBO|NPB|CPBL|Korea|Nippon|Japan|일본|한국|대만|Taiwan|Chinese Professional/i;
 async function tsBox(matchId, ttl = 60000) {
@@ -690,7 +692,7 @@ app.get('/api/baseball/box', async (req, res) => {
     const attach = arr => arr.map(p => {
       const n = TS_PNAME.get(p.id) || {};
       const posCode = p.pos != null ? String(p.pos) : '';
-      return Object.assign({}, p, { name: n.name || null, photo: n.logo || '', position: POS_NAME[posCode] || n.pos || '', pitcher: p.ip != null });
+      return Object.assign({}, p, { name: n.name || null, name_ko: KBO_KO[p.id] || null, photo: n.logo || '', position: POS_NAME[posCode] || n.pos || '', pitcher: p.ip != null });
     });
     res.json({ available: true, team: b.team, battingTeam: b.battingTeam, players: { home: attach(b.players.home), away: attach(b.players.away) } });
   } catch (e) { res.json({ error: String(e.message || e) }); }
@@ -779,6 +781,33 @@ app.get('/api/thesports/lineupbuild', async (req, res) => {
     let playerSample = null; const firstPid = teamRows.map(r => r.squadSample && r.squadSample[0] && r.squadSample[0].player_id).find(Boolean);
     if (firstPid) { try { const r = await tsFetch('/baseball/player/list', { uuid: firstPid }, 4000); playerSample = (r.results || [])[0] || null; } catch (e) { playerSample = { error: String(e.message || e) }; } }
     res.json({ date: ymd, knGames: kn.length, teamRows, stats, playerSample });
+  } catch (e) { res.json({ error: String(e.message || e) }); }
+});
+// KBO 선수 전수 수집 (id + 영문명) — 한글 매핑 구축용. 최근 N일 경기 스캔
+app.get('/api/thesports/kboplayers', async (req, res) => {
+  try {
+    const days = Math.min(parseInt(req.query.days || '7', 10), 14);
+    const pids = new Set(); const teamOf = {};
+    for (let i = 0; i < days; i++) {
+      const ymd = new Date(Date.now() - i * 864e5).toISOString().slice(0, 10).replace(/-/g, '');
+      const d = await tsFetch('/baseball/match/diary', { date: ymd }, 3600000).catch(() => null);
+      if (!d) continue;
+      const ex = d.results_extra || {}; const lg = {}, tm = {};
+      (ex.unique_tournament || []).forEach(u => lg[u.id] = u.name);
+      (ex.team || []).forEach(t => tm[t.id] = t.name);
+      const kbo = (d.results || []).filter(m => /KBO|Korea/i.test(lg[m.unique_tournament_id] || ''));
+      for (const m of kbo) {
+        const b = await tsBox(m.id, 3600000).catch(() => null);
+        if (!b) continue;
+        b.players.home.forEach(p => { pids.add(p.id); teamOf[p.id] = tm[m.home_team_id] || ''; });
+        b.players.away.forEach(p => { pids.add(p.id); teamOf[p.id] = tm[m.away_team_id] || ''; });
+      }
+    }
+    const ids = [...pids];
+    await Promise.all(ids.map(tsName));
+    const out = ids.map(id => { const n = TS_PNAME.get(id) || {}; return { id, name: n.name || null, team: teamOf[id] || '' }; }).filter(x => x.name);
+    out.sort((a, b) => (a.team + a.name).localeCompare(b.team + b.name));
+    res.json({ count: out.length, players: out });
   } catch (e) { res.json({ error: String(e.message || e) }); }
 });
 // 진행중 경기 실시간 선수/통계 유무 확인 — detail_live 검사
