@@ -583,6 +583,13 @@ const TS_PNAME = new Map(); // player_id -> {name, logo, pos}
 let KBO_KO = {};            // player_id -> 한글 이름 (KBO 선수 현지화)
 try { KBO_KO = require('./kbo_names.json'); } catch (e) { KBO_KO = {}; }
 const tsDecode = (arr, map) => { const o = {}; (arr || []).forEach(p => { const k = map[p[0]]; if (k != null) o[k] = p[1]; }); return o; };
+// ⚾ 경기상태 코드 → {inning, half}  (top=초·원정공격 / bottom=말·홈공격)
+const TS_STATUS = {
+  432: [1, 'top'], 433: [1, 'bottom'], 434: [2, 'top'], 435: [2, 'bottom'], 436: [3, 'top'], 437: [3, 'bottom'],
+  438: [4, 'top'], 439: [4, 'bottom'], 440: [5, 'top'], 411: [5, 'bottom'], 412: [6, 'top'], 413: [6, 'bottom'],
+  414: [7, 'top'], 415: [7, 'bottom'], 416: [8, 'top'], 417: [8, 'bottom'], 418: [9, 'top'], 419: [9, 'bottom'],
+  420: [10, 'top'], 421: [10, 'bottom']
+};
 const TS_WANT = /KBO|NPB|CPBL|Korea|Nippon|Japan|일본|한국|대만|Taiwan|Chinese Professional/i;
 async function tsBox(matchId, ttl = 60000) {
   const h = await tsFetch('/baseball/match/live/history', { uuid: matchId }, ttl).catch(() => null);
@@ -623,7 +630,7 @@ async function tsBaseballGames(date) {
   const live = {};
   try {
     const lv = await tsFetch('/baseball/match/detail_live', {}, 6000);
-    (lv.results || []).forEach(m => { const s = m.score || []; live[(s[0]) || m.id] = { inning: s[2], sc: s[3] || {}, extra: m.extra || {}, stats: m.stats || [], players: m.players || {} }; });
+    (lv.results || []).forEach(m => { const s = m.score || []; live[(s[0]) || m.id] = { status: s[1], batTeam: s[2], sc: s[3] || {}, extra: m.extra || {}, stats: m.stats || [], players: m.players || {} }; });
   } catch (e) {}
   const now = Date.now();
   const games = (d.results || []).map(m => {
@@ -647,7 +654,14 @@ async function tsBaseballGames(date) {
       }
     };
     if (lvm) {
-      if (maxInn) { g.curInning = maxInn; g.period = maxInn; }   // 라이브 이닝 = 마지막으로 점수가 들어간 회
+      // 이닝·초말·공격팀 = 경기상태 코드 우선(정확), 없으면 점수 들어간 마지막 회
+      const sd = TS_STATUS[lvm.status];
+      if (sd) { g.curInning = sd[0]; g.period = sd[0]; g.inningHalf = sd[1]; }
+      else if (maxInn) { g.curInning = maxInn; g.period = maxInn; }
+      // 공격팀: detail_live batTeam(1=홈,2=원정) 우선, 없으면 초=원정/말=홈
+      if (lvm.batTeam === 1) g.batting = 'home';
+      else if (lvm.batTeam === 2) g.batting = 'away';
+      else if (g.inningHalf) g.batting = g.inningHalf === 'top' ? 'away' : 'home';
       const x = lvm.extra || {};
       if (x.base != null || x.out != null || x.good != null || x.bad != null) {
         const base = String(x.base || '000');
