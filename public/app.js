@@ -132,7 +132,7 @@ const STR = {
   stPostponed: ['Postponed', '연기', '延期', '延期', 'Aplazado', 'स्थगित', 'Hoãn', 'เลื่อน', 'Отложен', 'Verschoben', 'Reporté', 'Rinviata'],
   stCanceled: ['Canceled', '취소', '中止', '取消', 'Cancelado', 'रद्द', 'Hủy', 'ยกเลิก', 'Отменён', 'Abgesagt', 'Annulé', 'Annullata'],
   stDelayed: ['Delayed', '지연', '中断', '延误', 'Retrasado', 'विलंबित', 'Trì hoãn', 'ล่าช้า', 'Задержан', 'Verzögert', 'Retardé', 'Ritardata'],
-  stSuspended: ['Suspended', '중단', 'サスペンド', '中断', 'Suspendido', 'निलंबित', 'Tạm dừng', 'พักการแข่ง', 'Приостановлен', 'Unterbrochen', 'Suspendu', 'Sospesa'],
+  stSuspended: ['Rain Suspended', '우천 중단', '雨天中断', '雨天中断', 'Susp. lluvia', 'वर्षा निलंबन', 'Hoãn vì mưa', 'พักฝนตก', 'Дождь', 'Regen-Unterbr.', 'Susp. pluie', 'Sosp. pioggia'],
   stAbnormal: ['—', '—', '—', '—', '—', '—', '—', '—', '—', '—', '—', '—'],
   stHalved: ['Called (half)', '콜드', 'コールド', '提前结束', 'Acortado', 'संक्षिप्त', 'Rút gọn', 'จบก่อนกำหนด', 'Сокращён', 'Verkürzt', 'Écourté', 'Ridotta'],
   stTbd: ['TBD', '미정', '未定', '待定', 'Por definir', 'तय नहीं', 'Chưa xác định', 'ยังไม่กำหนด', 'Не определено', 'Offen', 'À définir', 'Da definire'],
