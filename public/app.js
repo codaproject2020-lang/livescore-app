@@ -575,23 +575,60 @@ $('#chatbanBtn')?.addEventListener('click', () => { if (window.innerWidth < 960)
 // ============================================================
 //  로그인 (구글 / 네이버 / 카카오) — 테스트 단계: 대화명 설정
 // ============================================================
-let loggedIn = false;
-function openLogin() { $('#scrimL').classList.add('on'); $('#loginModal').classList.add('on'); }
+let loggedIn = false, myUser = null, GOOGLE_CID = '';
+function openLogin() {
+  if (loggedIn) { if (confirm(`${myName} 님 · 로그아웃 할까요?`)) logoutUser(); return; }
+  $('#scrimL').classList.add('on'); $('#loginModal').classList.add('on');
+}
 function closeLogin() { $('#scrimL').classList.remove('on'); $('#loginModal').classList.remove('on'); }
 $('#btnLogin')?.addEventListener('click', openLogin);
 $('#lmClose')?.addEventListener('click', closeLogin);
 $('#scrimL')?.addEventListener('click', closeLogin);
-$$('.lgn').forEach(b => b.addEventListener('click', () => {
-  const p = b.dataset.p;
-  const label = { google: '구글', naver: '네이버', kakao: '카카오' }[p];
-  const nick = (prompt(`${label} 로그인 · 사용할 대화명을 입력하세요`, '') || '').trim();
-  const name = nick ? nick.slice(0, 20) : `${label}사용자${Math.floor(Math.random() * 900 + 100)}`;
-  myName = name; loggedIn = true;
-  if (ws && ws.readyState === 1) ws.send(JSON.stringify({ type: 'name', name }));
-  const btn = $('#btnLogin'); if (btn) btn.innerHTML = `👤 ${esc(name)}`;
-  const dn = $('#drawerName'); if (dn) dn.textContent = name;
-  closeLogin();
-}));
+// ⚡ 실제 구글 로그인 (Google Identity Services)
+(async function initAuth() {
+  try { const c = await fetch('/api/config').then(r => r.json()); GOOGLE_CID = c.googleClientId || ''; } catch { }
+  try { const s = JSON.parse(localStorage.getItem('liveup_user') || 'null'); if (s && s.name) applyUser(s); } catch { }
+  loadGIS();
+})();
+function loadGIS() {
+  if (!GOOGLE_CID) { const n = $('#lmNote'); if (n) n.innerHTML = '⚠️ 구글 로그인 설정 준비중 (관리자: GOOGLE_CLIENT_ID 설정 필요)'; return; }
+  if (window.google && google.accounts && google.accounts.id) return initGIS();
+  const s = document.createElement('script'); s.src = 'https://accounts.google.com/gsi/client'; s.async = true; s.defer = true; s.onload = initGIS; document.head.appendChild(s);
+}
+function initGIS() {
+  if (!GOOGLE_CID || !(window.google && google.accounts && google.accounts.id)) return;
+  google.accounts.id.initialize({ client_id: GOOGLE_CID, callback: onGoogleCred, auto_select: false });
+  const c = $('#gSignIn');
+  if (c) { c.innerHTML = ''; try { google.accounts.id.renderButton(c, { theme: 'outline', size: 'large', shape: 'pill', text: 'signin_with', width: 260, locale: LANG }); } catch { } }
+}
+async function onGoogleCred(resp) {
+  if (!resp || !resp.credential) return;
+  try {
+    const d = await fetch('/api/auth/google', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ credential: resp.credential }) }).then(r => r.json());
+    if (!d.ok) { toast('로그인 실패: ' + (d.error || '')); return; }
+    applyUser(d.user); try { localStorage.setItem('liveup_user', JSON.stringify(d.user)); } catch { }
+    toast(d.isNew ? '가입 완료! 환영해요 🎉' : '로그인 완료 ✓');
+    closeLogin();
+  } catch { toast('로그인 실패'); }
+}
+function applyUser(u) {
+  myUser = u; myName = u.name; loggedIn = true;
+  if (ws && ws.readyState === 1) ws.send(JSON.stringify({ type: 'name', name: myName }));
+  const btn = $('#btnLogin'); if (btn) btn.innerHTML = `${u.picture ? `<img class="uav" src="${esc(u.picture)}" referrerpolicy="no-referrer">` : '👤'} ${esc((u.name || '').slice(0, 12))}`;
+  const dn = $('#drawerName'); if (dn) dn.textContent = u.name;
+}
+function logoutUser() {
+  myUser = null; loggedIn = false; myName = null;
+  try { localStorage.removeItem('liveup_user'); } catch { }
+  try { if (window.google && google.accounts) google.accounts.id.disableAutoSelect(); } catch { }
+  const btn = $('#btnLogin'); if (btn) btn.innerHTML = `🔑 <span data-i18n="login">${esc(t('login'))}</span>`;
+}
+// 커스텀 "구글로 로그인" 버튼 → GIS One Tap 트리거 (폴백)
+$('#gFallback')?.addEventListener('click', () => {
+  if (!GOOGLE_CID) { toast('구글 로그인 설정 준비중'); return; }
+  if (window.google && google.accounts && google.accounts.id) { try { google.accounts.id.prompt(); } catch { } }
+  else loadGIS();
+});
 
 // ============================================================
 //  커뮤니티 게시판
