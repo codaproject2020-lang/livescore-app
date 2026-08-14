@@ -23,6 +23,34 @@ const TSDB = `https://www.thesportsdb.com/api/v1/json/${TSDB_KEY}`;
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
+// ============================================================
+//  🔐 구글 로그인 (Google Identity Services · ID토큰 서버검증)
+//  · Google Cloud에서 OAuth 웹 클라이언트ID 발급 → 환경변수 GOOGLE_CLIENT_ID 에 넣기
+//  · 클라이언트ID는 공개값이라 노출돼도 안전 (시크릿 아님)
+// ============================================================
+const GOOGLE_CLIENT_ID = (process.env.GOOGLE_CLIENT_ID || '').trim();
+const USERS = new Map(); // sub -> {id,email,name,picture,first,last}
+app.get('/api/config', (req, res) => res.json({ googleClientId: GOOGLE_CLIENT_ID }));
+app.post('/api/auth/google', async (req, res) => {
+  const cred = req.body && req.body.credential;
+  if (!GOOGLE_CLIENT_ID) return res.json({ ok: false, error: '서버에 GOOGLE_CLIENT_ID 미설정' });
+  if (!cred) return res.json({ ok: false, error: 'no credential' });
+  try {
+    const r = await fetch('https://oauth2.googleapis.com/tokeninfo?id_token=' + encodeURIComponent(cred));
+    const info = await r.json();
+    if (!info || info.error_description) return res.json({ ok: false, error: 'invalid token' });
+    if (info.aud !== GOOGLE_CLIENT_ID) return res.json({ ok: false, error: 'audience mismatch' });
+    if (!/accounts\.google\.com$/.test(String(info.iss || '').replace(/^https?:\/\//, ''))) return res.json({ ok: false, error: 'issuer mismatch' });
+    if (info.exp && Number(info.exp) * 1000 < Date.now()) return res.json({ ok: false, error: 'expired' });
+    const now = Date.now();
+    const prev = USERS.get(info.sub);
+    const user = { id: info.sub, email: info.email || '', name: info.name || (info.email || 'user').split('@')[0], picture: info.picture || '', verified: String(info.email_verified) === 'true' };
+    USERS.set(info.sub, Object.assign({ first: prev ? prev.first : now }, user, { last: now }));
+    res.json({ ok: true, user, isNew: !prev });
+  } catch (e) { res.json({ ok: false, error: String(e.message || e) }); }
+});
+app.get('/api/auth/count', (req, res) => res.json({ users: USERS.size }));
+
 // ---------- 간단 캐시 (레이트리밋 보호) ----------
 const cache = new Map();
 async function cachedJSON(url, ttlMs = 30000) {
