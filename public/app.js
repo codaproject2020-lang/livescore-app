@@ -166,6 +166,12 @@ const STR = {
   evHit: ['Hit! {team} (total {n})', '안타! {team} (누적 {n})', '安打！{team}（計 {n}）', '安打！{team}（累计 {n}）', '¡Hit! {team} (total {n})', 'हिट! {team} (कुल {n})', 'Hit! {team} (tổng {n})', 'ฮิต! {team} (รวม {n})', 'Хит! {team} (всего {n})', 'Hit! {team} (gesamt {n})', 'Coup ! {team} (total {n})', 'Valida! {team} (tot {n})'],
   evError: ['Error {team} ({n})', '실책 {team} ({n})', '失策 {team}（{n}）', '失误 {team}（{n}）', 'Error {team} ({n})', 'एरर {team} ({n})', 'Lỗi {team} ({n})', 'เออเรอร์ {team} ({n})', 'Ошибка {team} ({n})', 'Fehler {team} ({n})', 'Erreur {team} ({n})', 'Errore {team} ({n})'],
   evInnStart: ['Start of {x}', '{x} 시작', '{x} 開始', '{x} 开始', 'Comienza {x}', '{x} शुरू', 'Bắt đầu {x}', 'เริ่ม {x}', 'Начало {x}', '{x} beginnt', 'Début {x}', 'Inizio {x}'],
+  evOut: ['Out — {team} {n} out(s)', '아웃! {team} 공격 · {n}아웃', 'アウト！{team} {n}アウト', '出局！{team} {n}出局', 'Out — {team} {n}', 'आउट! {team} {n}', 'Out! {team} {n}', 'เอาต์! {team} {n}', 'Аут! {team} {n}', 'Aus! {team} {n}', 'Retrait ! {team} {n}', 'Out! {team} {n}'],
+  evRun: ['Runner on base — {team}', '출루! {team}', '出塁！{team}', '上垒！{team}', 'En base — {team}', 'बेस पर {team}', 'Lên base {team}', 'ขึ้นเบส {team}', 'На базе {team}', 'Auf Base {team}', 'Sur base {team}', 'In base {team}'],
+  battingNow: ['batting', '공격 중', '攻撃中', '进攻中', 'al bate', 'बल्लेबाजी', 'đang tấn công', 'กำลังรุก', 'атакует', 'am Schlag', 'à l’attaque', 'in attacco'],
+  liveSitu: ['Live situation', '현재 상황', '現在の状況', '当前局面', 'Situación', 'लाइव स्थिति', 'Tình huống', 'สถานการณ์', 'Ситуация', 'Situation', 'Situation', 'Situazione'],
+  showMore: ['Show earlier', '이전 이벤트 더보기', '前の速報', '查看更早', 'Ver más', 'और देखें', 'Xem thêm', 'ดูเพิ่ม', 'Ещё', 'Mehr anzeigen', 'Voir plus', 'Mostra altro'],
+  showLess: ['Collapse', '접기', '閉じる', '收起', 'Contraer', 'छिपाएं', 'Thu gọn', 'ย่อ', 'Свернуть', 'Einklappen', 'Réduire', 'Comprimi'],
   evSet: ['Current set {s}', '현재 세트 {s}', '現在のセット {s}', '当前局 {s}', 'Set actual {s}', 'वर्तमान सेट {s}', 'Set hiện tại {s}', 'เซ็ตปัจจุบัน {s}', 'Текущий сет {s}', 'Aktueller Satz {s}', 'Set actuel {s}', 'Set attuale {s}'],
   fbGoal: ['Goal!', '골!', 'ゴール！', '进球！', '¡Gol!', 'गोल!', 'Bàn thắng!', 'ประตู!', 'Гол!', 'Tor!', 'But !', 'Gol!'],
   fbOwn: ['Own goal', '자책골', 'オウンゴール', '乌龙球', 'Autogol', 'आत्मघाती गोल', 'Phản lưới', 'ทำเข้าประตูตัวเอง', 'Автогол', 'Eigentor', 'But c.s.c.', 'Autogol'],
@@ -1135,9 +1141,12 @@ function logChanges(id, e) {
     hh: e.box && e.box.home ? e.box.home.h : null, ah: e.box && e.box.away ? e.box.away.h : null,
     he: e.box && e.box.home ? e.box.home.e : null, ae: e.box && e.box.away ? e.box.away.e : null,
     inn: e.curInning != null ? e.curInning : null, half: e.inningHalf || null,
+    out: (e.bso && e.bso.outs != null) ? e.bso.outs : null,
+    batTeam: e.batting || null,
     sp: e.livePts ? `${e.livePts.home}:${e.livePts.away}` : null
   };
   const HM = `<b>${esc(TN(e.home, e.league))}</b>`, AW = `<b>${esc(TN(e.away, e.league))}</b>`;
+  const BAT = snap.batTeam === 'home' ? HM : snap.batTeam === 'away' ? AW : '';
   if (p) {
     if (state.sport === 'baseball') {
       if (snap.hs > p.hs) pushLog(id, '🔴', ai('evScore', { team: HM, h: snap.hs, a: snap.as }));
@@ -1146,6 +1155,7 @@ function logChanges(id, e) {
       if (snap.ah != null && p.ah != null && snap.ah > p.ah) pushLog(id, '🏏', ai('evHit', { team: AW, n: snap.ah }));
       if (snap.he != null && p.he != null && snap.he > p.he) pushLog(id, '⚠️', ai('evError', { team: HM, n: snap.he }));
       if (snap.ae != null && p.ae != null && snap.ae > p.ae) pushLog(id, '⚠️', ai('evError', { team: AW, n: snap.ae }));
+      if (snap.out != null && p.out != null && snap.out > p.out && snap.inn === p.inn && snap.half === p.half && BAT) pushLog(id, '🙅', ai('evOut', { team: BAT, n: snap.out }));
       if (snap.inn !== p.inn || snap.half !== p.half) { if (snap.inn) pushLog(id, '🔄', ai('evInnStart', { x: inningLabel(snap.inn, snap.half) })); }
     } else {
       if (snap.hs > p.hs) pushLog(id, '🔴', ai('evScore', { team: HM, h: snap.hs, a: snap.as }));
@@ -1179,9 +1189,31 @@ async function updateEvents(e) {
     } catch { box.innerHTML = eventEmpty(); }
   } else {
     const log = eventLogs[e.id] || [];
-    if (!log.length) { box.innerHTML = eventEmpty(); return; }
-    box.innerHTML = log.slice().reverse().map(x => `<div class="evrow"><span class="evm">${esc(x.t)}</span><span class="evi">${x.icon}</span><span class="evt">${x.text}</span></div>`).join('');
+    const situ = (state.sport === 'baseball') ? bsoSituation(e) : '';
+    if (!log.length) { box.innerHTML = situ + eventEmpty(); return; }
+    const rows = log.slice().reverse();
+    const rowHtml = x => `<div class="evrow"><span class="evm">${esc(x.t)}</span><span class="evi">${x.icon}</span><span class="evt">${x.text}</span></div>`;
+    const head = rows.slice(0, 7), rest = rows.slice(7);
+    box.innerHTML = situ + head.map(rowHtml).join('') +
+      (rest.length ? `<div class="ev-more" id="evMore">▼ ${esc(t('showMore'))} (${rest.length})</div><div class="ev-rest hidden" id="evRest">${rest.map(rowHtml).join('')}</div>` : '');
+    const mb = $('#evMore');
+    if (mb) mb.addEventListener('click', () => {
+      const r = $('#evRest'); if (!r) return;
+      r.classList.toggle('hidden');
+      mb.textContent = r.classList.contains('hidden') ? `▼ ${t('showMore')} (${rest.length})` : `▲ ${t('showLess')}`;
+    });
   }
+}
+// ⚾ 실시간 문자중계 상단: 현재 이닝·공격팀·B-S-O·주자 (매 갱신마다 새로고침)
+function bsoSituation(e) {
+  if (e.state !== 'live' || !e.bso) return '';
+  const b = e.bso, dot = (n, max) => { let s = ''; for (let i = 0; i < max; i++) s += `<span class="cdm${i < (n || 0) ? ' on' : ''}"></span>`; return s; };
+  const bat = e.batting === 'home' ? TN(e.home, e.league) : e.batting === 'away' ? TN(e.away, e.league) : '';
+  const inn = e.curInning ? inningLabel(e.curInning, e.inningHalf) : '';
+  return `<div class="ev-situ">
+    <div class="es-top"><span class="es-inn">🔴 ${esc(inn)}</span>${bat ? `<span class="es-bat">🏏 ${esc(bat)} ${esc(t('battingNow'))}</span>` : ''}</div>
+    <div class="es-line"><span class="bsomini"><span class="bl">B</span>${dot(b.balls, 3)}<span class="bl">S</span>${dot(b.strikes, 2)}<span class="bl o">O</span>${dot(b.outs, 2)}<span class="bso-dia">${basesSvg(b.bases)}</span></span></div>
+  </div>`;
 }
 // ===== 선발 라인업 (축구=포메이션 배치도 / MLB=타순·선수 최근경기) =====
 function shortName(n) { const p = String(n || '').trim().split(' '); return p.length > 1 ? p[p.length - 1] : n; }

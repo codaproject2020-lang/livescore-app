@@ -609,6 +609,15 @@ table.boxsc .he{color:var(--sub);background:#fafbfc;font-weight:800}
 .evt{flex:1;color:#374151}
 .evt b{color:var(--navy)}
 .ev-empty{padding:16px 12px;text-align:center;color:var(--dim);font-size:12px;line-height:1.5}
+/* ⚾ 실시간 문자중계 현재상황 바 + 펼쳐보기 */
+.ev-situ{background:linear-gradient(180deg,#fff6ec,#fff);border:1px solid var(--gold);border-radius:11px;padding:9px 11px;margin-bottom:9px}
+.es-top{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;margin-bottom:6px}
+.es-inn{font-weight:900;font-size:13px;color:var(--red)}
+.es-bat{font-weight:800;font-size:12px;color:var(--navy)}
+.es-line .bsomini{grid-column:auto;margin-top:0;width:100%}
+.ev-more{text-align:center;padding:9px;font-size:12px;font-weight:800;color:var(--navy);background:#f3f6f9;border:1px solid var(--line);border-radius:9px;margin-top:8px;cursor:pointer}
+.ev-more:hover{background:#e9eef4}
+.ev-rest.hidden{display:none}
 /* 라인업 공통 */
 .lu-note{padding:14px 12px;text-align:center;color:var(--dim);font-size:12px;line-height:1.6;background:#fff;border:1px solid var(--line);border-radius:10px}
 .lu-note b{color:var(--navy)}
