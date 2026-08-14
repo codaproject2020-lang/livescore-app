@@ -1172,6 +1172,48 @@ app.get('/api/asports/lineups', async (req, res) => {
   } catch (e) { res.status(502).json({ error: String(e.message || e), teams: [] }); }
 });
 
+// ⚽ 축구 팀 경기 스탯 (점유율·슈팅·코너·파울 등) — API-Sports /fixtures/statistics
+app.get('/api/asports/fbstats', async (req, res) => {
+  if (!APISPORTS_KEY) return res.json({ needKey: true, teams: [] });
+  const fixture = req.query.fixture;
+  if (!fixture) return res.status(400).json({ error: 'need fixture' });
+  try {
+    const j = await asRaw('football', `/fixtures/statistics?fixture=${encodeURIComponent(fixture)}`, 30000);
+    const teams = (j.response || []).map(t => ({
+      team: t.team ? t.team.name : '', logo: t.team ? t.team.logo : '',
+      stats: (t.statistics || []).map(s => ({ type: s.type, value: s.value }))
+    }));
+    res.json({ teams });
+  } catch (e) { res.status(502).json({ error: String(e.message || e), teams: [] }); }
+});
+
+// ⚽ 축구 선수별 경기 기록·평점 — API-Sports /fixtures/players
+app.get('/api/asports/fbplayers', async (req, res) => {
+  if (!APISPORTS_KEY) return res.json({ needKey: true, teams: [] });
+  const fixture = req.query.fixture;
+  if (!fixture) return res.status(400).json({ error: 'need fixture' });
+  try {
+    const j = await asRaw('football', `/fixtures/players?fixture=${encodeURIComponent(fixture)}`, 30000);
+    const teams = (j.response || []).map(t => ({
+      team: t.team ? t.team.name : '', logo: t.team ? t.team.logo : '',
+      players: (t.players || []).map(p => {
+        const st = (p.statistics && p.statistics[0]) || {};
+        const g = st.games || {};
+        return {
+          id: p.player ? p.player.id : null, name: p.player ? p.player.name : '', photo: p.player ? p.player.photo : '',
+          number: g.number, pos: g.position, minutes: g.minutes, rating: g.rating,
+          goals: st.goals ? st.goals.total : null, assists: st.goals ? st.goals.assists : null,
+          shots: st.shots ? st.shots.total : null, shotsOn: st.shots ? st.shots.on : null,
+          passes: st.passes ? st.passes.total : null, keyPasses: st.passes ? st.passes.key : null, passAcc: st.passes ? st.passes.accuracy : null,
+          tackles: st.tackles ? st.tackles.total : null, duelsWon: st.duels ? st.duels.won : null,
+          yellow: st.cards ? st.cards.yellow : null, red: st.cards ? st.cards.red : null
+        };
+      })
+    }));
+    res.json({ teams });
+  } catch (e) { res.status(502).json({ error: String(e.message || e), teams: [] }); }
+});
+
 // ============================================================
 //  MLB 무료 실데이터 (statsapi.mlb.com · API 키 불필요)
 // ============================================================
