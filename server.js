@@ -8,8 +8,10 @@ import express from 'express';
 import { WebSocketServer } from 'ws';
 import http from 'http';
 import path from 'path';
+import fs from 'fs';
 import { fileURLToPath } from 'url';
 import webpush from 'web-push';
+import nodemailer from 'nodemailer';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
@@ -30,6 +32,39 @@ app.use(express.static(path.join(__dirname, 'public')));
 // ============================================================
 const GOOGLE_CLIENT_ID = (process.env.GOOGLE_CLIENT_ID || '').trim();
 const USERS = new Map(); // sub -> {id,email,name,picture,first,last}
+// ✉️ 회원가입 안내 메일 발송 (Google Workspace SMTP · @liveup.fans)
+//   Render 환경변수: SMTP_USER=noreply@liveup.fans, SMTP_PASS=<Workspace 앱 비밀번호>
+const SMTP_USER = (process.env.SMTP_USER || '').trim();
+const SMTP_PASS = (process.env.SMTP_PASS || '').trim();
+const MAIL_FROM = (process.env.MAIL_FROM || `LIVE UP <${SMTP_USER || 'noreply@liveup.fans'}>`).trim();
+let mailer = null;
+if (SMTP_USER && SMTP_PASS) {
+  try { mailer = nodemailer.createTransport({ host: 'smtp.gmail.com', port: 465, secure: true, auth: { user: SMTP_USER, pass: SMTP_PASS } }); } catch (e) { mailer = null; }
+}
+async function sendWelcomeMail(to, name) {
+  if (!mailer || !to) return;
+  const html = `<div style="max-width:520px;margin:0 auto;font-family:Apple SD Gothic Neo,Arial,sans-serif;color:#1a2333">
+    <div style="background:radial-gradient(120% 150% at 50% 0%,#1a2740,#0b0f16);border-radius:16px;padding:26px;text-align:center">
+      <div style="font-size:26px;font-weight:900;font-style:italic;color:#f0c14e">LIVE<span style="color:#7fc7ff">UP</span></div>
+      <div style="color:#c7d0dd;font-size:12px;margin-top:4px">REAL TIME, ALL THE TIME</div>
+    </div>
+    <div style="padding:22px 6px">
+      <h2 style="margin:0 0 8px">${name || '회원'}님, 가입을 환영합니다 🎉</h2>
+      <p style="color:#444;line-height:1.6;font-size:14px">LIVE UP에 오신 것을 환영해요! 이제 실시간 스코어·AI 픽·배당·커뮤니티를 모두 이용하실 수 있어요.</p>
+      <ul style="color:#444;font-size:14px;line-height:1.8;padding-left:18px">
+        <li>⚡ KBO·NPB·MLB 실시간 스코어와 선수 기록</li>
+        <li>🎯 AI 종합 지표 · 승부 예측 PICK</li>
+        <li>💬 경기별 실시간 채팅</li>
+      </ul>
+      <div style="text-align:center;margin:22px 0">
+        <a href="https://liveup.fans" style="background:linear-gradient(135deg,#f6d67a,#e0a92e);color:#2a1e05;text-decoration:none;font-weight:800;padding:12px 26px;border-radius:12px;display:inline-block">지금 시작하기 ›</a>
+      </div>
+      <p style="color:#8b93a0;font-size:11px;line-height:1.5">본 메일은 회원가입 안내용으로 발송되었습니다. · LIVE UP · liveup.fans</p>
+    </div>
+  </div>`;
+  try { await mailer.sendMail({ from: MAIL_FROM, to, subject: 'LIVE UP 가입을 환영합니다 🎉', html }); }
+  catch (e) { console.error('welcome mail failed:', e.message); }
+}
 app.get('/api/config', (req, res) => res.json({ googleClientId: GOOGLE_CLIENT_ID }));
 app.post('/api/auth/google', async (req, res) => {
   const cred = req.body && req.body.credential;
@@ -46,6 +81,7 @@ app.post('/api/auth/google', async (req, res) => {
     const prev = USERS.get(info.sub);
     const user = { id: info.sub, email: info.email || '', name: info.name || (info.email || 'user').split('@')[0], picture: info.picture || '', verified: String(info.email_verified) === 'true' };
     USERS.set(info.sub, Object.assign({ first: prev ? prev.first : now }, user, { last: now }));
+    if (!prev) sendWelcomeMail(user.email, user.name);   // 첫 가입 시 환영 메일
     res.json({ ok: true, user, isNew: !prev });
   } catch (e) { res.json({ ok: false, error: String(e.message || e) }); }
 });
@@ -610,8 +646,8 @@ const POS_NAME = { '1': 'DH', '2': 'C', '3': '1B', '4': '2B', '5': '3B', '6': 'C
 const TS_PNAME = new Map(); // player_id -> {name, logo, pos}
 let KBO_KO = {};            // player_id -> 한글 이름 (KBO 선수 현지화)
 let KBO_KO_NAME = {};       // 정규화 영문명 -> 한글 (id 안 맞을 때 이름으로 폴백)
-try { KBO_KO = require('./kbo_names.json'); } catch (e) { KBO_KO = {}; }
-try { KBO_KO_NAME = require('./kbo_names_byname.json'); } catch (e) { KBO_KO_NAME = {}; }
+try { KBO_KO = JSON.parse(fs.readFileSync(path.join(__dirname, 'kbo_names.json'), 'utf8')); } catch (e) { KBO_KO = {}; }
+try { KBO_KO_NAME = JSON.parse(fs.readFileSync(path.join(__dirname, 'kbo_names_byname.json'), 'utf8')); } catch (e) { KBO_KO_NAME = {}; }
 const koNorm = s => String(s || '').toLowerCase().replace(/[^a-z]/g, '');
 function koName(pid, engName) { return KBO_KO[pid] || KBO_KO_NAME[koNorm(engName)] || null; }
 const tsDecode = (arr, map) => { const o = {}; (arr || []).forEach(p => { const k = map[p[0]]; if (k != null) o[k] = p[1]; }); return o; };
