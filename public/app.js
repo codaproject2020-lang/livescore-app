@@ -1134,8 +1134,7 @@ function pushLog(id, icon, text, avatar) {
   if (last && last.text === text) return;         // 연속 중복 방지
   arr.push({ t: nowHM(), icon, text });
   if (arr.length > 40) arr.shift();
-  // 🎙️ 지금 보고 있는 경기면 채팅방에도 중계봇 메시지로 흘려보냄 (로컬 표시)
-  if (typeof modalEventId !== 'undefined' && modalEventId === id && typeof addMsg === 'function') addMsg({ type: 'bot', icon, text, avatar });
+  // (채팅방 중계봇은 서버에서 구동 → 히스토리에 저장되어 유지됨. 여기서는 상단 이벤트 피드만 적립)
 }
 function logChanges(id, e) {
   const p = snapForLog[id];
@@ -2244,11 +2243,29 @@ function buildChatUI(container) {
   chatUIs.push(ui);
   return ui;
 }
+// 🎙️ 서버 중계봇(구조화 이벤트)을 현재 언어로 렌더링 → {icon,text,avatar}
+function botFormat(m) {
+  if (!m.kind) return { icon: m.icon || '⚾', text: m.text || '', avatar: m.avatar };
+  const HM = `<b>${esc(TN(m.home, m.league))}</b>`, AW = `<b>${esc(TN(m.away, m.league))}</b>`;
+  const team = m.side === 'home' ? HM : AW, logo = m.side === 'home' ? m.homeLogo : m.awayLogo;
+  switch (m.kind) {
+    case 'score': return { icon: '🔴', text: ai('evScore', { team, h: m.hs, a: m.as }), avatar: logo };
+    case 'goal': return { icon: '⚽', text: ai('evScore', { team, h: m.hs, a: m.as }), avatar: logo };
+    case 'hit': return { icon: '🏏', text: ai('evHit', { team, n: m.n }), avatar: logo };
+    case 'out': return { icon: '🙅', text: ai('evOut', { team, n: m.n }), avatar: logo };
+    case 'inn': return { icon: '🔄', text: ai('evInnStart', { x: inningLabel(m.inn, m.half) }), avatar: null };
+    default: return { icon: m.icon || '⚾', text: m.text || '', avatar: m.avatar };
+  }
+}
 const seenMsgs = new Set();
 function addMsg(m) {
-  // 중복 방지(소켓 재연결 등으로 같은 메시지가 두 번 오는 것 차단)
+  // 중복 방지(소켓 재연결·히스토리 재수신 등으로 같은 메시지가 두 번 오는 것 차단)
   if (m.type === 'chat') {
     const key = (m.ts || '') + '|' + m.name + '|' + m.text;
+    if (seenMsgs.has(key)) return;
+    seenMsgs.add(key);
+  } else if (m.type === 'bot') {
+    const key = 'bot|' + (m.ts || '') + '|' + (m.kind || '') + '|' + (m.side || '') + '|' + (m.n || '') + '|' + (m.hs || '') + '|' + (m.as || '');
     if (seenMsgs.has(key)) return;
     seenMsgs.add(key);
   }
@@ -2256,12 +2273,12 @@ function addMsg(m) {
     const div = document.createElement('div');
     if (m.type === 'sys') { div.className = 'cmsg'; div.innerHTML = `<span class="sys">${esc(m.text)}</span>`; }
     else if (m.type === 'bot') {
-      // 🤖 AI 중계봇 메시지 (선수/팀 사진 + 이벤트 텍스트) — m.text 는 앱 생성 안전 HTML
+      const f = botFormat(m);   // m.text 는 앱 생성 안전 HTML
       div.className = 'cmsg bot';
-      const av = m.avatar
-        ? `<img class="bot-av" src="${esc(m.avatar)}" referrerpolicy="no-referrer" onerror="this.replaceWith(Object.assign(document.createElement('span'),{className:'bot-av ic',textContent:'${m.icon || '⚾'}'}))">`
-        : `<span class="bot-av ic">${m.icon || '⚾'}</span>`;
-      div.innerHTML = `${av}<div class="bot-body"><span class="bot-nm">🎙️ ${esc(t('liveCast'))}</span><span class="bot-tx">${m.icon || ''} ${m.text}</span></div>`;
+      const av = f.avatar
+        ? `<img class="bot-av" src="${esc(f.avatar)}" referrerpolicy="no-referrer" onerror="this.replaceWith(Object.assign(document.createElement('span'),{className:'bot-av ic',textContent:'${f.icon || '⚾'}'}))">`
+        : `<span class="bot-av ic">${f.icon || '⚾'}</span>`;
+      div.innerHTML = `${av}<div class="bot-body"><span class="bot-nm">🎙️ ${esc(t('liveCast'))}</span><span class="bot-tx">${f.icon || ''} ${f.text}</span></div>`;
     }
     else { div.className = 'cmsg' + (m.name === myName ? ' me' : ''); div.innerHTML = `<span class="u">${esc(m.name)}</span>${esc(m.text)}`; }
     ui.msgs.appendChild(div);
@@ -2289,6 +2306,7 @@ function connectWS() {
     if (m.type === 'welcome') { myName = m.name; $('#drawerName').textContent = m.name; clearMsgs(); (m.history || []).forEach(addMsg); addMsg({ type: 'sys', text: `『${curRoomLabel}』 실시간 채팅에 연결되었습니다 · ${m.name}` }); }
     else if (m.type === 'joined') { clearMsgs(); (m.history || []).forEach(addMsg); }
     else if (m.type === 'chat') addMsg(m);
+    else if (m.type === 'bot') addMsg(m);
     else if (m.type === 'presence') setOnline(m.total);
   };
   ws.onclose = () => { addMsg({ type: 'sys', text: '연결이 끊겼습니다. 재접속 중…' }); setTimeout(connectWS, 2500); };
