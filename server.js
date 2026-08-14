@@ -22,6 +22,14 @@ const PORT = process.env.PORT || 3000;
 const TSDB_KEY = process.env.THESPORTSDB_KEY || '3';
 const TSDB = `https://www.thesportsdb.com/api/v1/json/${TSDB_KEY}`;
 
+// 🔁 onrender.com 기본주소로 들어오면 커스텀 도메인(liveup.fans)으로 301 리다이렉트 → 사용자에겐 liveup.fans만 노출
+app.use((req, res, next) => {
+  const host = (req.headers.host || '').toLowerCase();
+  if (host.includes('onrender.com')) {
+    return res.redirect(301, 'https://liveup.fans' + req.originalUrl);
+  }
+  next();
+});
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
