@@ -55,6 +55,11 @@ const STR = {
   standings: ['Standings', '팀 순위', '順位表', '积分榜', 'Clasificación', 'अंक तालिका', 'BXH', 'ตารางคะแนน', 'Таблица', 'Tabelle', 'Classement', 'Classifica'],
   highlight: ['Highlights', '경기 하이라이트', 'ハイライト', '比赛集锦', 'Resúmenes', 'हाइलाइट्स', 'Điểm nhấn', 'ไฮไลต์', 'Обзор матча', 'Highlights', 'Résumé', 'Highlights'],
   playHi: ['▶ Play Highlights', '▶ 하이라이트 재생', '▶ ハイライト再生', '▶ 播放集锦', '▶ Ver resumen', '▶ हाइलाइट चलाएं', '▶ Xem điểm nhấn', '▶ เล่นไฮไลต์', '▶ Смотреть обзор', '▶ Highlights', '▶ Voir le résumé', '▶ Guarda highlights'],
+  ytWatch: ['📺 Watch on YouTube ›', '📺 YouTube에서 보기 ›', '📺 YouTubeで見る ›', '📺 在YouTube观看 ›', '📺 Ver en YouTube ›', '📺 YouTube पर देखें ›', '📺 Xem trên YouTube ›', '📺 ดูบน YouTube ›', '📺 Смотреть на YouTube ›', '📺 Auf YouTube ansehen ›', '📺 Voir sur YouTube ›', '📺 Guarda su YouTube ›'],
+  ytLoading: ['Loading…', '불러오는 중…', '読み込み中…', '加载中…', 'Cargando…', 'लोड हो रहा…', 'Đang tải…', 'กำลังโหลด…', 'Загрузка…', 'Laden…', 'Chargement…', 'Caricamento…'],
+  ytNeedKey: ['Highlight playback key not set yet (once configured, plays right here)', 'YouTube 재생 키가 아직 없어요 (설정하면 화면 안에서 바로 재생돼요)', 'ハイライト再生キー未設定（設定すると画面内で再生）', '尚未设置播放密钥（设置后可在页面内播放）', 'Falta la clave de reproducción (al configurarla se reproduce aquí)', 'प्लेबैक कुंजी सेट नहीं है', 'Chưa có khóa phát (cấu hình để phát tại đây)', 'ยังไม่ได้ตั้งคีย์เล่นไฮไลต์', 'Ключ воспроизведения не задан', 'Wiedergabeschlüssel fehlt noch', 'Clé de lecture non définie', 'Chiave di riproduzione non impostata'],
+  ytNotFound: ['No video found', '영상을 찾지 못했어요', '動画が見つかりません', '未找到视频', 'No se encontró el video', 'वीडियो नहीं मिला', 'Không tìm thấy video', 'ไม่พบวิดีโอ', 'Видео не найдено', 'Kein Video gefunden', 'Vidéo introuvable', 'Nessun video trovato'],
+  ytFail: ['Load failed — opening link', '불러오기 실패 — 링크로 열립니다', '読み込み失敗 — リンクで開きます', '加载失败 — 用链接打开', 'Error — abriendo enlace', 'लोड विफल — लिंक खुल रहा', 'Lỗi tải — mở bằng liên kết', 'โหลดล้มเหลว — เปิดลิงก์', 'Ошибка — открываю ссылку', 'Fehler — Link wird geöffnet', 'Échec — ouverture du lien', 'Errore — apro il link'],
   aiSum: ['AI Summary', 'AI 총정리', 'AI要約', 'AI总结', 'Resumen IA', 'AI सारांश', 'Tóm tắt AI', 'สรุป AI', 'AI-обзор', 'KI-Zusammenfassung', 'Résumé IA', 'Riepilogo IA'],
   liveEv: ['Live Events', '실시간 이벤트', 'ライブ速報', '实时事件', 'Eventos en vivo', 'लाइव इवेंट', 'Sự kiện trực tiếp', 'เหตุการณ์สด', 'События', 'Live-Events', 'Événements', 'Eventi live'],
   aiPred: ['AI Prediction', 'AI 승부 예측', 'AI予想', 'AI预测', 'Predicción IA', 'AI भविष्यवाणी', 'Dự đoán AI', 'ทำนายผล AI', 'AI-прогноз', 'KI-Prognose', 'Pronostic IA', 'Pronostico IA'],
@@ -1630,20 +1635,20 @@ async function openEvent(id) {
 }
 // YouTube 하이라이트 — 화면 안에서 ▶ 재생 (키 있으면 인라인, 없으면 링크 폴백)
 function ytFallback(q, msg) {
-  return `<div class="odsec">📺 경기 하이라이트</div>${msg ? `<div class="lu-note">${esc(msg)}</div>` : ''}<a class="ythl" href="https://www.youtube.com/results?search_query=${encodeURIComponent(q)}" target="_blank" rel="noopener">📺 YouTube에서 보기 ›</a>`;
+  return `<div class="odsec">📺 ${esc(t('highlight'))}</div>${msg ? `<div class="lu-note">${esc(msg)}</div>` : ''}<a class="ythl" href="https://www.youtube.com/results?search_query=${encodeURIComponent(q)}" target="_blank" rel="noopener">${esc(t('ytWatch'))}</a>`;
 }
 function buildYt(e) {
   const box = $('#mYtWrap'); if (!box) return;
   const q = e.away + ' vs ' + e.home + ' ' + (e.league || '') + ' highlights';
-  box.innerHTML = `<div class="odsec">📺 경기 하이라이트</div><button class="ythl-play" id="ytPlay">▶ 하이라이트 재생</button>`;
+  box.innerHTML = `<div class="odsec">📺 ${esc(t('highlight'))}</div><button class="ythl-play" id="ytPlay">${esc(t('playHi'))}</button>`;
   $('#ytPlay')?.addEventListener('click', async () => {
-    const btn = $('#ytPlay'); if (btn) { btn.textContent = '불러오는 중…'; btn.disabled = true; }
+    const btn = $('#ytPlay'); if (btn) { btn.textContent = t('ytLoading'); btn.disabled = true; }
     try {
       const d = await fetchJSON('/api/youtube?q=' + encodeURIComponent(q), { tries: 1 });
-      if (d.needKey) { box.innerHTML = ytFallback(q, 'YouTube 재생 키가 아직 없어요 (설정하면 화면 안에서 바로 재생돼요)'); return; }
-      if (!d.videoId) { box.innerHTML = ytFallback(q, '영상을 찾지 못했어요'); return; }
-      box.innerHTML = `<div class="odsec">📺 경기 하이라이트 <span class="rhe">${esc((d.title || '').slice(0, 40))}</span></div><div class="ytembed"><iframe src="https://www.youtube.com/embed/${encodeURIComponent(d.videoId)}?autoplay=1&rel=0" title="highlights" allow="autoplay; encrypted-media; fullscreen" allowfullscreen frameborder="0"></iframe></div>`;
-    } catch { box.innerHTML = ytFallback(q, '불러오기 실패 — 링크로 열립니다'); }
+      if (d.needKey) { box.innerHTML = ytFallback(q, t('ytNeedKey')); return; }
+      if (!d.videoId) { box.innerHTML = ytFallback(q, t('ytNotFound')); return; }
+      box.innerHTML = `<div class="odsec">📺 ${esc(t('highlight'))} <span class="rhe">${esc((d.title || '').slice(0, 40))}</span></div><div class="ytembed"><iframe src="https://www.youtube.com/embed/${encodeURIComponent(d.videoId)}?autoplay=1&rel=0" title="highlights" allow="autoplay; encrypted-media; fullscreen" allowfullscreen frameborder="0"></iframe></div>`;
+    } catch { box.innerHTML = ytFallback(q, t('ytFail')); }
   });
 }
 function closeModal() {
