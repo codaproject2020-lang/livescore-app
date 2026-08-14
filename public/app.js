@@ -397,7 +397,7 @@ const SPORTS = [
   { key: 'rugby', ko: '럭비', em: '🏉' }
 ];
 // 주요 리그 우선 정렬 (이 리그들을 상단에)
-const TOP_LEAGUES = ['KBO', 'MLB', 'NPB', 'K League 1', 'Premier League', 'La Liga', 'Serie A', 'Bundesliga', 'NBA', 'WNBA', 'KBL', 'CPBL', 'NHL', 'UEFA Champions League'];
+const TOP_LEAGUES = ['KBO', 'MLB', 'NPB', 'K League 1', 'K League 2', 'J1 League', 'J League', 'J2 League', 'WK-League', 'AFC Champions League', 'AFC Champions League Elite', 'Korea Cup', "Emperor's Cup", 'Premier League', 'La Liga', 'Serie A', 'Bundesliga', 'Ligue 1', 'NBA', 'WNBA', 'KBL', 'CPBL', 'NHL', 'UEFA Champions League', 'UEFA Europa League'];
 // MLB StatsAPI(무료)로 라인업·투수/타자·최근경기까지 되는 야구 리그
 const STATS_LEAGUES = ['MLB', 'LMB', 'IL', 'PCL'];
 function statsLeague(lg) { return STATS_LEAGUES.includes(lg); }
