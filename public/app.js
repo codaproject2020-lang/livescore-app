@@ -63,6 +63,14 @@ const STR = {
   matchStats: ['Match Stats', '경기 스탯', '試合スタッツ', '比赛数据', 'Estadísticas', 'मैच आँकड़े', 'Thống kê trận', 'สถิติแมตช์', 'Статистика матча', 'Spielstatistik', 'Stats du match', 'Statistiche'],
   playerRatings: ['Player Ratings', '선수 평점', '選手評価', '球员评分', 'Notas jugadores', 'खिलाड़ी रेटिंग', 'Điểm cầu thủ', 'คะแนนผู้เล่น', 'Оценки игроков', 'Spielernoten', 'Notes des joueurs', 'Voti giocatori'],
   coach: ['Coach', '감독', '監督', '主教练', 'Entrenador', 'कोच', 'HLV', 'โค้ช', 'Тренер', 'Trainer', 'Entraîneur', 'Allenatore'],
+  pickHub: ['Picks', '픽 제공', 'ピック', '推荐', 'Picks', 'पिक', 'Kèo', 'พิค', 'Пики', 'Tipps', 'Pronostics', 'Pick'],
+  pickHubSub: ['Win% · market consensus · LIVE UP analysis', '전 경기 승률 · 시장 컨센서스 · LIVE UP 분석', '勝率・市場・LIVE UP分析', '胜率·市场共识·LIVE UP分析', '% victoria · consenso · LIVE UP', 'जीत% · बाज़ार · LIVE UP', 'Tỷ lệ thắng · thị trường · LIVE UP', '% ชนะ · ตลาด · LIVE UP', '% побед · рынок · LIVE UP', 'Sieg% · Markt · LIVE UP', '% victoire · marché · LIVE UP', '% vittoria · mercato · LIVE UP'],
+  marketCons: ['Market consensus', '시장 컨센서스', '市場コンセンサス', '市场共识', 'Consenso mercado', 'मार्केट सहमति', 'Đồng thuận thị trường', 'ตลาดรวม', 'Консенсус рынка', 'Marktkonsens', 'Consensus marché', 'Consenso mercato'],
+  luAnalysis: ['LIVE UP analysis', 'LIVE UP 데이터 분석', 'LIVE UP分析', 'LIVE UP分析', 'Análisis LIVE UP', 'LIVE UP विश्लेषण', 'Phân tích LIVE UP', 'วิเคราะห์ LIVE UP', 'Анализ LIVE UP', 'LIVE UP-Analyse', 'Analyse LIVE UP', 'Analisi LIVE UP'],
+  finalPick: ['Final PICK', '최종 PICK', '最終ピック', '最终推荐', 'PICK final', 'अंतिम पिक', 'PICK cuối', 'พิคสุดท้าย', 'Финальный пик', 'Finaler Tipp', 'PICK final', 'PICK finale'],
+  oddsAgg: ['Bookmaker consensus', '해외 배당 종합', 'ブック総合', '外盘综合', 'Consenso casas', 'बुकी सहमति', 'Tổng hợp nhà cái', 'รวมเจ้ามือ', 'Сводка букмекеров', 'Buchmacher', 'Consensus books', 'Consenso book'],
+  pickSummary: ['Pick Summary', '픽 요약', 'ピック要約', '推荐摘要', 'Resumen pick', 'पिक सारांश', 'Tóm tắt pick', 'สรุปพิค', 'Сводка пика', 'Pick-Übersicht', 'Résumé pick', 'Riepilogo pick'],
+  noPickGames: ['No games to pick', '픽 제공할 경기가 없어요', 'ピック対象なし', '暂无可推荐比赛', 'Sin partidos', 'कोई मैच नहीं', 'Không có trận', 'ไม่มีแมตช์', 'Нет матчей', 'Keine Spiele', 'Aucun match', 'Nessuna partita'],
   subs: ['Subs', '교체', '控え', '替补', 'Suplentes', 'सब्स', 'Dự bị', 'ตัวสำรอง', 'Запасные', 'Ersatz', 'Remplaçants', 'Riserve'],
   aiSum: ['AI Summary', 'AI 총정리', 'AI要約', 'AI总结', 'Resumen IA', 'AI सारांश', 'Tóm tắt AI', 'สรุป AI', 'AI-обзор', 'KI-Zusammenfassung', 'Résumé IA', 'Riepilogo IA'],
   liveEv: ['Live Events', '실시간 이벤트', 'ライブ速報', '实时事件', 'Eventos en vivo', 'लाइव इवेंट', 'Sự kiện trực tiếp', 'เหตุการณ์สด', 'События', 'Live-Events', 'Événements', 'Eventi live'],
@@ -1782,68 +1790,94 @@ async function loadTable() {
 // ============================================================
 //  배당 (The Odds API)
 // ============================================================
-let oddsSport = 'soccer_epl', oddsChipsBuilt = false, oddsHasKey = null;
-async function initOdds() {
-  if (!oddsChipsBuilt) {
-    try {
-      const d = await fetchJSON('/api/odds/sports', { tries: 12, delay: 3500 });
-      oddsHasKey = d.hasKey;
-      $('#oddsChips').innerHTML = (d.sports || []).map((s, i) =>
-        `<div class="ochip ${i === 0 ? 'on' : ''}" data-sport="${s.key}">${s.em} ${s.ko}</div>`).join('');
-      $$('#oddsChips .ochip').forEach(c => c.addEventListener('click', () => {
-        $$('#oddsChips .ochip').forEach(x => x.classList.remove('on')); c.classList.add('on');
-        oddsSport = c.dataset.sport; loadOdds();
-      }));
-      oddsChipsBuilt = true;
-    } catch { }
-  }
-  loadOdds();
+let oddsSport = 'soccer_epl';   // (레거시 · 배당 상세 계산기에서만 사용)
+// ============================================================
+//  🎯 픽 제공 (구 배당 메뉴) — 전 경기 승률·시장 컨센서스·LIVE UP 분석
+// ============================================================
+const SPORT_EN = { football: 'Football', baseball: 'Baseball', basketball: 'Basketball', volleyball: 'Volleyball', hockey: 'Hockey', handball: 'Handball', rugby: 'Rugby' };
+function sportLabel(s) { return LANG === 'ko' ? s.ko : (SPORT_EN[s.key] || s.key); }
+let pickHubSport = 'football', pickHubGames = [];
+function initOdds() { pickHubSport = state.sport || 'football'; buildPickHubNav(); loadPickHub(); }
+function buildPickHubNav() {
+  const box = $('#oddsChips'); if (!box) return;
+  box.innerHTML = SPORTS.map(s => `<div class="ochip ${s.key === pickHubSport ? 'on' : ''}" data-psport="${s.key}">${s.em} ${esc(sportLabel(s))}</div>`).join('');
+  $$('#oddsChips .ochip').forEach(c => c.addEventListener('click', () => {
+    pickHubSport = c.dataset.psport;
+    $$('#oddsChips .ochip').forEach(x => x.classList.toggle('on', x.dataset.psport === pickHubSport));
+    loadPickHub();
+  }));
 }
-function oddsCell(v, hot) {
-  if (v == null) return `<div class="ov dash">-</div>`;
-  return `<div class="ov${hot ? ' hot' : ''}">${Number(v).toFixed(2)}</div>`;
+// 시장 컨센서스 = 배당 내재확률(마진 제거). 배당 없으면 null
+function marketProb(e) {
+  const o = e.odds || {}; if (!(o.home && o.away)) return null;
+  const ih = 1 / o.home, id = o.draw ? 1 / o.draw : 0, ia = 1 / o.away, s = ih + id + ia;
+  const home = Math.round(ih / s * 100), draw = Math.round(id / s * 100);
+  return { home, draw, away: 100 - home - draw };
 }
-async function loadOdds() {
+// LIVE UP 데이터 분석 = 시장(있으면) 기반 + 홈 어드밴티지 + 최근폼(선택) 반영
+function luProb(e, fh, fa) {
+  const m = marketProb(e);
+  let home, draw, away;
+  if (m) { home = m.home; draw = m.draw; away = m.away; }
+  else { const p = pickProb(e); home = p.home; draw = p.draw; away = p.away; }
+  home += 3; away -= 1;   // 홈 어드밴티지
+  const wr = arr => { const s = (arr || []).slice(0, 5); return s.length ? s.filter(g => g.win).length / s.length : null; };
+  const wh = wr(fh), wa = wr(fa);
+  if (wh != null && wa != null) { const dd = Math.round((wh - wa) * 10); home += dd; away -= dd; }
+  home = Math.max(3, Math.min(94, home)); away = Math.max(3, Math.min(94, away));
+  draw = Math.max(1, 100 - home - away); const s = home + draw + away;
+  home = Math.round(home / s * 100); draw = Math.round(draw / s * 100); away = 100 - home - draw;
+  const side = (home >= away && home >= draw) ? 'home' : (away >= draw ? 'away' : 'draw');
+  return { home, draw, away, side };
+}
+function phbBar(h, a) { return `<span class="phb-bar"><i class="phb-h" style="width:${h}%"></i><i class="phb-a" style="width:${a}%"></i></span>`; }
+function pickCard(e) {
+  const lu = luProb(e), m = marketProb(e);
+  const pickName = lu.side === 'home' ? TN(e.home, e.league) : lu.side === 'away' ? TN(e.away, e.league) : t('draw');
+  const pct = lu.side === 'home' ? lu.home : lu.side === 'away' ? lu.away : lu.draw;
+  const stx = e.state === 'live' ? `<span style="color:var(--red);font-weight:800">● ${esc(koStatus(e))}</span>` : e.state === 'finished' ? esc(t('finished')) : (e.date ? hhmm(e.date) : '');
+  return `<div class="pickcard phub" data-pick="${esc(e.id)}">
+    <div class="pk-top"><span class="pk-lg">${esc(e.league)}</span><span class="pk-t">${stx}</span></div>
+    <div class="pk-mid">
+      <div class="pk-team"><div class="pk-ph">${badge(e.homeLogo, '🏟')}</div><div class="pk-nm">${esc(TN(e.home, e.league))}</div></div>
+      <div class="pk-vs">VS</div>
+      <div class="pk-team"><div class="pk-ph">${badge(e.awayLogo, '🏟')}</div><div class="pk-nm">${esc(TN(e.away, e.league))}</div></div>
+    </div>
+    <div class="phub-bars">
+      ${m ? `<div class="phb-row"><span class="phb-l">${esc(t('marketCons'))}</span>${phbBar(m.home, m.away)}<span class="phb-v">${m.home}·${m.away}</span></div>` : ''}
+      <div class="phb-row lu"><span class="phb-l">LIVE UP</span>${phbBar(lu.home, lu.away)}<span class="phb-v">${lu.home}·${lu.away}</span></div>
+    </div>
+    <div class="pk-rec phub-pick"><span class="pk-recl">🎯 ${esc(t('finalPick'))}</span> <b>${esc(pickName)} ${pct}%</b></div>
+  </div>`;
+}
+async function loadPickHub() {
   const board = $('#oddsBoard'); if (!board) return;
-  board.innerHTML = `<div class="loading">배당 불러오는 중…</div>`;
+  board.innerHTML = `<div class="loading">${esc(t('loadingGames'))}</div>`;
   try {
-    const d = await fetchJSON(`/api/odds?sport=${encodeURIComponent(oddsSport)}`, { tries: 12, delay: 3500, onWait: n => { board.innerHTML = `<div class="loading">⏳ 서버 깨우는 중… (${n})</div>`; } });
-    if (d.needKey) {
-      board.innerHTML = `<div class="oddskey">
-        <div class="ok-ic">🔑</div>
-        <div class="ok-t">배당 API 키가 아직 없어요</div>
-        <div class="ok-s">무료로 키를 발급받아 Render 환경변수 <b>ODDS_API_KEY</b> 에 넣으면<br>여기에 <b>실제 해외 배당(bet365·Pinnacle 등)</b>이 표시됩니다.</div>
-        <a class="ok-b" href="https://the-odds-api.com/" target="_blank" rel="noopener">무료 키 발급받기 (the-odds-api.com) ↗</a>
-        <div class="ok-n">월 500회 무료 · 국내(Betman) 배당은 공개 API가 없어 미지원</div>
-      </div>`;
-      return;
-    }
-    const gs = d.games || [];
-    if (!gs.length) { board.innerHTML = `<div class="loading">예정 경기가 없어요. 다른 리그를 선택해보세요.</div>`; return; }
-    const isSoccer = oddsSport.startsWith('soccer');
-    board.innerHTML = `<div class="ocols"><span>경기</span><span>승${isSoccer ? '' : '(홈)'}</span>${isSoccer ? '<span>무</span>' : ''}<span>패${isSoccer ? '' : '(원정)'}</span></div>` +
-      gs.map((g, i) => {
-        const lo = Math.min(...[g.homeOdds, g.awayOdds, g.drawOdds].filter(x => x));
-        const d2 = new Date(g.time);
-        const dt = `${d2.getMonth() + 1}/${d2.getDate()} ${String(d2.getHours()).padStart(2, '0')}:${String(d2.getMinutes()).padStart(2, '0')}`;
-        return `<div class="orow2 clk" data-oid="${esc(g.id)}" data-home="${esc(g.home)}" data-away="${esc(g.away)}">
-          <div class="onum">${1001 + i}</div>
-          <div class="og">
-            <div class="ogl">${esc(g.league)} · ${dt} · <span class="obks">${g.books}개사</span></div>
-            <div class="ogt"><b>${esc(g.home)}</b> <span class="ovs">vs</span> ${esc(g.away)} <span class="odet">상세 ›</span></div>
-          </div>
-          <div class="oodds ${isSoccer ? 's' : 'b'}">
-            ${oddsCell(g.homeOdds, g.homeOdds === lo)}
-            ${isSoccer ? oddsCell(g.drawOdds, g.drawOdds === lo) : ''}
-            ${oddsCell(g.awayOdds, g.awayOdds === lo)}
-          </div>
-        </div>`;
-      }).join('') +
-      `<div class="foot">배당은 The Odds API 실시간 종합값(최고 배당 기준)입니다. 참고용이며 베팅 판단의 책임은 본인에게 있습니다.</div>`;
-    $$('#oddsBoard .orow2.clk').forEach(el => el.addEventListener('click', () => openOddsDetail(el.dataset.oid, el.dataset.home, el.dataset.away)));
-  } catch (e) {
-    board.innerHTML = `<div class="loading">배당을 불러오지 못했습니다.<br><button onclick="loadOdds()" style="margin-top:10px;padding:9px 18px;border:none;border-radius:8px;background:#24568f;color:#fff;font-weight:800">다시 시도</button></div>`;
-  }
+    const d = await fetchJSON(`/api/asports/games?sport=${encodeURIComponent(pickHubSport)}&date=${state.date}&tz=${encodeURIComponent(USER_TZ)}`, { tries: 2, delay: 3000, onWait: n => { board.innerHTML = `<div class="loading">⏳ (${n})</div>`; } });
+    let games = d.games || [];
+    games.forEach(g => { feedGames[g.id] = g; });
+    games.sort((a, b) => (b.state === 'live') - (a.state === 'live'));
+    pickHubGames = games;
+    if (!games.length) { board.innerHTML = `<div class="loading">${esc(t('noPickGames'))}</div>`; return; }
+    board.innerHTML = games.map(pickCard).join('') + `<div class="foot">${esc(t('pickWarn'))}</div>`;
+    $$('#oddsBoard .pickcard').forEach(c => c.addEventListener('click', () => { state.sport = pickHubSport; openPick(c.dataset.pick); }));
+  } catch { board.innerHTML = `<div class="loading">-</div>`; }
+}
+// 📌 픽 요약 블록 (시장 컨센서스 + LIVE UP 분석 + 최종 PICK) — 폼 로드 후 갱신됨
+function pickSummaryHtml(e, fh, fa) {
+  const m = marketProb(e), lu = luProb(e, fh, fa);
+  const pickName = lu.side === 'home' ? TN(e.home, e.league) : lu.side === 'away' ? TN(e.away, e.league) : t('draw');
+  const pct = lu.side === 'home' ? lu.home : lu.side === 'away' ? lu.away : lu.draw;
+  const marketRow = m
+    ? `<div class="psum-row"><span class="psum-l">${esc(t('marketCons'))} <small>${esc(t('oddsAgg'))}</small></span>${phbBar(m.home, m.away)}<span class="psum-v">${m.home}% · ${m.away}%</span></div>`
+    : `<div class="psum-row"><span class="psum-l">${esc(t('marketCons'))}</span><span class="psum-none">${esc(t('oddsSoon'))}</span></div>`;
+  return `<div class="ps-hd">📌 ${esc(t('pickSummary'))}</div>
+    <div class="psum">
+      ${marketRow}
+      <div class="psum-row"><span class="psum-l">${esc(t('luAnalysis'))}</span>${phbBar(lu.home, lu.away)}<span class="psum-v">${lu.home}% · ${lu.away}%</span></div>
+      <div class="psum-final">🎯 ${esc(t('finalPick'))} → <b>${esc(pickName)}</b> <span class="psum-fp">${pct}%</span></div>
+    </div>`;
 }
 
 // ---------- 배당 경기 상세 (계산기 + 업체비교 + 최근경기) ----------
@@ -2039,6 +2073,7 @@ async function openPick(id) {
       <div class="ph-vs"><div class="ph-vst">VS</div><div class="ph-time">${e.state === 'live' ? '● ' + esc(koStatus(e)) : e.date ? hhmm(e.date) : ''}</div></div>
       <div class="ph-team"><div class="ph-logo">${badge(e.awayLogo, '🏟')}</div><div class="ph-nm">${esc(TN(e.away, e.league))}</div></div>
     </div>
+    <div class="pick-sec pick-summary" id="pickSummary">${pickSummaryHtml(e)}</div>
     <div class="pick-sec">
       <div class="ps-hd">📊 ${esc(t('pickIndex'))}</div>
       <div class="pick-index">
@@ -2064,12 +2099,15 @@ async function openPick(id) {
 async function loadPickData(e) {
   const box = $('#pickData'); if (!box) return;
   try {
-    if (state.sport === 'baseball' && tsLeague(e.league)) {
+    const refineSummary = (homeArr, awayArr) => { const ps = $('#pickSummary'); if (ps) ps.innerHTML = pickSummaryHtml(e, homeArr, awayArr); };
+    if (tsLeague(e.league)) {
       const d = await fetchJSON(`/api/baseball/teamrecent?match=${encodeURIComponent(e.id)}&date=${state.date}`, { tries: 1 });
       box.innerHTML = pickDataHtml(e, d.away && d.away.games, d.home && d.home.games, d.h2h);
+      refineSummary(d.home && d.home.games, d.away && d.away.games);
     } else if (statsLeague(e.league)) {
       const d = await fetchJSON(`/api/mlb/info?home=${encodeURIComponent(e.home)}&away=${encodeURIComponent(e.away)}&date=${state.date}`, { tries: 1 });
       box.innerHTML = pickDataHtml(e, d.recent && d.recent.away, d.recent && d.recent.home, d.h2h);
+      refineSummary(d.recent && d.recent.home, d.recent && d.recent.away);
     } else {
       box.innerHTML = `<div class="lu-note">${esc(t('oddsSoon'))}</div>`;
     }
