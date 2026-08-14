@@ -60,6 +60,8 @@ const STR = {
   ytNeedKey: ['Highlight playback key not set yet (once configured, plays right here)', 'YouTube 재생 키가 아직 없어요 (설정하면 화면 안에서 바로 재생돼요)', 'ハイライト再生キー未設定（設定すると画面内で再生）', '尚未设置播放密钥（设置后可在页面内播放）', 'Falta la clave de reproducción (al configurarla se reproduce aquí)', 'प्लेबैक कुंजी सेट नहीं है', 'Chưa có khóa phát (cấu hình để phát tại đây)', 'ยังไม่ได้ตั้งคีย์เล่นไฮไลต์', 'Ключ воспроизведения не задан', 'Wiedergabeschlüssel fehlt noch', 'Clé de lecture non définie', 'Chiave di riproduzione non impostata'],
   ytNotFound: ['No video found', '영상을 찾지 못했어요', '動画が見つかりません', '未找到视频', 'No se encontró el video', 'वीडियो नहीं मिला', 'Không tìm thấy video', 'ไม่พบวิดีโอ', 'Видео не найдено', 'Kein Video gefunden', 'Vidéo introuvable', 'Nessun video trovato'],
   ytFail: ['Load failed — opening link', '불러오기 실패 — 링크로 열립니다', '読み込み失敗 — リンクで開きます', '加载失败 — 用链接打开', 'Error — abriendo enlace', 'लोड विफल — लिंक खुल रहा', 'Lỗi tải — mở bằng liên kết', 'โหลดล้มเหลว — เปิดลิงก์', 'Ошибка — открываю ссылку', 'Fehler — Link wird geöffnet', 'Échec — ouverture du lien', 'Errore — apro il link'],
+  matchStats: ['Match Stats', '경기 스탯', '試合スタッツ', '比赛数据', 'Estadísticas', 'मैच आँकड़े', 'Thống kê trận', 'สถิติแมตช์', 'Статистика матча', 'Spielstatistik', 'Stats du match', 'Statistiche'],
+  playerRatings: ['Player Ratings', '선수 평점', '選手評価', '球员评分', 'Notas jugadores', 'खिलाड़ी रेटिंग', 'Điểm cầu thủ', 'คะแนนผู้เล่น', 'Оценки игроков', 'Spielernoten', 'Notes des joueurs', 'Voti giocatori'],
   aiSum: ['AI Summary', 'AI 총정리', 'AI要約', 'AI总结', 'Resumen IA', 'AI सारांश', 'Tóm tắt AI', 'สรุป AI', 'AI-обзор', 'KI-Zusammenfassung', 'Résumé IA', 'Riepilogo IA'],
   liveEv: ['Live Events', '실시간 이벤트', 'ライブ速報', '实时事件', 'Eventos en vivo', 'लाइव इवेंट', 'Sự kiện trực tiếp', 'เหตุการณ์สด', 'События', 'Live-Events', 'Événements', 'Eventi live'],
   aiPred: ['AI Prediction', 'AI 승부 예측', 'AI予想', 'AI预测', 'Predicción IA', 'AI भविष्यवाणी', 'Dự đoán AI', 'ทำนายผล AI', 'AI-прогноз', 'KI-Prognose', 'Pronostic IA', 'Pronostico IA'],
@@ -1371,6 +1373,77 @@ async function showTsPlayer(pid, side) {
   } catch { box.innerHTML = `<div class="pl-card"><div class="lu-note">-</div></div>`; }
 }
 function wireTsPlayers() { $$('#mLineupWrap .tsp').forEach(el => el.addEventListener('click', () => showTsPlayer(el.dataset.pid, el.dataset.side))); }
+// ⚽ 축구 팀 경기 스탯 라벨 (ko/ja/zh, 그 외 언어는 영문 원문)
+const FB_STAT_LBL = {
+  'Ball Possession': { ko: '점유율', ja: 'ポゼッション', zh: '控球率' },
+  'Total Shots': { ko: '슈팅', ja: 'シュート', zh: '射门' },
+  'Shots on Goal': { ko: '유효슈팅', ja: '枠内シュート', zh: '射正' },
+  'Shots off Goal': { ko: '유효슈팅 외', ja: '枠外シュート', zh: '射偏' },
+  'Blocked Shots': { ko: '막힌 슈팅', ja: 'ブロック', zh: '被封堵' },
+  'Shots insidebox': { ko: '박스 안 슈팅', ja: 'ボックス内', zh: '禁区内射门' },
+  'Shots outsidebox': { ko: '박스 밖 슈팅', ja: 'ボックス外', zh: '禁区外射门' },
+  'Corner Kicks': { ko: '코너킥', ja: 'CK', zh: '角球' },
+  'Fouls': { ko: '파울', ja: 'ファウル', zh: '犯规' },
+  'Offsides': { ko: '오프사이드', ja: 'オフサイド', zh: '越位' },
+  'Yellow Cards': { ko: '경고', ja: 'イエロー', zh: '黄牌' },
+  'Red Cards': { ko: '퇴장', ja: 'レッド', zh: '红牌' },
+  'Goalkeeper Saves': { ko: '선방', ja: 'セーブ', zh: '扑救' },
+  'Total passes': { ko: '패스', ja: 'パス', zh: '传球' },
+  'Passes accurate': { ko: '정확한 패스', ja: '成功パス', zh: '成功传球' },
+  'Passes %': { ko: '패스 성공률', ja: 'パス成功率', zh: '传球成功率' },
+  'expected_goals': { ko: '기대득점 xG', ja: 'xG', zh: '预期进球' }
+};
+function fbStatLabel(type) { const m = FB_STAT_LBL[type]; if (m && (LANG === 'ko' || LANG === 'ja' || LANG === 'zh')) return m[LANG] || type; return type; }
+function renderFbStats(teams, e) {
+  const [h, a] = teams; const map = {};
+  (h.stats || []).forEach(s => { map[s.type] = { home: s.value, away: null }; });
+  (a.stats || []).forEach(s => { map[s.type] = Object.assign(map[s.type] || { home: null }, { away: s.value }); });
+  const order = ['Ball Possession', 'Total Shots', 'Shots on Goal', 'Shots off Goal', 'Blocked Shots', 'Corner Kicks', 'Fouls', 'Offsides', 'Yellow Cards', 'Red Cards', 'Goalkeeper Saves', 'Total passes', 'Passes accurate', 'Passes %', 'expected_goals'];
+  const types = order.filter(o => map[o]).concat(Object.keys(map).filter(k => !order.includes(k)));
+  if (!types.length) return '';
+  const num = v => { if (v == null) return 0; const n = parseFloat(String(v).replace('%', '')); return isNaN(n) ? 0 : n; };
+  const rows = types.map(ty => {
+    const hv = map[ty].home, av = map[ty].away, hn = num(hv), an = num(av), tot = hn + an || 1;
+    const hp = Math.round(hn / tot * 100), ap = 100 - hp;
+    return `<div class="fbs-row"><span class="fbs-v">${esc(hv == null ? '-' : String(hv))}</span><span class="fbs-lbl">${esc(fbStatLabel(ty))}</span><span class="fbs-v">${esc(av == null ? '-' : String(av))}</span></div><div class="fbs-bar"><span class="fbs-bh" style="width:${hp}%"></span><span class="fbs-ba" style="width:${ap}%"></span></div>`;
+  }).join('');
+  return `<div class="odsec">📊 ${esc(t('matchStats'))} <span class="rhe">${esc(TN(e.home, e.league))} · ${esc(TN(e.away, e.league))}</span></div><div class="fbstats">${rows}</div>`;
+}
+function fbpListHtml(tm) {
+  if (!tm || !(tm.players || []).length) return `<div class="lu-note">-</div>`;
+  const sorted = tm.players.slice().sort((x, y) => (parseFloat(y.rating) || 0) - (parseFloat(x.rating) || 0));
+  return sorted.map(p => {
+    const r = p.rating ? Number(p.rating).toFixed(1) : '-';
+    const badges = [];
+    if (p.goals) badges.push('⚽' + p.goals);
+    if (p.assists) badges.push('🅰' + p.assists);
+    if (p.yellow) badges.push('🟨'); if (p.red) badges.push('🟥');
+    return `<div class="fbp-row"><span class="fbp-num">${p.number == null ? '' : esc(String(p.number))}</span>${p.photo ? `<img class="fbp-ph" src="${esc(p.photo)}" referrerpolicy="no-referrer" onerror="this.style.display='none'">` : '<span class="fbp-ph noimg">👤</span>'}<span class="fbp-nm">${esc(p.name)}</span><span class="fbp-meta">${esc(p.pos || '')} ${badges.join(' ')}</span><span class="fbp-rt ${(parseFloat(p.rating) || 0) >= 7.5 ? 'hi' : ((parseFloat(p.rating) || 0) && (parseFloat(p.rating) < 6) ? 'lo' : '')}">${r}</span></div>`;
+  }).join('');
+}
+function renderFbPlayers(teams, e) {
+  if (teams.length < 1 || !(teams[0].players || []).length) return '';
+  return `<div class="odsec">⭐ ${esc(t('playerRatings'))}</div><div class="bfield-tabs fbp-tabs"><span class="bft on" data-fp="0">${esc(TN(e.home, e.league))}</span><span class="bft" data-fp="1">${esc(TN(e.away, e.league))}</span></div><div id="fbpBox" class="fbplist">${fbpListHtml(teams[0])}</div>`;
+}
+async function loadFbStats(e) {
+  const box = $('#mFbStats'); if (!box) return;
+  box.innerHTML = `<div class="odsec">📊 ${esc(t('matchStats'))}</div><div class="lu-note" style="padding:8px">${esc(t('loading'))}</div>`;
+  try {
+    const [st, pl] = await Promise.all([
+      fetchJSON(`/api/asports/fbstats?fixture=${encodeURIComponent(e.id)}`, { tries: 1 }).catch(() => ({ teams: [] })),
+      fetchJSON(`/api/asports/fbplayers?fixture=${encodeURIComponent(e.id)}`, { tries: 1 }).catch(() => ({ teams: [] }))
+    ]);
+    let html = '';
+    if (st.teams && st.teams.length === 2) html += renderFbStats(st.teams, e);
+    if (pl.teams && pl.teams.length) html += renderFbPlayers(pl.teams, e);
+    box.innerHTML = html || '';
+    const plTeams = pl.teams || [];
+    $$('#mFbStats .fbp-tabs .bft').forEach(tab => tab.addEventListener('click', () => {
+      $$('#mFbStats .fbp-tabs .bft').forEach(x => x.classList.remove('on')); tab.classList.add('on');
+      const b = $('#fbpBox'); if (b) b.innerHTML = fbpListHtml(plTeams[Number(tab.dataset.fp) || 0]);
+    }));
+  } catch { box.innerHTML = ''; }
+}
 async function updateLineup(e) {
   const box = $('#mLineupWrap'); if (!box) return;
   const sp = state.sport;
@@ -1379,9 +1452,10 @@ async function updateLineup(e) {
     try {
       const d = await fetchJSON(`/api/asports/lineups?fixture=${encodeURIComponent(e.id)}`, { tries: 1 });
       const teams = d.teams || [];
-      if (teams.length < 2 || !(teams[0].startXI || []).length) { box.innerHTML = `<div class="odsec">📋 ${esc(t('lineup'))}</div><div class="lu-note">-</div>`; return; }
-      box.innerHTML = `<div class="odsec">📋 ${esc(t('lineup'))} <span class="rhe">${esc(teams[0].formation)} · ${esc(teams[1].formation)}</span></div>${teams.map(renderPitch).join('')}<div id="mPlayer"></div>`;
+      if (teams.length < 2 || !(teams[0].startXI || []).length) { box.innerHTML = `<div class="odsec">📋 ${esc(t('lineup'))}</div><div class="lu-note">-</div><div id="mFbStats"></div>`; loadFbStats(e); return; }
+      box.innerHTML = `<div class="odsec">📋 ${esc(t('lineup'))} <span class="rhe">${esc(teams[0].formation)} · ${esc(teams[1].formation)}</span></div>${teams.map(renderPitch).join('')}<div id="mPlayer"></div><div id="mFbStats"></div>`;
       wirePlayerClicks('football');
+      loadFbStats(e);
     } catch { box.innerHTML = `<div class="odsec">📋 ${esc(t('lineup'))}</div><div class="lu-note">-</div>`; }
   } else if (statsLeague(e.league)) {
     box.innerHTML = `<div class="odsec">📋 ${esc(t('lineup'))}</div><div class="lineupbox"><div class="loading" style="padding:12px">${esc(t('loading'))}</div></div>`;

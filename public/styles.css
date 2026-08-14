@@ -655,6 +655,26 @@ table.rhe-tbl .tn{text-align:left;padding-left:10px;font-weight:700;white-space:
 /* MLB 타석/투수 성적 라인 */
 .ms-stat{color:#7a5c12;font-weight:800;font-size:11px;margin-left:3px}
 /* 야구장 수비 배치도 */
+/* ⚽ 축구 팀 경기 스탯 + 선수 평점 */
+.fbstats{background:#fff;border:1px solid var(--line);border-radius:12px;padding:12px 14px}
+.fbs-row{display:flex;align-items:center;justify-content:space-between;font-size:12.5px;font-weight:700;color:var(--navy);margin-top:8px}
+.fbs-row:first-child{margin-top:0}
+.fbs-v{min-width:46px;text-align:center;font-weight:800}
+.fbs-lbl{flex:1;text-align:center;color:var(--sub);font-weight:700}
+.fbs-bar{display:flex;height:5px;border-radius:3px;overflow:hidden;margin-top:4px;background:#eef1f5}
+.fbs-bh{background:var(--navy)}
+.fbs-ba{background:var(--gold)}
+.fbplist{background:#fff;border:1px solid var(--line);border-radius:12px;overflow:hidden}
+.fbp-row{display:flex;align-items:center;gap:8px;padding:8px 12px;border-bottom:1px solid var(--line);font-size:12.5px}
+.fbp-row:last-child{border-bottom:0}
+.fbp-num{min-width:20px;text-align:center;color:var(--sub);font-weight:800;font-size:11px}
+.fbp-ph{width:26px;height:26px;border-radius:50%;object-fit:cover;background:#eef1f5}
+.fbp-ph.noimg{display:flex;align-items:center;justify-content:center;font-size:14px}
+.fbp-nm{font-weight:800;color:var(--navy);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:120px}
+.fbp-meta{flex:1;text-align:right;color:var(--sub);font-size:11px;font-weight:700}
+.fbp-rt{min-width:34px;text-align:center;font-weight:900;padding:2px 6px;border-radius:6px;background:#eef1f5;color:var(--navy)}
+.fbp-rt.hi{background:#e6f7ec;color:#137a3a}
+.fbp-rt.lo{background:#fdeaea;color:#c0392b}
 .bfield-tabs{display:flex;gap:8px;margin-bottom:8px}
 .bft{flex:1;text-align:center;padding:8px;border-radius:9px;background:#f1f4f8;color:var(--sub);font-weight:800;font-size:12.5px;cursor:pointer;border:1px solid transparent}
 .bft.on{background:var(--navy);color:#fff;border-color:var(--gold)}
