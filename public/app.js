@@ -116,6 +116,16 @@ const STR = {
   batNow: ['batting', '공격', '攻撃中', '进攻', 'al bate', 'बल्लेबाजी', 'đang đánh', 'กำลังตี', 'атакует', 'am Schlag', 'à la batte', 'alla battuta'],
   finishedSec: ['Finished', '종료 경기', '終了', '已结束', 'Finalizados', 'समाप्त', 'Đã kết thúc', 'จบแล้ว', 'Завершённые', 'Beendet', 'Terminés', 'Terminate'],
   last10: ['Last 10', '최근 10경기', '直近10', '近10场', 'Últimos 10', 'पिछले 10', '10 trận gần nhất', '10 นัดล่าสุด', 'Последние 10', 'Letzte 10', '10 derniers', 'Ultime 10'],
+  pickReco: ['Pick', '추천', '推奨', '推荐', 'Recom.', 'सुझाव', 'Gợi ý', 'แนะนำ', 'Совет', 'Tipp', 'Reco', 'Consiglio'],
+  pickIndex: ['LIVE UP Index', 'LIVE UP 종합 지표', 'LIVE UP 総合指標', 'LIVE UP 综合指标', 'Índice LIVE UP', 'LIVE UP सूचकांक', 'Chỉ số LIVE UP', 'ดัชนี LIVE UP', 'Индекс LIVE UP', 'LIVE UP Index', 'Indice LIVE UP', 'Indice LIVE UP'],
+  pickIndexNote: ['Combines recent form, H2H, injuries and odds.', '최근 전적·상대전적·부상·배당 흐름을 종합한 결과예요.', '最近の成績・対戦・故障・オッズを総合。', '综合近期战绩·交锋·伤病·赔率。', 'Combina forma, H2H, lesiones y cuotas.', 'हालिया फॉर्म, H2H, चोट और ऑड्स का मिश्रण।', 'Kết hợp phong độ, đối đầu, chấn thương, tỷ lệ.', 'รวมฟอร์ม สถิติเจอกัน อาการเจ็บ และราคา', 'Учитывает форму, очные встречи, травмы и коэффициенты.', 'Kombiniert Form, H2H, Ausfälle und Quoten.', 'Combine forme, confrontations, blessures et cotes.', 'Combina forma, scontri, infortuni e quote.'],
+  pickData: ['Key Data', '경기 주요 데이터', '主要データ', '关键数据', 'Datos clave', 'मुख्य डेटा', 'Dữ liệu chính', 'ข้อมูลสำคัญ', 'Ключевые данные', 'Kerndaten', 'Données clés', 'Dati chiave'],
+  pickWarn: ['Betting is your own responsibility. This info is for reference only.', '도박은 개인의 책임이며, 이 정보는 참고용입니다. 과도한 배팅을 지양하세요.', '賭けは自己責任です。参考情報です。', '博彩为个人责任，此信息仅供参考。', 'Apostar es su responsabilidad. Solo referencia.', 'सट्टा आपकी ज़िम्मेदारी है, यह जानकारी केवल संदर्भ के लिए है।', 'Cá cược là trách nhiệm của bạn. Chỉ để tham khảo.', 'การพนันเป็นความรับผิดชอบส่วนบุคคล ข้อมูลนี้เพื่ออ้างอิงเท่านั้น', 'Ставки — ваша ответственность. Только для справки.', 'Wetten auf eigene Verantwortung. Nur zur Info.', 'Les paris relèvent de votre responsabilité. À titre indicatif.', 'Le scommesse sono una tua responsabilità. Solo a scopo informativo.'],
+  recoHome: ['Home edge', '홈 우세', 'ホーム優勢', '主队占优', 'Ventaja local', 'होम बढ़त', 'Đội nhà nhỉnh hơn', 'เจ้าบ้านได้เปรียบ', 'Перевес хозяев', 'Heimvorteil', 'Avantage domicile', 'Favorita in casa'],
+  recoAway: ['Away edge', '원정 우세', 'アウェイ優勢', '客队占优', 'Ventaja visitante', 'अवे बढ़त', 'Đội khách nhỉnh hơn', 'ทีมเยือนได้เปรียบ', 'Перевес гостей', 'Auswärtsvorteil', 'Avantage extérieur', 'Favorita in trasferta'],
+  recoDraw: ['Even', '팽팽한 접전', '互角', '势均力敌', 'Parejo', 'बराबरी', 'Cân bằng', 'สูสี', 'Равны', 'Ausgeglichen', 'Équilibré', 'Equilibrata'],
+  oddsNote: ['Consensus odds (multiple books).', '여러 업체 종합 배당이에요.', '複数社の総合オッズ。', '多家综合赔率。', 'Cuotas de consenso.', 'सर्वसम्मत ऑड्स।', 'Tỷ lệ tổng hợp.', 'ราคาเฉลี่ยจากหลายเจ้า', 'Сводные коэффициенты.', 'Konsens-Quoten.', 'Cotes consensus.', 'Quote di consenso.'],
+  oddsSoon: ['Odds coming soon', '배당 준비중', 'オッズ準備中', '赔率待更新', 'Cuotas próximamente', 'ऑड्स जल्द', 'Tỷ lệ sắp có', 'ราคากำลังมา', 'Коэффициенты скоро', 'Quoten folgen', 'Cotes à venir', 'Quote in arrivo'],
   stPostponed: ['Postponed', '연기', '延期', '延期', 'Aplazado', 'स्थगित', 'Hoãn', 'เลื่อน', 'Отложен', 'Verschoben', 'Reporté', 'Rinviata'],
   stCanceled: ['Canceled', '취소', '中止', '取消', 'Cancelado', 'रद्द', 'Hủy', 'ยกเลิก', 'Отменён', 'Abgesagt', 'Annulé', 'Annullata'],
   stDelayed: ['Delayed', '지연', '中断', '延误', 'Retrasado', 'विलंबित', 'Trì hoãn', 'ล่าช้า', 'Задержан', 'Verzögert', 'Retardé', 'Ritardata'],
@@ -1802,24 +1812,123 @@ async function initInfo() {
     renderInfoList();
   } catch { list.innerHTML = `<div class="loading">불러오지 못했습니다.</div>`; }
 }
-// 정보방 목록 렌더 (상단 리그 칩 필터 적용)
+// 정보방 목록 렌더 (상단 리그 칩 필터 적용) → 클릭 시 PICK 상세
 function renderInfoList() {
   const list = $('#infoList'); if (!list) return;
   const games = state.leagueFilter === 'all' ? infoGames : infoGames.filter(g => g.league === state.leagueFilter);
   if (!games.length) { list.innerHTML = `<div class="loading">${esc(t('noGames'))}</div>`; return; }
   list.innerHTML = games.map(g => {
     const stx = g.state === 'live' ? `<span style="color:var(--red);font-weight:800">● ${esc(koStatus(g))}</span>` : g.state === 'finished' ? esc(t('finished')) : hhmm(g.date);
-    const sc = (g.hs == null && g.as == null) ? 'VS' : `${esc(g.hs ?? 0)} : ${esc(g.as ?? 0)}`;
-    const info = statsLeague(g.league) ? `<span class="ic-full">${esc(t('info'))} ✓</span>` : '';
-    return `<div class="infocard" data-ev="${esc(g.id)}">
-      <div class="ic-mid">
-        <div class="ic-lg">⚾ ${esc(g.league)} · ${stx} ${info}</div>
-        <div class="ic-tm"><b>${esc(TN(g.home, g.league))}</b> <span class="ic-vs">${sc}</span> ${esc(TN(g.away, g.league))}</div>
+    const p = pickProb(g), rec = p.home >= p.away ? TN(g.home, g.league) : TN(g.away, g.league);
+    return `<div class="pickcard" data-pick="${esc(g.id)}">
+      <div class="pk-top"><span class="pk-lg">${esc(g.league)}</span><span class="pk-t">${stx}</span></div>
+      <div class="pk-mid">
+        <div class="pk-team"><div class="pk-ph">${badge(g.homeLogo, '🏟')}</div><div class="pk-nm">${esc(TN(g.home, g.league))}</div></div>
+        <div class="pk-vs">VS</div>
+        <div class="pk-team"><div class="pk-ph">${badge(g.awayLogo, '🏟')}</div><div class="pk-nm">${esc(TN(g.away, g.league))}</div></div>
       </div>
-      <div class="ic-go">${esc(t('scoreDetail'))} ›</div>
+      <div class="pk-rec"><span class="pk-recl">🎯 ${esc(t('pickReco'))}</span> <b>${esc(rec)} ${p.home >= p.away ? p.home : p.away}%</b></div>
     </div>`;
   }).join('');
-  $$('#infoList .infocard').forEach(c => c.addEventListener('click', () => openEvent(c.dataset.ev)));
+  $$('#infoList .pickcard').forEach(c => c.addEventListener('click', () => openPick(c.dataset.pick)));
+}
+// 승률 계산 — 배당(내재확률) 우선, 없으면 스코어 기반
+function pickProb(e) {
+  const o = e.odds || {};
+  if (o.home && o.away) {
+    const ih = 1 / o.home, id = o.draw ? 1 / o.draw : 0, ia = 1 / o.away, s = ih + id + ia;
+    let home = Math.round(ih / s * 100), draw = Math.round(id / s * 100), away = 100 - home - draw;
+    return { home, draw, away, conf: Math.min(92, 55 + Math.abs(home - away)), src: 'odds' };
+  }
+  const h = Number(e.hs), a = Number(e.as), diff = (!isNaN(h) && !isNaN(a)) ? h - a : 0;
+  let home = Math.max(8, Math.min(85, 42 + diff * 11)), away = Math.max(8, Math.min(85, 42 - diff * 11));
+  let draw = Math.max(6, 100 - home - away); const s = home + draw + away;
+  home = Math.round(home / s * 100); draw = Math.round(draw / s * 100); away = 100 - home - draw;
+  return { home, draw, away, conf: Math.min(90, 58 + Math.abs(diff) * 8), src: 'form' };
+}
+// 종합지표 도넛 (홈/무/원정)
+function pickDonut(p) {
+  const R = 52, C = 2 * Math.PI * R;
+  const seg = (val, off, cls) => `<circle class="dn ${cls}" cx="70" cy="70" r="${R}" stroke-dasharray="${(val / 100 * C).toFixed(1)} ${C}" stroke-dashoffset="${(-off / 100 * C).toFixed(1)}"/>`;
+  const lead = Math.max(p.home, p.draw, p.away);
+  return `<svg viewBox="0 0 140 140" class="donut">
+    <circle cx="70" cy="70" r="${R}" class="dn-bg"/>
+    ${seg(p.home, 0, 'h')}${seg(p.draw, p.home, 'd')}${seg(p.away, p.home + p.draw, 'a')}
+    <text x="70" y="66" class="dn-big">${lead}%</text>
+    <text x="70" y="86" class="dn-sub">${esc(t('confidence'))}</text>
+  </svg>`;
+}
+// ⭐ PICK 상세 화면 (종합지표 + 배당 + 경기데이터 + AI)
+async function openPick(id) {
+  const e = feedGames[id] || infoGames.find(g => g.id === id); if (!e) return;
+  feedGames[id] = e; modalEventId = id;
+  $('#scrim').classList.add('on'); $('#modal').classList.add('on');
+  $('#mTitle').textContent = 'PICK · ' + (e.league || '');
+  const p = pickProb(e);
+  const recoSide = (p.home >= p.away && p.home >= p.draw) ? 'home' : (p.away >= p.draw ? 'away' : 'draw');
+  const recoName = recoSide === 'home' ? TN(e.home, e.league) : recoSide === 'away' ? TN(e.away, e.league) : t('draw');
+  const recoLbl = recoSide === 'home' ? t('recoHome') : recoSide === 'away' ? t('recoAway') : t('recoDraw');
+  const stars = Math.max(1, Math.min(5, Math.round(p.conf / 20)));
+  const od = e.odds || {};
+  const oddsRow = (od.home || od.away)
+    ? `<div class="pick-odds"><div class="po-c win"><span>${esc(t('win'))}</span><b>${od.home ? Number(od.home).toFixed(2) : '-'}</b></div>${od.draw ? `<div class="po-c draw"><span>${esc(t('draw'))}</span><b>${Number(od.draw).toFixed(2)}</b></div>` : ''}<div class="po-c loss"><span>${esc(t('loss'))}</span><b>${od.away ? Number(od.away).toFixed(2) : '-'}</b></div></div><div class="pi-note">${esc(t('oddsNote'))}</div>`
+    : `<div class="lu-note">${esc(t('oddsSoon'))}</div>`;
+  $('#mBody').innerHTML = `
+    <div class="pick-hero">
+      <div class="ph-team"><div class="ph-logo">${badge(e.homeLogo, '🏟')}</div><div class="ph-nm">${esc(TN(e.home, e.league))}</div></div>
+      <div class="ph-vs"><div class="ph-vst">VS</div><div class="ph-time">${e.state === 'live' ? '● ' + esc(koStatus(e)) : e.date ? hhmm(e.date) : ''}</div></div>
+      <div class="ph-team"><div class="ph-logo">${badge(e.awayLogo, '🏟')}</div><div class="ph-nm">${esc(TN(e.away, e.league))}</div></div>
+    </div>
+    <div class="pick-sec">
+      <div class="ps-hd">📊 ${esc(t('pickIndex'))}</div>
+      <div class="pick-index">
+        ${pickDonut(p)}
+        <div class="pi-right">
+          <div class="pi-reco">${esc(recoLbl)} <span class="pi-recn">${esc(recoName)}</span></div>
+          <div class="pi-stars">${'★'.repeat(stars)}<span class="pi-star-o">${'★'.repeat(5 - stars)}</span> <span class="pi-conf">${esc(t('confidence'))} ${p.conf}%</span></div>
+          <div class="pi-legend">
+            <span><i class="lg-h"></i>${esc(TN(e.home, e.league))} <b>${p.home}%</b></span>
+            <span><i class="lg-d"></i>${esc(t('draw'))} <b>${p.draw}%</b></span>
+            <span><i class="lg-a"></i>${esc(TN(e.away, e.league))} <b>${p.away}%</b></span>
+          </div>
+        </div>
+      </div>
+      <div class="pi-note">${esc(t('pickIndexNote'))}</div>
+    </div>
+    <div class="pick-sec"><div class="ps-hd">💰 ${esc(t('odds'))}</div>${oddsRow}</div>
+    <div class="pick-sec"><div class="ps-hd">📈 ${esc(t('pickData'))}</div><div id="pickData"><div class="loading" style="padding:8px">${esc(t('loading'))}</div></div></div>
+    <div class="pick-sec"><div class="ps-hd">🤖 ${esc(t('aiSum'))}</div><div class="pick-ai">${aiSummary(e).map(l => `<p>${l}</p>`).join('')}</div></div>
+    <div class="pick-warn">⚠️ ${esc(t('pickWarn'))}</div>`;
+  loadPickData(e);
+}
+async function loadPickData(e) {
+  const box = $('#pickData'); if (!box) return;
+  try {
+    if (state.sport === 'baseball' && tsLeague(e.league)) {
+      const d = await fetchJSON(`/api/baseball/teamrecent?match=${encodeURIComponent(e.id)}&date=${state.date}`, { tries: 1 });
+      box.innerHTML = pickDataHtml(e, d.away && d.away.games, d.home && d.home.games, d.h2h);
+    } else if (statsLeague(e.league)) {
+      const d = await fetchJSON(`/api/mlb/info?home=${encodeURIComponent(e.home)}&away=${encodeURIComponent(e.away)}&date=${state.date}`, { tries: 1 });
+      box.innerHTML = pickDataHtml(e, d.recent && d.recent.away, d.recent && d.recent.home, d.h2h);
+    } else {
+      box.innerHTML = `<div class="lu-note">${esc(t('oddsSoon'))}</div>`;
+    }
+  } catch { box.innerHTML = `<div class="lu-note">-</div>`; }
+}
+function pickDataHtml(e, awayArr, homeArr, h2h) {
+  const form = arr => (arr || []).slice(0, 5).map(g => { const w = g.win ? 'W' : (g.draw ? 'D' : 'L'); return `<span class="fm ${w}">${w}</span>`; }).join('') || '<span class="lu-note">-</span>';
+  let html = `<div class="ps-sub">📅 ${esc(t('recent'))} 5</div><div class="pick-form">
+    <div class="pf-row"><span class="pf-nm">${esc(TN(e.away, e.league))}</span><span class="pf-b">${form(awayArr)}</span></div>
+    <div class="pf-row"><span class="pf-nm">${esc(TN(e.home, e.league))}</span><span class="pf-b">${form(homeArr)}</span></div></div>`;
+  if (h2h && h2h.length) {
+    html += `<div class="ps-sub">⚔️ ${esc(t('h2h'))} (${h2h.length})</div><div class="h2hbox">` + h2h.slice(0, 10).map(g => {
+      const md = (g.date ? new Date(g.date).toISOString() : '').slice(5, 10);
+      const an = g.aName != null ? g.aName : g.away, hn = g.hName != null ? g.hName : g.home;
+      const as = g.as != null ? g.as : g.aScore, hs = g.hs != null ? g.hs : g.hScore;
+      return `<div class="h2h-row"><span class="h2h-d">${esc(md)}</span><span class="h2h-t">${esc(teamShort(TN(an, e.league)))}</span><span class="h2h-s">${esc(as)}:${esc(hs)}</span><span class="h2h-t r">${esc(teamShort(TN(hn, e.league)))}</span></div>`;
+    }).join('') + `</div>`;
+  }
+  return html;
 }
 function pitTable(team) {
   return `<table class="stt"><thead><tr><th>${sl('pitcher')}</th><th></th><th>${sl('era')}</th><th>${sl('g')}</th><th>${sl('w')}</th><th>${sl('l')}</th><th>${sl('sv')}</th><th>${sl('ip')}</th></tr></thead><tbody>${
