@@ -403,6 +403,17 @@ table.rank td.pt{font-weight:900;color:var(--blue)}
 .infohd{padding:12px 14px 6px;font-weight:900;font-size:15px;color:var(--navy)}
 .infonote{padding:0 14px 12px;font-size:11px;color:var(--sub);line-height:1.5;border-bottom:6px solid var(--page)}
 .infolist{padding:10px 12px 24px}
+/* 🔒 경기 정보방 로그인 게이트 */
+.infowrap{position:relative}
+#view-info.gated .infolist{filter:blur(7px);pointer-events:none;user-select:none;transition:filter .2s}
+.infogate{position:absolute;inset:0;display:flex;align-items:flex-start;justify-content:center;padding-top:70px;z-index:5}
+.infogate.hidden{display:none}
+.infogate .ig-card{background:#fff;border:1px solid var(--line);border-radius:18px;padding:26px 24px;max-width:320px;width:86%;text-align:center;box-shadow:0 14px 40px rgba(20,30,50,.22)}
+.infogate .ig-lock{font-size:36px;line-height:1;margin-bottom:10px}
+.infogate .ig-title{font-size:16px;font-weight:800;color:var(--ink,#16243d);margin-bottom:6px}
+.infogate .ig-sub{font-size:12px;color:var(--sub);line-height:1.5;margin-bottom:16px}
+.infogate .ig-btn{display:inline-flex;align-items:center;gap:6px;background:linear-gradient(180deg,#2d4373,#16243d);color:#fff;border:0;border-radius:999px;padding:11px 26px;font-size:14px;font-weight:800;cursor:pointer;box-shadow:0 4px 14px rgba(20,30,50,.28)}
+.infogate .ig-btn:hover{filter:brightness(1.08)}
 .infocard{display:grid;grid-template-columns:auto 1fr auto;gap:10px;align-items:center;background:#fff;border:1px solid var(--line);border-left:3px solid var(--gold);border-radius:12px;padding:11px 13px;margin-bottom:10px;cursor:pointer;box-shadow:0 1px 6px rgba(0,0,0,.04)}
 .infocard:hover{transform:translateY(-1px);box-shadow:0 5px 16px rgba(0,0,0,.08)}
 .ic-no{font-size:13px;font-weight:900;color:var(--gold)}

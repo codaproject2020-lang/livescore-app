@@ -117,6 +117,8 @@ const STR = {
   finishedSec: ['Finished', '종료 경기', '終了', '已结束', 'Finalizados', 'समाप्त', 'Đã kết thúc', 'จบแล้ว', 'Завершённые', 'Beendet', 'Terminés', 'Terminate'],
   last10: ['Last 10', '최근 10경기', '直近10', '近10场', 'Últimos 10', 'पिछले 10', '10 trận gần nhất', '10 นัดล่าสุด', 'Последние 10', 'Letzte 10', '10 derniers', 'Ultime 10'],
   pickReco: ['Pick', '추천', '推奨', '推荐', 'Recom.', 'सुझाव', 'Gợi ý', 'แนะนำ', 'Совет', 'Tipp', 'Reco', 'Consiglio'],
+  loginToUse: ['Login required', '로그인 후 이용 가능합니다', 'ログイン後にご利用いただけます', '登录后可用', 'Inicia sesión para usar', 'उपयोग के लिए लॉगिन करें', 'Đăng nhập để sử dụng', 'เข้าสู่ระบบเพื่อใช้งาน', 'Требуется вход', 'Anmeldung erforderlich', 'Connexion requise', 'Accesso richiesto'],
+  gateSub: ['Sign in with Google to view match info', '구글 로그인하면 경기 정보방을 볼 수 있어요', 'Googleログインで試合情報を見られます', '登录后即可查看比赛信息', 'Inicia sesión con Google para ver', 'मैच जानकारी देखने के लिए Google से लॉगिन करें', 'Đăng nhập Google để xem thông tin', 'ล็อกอิน Google เพื่อดูข้อมูล', 'Войдите через Google, чтобы просмотреть', 'Mit Google anmelden, um Infos zu sehen', 'Connectez-vous avec Google pour voir', 'Accedi con Google per vedere'],
   pickIndex: ['LIVE UP Index', 'LIVE UP 종합 지표', 'LIVE UP 総合指標', 'LIVE UP 综合指标', 'Índice LIVE UP', 'LIVE UP सूचकांक', 'Chỉ số LIVE UP', 'ดัชนี LIVE UP', 'Индекс LIVE UP', 'LIVE UP Index', 'Indice LIVE UP', 'Indice LIVE UP'],
   pickIndexNote: ['Combines recent form, H2H, injuries and odds.', '최근 전적·상대전적·부상·배당 흐름을 종합한 결과예요.', '最近の成績・対戦・故障・オッズを総合。', '综合近期战绩·交锋·伤病·赔率。', 'Combina forma, H2H, lesiones y cuotas.', 'हालिया फॉर्म, H2H, चोट और ऑड्स का मिश्रण।', 'Kết hợp phong độ, đối đầu, chấn thương, tỷ lệ.', 'รวมฟอร์ม สถิติเจอกัน อาการเจ็บ และราคา', 'Учитывает форму, очные встречи, травмы и коэффициенты.', 'Kombiniert Form, H2H, Ausfälle und Quoten.', 'Combine forme, confrontations, blessures et cotes.', 'Combina forma, scontri, infortuni e quote.'],
   pickData: ['Key Data', '경기 주요 데이터', '主要データ', '关键数据', 'Datos clave', 'मुख्य डेटा', 'Dữ liệu chính', 'ข้อมูลสำคัญ', 'Ключевые данные', 'Kerndaten', 'Données clés', 'Dati chiave'],
@@ -198,6 +200,7 @@ function setLang(l) {
   if (typeof loadEvents === 'function' && $('#view-live') && !$('#view-live').classList.contains('hidden')) loadEvents();
   if (typeof renderInfoList === 'function' && $('#view-info') && !$('#view-info').classList.contains('hidden')) renderInfoList();
   if (typeof refreshDateLabel === 'function') refreshDateLabel();
+  if (typeof initGIS === 'function') { try { initGIS(); } catch { } }   // 구글 버튼 언어 다시 반영
 }
 
 // ============================================================
@@ -411,10 +414,17 @@ function setTab(t) {
   if (t === 'table' && !$('#tblLeague').options.length) buildTableControls();
   if (t === 'board') loadPosts();
   if (t === 'odds') initOdds();
-  if (t === 'info') initInfo();
+  if (t === 'info') { initInfo(); updateInfoGate(); }
   $('.center')?.classList.toggle('notlive', t !== 'live');
   window.scrollTo({ top: 0 });
 }
+// 🔒 경기 정보방 로그인 게이트: 비로그인 시 목록 블러 + 안내 오버레이
+function updateInfoGate() {
+  const wrap = $('#view-info'); const gate = $('#infoGate'); if (!wrap || !gate) return;
+  if (loggedIn) { wrap.classList.remove('gated'); gate.classList.add('hidden'); }
+  else { wrap.classList.add('gated'); gate.classList.remove('hidden'); }
+}
+$('#igLogin')?.addEventListener('click', openLogin);
 $$('.topbar .tt[data-tab]').forEach(b => b.addEventListener('click', () => setTab(b.dataset.tab)));
 $$('.topnav a[data-tab]').forEach(b => b.addEventListener('click', () => setTab(b.dataset.tab)));
 $$('.dmenu a[data-tab]').forEach(b => b.addEventListener('click', () => { setTab(b.dataset.tab); closeDrawer(); }));
@@ -595,11 +605,13 @@ function loadGIS() {
   if (window.google && google.accounts && google.accounts.id) return initGIS();
   const s = document.createElement('script'); s.src = 'https://accounts.google.com/gsi/client'; s.async = true; s.defer = true; s.onload = initGIS; document.head.appendChild(s);
 }
+// LANG 코드 → 구글 GIS 버튼 로케일 매핑 (한국어면 '로그인' 버튼이 한글로 나옴)
+function gisLocale() { const m = { en: 'en', ko: 'ko', ja: 'ja', zh: 'zh_CN', es: 'es', hi: 'hi', vi: 'vi', th: 'th', ru: 'ru', de: 'de', fr: 'fr', it: 'it' }; return m[LANG] || 'en'; }
 function initGIS() {
   if (!GOOGLE_CID || !(window.google && google.accounts && google.accounts.id)) return;
-  google.accounts.id.initialize({ client_id: GOOGLE_CID, callback: onGoogleCred, auto_select: false });
+  try { google.accounts.id.initialize({ client_id: GOOGLE_CID, callback: onGoogleCred, auto_select: false }); } catch { }
   const c = $('#gSignIn');
-  if (c) { c.innerHTML = ''; try { google.accounts.id.renderButton(c, { theme: 'outline', size: 'large', shape: 'pill', text: 'signin_with', width: 260, locale: LANG }); } catch { } }
+  if (c) { c.innerHTML = ''; try { google.accounts.id.renderButton(c, { theme: 'outline', size: 'large', shape: 'pill', text: 'signin_with', width: 260, locale: gisLocale() }); } catch { } }
 }
 async function onGoogleCred(resp) {
   if (!resp || !resp.credential) return;
@@ -616,12 +628,14 @@ function applyUser(u) {
   if (ws && ws.readyState === 1) ws.send(JSON.stringify({ type: 'name', name: myName }));
   const btn = $('#btnLogin'); if (btn) btn.innerHTML = `${u.picture ? `<img class="uav" src="${esc(u.picture)}" referrerpolicy="no-referrer">` : '👤'} ${esc((u.name || '').slice(0, 12))}`;
   const dn = $('#drawerName'); if (dn) dn.textContent = u.name;
+  if (typeof updateInfoGate === 'function') updateInfoGate();   // 로그인 시 경기정보방 잠금 해제
 }
 function logoutUser() {
   myUser = null; loggedIn = false; myName = null;
   try { localStorage.removeItem('liveup_user'); } catch { }
   try { if (window.google && google.accounts) google.accounts.id.disableAutoSelect(); } catch { }
   const btn = $('#btnLogin'); if (btn) btn.innerHTML = `🔑 <span data-i18n="login">${esc(t('login'))}</span>`;
+  if (typeof updateInfoGate === 'function') updateInfoGate();   // 로그아웃 시 다시 잠금
 }
 // 커스텀 "구글로 로그인" 버튼 → GIS One Tap 트리거 (폴백)
 $('#gFallback')?.addEventListener('click', () => {
@@ -1897,6 +1911,7 @@ function pickDonut(p) {
 }
 // ⭐ PICK 상세 화면 (종합지표 + 배당 + 경기데이터 + AI)
 async function openPick(id) {
+  if (!loggedIn) { openLogin(); return; }   // 🔒 로그인 후에만 PICK 상세 열람
   const e = feedGames[id] || infoGames.find(g => g.id === id); if (!e) return;
   feedGames[id] = e; modalEventId = id;
   $('#scrim').classList.add('on'); $('#modal').classList.add('on');
