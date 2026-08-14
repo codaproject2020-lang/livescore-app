@@ -22,6 +22,7 @@ const STR = {
   community: ['Community', '커뮤니티', 'コミュニティ', '社区', 'Comunidad', 'समुदाय', 'Cộng đồng', 'ชุมชน', 'Сообщество', 'Community', 'Communauté', 'Community'],
   chat: ['Chat', '채팅', 'チャット', '聊天', 'Chat', 'चैट', 'Trò chuyện', 'แชท', 'Чат', 'Chat', 'Chat', 'Chat'],
   login: ['Login', '로그인', 'ログイン', '登录', 'Entrar', 'लॉगिन', 'Đăng nhập', 'เข้าสู่ระบบ', 'Вход', 'Anmelden', 'Connexion', 'Accedi'],
+  logout: ['Logout', '로그아웃', 'ログアウト', '登出', 'Salir', 'लॉगआउट', 'Đăng xuất', 'ออกจากระบบ', 'Выход', 'Abmelden', 'Déconnexion', 'Esci'],
   download: ['Add to Home', '바탕화면 설치', 'ホームに追加', '添加到主屏', 'Añadir a inicio', 'होम में जोड़ें', 'Thêm vào màn hình', 'เพิ่มลงหน้าจอ', 'На главный экран', 'Zum Startbildschirm', "Ajouter à l'accueil", 'Aggiungi a Home'],
   share: ['Share', '공유', '共有', '分享', 'Compartir', 'शेयर', 'Chia sẻ', 'แชร์', 'Поделиться', 'Teilen', 'Partager', 'Condividi'],
   shareText: ['LIVE UP · Real-time scores', 'LIVE UP · 실시간 스코어', 'LIVE UP · リアルタイムスコア', 'LIVE UP · 实时比分', 'LIVE UP · Marcadores en vivo', 'LIVE UP · लाइव स्कोर', 'LIVE UP · Tỷ số trực tiếp', 'LIVE UP · สกอร์สด', 'LIVE UP · Счёт в реальном времени', 'LIVE UP · Live-Ergebnisse', 'LIVE UP · Scores en direct', 'LIVE UP · Punteggi live'],
@@ -201,6 +202,7 @@ function setLang(l) {
   if (typeof renderInfoList === 'function' && $('#view-info') && !$('#view-info').classList.contains('hidden')) renderInfoList();
   if (typeof refreshDateLabel === 'function') refreshDateLabel();
   if (typeof initGIS === 'function') { try { initGIS(); } catch { } }   // 구글 버튼 언어 다시 반영
+  if (typeof renderAuthUI === 'function') renderAuthUI();   // 로그인/로그아웃 라벨 언어 반영
 }
 
 // ============================================================
@@ -626,15 +628,25 @@ async function onGoogleCred(resp) {
 function applyUser(u) {
   myUser = u; myName = u.name; loggedIn = true;
   if (ws && ws.readyState === 1) ws.send(JSON.stringify({ type: 'name', name: myName }));
-  const btn = $('#btnLogin'); if (btn) btn.innerHTML = `${u.picture ? `<img class="uav" src="${esc(u.picture)}" referrerpolicy="no-referrer">` : '👤'} ${esc((u.name || '').slice(0, 12))}`;
-  const dn = $('#drawerName'); if (dn) dn.textContent = u.name;
+  renderAuthUI();
   if (typeof updateInfoGate === 'function') updateInfoGate();   // 로그인 시 경기정보방 잠금 해제
+}
+// 로그인/로그아웃 상태에 맞춰 모든 로그인 버튼(PC·모바일·드로어) 갱신
+function renderAuthUI() {
+  const pic = myUser && myUser.picture ? `<img class="uav" src="${esc(myUser.picture)}" referrerpolicy="no-referrer">` : '👤';
+  const nm = myUser ? esc((myUser.name || '').slice(0, 10)) : '';
+  const btn = $('#btnLogin');
+  if (btn) btn.innerHTML = loggedIn ? `${pic} ${nm} · ${esc(t('logout'))}` : `🔑 <span data-i18n="login">${esc(t('login'))}</span>`;
+  const du = $('#drawerLogin');
+  if (du) du.innerHTML = loggedIn ? `<span class="em">🚪</span><span>${esc(t('logout'))}</span>` : `<span class="em">🔑</span><span data-i18n="login">${esc(t('login'))}</span>`;
+  const bu = $('#btnUser'); if (bu) bu.innerHTML = loggedIn ? pic : '👤';
+  const dn = $('#drawerName'); if (dn) dn.textContent = loggedIn && myUser ? myUser.name : '손님';
 }
 function logoutUser() {
   myUser = null; loggedIn = false; myName = null;
   try { localStorage.removeItem('liveup_user'); } catch { }
   try { if (window.google && google.accounts) google.accounts.id.disableAutoSelect(); } catch { }
-  const btn = $('#btnLogin'); if (btn) btn.innerHTML = `🔑 <span data-i18n="login">${esc(t('login'))}</span>`;
+  renderAuthUI();
   if (typeof updateInfoGate === 'function') updateInfoGate();   // 로그아웃 시 다시 잠금
 }
 // 커스텀 "구글로 로그인" 버튼 → GIS One Tap 트리거 (폴백)
