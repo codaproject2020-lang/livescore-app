@@ -258,6 +258,14 @@ table.rank td.pt{font-weight:900;color:var(--blue)}
 .cmsg .u{font-weight:800;color:var(--blueDark);margin-right:6px}
 .cmsg.me .u{color:var(--red)}
 .cmsg .sys{color:var(--dim);font-style:italic;font-size:12px}
+/* 🎙️ AI 중계봇 채팅 메시지 (선수/팀 사진 + 이벤트) */
+.cmsg.bot{display:flex;gap:8px;align-items:flex-start;background:linear-gradient(180deg,#fff6ec,#fbfdff);border:1px solid var(--gold);border-radius:12px;padding:8px 10px;margin:6px 0}
+.cmsg.bot .bot-av{width:30px;height:30px;border-radius:50%;flex:0 0 auto;object-fit:cover;background:#fff;border:1px solid var(--line)}
+.cmsg.bot .bot-av.ic{display:flex;align-items:center;justify-content:center;font-size:16px}
+.cmsg.bot .bot-body{display:flex;flex-direction:column;gap:1px;min-width:0}
+.cmsg.bot .bot-nm{font-size:10.5px;font-weight:800;color:var(--gold-dk,#b8860b)}
+.cmsg.bot .bot-tx{font-size:13px;font-weight:700;color:var(--navy);line-height:1.35}
+.cmsg.bot .bot-tx b{color:var(--red)}
 .chat-input{display:flex;gap:8px;padding:10px 12px;border-top:1px solid var(--line);background:#fff}
 .chat-input .ci{flex:1;border:1px solid var(--line);border-radius:20px;padding:9px 14px;font-size:13px;outline:none;font-family:inherit}
 .chat-input .cs{background:var(--blue);color:#fff;border:none;border-radius:20px;padding:0 16px;font-weight:800;cursor:pointer}

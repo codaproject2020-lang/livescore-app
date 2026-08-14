@@ -170,6 +170,7 @@ const STR = {
   evRun: ['Runner on base — {team}', '출루! {team}', '出塁！{team}', '上垒！{team}', 'En base — {team}', 'बेस पर {team}', 'Lên base {team}', 'ขึ้นเบส {team}', 'На базе {team}', 'Auf Base {team}', 'Sur base {team}', 'In base {team}'],
   battingNow: ['batting', '공격 중', '攻撃中', '进攻中', 'al bate', 'बल्लेबाजी', 'đang tấn công', 'กำลังรุก', 'атакует', 'am Schlag', 'à l’attaque', 'in attacco'],
   liveSitu: ['Live situation', '현재 상황', '現在の状況', '当前局面', 'Situación', 'लाइव स्थिति', 'Tình huống', 'สถานการณ์', 'Ситуация', 'Situation', 'Situation', 'Situazione'],
+  liveCast: ['LIVE UP Cast', 'LIVE UP 중계', 'LIVE UP実況', 'LIVE UP解说', 'Narración LIVE UP', 'LIVE UP कमेंट्री', 'Tường thuật LIVE UP', 'ถ่ายทอด LIVE UP', 'Трансляция LIVE UP', 'LIVE UP-Ticker', 'Live LIVE UP', 'Cronaca LIVE UP'],
   showMore: ['Show earlier', '이전 이벤트 더보기', '前の速報', '查看更早', 'Ver más', 'और देखें', 'Xem thêm', 'ดูเพิ่ม', 'Ещё', 'Mehr anzeigen', 'Voir plus', 'Mostra altro'],
   showLess: ['Collapse', '접기', '閉じる', '收起', 'Contraer', 'छिपाएं', 'Thu gọn', 'ย่อ', 'Свернуть', 'Einklappen', 'Réduire', 'Comprimi'],
   evSet: ['Current set {s}', '현재 세트 {s}', '現在のセット {s}', '当前局 {s}', 'Set actual {s}', 'वर्तमान सेट {s}', 'Set hiện tại {s}', 'เซ็ตปัจจุบัน {s}', 'Текущий сет {s}', 'Aktueller Satz {s}', 'Set actuel {s}', 'Set attuale {s}'],
@@ -1127,12 +1128,14 @@ let modalChatUI = null, modalEventId = null, modalPredict = null;
 const eventLogs = {};   // id -> [{t, icon, text}]
 const snapForLog = {};  // id -> 직전 스냅샷
 function nowHM() { const d = new Date(); return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`; }
-function pushLog(id, icon, text) {
+function pushLog(id, icon, text, avatar) {
   const arr = (eventLogs[id] = eventLogs[id] || []);
   const last = arr[arr.length - 1];
   if (last && last.text === text) return;         // 연속 중복 방지
   arr.push({ t: nowHM(), icon, text });
   if (arr.length > 40) arr.shift();
+  // 🎙️ 지금 보고 있는 경기면 채팅방에도 중계봇 메시지로 흘려보냄 (로컬 표시)
+  if (typeof modalEventId !== 'undefined' && modalEventId === id && typeof addMsg === 'function') addMsg({ type: 'bot', icon, text, avatar });
 }
 function logChanges(id, e) {
   const p = snapForLog[id];
@@ -1149,13 +1152,13 @@ function logChanges(id, e) {
   const BAT = snap.batTeam === 'home' ? HM : snap.batTeam === 'away' ? AW : '';
   if (p) {
     if (state.sport === 'baseball') {
-      if (snap.hs > p.hs) pushLog(id, '🔴', ai('evScore', { team: HM, h: snap.hs, a: snap.as }));
-      if (snap.as > p.as) pushLog(id, '🔴', ai('evScore', { team: AW, h: snap.hs, a: snap.as }));
-      if (snap.hh != null && p.hh != null && snap.hh > p.hh) pushLog(id, '🏏', ai('evHit', { team: HM, n: snap.hh }));
-      if (snap.ah != null && p.ah != null && snap.ah > p.ah) pushLog(id, '🏏', ai('evHit', { team: AW, n: snap.ah }));
-      if (snap.he != null && p.he != null && snap.he > p.he) pushLog(id, '⚠️', ai('evError', { team: HM, n: snap.he }));
-      if (snap.ae != null && p.ae != null && snap.ae > p.ae) pushLog(id, '⚠️', ai('evError', { team: AW, n: snap.ae }));
-      if (snap.out != null && p.out != null && snap.out > p.out && snap.inn === p.inn && snap.half === p.half && BAT) pushLog(id, '🙅', ai('evOut', { team: BAT, n: snap.out }));
+      if (snap.hs > p.hs) pushLog(id, '🔴', ai('evScore', { team: HM, h: snap.hs, a: snap.as }), e.homeLogo);
+      if (snap.as > p.as) pushLog(id, '🔴', ai('evScore', { team: AW, h: snap.hs, a: snap.as }), e.awayLogo);
+      if (snap.hh != null && p.hh != null && snap.hh > p.hh) pushLog(id, '🏏', ai('evHit', { team: HM, n: snap.hh }), e.homeLogo);
+      if (snap.ah != null && p.ah != null && snap.ah > p.ah) pushLog(id, '🏏', ai('evHit', { team: AW, n: snap.ah }), e.awayLogo);
+      if (snap.he != null && p.he != null && snap.he > p.he) pushLog(id, '⚠️', ai('evError', { team: HM, n: snap.he }), e.homeLogo);
+      if (snap.ae != null && p.ae != null && snap.ae > p.ae) pushLog(id, '⚠️', ai('evError', { team: AW, n: snap.ae }), e.awayLogo);
+      if (snap.out != null && p.out != null && snap.out > p.out && snap.inn === p.inn && snap.half === p.half && BAT) pushLog(id, '🙅', ai('evOut', { team: BAT, n: snap.out }), snap.batTeam === 'home' ? e.homeLogo : e.awayLogo);
       if (snap.inn !== p.inn || snap.half !== p.half) { if (snap.inn) pushLog(id, '🔄', ai('evInnStart', { x: inningLabel(snap.inn, snap.half) })); }
     } else {
       if (snap.hs > p.hs) pushLog(id, '🔴', ai('evScore', { team: HM, h: snap.hs, a: snap.as }));
@@ -2252,6 +2255,14 @@ function addMsg(m) {
   chatUIs.forEach(ui => {
     const div = document.createElement('div');
     if (m.type === 'sys') { div.className = 'cmsg'; div.innerHTML = `<span class="sys">${esc(m.text)}</span>`; }
+    else if (m.type === 'bot') {
+      // 🤖 AI 중계봇 메시지 (선수/팀 사진 + 이벤트 텍스트) — m.text 는 앱 생성 안전 HTML
+      div.className = 'cmsg bot';
+      const av = m.avatar
+        ? `<img class="bot-av" src="${esc(m.avatar)}" referrerpolicy="no-referrer" onerror="this.replaceWith(Object.assign(document.createElement('span'),{className:'bot-av ic',textContent:'${m.icon || '⚾'}'}))">`
+        : `<span class="bot-av ic">${m.icon || '⚾'}</span>`;
+      div.innerHTML = `${av}<div class="bot-body"><span class="bot-nm">🎙️ ${esc(t('liveCast'))}</span><span class="bot-tx">${m.icon || ''} ${m.text}</span></div>`;
+    }
     else { div.className = 'cmsg' + (m.name === myName ? ' me' : ''); div.innerHTML = `<span class="u">${esc(m.name)}</span>${esc(m.text)}`; }
     ui.msgs.appendChild(div);
     ui.msgs.scrollTop = ui.msgs.scrollHeight;
