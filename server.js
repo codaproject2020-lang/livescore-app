@@ -966,8 +966,9 @@ function ymdInTz(iso, tz) {
 async function buildGamesCore(sport, date, tz) {
   const cfg = AS[sport]; if (!cfg) return { games: [], j: {} };
   tz = tz || 'Asia/Seoul';
-  // 경기(미국) 날짜 기준으로 그룹 — livescore.co.kr 과 동일하게 (해당 날짜 슬레이트가 그 탭에)
-  const apiDates = [date];
+  // 🗓️ 뷰어(한국) 날짜 기준으로 그룹 — 그 탭엔 한국시간 그 날짜 경기만. 미국 새벽 경기 누락 방지 위해 전날치도 받아 필터
+  const prevDate = new Date(Date.parse(date + 'T12:00:00Z') - 864e5).toISOString().slice(0, 10);
+  const apiDates = (sport === 'baseball') ? [prevDate, date] : [date];
   let j = {}; let games = []; const _seen = new Set();
   for (const dt of apiDates) {
     const jj = await asRaw(sport, `${cfg.path}?date=${dt}&timezone=${encodeURIComponent(tz)}`, 6000).catch(() => ({ response: [] }));
@@ -1021,6 +1022,8 @@ async function buildGamesCore(sport, date, tz) {
       }
     } catch (e) { /* TheSports 실패 시 API-Sports 유지 */ }
   }
+  // 🗓️ 야구: 뷰어(한국) 로컬 날짜가 선택 날짜와 같은 경기만 — 그 탭엔 한국시간 그 날짜 경기만
+  if (sport === 'baseball') games = games.filter(g => !g.date || ymdInTz(g.date, tz) === date);
   return { games, j };
 }
 
