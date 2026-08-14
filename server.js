@@ -1758,6 +1758,54 @@ async function pushRedCheck(g, prevReds) {
 }
 setInterval(() => { pushTick().catch(() => {}); }, 30000);
 
+// ============================================================
+//  🎙️ 서버 사이드 중계봇 — 시청 중인 경기방(event:{id})에 이벤트를 채팅으로 기록
+//  · 사람이 남긴 채팅처럼 HISTORY에 저장 → 방 나갔다 와도 유지, 모든 시청자 공유
+//  · 구조화된 이벤트(kind)로 보내고, 팀명/문구 번역은 클라이언트가 각 언어로 렌더
+// ============================================================
+const castSnap = {};   // gameId -> 직전 스냅샷
+function pushHistory(room, obj, cap) {
+  const h = HISTORY.get(room) || []; h.push(obj); while (h.length > (cap || 30)) h.shift(); HISTORY.set(room, h);
+}
+function castBroadcast(room, obj) { pushHistory(room, obj, 100); broadcast(room, obj); }
+function detectCast(sport, g) {
+  const room = 'event:' + g.id, id = g.id, prev = castSnap[id], bx = g.box || {};
+  const snap = {
+    state: g.state, hs: Number(g.hs) || 0, as: Number(g.as) || 0,
+    hh: bx.home ? bx.home.h : null, ah: bx.away ? bx.away.h : null,
+    inn: g.curInning != null ? g.curInning : null, half: g.inningHalf || null,
+    out: (g.bso && g.bso.outs != null) ? g.bso.outs : null, batTeam: g.batting || null
+  };
+  const base = () => ({ type: 'bot', home: g.home, away: g.away, league: g.league, homeLogo: g.homeLogo, awayLogo: g.awayLogo, sport, ts: Date.now() });
+  if (prev) {
+    if (sport === 'baseball') {
+      if (snap.hs > prev.hs) castBroadcast(room, Object.assign(base(), { kind: 'score', side: 'home', hs: snap.hs, as: snap.as }));
+      if (snap.as > prev.as) castBroadcast(room, Object.assign(base(), { kind: 'score', side: 'away', hs: snap.hs, as: snap.as }));
+      if (snap.hh != null && prev.hh != null && snap.hh > prev.hh) castBroadcast(room, Object.assign(base(), { kind: 'hit', side: 'home', n: snap.hh }));
+      if (snap.ah != null && prev.ah != null && snap.ah > prev.ah) castBroadcast(room, Object.assign(base(), { kind: 'hit', side: 'away', n: snap.ah }));
+      if (snap.out != null && prev.out != null && snap.out > prev.out && snap.inn === prev.inn && snap.half === prev.half && snap.batTeam) castBroadcast(room, Object.assign(base(), { kind: 'out', side: snap.batTeam, n: snap.out }));
+      if ((snap.inn !== prev.inn || snap.half !== prev.half) && snap.inn) castBroadcast(room, Object.assign(base(), { kind: 'inn', inn: snap.inn, half: snap.half }));
+    } else if (sport === 'football') {
+      if (snap.hs > prev.hs) castBroadcast(room, Object.assign(base(), { kind: 'goal', side: 'home', hs: snap.hs, as: snap.as }));
+      if (snap.as > prev.as) castBroadcast(room, Object.assign(base(), { kind: 'goal', side: 'away', hs: snap.hs, as: snap.as }));
+    }
+  }
+  castSnap[id] = snap;
+}
+async function castTick() {
+  // 사람이 보고 있는 경기방만 폴링 (없으면 스킵 → 서버 부하/쿼리 절약)
+  const watched = [...rooms.keys()].filter(r => r.startsWith('event:') && roomSet(r).size > 0);
+  if (!watched.length) return;
+  const ids = new Set(watched.map(r => r.slice(6)));
+  const date = new Date().toISOString().slice(0, 10);
+  for (const sport of ['baseball', 'football']) {
+    let games = [];
+    try { games = (await buildGamesCore(sport, date)).games || []; } catch (e) { continue; }
+    for (const g of games) { if (ids.has(String(g.id)) && g.state === 'live') detectCast(sport, g); }
+  }
+}
+setInterval(() => { castTick().catch(() => {}); }, 10000);
+
 // 접속인원 주기적 브로드캐스트(집계 정확도)
 setInterval(() => { for (const room of rooms.keys()) sendPresence(room); }, 15000);
 
