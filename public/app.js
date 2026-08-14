@@ -62,6 +62,8 @@ const STR = {
   ytFail: ['Load failed — opening link', '불러오기 실패 — 링크로 열립니다', '読み込み失敗 — リンクで開きます', '加载失败 — 用链接打开', 'Error — abriendo enlace', 'लोड विफल — लिंक खुल रहा', 'Lỗi tải — mở bằng liên kết', 'โหลดล้มเหลว — เปิดลิงก์', 'Ошибка — открываю ссылку', 'Fehler — Link wird geöffnet', 'Échec — ouverture du lien', 'Errore — apro il link'],
   matchStats: ['Match Stats', '경기 스탯', '試合スタッツ', '比赛数据', 'Estadísticas', 'मैच आँकड़े', 'Thống kê trận', 'สถิติแมตช์', 'Статистика матча', 'Spielstatistik', 'Stats du match', 'Statistiche'],
   playerRatings: ['Player Ratings', '선수 평점', '選手評価', '球员评分', 'Notas jugadores', 'खिलाड़ी रेटिंग', 'Điểm cầu thủ', 'คะแนนผู้เล่น', 'Оценки игроков', 'Spielernoten', 'Notes des joueurs', 'Voti giocatori'],
+  coach: ['Coach', '감독', '監督', '主教练', 'Entrenador', 'कोच', 'HLV', 'โค้ช', 'Тренер', 'Trainer', 'Entraîneur', 'Allenatore'],
+  subs: ['Subs', '교체', '控え', '替补', 'Suplentes', 'सब्स', 'Dự bị', 'ตัวสำรอง', 'Запасные', 'Ersatz', 'Remplaçants', 'Riserve'],
   aiSum: ['AI Summary', 'AI 총정리', 'AI要約', 'AI总结', 'Resumen IA', 'AI सारांश', 'Tóm tắt AI', 'สรุป AI', 'AI-обзор', 'KI-Zusammenfassung', 'Résumé IA', 'Riepilogo IA'],
   liveEv: ['Live Events', '실시간 이벤트', 'ライブ速報', '实时事件', 'Eventos en vivo', 'लाइव इवेंट', 'Sự kiện trực tiếp', 'เหตุการณ์สด', 'События', 'Live-Events', 'Événements', 'Eventi live'],
   aiPred: ['AI Prediction', 'AI 승부 예측', 'AI予想', 'AI预测', 'Predicción IA', 'AI भविष्यवाणी', 'Dự đoán AI', 'ทำนายผล AI', 'AI-прогноз', 'KI-Prognose', 'Pronostic IA', 'Pronostico IA'],
@@ -1176,9 +1178,24 @@ async function updateEvents(e) {
 // ===== 선발 라인업 (축구=포메이션 배치도 / MLB=타순·선수 최근경기) =====
 function shortName(n) { const p = String(n || '').trim().split(' '); return p.length > 1 ? p[p.length - 1] : n; }
 function teamShort(n) { return shortName(n); }
+// 포메이션 좌표(grid)가 없을 때: 선발 명단을 사진+이름 리스트로 표시 (좌표 미제공 리그/시점 대응)
+function renderLineupList(t) {
+  const all = t.startXI || [];
+  const hd = `<div class="pitch-hd">${esc(t.team)}${t.formation ? ` · <b>${esc(t.formation)}</b>` : ''}${t.coach ? ` · ${esc(t('coach'))} ${esc(t.coach)}` : ''}</div>`;
+  if (!all.length) return `<div class="pitch">${hd}<div class="lu-note">-</div></div>`;
+  const rows = all.map(p => {
+    const face = footFace(p.id), num = esc(p.number == null ? '' : String(p.number));
+    const av = face
+      ? `<span class="lulist-av has-face"><img src="${face}" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.parentNode.classList.remove('has-face');this.parentNode.textContent='${num || '·'}'"></span>`
+      : `<span class="lulist-av">${num || '·'}</span>`;
+    return `<div class="lulist-row lu-dot" data-pid="${esc(p.id)}" data-name="${esc(p.name)}" data-pos="${esc(p.pos || '')}" data-num="${num}">${av}<span class="lulist-num">${num}</span><span class="lulist-nm">${esc(p.name)}</span>${p.pos ? `<span class="lulist-pos">${esc(p.pos)}</span>` : ''}</div>`;
+  }).join('');
+  const subs = (t.subs || []).length ? `<div class="lulist-sub-hd">${esc(t('subs') || '교체')}</div>` + (t.subs || []).map(p => `<div class="lulist-row lu-dot sub" data-pid="${esc(p.id)}" data-name="${esc(p.name)}" data-pos="${esc(p.pos || '')}" data-num="${esc(p.number == null ? '' : String(p.number))}"><span class="lulist-av sm">${esc(p.number == null ? '' : String(p.number))}</span><span class="lulist-nm">${esc(p.name)}</span></div>`).join('') : '';
+  return `<div class="pitch">${hd}<div class="lulist">${rows}${subs}</div></div>`;
+}
 function renderPitch(t) {
   const xi = (t.startXI || []).filter(p => p.grid);
-  if (!xi.length) return `<div class="pitch"><div class="pitch-hd">${esc(t.team)} · ${esc(t.formation)}</div><div class="lu-note">배치 좌표 없음</div></div>`;
+  if (!xi.length) return renderLineupList(t);   // 좌표 없으면 명단 리스트로 폴백
   const rows = {};
   xi.forEach(p => { const g = String(p.grid).split(':'); const r = +g[0], c = +g[1]; (rows[r] = rows[r] || []).push({ ...p, c }); });
   const rk = Object.keys(rows).map(Number).sort((a, b) => a - b);

@@ -597,6 +597,19 @@ table.boxsc .he{color:var(--sub);background:#fafbfc;font-weight:800}
 .pitch{margin-bottom:12px;border:1px solid var(--line);border-radius:12px;overflow:hidden;background:#fff}
 .pitch-hd{font-size:12px;font-weight:700;color:var(--navy);padding:8px 12px;background:#f3f6f9;border-bottom:1px solid var(--line2)}
 .pitch-hd b{color:var(--answer)}
+/* 포메이션 좌표 없을 때 명단 리스트 */
+.lulist{padding:4px 0}
+.lulist-row{display:flex;align-items:center;gap:9px;padding:7px 12px;border-bottom:1px solid var(--line);cursor:pointer}
+.lulist-row:last-child{border-bottom:0}
+.lulist-row.sub{opacity:.78}
+.lulist-av{width:28px;height:28px;border-radius:50%;background:var(--navy);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:12px;flex:0 0 auto;overflow:hidden}
+.lulist-av.sm{width:22px;height:22px;font-size:10.5px;background:#8a97a8}
+.lulist-av.has-face{background:#eef1f5}
+.lulist-av img{width:100%;height:100%;object-fit:cover}
+.lulist-num{min-width:20px;text-align:center;color:var(--sub);font-weight:800;font-size:11px}
+.lulist-nm{flex:1;font-weight:700;color:var(--navy);font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.lulist-pos{color:var(--sub);font-size:11px;font-weight:700}
+.lulist-sub-hd{padding:8px 12px 4px;font-size:11px;font-weight:800;color:var(--sub);background:#f7f9fb;border-top:1px solid var(--line)}
 .pitch-field{position:relative;width:100%;padding-top:118%;background:linear-gradient(180deg,#1f7a3d,#249247);background-image:repeating-linear-gradient(180deg,rgba(255,255,255,.05) 0 8%,rgba(0,0,0,.03) 8% 16%)}
 .lu-dot{position:absolute;transform:translate(-50%,-50%);display:flex;flex-direction:column;align-items:center;gap:2px;cursor:pointer;width:52px}
 .lu-num{width:26px;height:26px;border-radius:50%;background:#fff;color:var(--navy);font-size:12px;font-weight:900;display:flex;align-items:center;justify-content:center;box-shadow:0 1px 4px rgba(0,0,0,.35);border:2px solid var(--gold)}
