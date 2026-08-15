@@ -111,6 +111,7 @@ html,body{overflow-x:hidden;max-width:100%}
 .abc-nm{flex:1;font-weight:700;color:var(--navy);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .abc-line{font-weight:800;color:var(--navy);font-variant-numeric:tabular-nums}
 .abc-line i{color:var(--sub);font-style:normal;margin:0 1px}
+.abc-pos{min-width:24px;text-align:center;font-size:9.5px;font-weight:800;color:#fff;background:var(--navy);border-radius:5px;padding:2px 3px;flex:0 0 auto}
 .rhemini table{border-collapse:collapse;font-size:11px;text-align:center}
 .rhemini th,.rhemini td{border:1px solid var(--line2);padding:2px 7px;min-width:22px}
 .rhemini th{background:#f3f6f9;color:var(--sub);font-size:9px;font-weight:800}

@@ -797,8 +797,9 @@ function buildLeagueRow(games) {
   $$('#leagueRow .lgchip').forEach(c => c.addEventListener('click', () => {
     state.leagueFilter = c.dataset.lg;
     $$('#leagueRow .lgchip').forEach(x => x.classList.remove('on')); c.classList.add('on');
-    // 활성 화면에 필터 적용 (경기 정보방 / 라이브)
-    if ($('#view-info') && !$('#view-info').classList.contains('hidden')) renderInfoList();
+    // 활성 화면에 필터 적용 (픽 제공 / 경기 정보방 / 라이브)
+    if ($('#view-odds') && !$('#view-odds').classList.contains('hidden') && typeof renderPickHubList === 'function') renderPickHubList();
+    else if ($('#view-info') && !$('#view-info').classList.contains('hidden')) renderInfoList();
     else renderFeed(filterGames());
   }));
 }
@@ -1049,7 +1050,8 @@ function atbatCard(e) {
   const rows = e.atbat.players.slice(0, 3).map(p => {
     const nm = (LANG === 'ko' && p.name_ko) ? p.name_ko : (p.name || '-');
     const face = p.photo ? `<img class="abc-face" src="${esc(p.photo)}" referrerpolicy="no-referrer" loading="lazy" onerror="this.replaceWith(Object.assign(document.createElement('span'),{className:'abc-face noimg',textContent:'🏏'}))">` : '<span class="abc-face noimg">🏏</span>';
-    return `<div class="abc-row">${face}<span class="abc-nm">${esc(nm)}</span><span class="abc-line">${esc(p.h == null ? 0 : p.h)}<i>/</i>${esc(p.ab == null ? 0 : p.ab)}</span></div>`;
+    const pos = p.pos ? `<span class="abc-pos">${esc(p.pos)}</span>` : '';
+    return `<div class="abc-row">${pos}${face}<span class="abc-nm">${esc(nm)}</span><span class="abc-line">${esc(p.h == null ? 0 : p.h)}<i>/</i>${esc(p.ab == null ? 0 : p.ab)}</span></div>`;
   }).join('');
   return `<div class="abcard"><div class="abc-hd">🏏 ${esc(t('nowBatting'))}</div>${rows}</div>`;
 }
@@ -1866,7 +1868,9 @@ function buildPickHubNav() {
   box.innerHTML = SPORTS.map(s => `<div class="ochip ${s.key === pickHubSport ? 'on' : ''}" data-psport="${s.key}">${s.em} ${esc(sportLabel(s))}</div>`).join('');
   $$('#oddsChips .ochip').forEach(c => c.addEventListener('click', () => {
     pickHubSport = c.dataset.psport;
+    state.leagueFilter = 'all';   // 종목 바꾸면 리그 필터 초기화 (이전 종목 리그 잔존 방지)
     $$('#oddsChips .ochip').forEach(x => x.classList.toggle('on', x.dataset.psport === pickHubSport));
+    $$('#leagueRow .lgchip').forEach(x => x.classList.toggle('on', x.dataset.lg === 'all'));
     loadPickHub();
   }));
 }
@@ -1922,10 +1926,16 @@ async function loadPickHub() {
     games.forEach(g => { feedGames[g.id] = g; });
     games.sort((a, b) => (b.state === 'live') - (a.state === 'live'));
     pickHubGames = games;
-    if (!games.length) { board.innerHTML = `<div class="loading">${esc(t('noPickGames'))}</div>`; return; }
-    board.innerHTML = games.map(pickCard).join('') + `<div class="foot">${esc(t('pickWarn'))}</div>`;
-    $$('#oddsBoard .pickcard').forEach(c => c.addEventListener('click', () => { state.sport = pickHubSport; openPick(c.dataset.pick); }));
+    renderPickHubList();
   } catch { board.innerHTML = `<div class="loading">-</div>`; }
+}
+// 픽 목록 렌더 (상단 리그칩 필터 적용) — 리그칩 클릭 시에도 이걸로 다시 그림
+function renderPickHubList() {
+  const board = $('#oddsBoard'); if (!board) return;
+  const games = state.leagueFilter === 'all' ? pickHubGames : (pickHubGames || []).filter(g => g.league === state.leagueFilter);
+  if (!games || !games.length) { board.innerHTML = `<div class="loading">${esc(t('noPickGames'))}</div>`; return; }
+  board.innerHTML = games.map(pickCard).join('') + `<div class="foot">${esc(t('pickWarn'))}</div>`;
+  $$('#oddsBoard .pickcard').forEach(c => c.addEventListener('click', () => { state.sport = pickHubSport; openPick(c.dataset.pick); }));
 }
 // 📌 픽 요약 블록 (시장 컨센서스 + LIVE UP 분석 + 최종 PICK) — 폼 로드 후 갱신됨
 function pickSummaryHtml(e, fh, fa) {
