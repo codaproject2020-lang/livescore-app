@@ -1663,8 +1663,19 @@ wss.on('connection', (ws) => {
       const prev = ws.room;
       ws.room = String(m.room || 'all');
       roomSet(ws.room).add(ws);
-      ws.send(JSON.stringify({ type: 'joined', room: ws.room, history: HISTORY.get(ws.room) || [] }));
       sendPresence(prev); sendPresence(ws.room);
+      const existing = HISTORY.get(ws.room) || [];
+      if (ws.room.startsWith('event:')) {
+        // 경기방: 이전 회차 요약을 재구성해 히스토리 앞에 붙여 전송 (늦게 들어와도 처음부터 보임)
+        const gid = ws.room.slice(6), room = ws.room;
+        buildRecap(gid).then(recap => {
+          if (ws.readyState === 1 && ws.room === room) ws.send(JSON.stringify({ type: 'joined', room, history: [...recap, ...existing] }));
+        }).catch(() => {
+          if (ws.readyState === 1 && ws.room === room) ws.send(JSON.stringify({ type: 'joined', room, history: existing }));
+        });
+      } else {
+        ws.send(JSON.stringify({ type: 'joined', room: ws.room, history: existing }));
+      }
     }
 
     if (m.type === 'chat') {
@@ -1806,6 +1817,38 @@ function pushHistory(room, obj, cap) {
   const h = HISTORY.get(room) || []; h.push(obj); while (h.length > (cap || 30)) h.shift(); HISTORY.set(room, h);
 }
 function castBroadcast(room, obj) { pushHistory(room, obj, 100); broadcast(room, obj); }
+// 🕘 늦게 들어온 사람용: 현재 경기 데이터로 이전 회차 요약 + 사전 안내를 재구성
+async function buildRecap(gameId) {
+  const date = new Date().toISOString().slice(0, 10);
+  for (const sport of ['baseball', 'football']) {
+    let games = [];
+    try { games = (await buildGamesCoreCached(sport, date)).games || []; } catch (e) { continue; }
+    const g = games.find(x => String(x.id) === String(gameId));
+    if (g) return recapMessages(sport, g);
+  }
+  return [];
+}
+function recapMessages(sport, g) {
+  const out = [];
+  let ts = Date.now() - 3600000;   // 과거로 표시(라이브 메시지와 구분)
+  const base = () => ({ type: 'bot', home: g.home, away: g.away, league: g.league, homeLogo: g.homeLogo, awayLogo: g.awayLogo, sport, ts: ++ts, recap: true });
+  const num = v => { const n = Number(v); return (v == null || v === '' || isNaN(n)) ? null : n; };
+  out.push(Object.assign(base(), { kind: 'intro' }));
+  if (sport === 'baseball') {
+    const bx = g.box || {}, hi = (bx.home && bx.home.innings) || {}, ai = (bx.away && bx.away.innings) || {};
+    const keys = [...Object.keys(hi), ...Object.keys(ai)].map(Number).filter(n => n > 0);
+    const maxInn = Math.max(g.curInning || 0, keys.length ? Math.max(...keys) : 0);
+    for (let i = 1; i <= maxInn; i++) {
+      const ar = num(ai[i]), hr = num(hi[i]);
+      if (ar > 0) out.push(Object.assign(base(), { kind: 'innsum', inn: i, half: 'top', side: 'away', n: ar }));
+      if (hr > 0) out.push(Object.assign(base(), { kind: 'innsum', inn: i, half: 'bottom', side: 'home', n: hr }));
+    }
+    out.push(Object.assign(base(), { kind: 'curbb', inn: g.curInning || maxInn || 1, half: g.inningHalf || null, hs: Number(g.hs) || 0, as: Number(g.as) || 0 }));
+  } else if (sport === 'football') {
+    out.push(Object.assign(base(), { kind: 'curfb', hs: Number(g.hs) || 0, as: Number(g.as) || 0, min: g.timer || g.period || null }));
+  }
+  return out;
+}
 function detectCast(sport, g) {
   const room = 'event:' + g.id, id = g.id, prev = castSnap[id], bx = g.box || {};
   const snap = {
