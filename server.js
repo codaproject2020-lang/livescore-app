@@ -1122,11 +1122,19 @@ const gamesCoreCache = new Map();
 async function buildGamesCoreCached(sport, date, tz, ttl = 8000) {
   const k = sport + '|' + date + '|' + (tz || '');
   const hit = gamesCoreCache.get(k), now = Date.now();
-  if (hit && now - hit.t < ttl) return hit.v;
-  const v = await buildGamesCore(sport, date, tz);
+  if (hit) {
+    // ⚡ stale-while-revalidate: 만료돼도 이전 값 즉시 반환 + 뒤에서 갱신 → 모든 요청이 즉시 응답
+    if (now - hit.t >= ttl && !hit.refreshing) {
+      hit.refreshing = true;
+      buildGamesCore(sport, date, tz)
+        .then(v => gamesCoreCache.set(k, { t: Date.now(), v }))
+        .catch(() => { hit.refreshing = false; });
+    }
+    return hit.v;
+  }
+  const v = await buildGamesCore(sport, date, tz);   // 최초 1회만 대기
   gamesCoreCache.set(k, { t: now, v });
-  // 캐시 항목 과다 방지 (오래된 것 정리)
-  if (gamesCoreCache.size > 40) { for (const [key, val] of gamesCoreCache) { if (now - val.t > 60000) gamesCoreCache.delete(key); } }
+  if (gamesCoreCache.size > 40) { for (const [key, val] of gamesCoreCache) { if (now - val.t > 120000) gamesCoreCache.delete(key); } }
   return v;
 }
 // 날짜별 경기 (정규화 + 해외배당 매칭)
