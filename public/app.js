@@ -1170,7 +1170,7 @@ function atbatCard(e) {
   const rows = e.atbat.players.slice(0, 3).map(p => {
     const nm = (LANG === 'ko' && p.name_ko) ? p.name_ko : (p.name || '-');
     const face = p.photo ? `<img class="abc-face" src="${esc(p.photo)}" referrerpolicy="no-referrer" loading="lazy" onerror="this.replaceWith(Object.assign(document.createElement('span'),{className:'abc-face noimg',textContent:'🏏'}))">` : '<span class="abc-face noimg">🏏</span>';
-    const pos = p.pos ? `<span class="abc-pos">${esc(p.pos)}</span>` : '';
+    const pos = p.pos ? `<span class="abc-pos">${esc(p.pos)}</span>` : '<span class="abc-pos abc-pos-empty"></span>';
     return `<div class="abc-row">${pos}${face}<span class="abc-nm">${esc(nm)}</span><span class="abc-line">${esc(p.h == null ? 0 : p.h)}<i>/</i>${esc(p.ab == null ? 0 : p.ab)}</span></div>`;
   }).join('');
   return `<div class="abcard"><div class="abc-hd">🏏 ${esc(t('nowBatting'))}</div>${rows}</div>`;

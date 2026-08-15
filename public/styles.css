@@ -125,7 +125,8 @@ html,body{overflow-x:hidden;max-width:100%}
 .abc-nm{flex:1;font-weight:700;color:var(--navy);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .abc-line{font-weight:800;color:var(--navy);font-variant-numeric:tabular-nums}
 .abc-line i{color:var(--sub);font-style:normal;margin:0 1px}
-.abc-pos{min-width:24px;text-align:center;font-size:9.5px;font-weight:800;color:#fff;background:var(--navy);border-radius:5px;padding:2px 3px;flex:0 0 auto}
+.abc-pos{min-width:24px;text-align:center;font-size:9.5px;font-weight:800;color:#fff;background:var(--navy);border-radius:5px;padding:2px 3px;flex:0 0 auto;box-sizing:border-box}
+.abc-pos.abc-pos-empty{background:transparent;visibility:hidden}
 /* 🏠 홈(추천) 화면 */
 #view-home{padding:10px 12px 24px}
 .home-sec{margin-bottom:18px}
