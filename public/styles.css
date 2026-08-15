@@ -724,6 +724,13 @@ table.boxsc .he{color:var(--sub);background:#fafbfc;font-weight:800}
 .es-line .bsomini{grid-column:auto;margin-top:0;width:100%}
 .ev-more{text-align:center;padding:9px;font-size:12px;font-weight:800;color:var(--navy);background:#f3f6f9;border:1px solid var(--line);border-radius:9px;margin-top:8px;cursor:pointer}
 .ev-more:hover{background:#e9eef4}
+/* 회차 탭 (이닝 / 전반·후반) */
+.ev-tabs{display:flex;gap:6px;overflow-x:auto;padding:8px 8px 7px;background:#fff;position:sticky;top:0;z-index:3;border-bottom:1px solid var(--line);-webkit-overflow-scrolling:touch;scrollbar-width:none}
+.ev-tabs::-webkit-scrollbar{display:none}
+.ev-tab{flex:0 0 auto;font-size:12px;font-weight:800;color:var(--sub);background:#f1f4f8;border:1px solid var(--line);border-radius:999px;padding:5px 12px;cursor:pointer;white-space:nowrap;transition:.12s}
+.ev-tab:active{transform:scale(.95)}
+.ev-tab.on{color:#fff;background:var(--navy);border-color:var(--navy)}
+.ev-body .evrow:first-child{background:#fff8ee}
 .ev-rest.hidden{display:none}
 /* 라인업 공통 */
 .lu-note{padding:14px 12px;text-align:center;color:var(--dim);font-size:12px;line-height:1.6;background:#fff;border:1px solid var(--line);border-radius:10px}

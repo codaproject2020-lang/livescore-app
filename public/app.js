@@ -171,6 +171,16 @@ const STR = {
   battingNow: ['batting', '공격 중', '攻撃中', '进攻中', 'al bate', 'बल्लेबाजी', 'đang tấn công', 'กำลังรุก', 'атакует', 'am Schlag', 'à l’attaque', 'in attacco'],
   liveSitu: ['Live situation', '현재 상황', '現在の状況', '当前局面', 'Situación', 'लाइव स्थिति', 'Tình huống', 'สถานการณ์', 'Ситуация', 'Situation', 'Situation', 'Situazione'],
   liveCast: ['LIVE UP Cast', 'LIVE UP 중계', 'LIVE UP実況', 'LIVE UP解说', 'Narración LIVE UP', 'LIVE UP कमेंट्री', 'Tường thuật LIVE UP', 'ถ่ายทอด LIVE UP', 'Трансляция LIVE UP', 'LIVE UP-Ticker', 'Live LIVE UP', 'Cronaca LIVE UP'],
+  fbFirst: ['1st Half', '전반', '前半', '上半场'],
+  fbSecond: ['2nd Half', '후반', '後半', '下半场'],
+  fbET: ['Extra Time', '연장', '延長', '加时'],
+  recRuns: ['{team} scored {n}', '{team} {n}득점', '{team} {n}得点', '{team} {n}得分'],
+  recZero: ['No runs', '무득점', '無得点', '无得分'],
+  recWait: ['No records for this inning yet', '이 이닝 기록이 아직 없어요', 'この回の記録はまだありません', '暂无本局记录'],
+  castIntro: ['Live cast recap — {h} vs {a}', '실시간 중계 요약 — {h} vs {a}', '実況まとめ — {h} vs {a}', '解说回顾 — {h} vs {a}'],
+  castInn: ['{x} · {team} scored {n}', '{x} · {team} {n}득점', '{x} · {team} {n}得点', '{x} · {team} {n}得分'],
+  castCurBB: ['Now {x} · {h} {hs}:{as} {a}', '현재 {x} · {h} {hs}:{as} {a}', '現在 {x} · {h} {hs}:{as} {a}', '当前 {x} · {h} {hs}:{as} {a}'],
+  castCurFB: ['Now {min} · {h} {hs}:{as} {a}', '현재 {min} · {h} {hs}:{as} {a}', '現在 {min} · {h} {hs}:{as} {a}', '当前 {min} · {h} {hs}:{as} {a}'],
   nowBatting: ['Now batting', '타격 중', '攻撃中', '进攻中', 'Al bate', 'बल्लेबाजी', 'Đang tấn công', 'กำลังตี', 'Атака', 'Am Schlag', 'À la batte', 'In battuta'],
   homeTab: ['Home', '홈', 'ホーム', '主页', 'Inicio', 'होम', 'Trang chủ', 'หน้าแรก', 'Главная', 'Start', 'Accueil', 'Home'],
   myTeams: ['My Teams', '내 관심팀', 'マイチーム', '我的球队', 'Mis equipos', 'मेरी टीमें', 'Đội của tôi', 'ทีมของฉัน', 'Мои команды', 'Meine Teams', 'Mes équipes', 'Le mie squadre'],
@@ -1299,12 +1309,13 @@ let modalChatUI = null, modalEventId = null, modalPredict = null;
 const eventLogs = {};   // id -> [{t, icon, text}]
 const snapForLog = {};  // id -> 직전 스냅샷
 function nowHM() { const d = new Date(); return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`; }
-function pushLog(id, icon, text, avatar) {
+function pushLog(id, icon, text, meta) {
   const arr = (eventLogs[id] = eventLogs[id] || []);
   const last = arr[arr.length - 1];
   if (last && last.text === text) return;         // 연속 중복 방지
-  arr.push({ t: nowHM(), icon, text });
-  if (arr.length > 40) arr.shift();
+  const m = (meta && typeof meta === 'object') ? meta : {};
+  arr.push({ t: nowHM(), icon, text, inn: m.inn != null ? m.inn : null, half: m.half || null });
+  if (arr.length > 120) arr.shift();              // 회차 탭 위해 캡 상향(이른 이닝 유지)
   // (채팅방 중계봇은 서버에서 구동 → 히스토리에 저장되어 유지됨. 여기서는 상단 이벤트 피드만 적립)
 }
 function logChanges(id, e) {
@@ -1322,14 +1333,15 @@ function logChanges(id, e) {
   const BAT = snap.batTeam === 'home' ? HM : snap.batTeam === 'away' ? AW : '';
   if (p) {
     if (state.sport === 'baseball') {
-      if (snap.hs > p.hs) pushLog(id, '🔴', ai('evScore', { team: HM, h: snap.hs, a: snap.as }), e.homeLogo);
-      if (snap.as > p.as) pushLog(id, '🔴', ai('evScore', { team: AW, h: snap.hs, a: snap.as }), e.awayLogo);
-      if (snap.hh != null && p.hh != null && snap.hh > p.hh) pushLog(id, '🏏', ai('evHit', { team: HM, n: snap.hh }), e.homeLogo);
-      if (snap.ah != null && p.ah != null && snap.ah > p.ah) pushLog(id, '🏏', ai('evHit', { team: AW, n: snap.ah }), e.awayLogo);
-      if (snap.he != null && p.he != null && snap.he > p.he) pushLog(id, '⚠️', ai('evError', { team: HM, n: snap.he }), e.homeLogo);
-      if (snap.ae != null && p.ae != null && snap.ae > p.ae) pushLog(id, '⚠️', ai('evError', { team: AW, n: snap.ae }), e.awayLogo);
-      if (snap.out != null && p.out != null && snap.out > p.out && snap.inn === p.inn && snap.half === p.half && BAT) pushLog(id, '🙅', ai('evOut', { team: BAT, n: snap.out }), snap.batTeam === 'home' ? e.homeLogo : e.awayLogo);
-      if (snap.inn !== p.inn || snap.half !== p.half) { if (snap.inn) pushLog(id, '🔄', ai('evInnStart', { x: inningLabel(snap.inn, snap.half) })); }
+      const IM = { inn: snap.inn, half: snap.half };
+      if (snap.hs > p.hs) pushLog(id, '🔴', ai('evScore', { team: HM, h: snap.hs, a: snap.as }), IM);
+      if (snap.as > p.as) pushLog(id, '🔴', ai('evScore', { team: AW, h: snap.hs, a: snap.as }), IM);
+      if (snap.hh != null && p.hh != null && snap.hh > p.hh) pushLog(id, '🏏', ai('evHit', { team: HM, n: snap.hh }), IM);
+      if (snap.ah != null && p.ah != null && snap.ah > p.ah) pushLog(id, '🏏', ai('evHit', { team: AW, n: snap.ah }), IM);
+      if (snap.he != null && p.he != null && snap.he > p.he) pushLog(id, '⚠️', ai('evError', { team: HM, n: snap.he }), IM);
+      if (snap.ae != null && p.ae != null && snap.ae > p.ae) pushLog(id, '⚠️', ai('evError', { team: AW, n: snap.ae }), IM);
+      if (snap.out != null && p.out != null && snap.out > p.out && snap.inn === p.inn && snap.half === p.half && BAT) pushLog(id, '🙅', ai('evOut', { team: BAT, n: snap.out }), IM);
+      if (snap.inn !== p.inn || snap.half !== p.half) { if (snap.inn) pushLog(id, '🔄', ai('evInnStart', { x: inningLabel(snap.inn, snap.half) }), IM); }
     } else {
       if (snap.hs > p.hs) pushLog(id, '🔴', ai('evScore', { team: HM, h: snap.hs, a: snap.as }));
       if (snap.as > p.as) pushLog(id, '🔴', ai('evScore', { team: AW, h: snap.hs, a: snap.as }));
@@ -1341,41 +1353,82 @@ function logChanges(id, e) {
 function eventEmpty() {
   return `<div class="ev-empty">🤖 ${esc(t('noEvents'))}</div>`;
 }
+// 회차 탭 상태: id -> 선택 탭 키 / 사용자가 직접 눌렀는지
+const evTab = {}, evTabPin = {};
+const evRow = x => `<div class="evrow"><span class="evm">${esc(x.t || '')}</span><span class="evi">${x.icon || '•'}</span><span class="evt">${x.text}</span></div>`;
+function numOrNull(v) { const n = Number(v); return (v == null || v === '' || isNaN(n)) ? null : n; }
+// 탭바 렌더 + 클릭 배선(공통)
+function wireEvTabs(box, id, tabs, curKey, renderBody) {
+  if (evTab[id] == null || !evTabPin[id]) evTab[id] = curKey;
+  if (!tabs.some(tb => tb.key === evTab[id])) evTab[id] = curKey;
+  const draw = () => {
+    const bar = tabs.map(tb => `<button class="ev-tab${tb.key === evTab[id] ? ' on' : ''}" data-tk="${esc(String(tb.key))}">${esc(tb.label)}</button>`).join('');
+    box.innerHTML = `<div class="ev-tabs" id="evTabs">${bar}</div><div class="ev-body">${renderBody(evTab[id])}</div>`;
+    $$('#evTabs .ev-tab', box).forEach(btn => btn.addEventListener('click', () => {
+      evTab[id] = btn.dataset.tk; evTabPin[id] = true; draw();
+      const cur = $('#evTabs .ev-tab.on', box); if (cur) cur.scrollIntoView({ inline: 'center', block: 'nearest' });
+    }));
+    const on = $('#evTabs .ev-tab.on', box); if (on) on.scrollIntoView({ inline: 'center', block: 'nearest' });
+  };
+  draw();
+}
 async function updateEvents(e) {
   const box = $('#mEvents'); if (!box) return;
   if (state.sport === 'football') {
-    try {
-      const d = await fetchJSON(`/api/asports/events?fixture=${encodeURIComponent(e.id)}`, { tries: 1 });
-      const evs = d.events || [];
-      if (!evs.length) { box.innerHTML = eventEmpty(); return; }
-      box.innerHTML = evs.slice().reverse().map(ev => {
-        let icon = '•', label = ev.detail || ev.type;
-        if (ev.type === 'Goal') { icon = '⚽'; label = /own/i.test(ev.detail) ? t('fbOwn') : /penalty/i.test(ev.detail) ? t('fbPk') : t('fbGoal'); }
-        else if (ev.type === 'Card' && /red/i.test(ev.detail)) { icon = '🟥'; label = t('fbRed'); }
-        else if (ev.type === 'Card') { icon = '🟨'; label = t('fbYellow'); }
-        else if (/subst/i.test(ev.type)) { icon = '🔄'; label = t('fbSub'); }
-        else if (/var/i.test(ev.type)) { icon = '📺'; label = 'VAR'; }
-        const mm = ev.minute != null ? `${ev.minute}${ev.extra ? '+' + ev.extra : ''}'` : '';
-        const who = /subst/i.test(ev.type) ? `${esc(ev.assist)} → ${esc(ev.player)}` : `${esc(ev.player)}${ev.assist ? ` (${esc(t('fbAssist'))} ${esc(ev.assist)})` : ''}`;
-        return `<div class="evrow"><span class="evm">${esc(mm)}</span><span class="evi">${icon}</span><span class="evt"><b>${esc(label)}</b> ${who} · ${esc(ev.team)}</span></div>`;
-      }).join('');
-    } catch { box.innerHTML = eventEmpty(); }
-  } else {
-    const log = eventLogs[e.id] || [];
-    const situ = (state.sport === 'baseball') ? bsoSituation(e) : '';
-    if (!log.length) { box.innerHTML = situ + eventEmpty(); return; }
-    const rows = log.slice().reverse();
-    const rowHtml = x => `<div class="evrow"><span class="evm">${esc(x.t)}</span><span class="evi">${x.icon}</span><span class="evt">${x.text}</span></div>`;
-    const head = rows.slice(0, 7), rest = rows.slice(7);
-    box.innerHTML = situ + head.map(rowHtml).join('') +
-      (rest.length ? `<div class="ev-more" id="evMore">▼ ${esc(t('showMore'))} (${rest.length})</div><div class="ev-rest hidden" id="evRest">${rest.map(rowHtml).join('')}</div>` : '');
-    const mb = $('#evMore');
-    if (mb) mb.addEventListener('click', () => {
-      const r = $('#evRest'); if (!r) return;
-      r.classList.toggle('hidden');
-      mb.textContent = r.classList.contains('hidden') ? `▼ ${t('showMore')} (${rest.length})` : `▲ ${t('showLess')}`;
+    let evs = [];
+    try { const d = await fetchJSON(`/api/asports/events?fixture=${encodeURIComponent(e.id)}`, { tries: 1 }); evs = d.events || []; }
+    catch { box.innerHTML = eventEmpty(); return; }
+    if (!evs.length) { box.innerHTML = eventEmpty(); return; }
+    const half = ev => { const mn = ev.minute == null ? 0 : ev.minute; return mn > 90 ? 'ET' : mn > 45 ? '2H' : '1H'; };
+    const fmt = ev => {
+      let icon = '•', label = ev.detail || ev.type;
+      if (ev.type === 'Goal') { icon = '⚽'; label = /own/i.test(ev.detail) ? t('fbOwn') : /penalty/i.test(ev.detail) ? t('fbPk') : t('fbGoal'); }
+      else if (ev.type === 'Card' && /red/i.test(ev.detail)) { icon = '🟥'; label = t('fbRed'); }
+      else if (ev.type === 'Card') { icon = '🟨'; label = t('fbYellow'); }
+      else if (/subst/i.test(ev.type)) { icon = '🔄'; label = t('fbSub'); }
+      else if (/var/i.test(ev.type)) { icon = '📺'; label = 'VAR'; }
+      const mm = ev.minute != null ? `${ev.minute}${ev.extra ? '+' + ev.extra : ''}'` : '';
+      const who = /subst/i.test(ev.type) ? `${esc(ev.assist)} → ${esc(ev.player)}` : `${esc(ev.player)}${ev.assist ? ` (${esc(t('fbAssist'))} ${esc(ev.assist)})` : ''}`;
+      return { t: mm, icon, text: `<b>${esc(label)}</b> ${who} · ${esc(ev.team)}` };
+    };
+    const order = ['1H', '2H', 'ET'], lbl = { '1H': t('fbFirst'), '2H': t('fbSecond'), 'ET': t('fbET') };
+    const present = order.filter(k => evs.some(ev => half(ev) === k));
+    const tabs = present.map(k => ({ key: k, label: lbl[k] }));
+    const curKey = half(evs[evs.length - 1]) || present[present.length - 1] || '1H';
+    wireEvTabs(box, e.id, tabs, curKey, key => {
+      const list = evs.filter(ev => half(ev) === key).slice().reverse();
+      return list.length ? list.map(fmt).map(evRow).join('') : eventEmpty();
     });
+    return;
   }
+  // ⚾ 야구: 이닝 탭 (라이브 적립 + 이닝별 득점 재구성)
+  const situ = (state.sport === 'baseball') ? bsoSituation(e) : '';
+  const log = eventLogs[e.id] || [];
+  if (state.sport !== 'baseball') {
+    box.innerHTML = situ + (log.length ? log.slice().reverse().map(evRow).join('') : eventEmpty());
+    return;
+  }
+  const bx = e.box || {}, hIn = (bx.home && bx.home.innings) || {}, aIn = (bx.away && bx.away.innings) || {};
+  const keys = [...Object.keys(hIn), ...Object.keys(aIn)].map(Number).filter(n => n > 0);
+  const maxInn = Math.max(e.curInning || 0, keys.length ? Math.max(...keys) : 0, 1);
+  const HM = `<b>${esc(TN(e.home, e.league))}</b>`, AW = `<b>${esc(TN(e.away, e.league))}</b>`;
+  const tabs = []; for (let i = 1; i <= maxInn; i++) tabs.push({ key: String(i), label: inningLabel(i, null) });
+  const curKey = String(e.curInning || maxInn);
+  const cur = e.curInning || maxInn;
+  const bodyFor = key => {
+    const i = Number(key);
+    const live = log.filter(x => x.inn === i);
+    if (live.length) return live.slice().reverse().map(evRow).join('');
+    // 라이브 적립분이 없으면 이닝별 득점으로 요약 재구성
+    const ar = numOrNull(aIn[i]), hr = numOrNull(hIn[i]);
+    const rows = [];
+    const line = (half, team, r) => ({ icon: r > 0 ? '🔴' : '▪️', text: `${inningLabel(i, half)} · ${r > 0 ? ai('recRuns', { team, n: r }) : t('recZero')}` });
+    if (i <= cur) rows.push(line('top', AW, ar));
+    if (i < cur || (i === cur && e.inningHalf === 'bottom') || hr != null) rows.push(line('bottom', HM, hr));
+    return rows.length ? rows.map(evRow).join('') : `<div class="ev-empty">🤖 ${esc(t('recWait'))}</div>`;
+  };
+  box.innerHTML = situ + '<div id="evTabWrap"></div>';
+  wireEvTabs($('#evTabWrap', box), e.id, tabs, curKey, bodyFor);
 }
 // ⚾ 실시간 문자중계 상단: 현재 이닝·공격팀·B-S-O·주자 (매 갱신마다 새로고침)
 function bsoSituation(e) {
@@ -1926,6 +1979,7 @@ function renderDetail(e, pr) {
 async function openEvent(id) {
   const e = feedGames[id]; if (!e) return;
   modalEventId = id;
+  evTabPin[id] = false;   // 재입장 시 현재 이닝/전반후반 자동 선택
   $('#scrim').classList.add('on'); $('#modal').classList.add('on');
   $('#mTitle').textContent = e.league || '경기 상세';
   $('#mBody').innerHTML = `
@@ -2447,6 +2501,10 @@ function botFormat(m) {
     case 'hit': return { icon: '🏏', text: ai('evHit', { team, n: m.n }), avatar: logo };
     case 'out': return { icon: '🙅', text: ai('evOut', { team, n: m.n }), avatar: logo };
     case 'inn': return { icon: '🔄', text: ai('evInnStart', { x: inningLabel(m.inn, m.half) }), avatar: null };
+    case 'intro': return { icon: '🎙️', text: ai('castIntro', { h: HM, a: AW }), avatar: null };
+    case 'innsum': return { icon: '🔴', text: ai('castInn', { x: inningLabel(m.inn, m.half), team, n: m.n }), avatar: logo };
+    case 'curbb': return { icon: '📍', text: ai('castCurBB', { x: inningLabel(m.inn, m.half), h: HM, a: AW, hs: m.hs, as: m.as }), avatar: null };
+    case 'curfb': return { icon: '📍', text: ai('castCurFB', { min: (m.min != null ? m.min + "'" : ''), h: HM, a: AW, hs: m.hs, as: m.as }), avatar: null };
     default: return { icon: m.icon || '⚾', text: m.text || '', avatar: m.avatar };
   }
 }
