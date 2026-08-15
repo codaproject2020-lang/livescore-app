@@ -1424,6 +1424,39 @@ app.get('/api/mlb/live', async (req, res) => {
     });
   } catch (e) { res.status(502).json({ found: false, error: String(e.message || e) }); }
 });
+// ⚾ MLB 플레이별(투구 단위) — 이닝→타석→투구(볼/스트라이크/파울/카운트/구속)
+app.get('/api/mlb/pbp', async (req, res) => {
+  const { home, away } = req.query;
+  const date = req.query.date || new Date().toISOString().slice(0, 10);
+  try {
+    const f = await mlbFindGame(home, away, date);
+    if (!f) return res.json({ found: false });
+    const pbp = await mlbFetch(`/api/v1/game/${f.gamePk}/playByPlay`, 10000);
+    const plays = pbp.allPlays || [];
+    const innMap = {};
+    for (const p of plays) {
+      const ab = p.about || {};
+      let inn = ab.inning; if (inn == null) continue;
+      let half = (ab.halfInning || '').toLowerCase() === 'bottom' ? 'bottom' : 'top';
+      if (f.swap) half = half === 'top' ? 'bottom' : 'top';   // 우리 피드가 홈/원정 반대면 초·말 뒤집기
+      const key = inn + '|' + half;
+      const pitches = (p.playEvents || []).filter(ev => ev.isPitch).map(ev => {
+        const call = (ev.details && ev.details.call && ev.details.call.code) || '';
+        const c = ev.count || {};
+        return { c: call, b: c.balls != null ? c.balls : null, s: c.strikes != null ? c.strikes : null, n: ev.pitchNumber || null, spd: (ev.pitchData && ev.pitchData.startSpeed) ? Math.round(ev.pitchData.startSpeed) : null };
+      });
+      const r = p.result || {}, mu = p.matchup || {};
+      (innMap[key] = innMap[key] || []).push({
+        batter: mu.batter ? mu.batter.fullName : '', pitcher: mu.pitcher ? mu.pitcher.fullName : '',
+        event: r.event || '', desc: r.description || '', rbi: r.rbi || 0,
+        np: pitches.length, pitches, complete: ab.isComplete !== false
+      });
+    }
+    const innings = Object.keys(innMap).map(k => { const [inn, half] = k.split('|'); return { inn: Number(inn), half, plays: innMap[k] }; })
+      .sort((a, b) => a.inn - b.inn || (a.half === 'top' ? -1 : 1));
+    res.json({ found: true, innings });
+  } catch (e) { res.status(502).json({ found: false, error: String(e.message || e) }); }
+});
 // MLB 선수 최근 경기 로그 (타자 hitting / 투수 pitching)
 app.get('/api/mlb/player', async (req, res) => {
   const id = req.query.id, group = req.query.group === 'pitching' ? 'pitching' : 'hitting';
