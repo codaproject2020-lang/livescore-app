@@ -100,6 +100,17 @@ html,body{overflow-x:hidden;max-width:100%}
 .mteams .mt .haic.away{left:calc(50% + 7px)}
 /* 야구 R·H·E 미니 스코어보드 */
 .rhemini{grid-column:2;display:flex;justify-content:flex-end;margin-top:8px}
+/* 🏏 카드: 타격 중 타자(좌) + R/H/E/BB(우) */
+.rhemini-row{grid-column:2;display:flex;gap:8px;align-items:flex-start;margin-top:8px}
+.rhemini-row .rhemini{grid-column:auto;margin-top:0;flex:0 0 auto}
+.abcard{flex:1;min-width:0;background:#fff;border:1px solid var(--line);border-radius:10px;padding:5px 8px;align-self:stretch}
+.abc-hd{font-size:9.5px;font-weight:800;color:var(--sub);margin-bottom:3px}
+.abc-row{display:flex;align-items:center;gap:6px;font-size:11px;margin-top:3px}
+.abc-face{width:19px;height:19px;border-radius:50%;object-fit:cover;background:#eef1f5;flex:0 0 auto}
+.abc-face.noimg{display:flex;align-items:center;justify-content:center;font-size:11px}
+.abc-nm{flex:1;font-weight:700;color:var(--navy);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.abc-line{font-weight:800;color:var(--navy);font-variant-numeric:tabular-nums}
+.abc-line i{color:var(--sub);font-style:normal;margin:0 1px}
 .rhemini table{border-collapse:collapse;font-size:11px;text-align:center}
 .rhemini th,.rhemini td{border:1px solid var(--line2);padding:2px 7px;min-width:22px}
 .rhemini th{background:#f3f6f9;color:var(--sub);font-size:9px;font-weight:800}

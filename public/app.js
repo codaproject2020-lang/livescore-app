@@ -1043,6 +1043,20 @@ function rheMini(e) {
       <tr><td class="tn">${esc(nm(e.home))}</td><td class="r">${esc(h.r ?? e.hs ?? 0)}</td><td>${esc(h.h ?? 0)}</td><td>${esc(h.e ?? 0)}</td>${showBB ? `<td>${esc(h.bb ?? '-')}</td>` : ''}</tr>
     </tbody></table></div>`;
 }
+// 🏏 피드 카드: 타격 중 타자 3명(좌) + R/H/E/BB 표(우) 나란히
+function atbatCard(e) {
+  if (state.sport !== 'baseball' || e.state !== 'live' || !e.atbat || !(e.atbat.players || []).length) return '';
+  const rows = e.atbat.players.slice(0, 3).map(p => {
+    const nm = (LANG === 'ko' && p.name_ko) ? p.name_ko : (p.name || '-');
+    const face = p.photo ? `<img class="abc-face" src="${esc(p.photo)}" referrerpolicy="no-referrer" loading="lazy" onerror="this.replaceWith(Object.assign(document.createElement('span'),{className:'abc-face noimg',textContent:'🏏'}))">` : '<span class="abc-face noimg">🏏</span>';
+    return `<div class="abc-row">${face}<span class="abc-nm">${esc(nm)}</span><span class="abc-line">${esc(p.h == null ? 0 : p.h)}<i>/</i>${esc(p.ab == null ? 0 : p.ab)}</span></div>`;
+  }).join('');
+  return `<div class="abcard"><div class="abc-hd">🏏 ${esc(t('nowBatting'))}</div>${rows}</div>`;
+}
+function rheRow(e) {
+  const rhe = rheMini(e); if (!rhe) return '';
+  return `<div class="rhemini-row">${atbatCard(e)}${rhe}</div>`;
+}
 // 홈/원정 배지 (이모지 대신 또렷한 아이콘 칩)
 const HA_HOME = '<span class="haic home" title="HOME" aria-label="HOME"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.6 1.5 11.2l1.5 1.9L5 11.9V21h5.2v-5.6h3.6V21H19v-9.1l2 1.2 1.5-1.9z"/></svg></span>';
 const HA_AWAY = '<span class="haic away" title="AWAY" aria-label="AWAY"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21.5 15.6 14 11.2V4.9a2 2 0 0 0-4 0v6.3l-7.5 4.4v1.9L10 15.4v3.9l-2.3 1.6V22L12 20.8 16.3 22v-1.1L14 19.3v-3.9l7.5 2.1z"/></svg></span>';
@@ -1056,7 +1070,7 @@ function matchCard(e) {
     </div>
     ${aiLive(e)}
     ${bsoMini(e)}
-    ${rheMini(e)}
+    ${rheRow(e)}
     ${oddsLine(e)}
     <span class="pick">${esc(t('pick'))}</span>
   </div>`;
