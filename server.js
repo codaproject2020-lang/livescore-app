@@ -768,6 +768,13 @@ async function tsBaseballGames(date) {
           if ((g.box[s].e == null) && tb[s].e != null) g.box[s].e = tb[s].e;
         });
       }
+      // 🏏 타격팀 타자 3명(카드 좌측 표시용) — 이름/사진은 map 이후 일괄 조회
+      const bside = g.batting || (g.inningHalf === 'top' ? 'away' : 'home');
+      const rawP = (lvm.players && lvm.players[bside]) || [];
+      if (rawP.length) {
+        const dec = rawP.map(p => Object.assign({ id: p.id }, tsDecode(p.stats, TS_PSTAT))).filter(p => p.ip == null).slice(0, 3);
+        if (dec.length) g._atbatRaw = { side: bside, players: dec.map(p => ({ id: p.id, ab: p.ab, h: p.h, pos: p.pos })) };
+      }
     }
     return g;
   });
@@ -782,6 +789,17 @@ async function tsBaseballGames(date) {
       if (g.box[s].e == null && b.team[s].e != null) g.box[s].e = b.team[s].e;
     });
   }));
+  // 🏏 타격 중 타자 이름/사진 일괄 조회 후 부착 (카드 좌측용)
+  const abIds = [];
+  games.forEach(g => { if (g._atbatRaw) g._atbatRaw.players.forEach(p => abIds.push(p.id)); });
+  if (abIds.length) {
+    await Promise.all([...new Set(abIds)].map(id => tsName(id).catch(() => {})));
+    games.forEach(g => {
+      if (!g._atbatRaw) return;
+      g.atbat = { side: g._atbatRaw.side, players: g._atbatRaw.players.map(p => { const n = TS_PNAME.get(p.id) || {}; return { name: n.name || '', name_ko: koName(p.id, n.name), photo: n.logo || '', ab: p.ab, h: p.h, pos: POS_NAME[p.pos != null ? String(p.pos) : ''] || '' }; }) };
+      delete g._atbatRaw;
+    });
+  }
   return games;
 }
 // ⚾ 경기별 박스스코어(선수 라인업+기록, 이름/사진 포함) — KBO/NPB 상세용
