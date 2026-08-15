@@ -23,8 +23,8 @@
     <button class="loginbtn" id="btnLogin">🔑 <span data-i18n="login">로그인</span></button>
     <select id="langSel" class="langsel"></select>
     <div class="sidenav topnav">
-      <a data-tab="home" class="on"><span class="em">🏠</span><span data-i18n="homeTab">홈</span></a>
-      <a data-tab="live"><span class="em">⚡</span><span data-i18n="live">라이브</span></a>
+      <a data-tab="live" class="on"><span class="em">⚡</span><span data-i18n="live">라이브</span></a>
+      <a data-tab="home"><span class="em">🏠</span><span data-i18n="homeTab">홈</span></a>
       <a data-tab="info"><span class="em">📊</span><span data-i18n="info">경기 정보방</span></a>
       <a data-tab="table"><span class="em">🏆</span><span data-i18n="rank">순위</span></a>
       <a data-tab="odds"><span class="em">🎯</span><span data-i18n="pickHub">픽 제공</span></a>
@@ -51,8 +51,8 @@
     <!-- 상단 아이콘 탭바 (모바일) -->
     <div class="topbar">
       <div class="tt icon" id="btnMenu">☰</div>
-      <div class="tt on" data-tab="home">🏠</div>
-      <div class="tt" data-tab="live" data-i18n="live">LIVE</div>
+      <div class="tt on" data-tab="live" data-i18n="live">LIVE</div>
+      <div class="tt" data-tab="home">🏠</div>
       <div class="tt" data-tab="info">📊</div>
       <div class="tt" data-tab="odds">🎯</div>
       <div class="tt" data-tab="board">📋</div>
@@ -209,8 +209,8 @@
 <aside class="drawer" id="drawer">
   <div class="dprof"><div class="av">👤</div><div><div class="who" id="drawerName">손님</div><div class="blog">실시간 접속 <b id="onlineD">0</b>명</div></div></div>
   <div class="sidenav dmenu">
-    <a data-tab="home"><span class="em">🏠</span><span data-i18n="homeTab">홈</span></a>
     <a data-tab="live"><span class="em">⚡</span><span data-i18n="live">라이브</span></a>
+    <a data-tab="home"><span class="em">🏠</span><span data-i18n="homeTab">홈</span></a>
     <a data-tab="info"><span class="em">📊</span><span data-i18n="info">경기 정보방</span></a>
     <a data-tab="table"><span class="em">🏆</span><span data-i18n="rank">순위</span></a>
     <a data-tab="odds"><span class="em">🎯</span><span data-i18n="pickHub">픽 제공</span></a>
@@ -253,6 +253,6 @@
     window.addEventListener('load', () => navigator.serviceWorker.register('/sw.js').catch(() => {}));
   }
 </script>
-<script src="app.js?v=114"></script>
+<script src="app.js?v=115"></script>
 </body>
 </html>

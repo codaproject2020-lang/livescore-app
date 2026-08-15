@@ -2651,7 +2651,7 @@ async function init() {
   connectWS();
   buildSportNav();          // 종목 메뉴 즉시 표시(네트워크 불필요)
   initBackButtonHandling(); // 휴대폰 뒤로가기 = 팝업만 닫기
-  setTab('home');           // 🏠 첫 화면 = 홈(추천)
+  setTab('live');           // 첫 화면 = 라이브
   loadEvents();             // 경기 즉시 로드(자체 자동 재시도 내장)
   // 관심 리그는 백그라운드로, 서버 깰 때까지 재시도
   fetchJSON('/api/leagues', { tries: 15, delay: 4000 })
