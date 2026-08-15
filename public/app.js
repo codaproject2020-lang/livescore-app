@@ -468,7 +468,7 @@ function updateInfoGate() {
 function homeHot(g) {
   const sc = (g.hs == null && g.as == null) ? 'VS' : `${g.hs ?? 0} - ${g.as ?? 0}`;
   return `<div class="hhot-card" data-ev="${esc(g.id)}">
-    <div class="hh-top"><span class="hh-live">LIVE</span><span class="hh-st">${esc(koStatus(g))}</span></div>
+    <div class="hh-top"><span class="hh-live">LIVE</span>${heatHtml(g)}<span class="hh-st">${esc(koStatus(g))}</span></div>
     <div class="hh-teams">
       <span class="hh-t"><span class="hh-ph">${badge(g.homeLogo, '🏟')}</span><b>${esc(teamShort(TN(g.home, g.league)))}</b></span>
       <span class="hh-sc">${esc(sc)}</span>
@@ -1027,6 +1027,33 @@ function vibeTag(e) {
   if (e.bso.outs === 2) return t('vibe2out');
   return '';
 }
+// 🔥 실시간 열기 레벨 (0~3) — 후반·접전·만루/득점권 등이 겹칠수록 높음. 막 시작한 경기는 0
+function heatLevel(e) {
+  if (!e || e.state !== 'live') return 0;
+  const hs = Number(e.hs) || 0, as = Number(e.as) || 0, margin = Math.abs(hs - as);
+  let s = 0;
+  const baseball = (e.sport === 'baseball') || tsLeague(e.league) || statsLeague(e.league) || (e.curInning != null);
+  if (baseball) {
+    const inn = Number(e.curInning) || 0;
+    if (inn >= 7) s++;                                  // 후반(7회~)
+    if (inn >= 9) s++;                                  // 9회·연장
+    if (margin <= 1) s++;                               // 접전
+    const b = e.bso && e.bso.bases;
+    if (b && b.first && b.second && b.third) s += 2;    // 만루
+    else if (b && (b.second || b.third)) s++;           // 득점권(2·3루)
+  } else {
+    const mn = Number(e.elapsed || e.minute || 0);
+    if (mn >= 70) s++;                                  // 후반 막판
+    if (mn >= 85) s++;                                  // 종료 임박
+    if (margin <= 1) s++;                               // 접전
+    if (margin === 0 && mn >= 80) s++;                  // 막판 동점
+  }
+  return s >= 2 ? Math.min(3, s - 1) : 0;               // 2요소 이상 겹칠 때만 불 표시
+}
+function heatHtml(e) {
+  const lv = heatLevel(e);
+  return lv > 0 ? `<span class="heat heat${lv}" title="🔥 HOT">${'🔥'.repeat(lv)}</span>` : '';
+}
 // AI 실시간 해설 (라이브 경기)
 function aiLive(e) {
   if (e.state !== 'live') return '';
@@ -1155,7 +1182,7 @@ const HA_HOME = '<span class="haic home" title="HOME" aria-label="HOME"><svg vie
 const HA_AWAY = '<span class="haic away" title="AWAY" aria-label="AWAY"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21.5 15.6 14 11.2V4.9a2 2 0 0 0-4 0v6.3l-7.5 4.4v1.9L10 15.4v3.9l-2.3 1.6V22L12 20.8 16.3 22v-1.1L14 19.3v-3.9l7.5 2.1z"/></svg></span>';
 function matchCard(e) {
   return `<div class="match" data-ev="${esc(e.id)}">
-    <span class="bell favbell${isMatchFav(e) ? ' on' : ''}" data-favmatch="${esc(e.id)}" title="${esc(t('favTeams'))}">${isMatchFav(e) ? '🔔' : '🔕'}</span>
+    <span class="cardlead"><span class="bell favbell${isMatchFav(e) ? ' on' : ''}" data-favmatch="${esc(e.id)}" title="${esc(t('favTeams'))}">${isMatchFav(e) ? '🔔' : '🔕'}</span>${heatHtml(e)}</span>
     <div class="mrow">
       <div class="side">${HA_HOME}<div class="ph">${badge(e.homeLogo, '🏟')}</div><div class="team">${esc(TN(e.home, e.league))}</div></div>
       ${scoreBlock(e)}
