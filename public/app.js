@@ -1052,7 +1052,9 @@ function heatLevel(e) {
 }
 function heatHtml(e) {
   const lv = heatLevel(e);
-  return lv > 0 ? `<span class="heat heat${lv}" title="🔥 HOT">${'🔥'.repeat(lv)}</span>` : '';
+  if (lv <= 0) return '';
+  let f = ''; for (let i = 0; i < lv; i++) f += `<i class="fl" style="animation-delay:${(i * 0.19).toFixed(2)}s">🔥</i>`;
+  return `<span class="heat heat${lv}" title="🔥 HOT">${f}</span>`;
 }
 // AI 실시간 해설 (라이브 경기)
 function aiLive(e) {
