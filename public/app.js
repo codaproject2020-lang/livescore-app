@@ -436,10 +436,23 @@ function localYMD(d = new Date()) { const x = new Date(d.getTime() - d.getTimezo
 const USER_TZ = (function () { try { return Intl.DateTimeFormat().resolvedOptions().timeZone || 'Asia/Seoul'; } catch (e) { return 'Asia/Seoul'; } })();
 const state = {
   date: localYMD(),
+  dateAuto: true,      // '오늘'을 자동으로 따라감(자정 지나면 새 날짜로 롤오버). 사용자가 특정 날짜 고르면 false
   sport: 'baseball',   // 여름철 진행 종목 기본
   leagues: [],
   leagueFilter: 'all'  // 상단 리그 선택 필터
 };
+// 🗓️ 자정 지나면 '오늘' 날짜로 자동 전환 (앱을 열어둔 채 날짜가 바뀌어도 오늘 경기가 보이도록)
+function autoRollDate() {
+  if (!state.dateAuto) return false;
+  const today = localYMD();
+  if (state.date !== today) {
+    state.date = today;
+    const dp = $('#datePick'); if (dp) dp.value = today;
+    if (typeof refreshDateLabel === 'function') refreshDateLabel();
+    return true;
+  }
+  return false;
+}
 
 // ---------- 팀 뱃지/엠블럼 ----------
 function badge(url, fallback) {
@@ -2623,13 +2636,14 @@ function refreshDateLabel() {
 function shiftDate(days) {
   const d = new Date(state.date + 'T12:00:00'); d.setDate(d.getDate() + days);
   state.date = localYMD(d); $('#datePick').value = state.date;
+  state.dateAuto = (state.date === localYMD());
   refreshDateLabel();
   loadEvents();
 }
 $('#datePrev').addEventListener('click', () => shiftDate(-1));
 $('#dateNext').addEventListener('click', () => shiftDate(1));
-$('#dateToday').addEventListener('click', () => { state.date = localYMD(); $('#datePick').value = state.date; refreshDateLabel(); loadEvents(); });
-$('#datePick').addEventListener('change', e => { state.date = e.target.value; refreshDateLabel(); loadEvents(); });
+$('#dateToday').addEventListener('click', () => { state.date = localYMD(); state.dateAuto = true; $('#datePick').value = state.date; refreshDateLabel(); loadEvents(); });
+$('#datePick').addEventListener('change', e => { state.date = e.target.value; state.dateAuto = (state.date === localYMD()); refreshDateLabel(); loadEvents(); });
 $('#btnRefresh').addEventListener('click', () => loadEvents());
 $('#btnUser')?.addEventListener('click', openLogin);
 $('#btnMenu').addEventListener('click', openDrawer);
@@ -2828,8 +2842,11 @@ async function init() {
   fetchJSON('/api/leagues', { tries: 15, delay: 4000 })
     .then(d => { state.leagues = d.leagues || []; buildLeagueNav(); })
     .catch(() => {});
-  // 라이브 자동 갱신 (10초) · 상세/채팅 열려 있어도 스코어·해설 계속 갱신
-  setInterval(() => { if (!$('#view-live').classList.contains('hidden') || modalEventId) loadEvents(true); }, 7000);
+  // 라이브 자동 갱신 (7초) · 상세/채팅 열려 있어도 스코어·해설 계속 갱신 · 자정 지나면 날짜 자동 롤오버
+  setInterval(() => { autoRollDate(); if (!$('#view-live').classList.contains('hidden') || modalEventId) loadEvents(true); }, 7000);
+  // 앱을 다시 볼 때(백그라운드 → 포그라운드) 날짜가 바뀌었으면 오늘로 전환 후 새로고침
+  document.addEventListener('visibilitychange', () => { if (!document.hidden && autoRollDate()) loadEvents(); });
+  window.addEventListener('focus', () => { if (autoRollDate()) loadEvents(); });
   // 🏠 홈 화면 자동 갱신 (보일 때만, 20초)
   setInterval(() => { if ($('#view-home') && !$('#view-home').classList.contains('hidden')) renderHome(); }, 20000);
   // 🔔 이전에 알림 켰던 사용자는 재구독 (재시작·재접속 대비)
