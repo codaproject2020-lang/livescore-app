@@ -171,6 +171,7 @@ const STR = {
   battingNow: ['batting', '공격 중', '攻撃中', '进攻中', 'al bate', 'बल्लेबाजी', 'đang tấn công', 'กำลังรุก', 'атакует', 'am Schlag', 'à l’attaque', 'in attacco'],
   liveSitu: ['Live situation', '현재 상황', '現在の状況', '当前局面', 'Situación', 'लाइव स्थिति', 'Tình huống', 'สถานการณ์', 'Ситуация', 'Situation', 'Situation', 'Situazione'],
   liveCast: ['LIVE UP Cast', 'LIVE UP 중계', 'LIVE UP実況', 'LIVE UP解说', 'Narración LIVE UP', 'LIVE UP कमेंट्री', 'Tường thuật LIVE UP', 'ถ่ายทอด LIVE UP', 'Трансляция LIVE UP', 'LIVE UP-Ticker', 'Live LIVE UP', 'Cronaca LIVE UP'],
+  nowBatting: ['Now batting', '타격 중', '攻撃中', '进攻中', 'Al bate', 'बल्लेबाजी', 'Đang tấn công', 'กำลังตี', 'Атака', 'Am Schlag', 'À la batte', 'In battuta'],
   showMore: ['Show earlier', '이전 이벤트 더보기', '前の速報', '查看更早', 'Ver más', 'और देखें', 'Xem thêm', 'ดูเพิ่ม', 'Ещё', 'Mehr anzeigen', 'Voir plus', 'Mostra altro'],
   showLess: ['Collapse', '접기', '閉じる', '收起', 'Contraer', 'छिपाएं', 'Thu gọn', 'ย่อ', 'Свернуть', 'Einklappen', 'Réduire', 'Comprimi'],
   evSet: ['Current set {s}', '현재 세트 {s}', '現在のセット {s}', '当前局 {s}', 'Set actual {s}', 'वर्तमान सेट {s}', 'Set hiện tại {s}', 'เซ็ตปัจจุบัน {s}', 'Текущий сет {s}', 'Aktueller Satz {s}', 'Set actuel {s}', 'Set attuale {s}'],
@@ -1407,6 +1408,19 @@ function tsBoxSide(players, side) {
     }</tbody></table>`;
   return bt + pt;
 }
+// 🏏 타격 중인 팀의 타자 3명 (사진 + 오늘 성적) — 경기 시작 후 박스에 등장한 타자 기준
+function atbatPanel(d, e) {
+  const side = d.battingTeam === 1 ? 'home' : d.battingTeam === 2 ? 'away' : (e.inningHalf === 'top' ? 'away' : 'home');
+  const arr = ((d.players && d.players[side]) || []).filter(p => !p.pitcher).slice(0, 3);
+  if (!arr.length) return '';
+  const teamNm = side === 'home' ? TN(e.home, e.league) : TN(e.away, e.league);
+  const rows = arr.map(p => {
+    const nm = pName(p) || p.name || '-';
+    const face = p.photo ? `<img class="ab-face" src="${esc(p.photo)}" referrerpolicy="no-referrer" loading="lazy" onerror="this.replaceWith(Object.assign(document.createElement('span'),{className:'ab-face noimg',textContent:'🏏'}))">` : '<span class="ab-face noimg">🏏</span>';
+    return `<div class="ab-row tsp" data-pid="${esc(p.id)}" data-side="${esc(side)}">${face}<span class="ab-nm">${esc(nm)}</span><span class="ab-pos">${esc(p.position || '')}</span><span class="ab-line">${esc(p.h == null ? 0 : p.h)}<i>/</i>${esc(p.ab == null ? 0 : p.ab)}</span></div>`;
+  }).join('');
+  return `<div class="odsec">🏏 ${esc(t('nowBatting'))} <span class="rhe">${esc(teamNm)}</span></div><div class="atbat">${rows}</div>`;
+}
 // ⚾ KBO/NPB 선수 클릭 → 최근 경기 기록 (서버가 그 팀 최근 완료경기에서 추출)
 async function showTsPlayer(pid, side) {
   const box = $('#mPlayer'); if (!box || !pid) return;
@@ -1543,7 +1557,8 @@ async function updateLineup(e) {
         box.innerHTML = `<div class="odsec">📋 ${esc(t('boxRec'))}</div><div class="lu-note">${esc(t('boxSoon'))}</div>`; return;
       }
       const render = t => { const side = t === 'home' ? 'home' : 'away'; const arr = side === 'home' ? d.players.home : d.players.away; $('#tsFieldBox').innerHTML = tsField(arr, side); $('#tsBoxBody').innerHTML = tsBoxSide(arr, side); wireTsPlayers(); };
-      box.innerHTML = `<div class="odsec">📋 ${esc(t('lineup'))} <span class="rhe">${esc(t('fieldPos'))} · ${esc(t('tapPlayer'))}</span></div>
+      box.innerHTML = `${e.state === 'live' ? atbatPanel(d, e) : ''}
+        <div class="odsec">📋 ${esc(t('lineup'))} <span class="rhe">${esc(t('fieldPos'))} · ${esc(t('tapPlayer'))}</span></div>
         <div class="bfield-tabs"><span class="bft on" data-t="home">${esc(TN(e.home, e.league))}</span><span class="bft" data-t="away">${esc(TN(e.away, e.league))}</span></div>
         <div id="tsFieldBox">${tsField(d.players.home, 'home')}</div>
         <div id="tsBoxBody">${tsBoxSide(d.players.home, 'home')}</div>
