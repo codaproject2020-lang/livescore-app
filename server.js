@@ -1117,6 +1117,18 @@ async function buildGamesCore(sport, date, tz) {
   return { games, j };
 }
 
+// ⚡ 경기목록 전체 결과를 짧게 캐시 (피드 7초·중계봇 10초·픽제공·푸시가 공유 → 외부호출/CPU 절감)
+const gamesCoreCache = new Map();
+async function buildGamesCoreCached(sport, date, tz, ttl = 8000) {
+  const k = sport + '|' + date + '|' + (tz || '');
+  const hit = gamesCoreCache.get(k), now = Date.now();
+  if (hit && now - hit.t < ttl) return hit.v;
+  const v = await buildGamesCore(sport, date, tz);
+  gamesCoreCache.set(k, { t: now, v });
+  // 캐시 항목 과다 방지 (오래된 것 정리)
+  if (gamesCoreCache.size > 40) { for (const [key, val] of gamesCoreCache) { if (now - val.t > 60000) gamesCoreCache.delete(key); } }
+  return v;
+}
 // 날짜별 경기 (정규화 + 해외배당 매칭)
 app.get('/api/asports/games', async (req, res) => {
   if (!APISPORTS_KEY) return res.json({ needKey: true, games: [] });
@@ -1124,7 +1136,7 @@ app.get('/api/asports/games', async (req, res) => {
   const date = req.query.date || new Date().toISOString().slice(0, 10);
   const cfg = AS[sport]; if (!cfg) return res.status(400).json({ error: 'bad sport' });
   try {
-    const { games, j } = await buildGamesCore(sport, date, req.query.tz);
+    const { games, j } = await buildGamesCoreCached(sport, date, req.query.tz);
     // ⚡ 배당 매칭:
     //   - 축구: 리그가 너무 많아 LEAGUE_TO_ODDS 매핑으로 필요한 리그만 조회
     //   - 그 외(야구/농구/하키/럭비): The Odds API 그룹 안의 활성 리그 전부 조회해 팀명으로 매칭
@@ -1738,7 +1750,7 @@ async function pushTick() {
   const date = new Date().toISOString().slice(0, 10);
   for (const sport of PUSH_SPORTS) {
     let games = [];
-    try { games = (await buildGamesCore(sport, date)).games || []; } catch (e) { continue; }
+    try { games = (await buildGamesCoreCached(sport, date)).games || []; } catch (e) { continue; }
     for (const g of games) {
       const favd = [...subs.values()].some(r => favMatch(r.fav, g.home) || favMatch(r.fav, g.away));
       if (!favd) continue;
@@ -1818,7 +1830,7 @@ async function castTick() {
   const date = new Date().toISOString().slice(0, 10);
   for (const sport of ['baseball', 'football']) {
     let games = [];
-    try { games = (await buildGamesCore(sport, date)).games || []; } catch (e) { continue; }
+    try { games = (await buildGamesCoreCached(sport, date)).games || []; } catch (e) { continue; }
     for (const g of games) { if (ids.has(String(g.id)) && g.state === 'live') detectCast(sport, g); }
   }
 }
