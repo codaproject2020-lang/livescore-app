@@ -112,6 +112,53 @@ html,body{overflow-x:hidden;max-width:100%}
 .abc-line{font-weight:800;color:var(--navy);font-variant-numeric:tabular-nums}
 .abc-line i{color:var(--sub);font-style:normal;margin:0 1px}
 .abc-pos{min-width:24px;text-align:center;font-size:9.5px;font-weight:800;color:#fff;background:var(--navy);border-radius:5px;padding:2px 3px;flex:0 0 auto}
+/* 🏠 홈(추천) 화면 */
+#view-home{padding:10px 12px 24px}
+.home-sec{margin-bottom:18px}
+.home-hd{font-size:14px;font-weight:900;color:var(--navy);margin:0 2px 9px}
+.hfav{display:flex;gap:8px;overflow-x:auto;padding-bottom:2px;scrollbar-width:none}
+.hfav::-webkit-scrollbar{display:none}
+.hchip{flex:0 0 auto;background:#fff;border:1px solid var(--line);border-radius:20px;padding:8px 14px;font-size:12.5px;font-weight:800;color:var(--navy);box-shadow:0 1px 4px rgba(20,30,50,.05)}
+.hfav-empty{color:var(--sub);font-size:12px;padding:8px 2px}
+.hhot{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px}
+.hhot-card{background:#fff;border:1px solid var(--line);border-radius:12px;padding:10px;cursor:pointer;box-shadow:0 2px 8px rgba(20,30,50,.05)}
+.hhot-card:hover{box-shadow:0 6px 16px rgba(20,30,50,.12)}
+.hh-top{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}
+.hh-live{background:var(--red);color:#fff;font-size:9px;font-weight:900;padding:2px 6px;border-radius:4px}
+.hh-st{font-size:10px;font-weight:700;color:var(--sub)}
+.hh-teams{display:flex;align-items:center;justify-content:space-between;gap:4px}
+.hh-t{display:flex;flex-direction:column;align-items:center;gap:3px;flex:1;min-width:0}
+.hh-ph{width:26px;height:26px;display:flex;align-items:center;justify-content:center}
+.hh-ph img{width:26px;height:26px;object-fit:contain}
+.hh-t b{font-size:10.5px;font-weight:800;color:var(--navy);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%;text-align:center}
+.hh-sc{font-size:15px;font-weight:900;color:var(--navy);flex:0 0 auto}
+.hpick{background:#fff;border:1px solid var(--line);border-radius:14px;padding:14px;cursor:pointer;box-shadow:0 3px 12px rgba(20,30,50,.08)}
+.hp-lg{font-size:11px;color:var(--sub);font-weight:700;margin-bottom:8px}
+.hp-row{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px;flex-wrap:wrap}
+.hp-teams{font-size:14px;font-weight:800;color:var(--navy)}
+.hp-teams span{color:var(--sub);font-weight:600;margin:0 4px}
+.hp-pickbox{text-align:right}
+.hp-badge{background:var(--red);color:#fff;font-size:9px;font-weight:900;padding:2px 7px;border-radius:5px}
+.hp-name{font-size:15px;font-weight:900;color:var(--navy);margin-top:3px}
+.hp-pct{font-size:26px;font-weight:900;color:var(--red);line-height:1}
+.hp-pct i{font-size:14px;font-style:normal}
+.hp-bars{display:flex;flex-direction:column;gap:6px;border-top:1px solid var(--line);padding-top:10px}
+.hpb{display:flex;align-items:center;gap:8px;font-size:11px;font-weight:700;color:var(--sub)}
+.hpb span{min-width:96px;flex:0 0 auto}
+.hpb b{min-width:38px;text-align:right;color:var(--navy);font-weight:800}
+.hp-more{text-align:center;margin-top:10px;font-size:12px;font-weight:800;color:var(--answer,#24568f)}
+.hkey{background:#fff;border:1px solid var(--line);border-radius:12px;overflow:hidden}
+.hk-row{display:flex;align-items:center;gap:8px;padding:10px 12px;border-bottom:1px solid var(--line);cursor:pointer;font-size:12px}
+.hk-row:last-child{border-bottom:0}
+.hk-row:hover{background:#fafbfc}
+.hk-lg{min-width:52px;font-size:10px;font-weight:800;color:var(--sub)}
+.hk-tt{flex:1;display:flex;align-items:center;gap:5px;font-weight:700;color:var(--navy);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+.hk-tt .hk-ph img,.hk-tt span img{width:18px;height:18px;object-fit:contain}
+.hk-vs{color:var(--sub);font-size:10px;flex:0 0 auto}
+.hk-st{flex:0 0 auto;font-size:11px;font-weight:800;color:var(--sub);min-width:44px;text-align:right}
+.hk-live{color:var(--red)}
+.haione{background:#fff;border:1px solid var(--line);border-radius:12px;padding:12px;cursor:pointer}
+.home-empty{padding:30px 12px;text-align:center;color:var(--dim);font-size:13px}
 .rhemini table{border-collapse:collapse;font-size:11px;text-align:center}
 .rhemini th,.rhemini td{border:1px solid var(--line2);padding:2px 7px;min-width:22px}
 .rhemini th{background:#f3f6f9;color:var(--sub);font-size:9px;font-weight:800}

@@ -8,7 +8,7 @@
 <link rel="manifest" href="/manifest.json">
 <link rel="apple-touch-icon" href="/icon-512.png?v=2">
 <link rel="icon" href="/icon-192.png?v=2">
-<link rel="stylesheet" href="styles.css?v=56">
+<link rel="stylesheet" href="styles.css?v=57">
 </head>
 <body>
 <div class="shell">
@@ -23,7 +23,8 @@
     <button class="loginbtn" id="btnLogin">🔑 <span data-i18n="login">로그인</span></button>
     <select id="langSel" class="langsel"></select>
     <div class="sidenav topnav">
-      <a data-tab="live" class="on"><span class="em">⚡</span><span data-i18n="live">라이브</span></a>
+      <a data-tab="home" class="on"><span class="em">🏠</span><span data-i18n="homeTab">홈</span></a>
+      <a data-tab="live"><span class="em">⚡</span><span data-i18n="live">라이브</span></a>
       <a data-tab="info"><span class="em">📊</span><span data-i18n="info">경기 정보방</span></a>
       <a data-tab="table"><span class="em">🏆</span><span data-i18n="rank">순위</span></a>
       <a data-tab="odds"><span class="em">🎯</span><span data-i18n="pickHub">픽 제공</span></a>
@@ -50,10 +51,10 @@
     <!-- 상단 아이콘 탭바 (모바일) -->
     <div class="topbar">
       <div class="tt icon" id="btnMenu">☰</div>
-      <div class="tt on" data-tab="live" data-i18n="live">LIVE</div>
+      <div class="tt on" data-tab="home">🏠</div>
+      <div class="tt" data-tab="live" data-i18n="live">LIVE</div>
       <div class="tt" data-tab="info">📊</div>
-      <div class="tt" data-tab="odds">💰</div>
-      <div class="tt" data-tab="comm">💬</div>
+      <div class="tt" data-tab="odds">🎯</div>
       <div class="tt" data-tab="board">📋</div>
       <div class="tt icon" id="btnUser">👤</div>
     </div>
@@ -88,8 +89,13 @@
       <div class="prize" id="chatbanGo" data-i18n="chat">채팅 입장 ›</div>
     </div>
 
+    <!-- ===== 홈(추천) 뷰 ===== -->
+    <section class="view hidden" id="view-home">
+      <div id="homeBody"><div class="loading">불러오는 중…</div></div>
+    </section>
+
     <!-- ===== LIVE 뷰 ===== -->
-    <section class="view" id="view-live">
+    <section class="view hidden" id="view-live">
       <div id="feed" class="feed"><div class="loading">경기 불러오는 중…</div></div>
     </section>
 
@@ -203,11 +209,11 @@
 <aside class="drawer" id="drawer">
   <div class="dprof"><div class="av">👤</div><div><div class="who" id="drawerName">손님</div><div class="blog">실시간 접속 <b id="onlineD">0</b>명</div></div></div>
   <div class="sidenav dmenu">
+    <a data-tab="home"><span class="em">🏠</span><span data-i18n="homeTab">홈</span></a>
     <a data-tab="live"><span class="em">⚡</span><span data-i18n="live">라이브</span></a>
     <a data-tab="info"><span class="em">📊</span><span data-i18n="info">경기 정보방</span></a>
     <a data-tab="table"><span class="em">🏆</span><span data-i18n="rank">순위</span></a>
     <a data-tab="odds"><span class="em">🎯</span><span data-i18n="pickHub">픽 제공</span></a>
-    <a data-tab="comm"><span class="em">💬</span><span data-i18n="chat">채팅</span></a>
     <a data-tab="board"><span class="em">📋</span><span data-i18n="community">커뮤니티</span></a>
     <a id="drawerLogin"><span class="em">🔑</span><span data-i18n="login">로그인</span></a>
   </div>
@@ -247,6 +253,6 @@
     window.addEventListener('load', () => navigator.serviceWorker.register('/sw.js').catch(() => {}));
   }
 </script>
-<script src="app.js?v=111"></script>
+<script src="app.js?v=114"></script>
 </body>
 </html>

@@ -172,6 +172,14 @@ const STR = {
   liveSitu: ['Live situation', '현재 상황', '現在の状況', '当前局面', 'Situación', 'लाइव स्थिति', 'Tình huống', 'สถานการณ์', 'Ситуация', 'Situation', 'Situation', 'Situazione'],
   liveCast: ['LIVE UP Cast', 'LIVE UP 중계', 'LIVE UP実況', 'LIVE UP解说', 'Narración LIVE UP', 'LIVE UP कमेंट्री', 'Tường thuật LIVE UP', 'ถ่ายทอด LIVE UP', 'Трансляция LIVE UP', 'LIVE UP-Ticker', 'Live LIVE UP', 'Cronaca LIVE UP'],
   nowBatting: ['Now batting', '타격 중', '攻撃中', '进攻中', 'Al bate', 'बल्लेबाजी', 'Đang tấn công', 'กำลังตี', 'Атака', 'Am Schlag', 'À la batte', 'In battuta'],
+  homeTab: ['Home', '홈', 'ホーム', '主页', 'Inicio', 'होम', 'Trang chủ', 'หน้าแรก', 'Главная', 'Start', 'Accueil', 'Home'],
+  myTeams: ['My Teams', '내 관심팀', 'マイチーム', '我的球队', 'Mis equipos', 'मेरी टीमें', 'Đội của tôi', 'ทีมของฉัน', 'Мои команды', 'Meine Teams', 'Mes équipes', 'Le mie squadre'],
+  hotGames: ['Hot now', '지금 뜨거운 경기', '注目の試合', '热门比赛', 'En directo', 'हॉट मैच', 'Trận nóng', 'แมตช์ร้อน', 'Топ матчи', 'Heiße Spiele', 'Matchs chauds', 'Match caldi'],
+  todayPick: ["Today's PICK", '오늘의 PICK', '今日のPICK', '今日推荐', 'PICK de hoy', 'आज का PICK', 'PICK hôm nay', 'PICK วันนี้', 'PICK дня', 'PICK heute', 'PICK du jour', 'PICK di oggi'],
+  keyGames: ["Today's games", '오늘의 주요 경기', '今日の主な試合', '今日主要比赛', 'Partidos de hoy', 'आज के मैच', 'Trận hôm nay', 'แมตช์วันนี้', 'Матчи дня', 'Spiele heute', 'Matchs du jour', 'Partite di oggi'],
+  aiOneLine: ['AI LIVE', 'AI LIVE 한줄 해설', 'AI LIVE 速報', 'AI LIVE 解说', 'AI LIVE', 'AI LIVE', 'AI LIVE', 'AI LIVE', 'AI LIVE', 'AI LIVE', 'AI LIVE', 'AI LIVE'],
+  noFavHint: ['Tap the 🔔 bell on a game to add favorites', '경기의 🔔 종을 눌러 관심팀을 추가하세요', '試合の🔔でお気に入り追加', '点击🔔添加关注', 'Toca 🔔 para añadir', '🔔 दबाकर जोड़ें', 'Nhấn 🔔 để thêm', 'แตะ 🔔 เพื่อเพิ่ม', 'Нажмите 🔔', 'Mit 🔔 hinzufügen', 'Touchez 🔔', 'Tocca 🔔'],
+  pickDetail: ['View analysis', '상세 분석 보기', '詳細分析', '查看分析', 'Ver análisis', 'विश्लेषण देखें', 'Xem phân tích', 'ดูวิเคราะห์', 'Смотреть анализ', 'Analyse ansehen', "Voir l'analyse", 'Vedi analisi'],
   showMore: ['Show earlier', '이전 이벤트 더보기', '前の速報', '查看更早', 'Ver más', 'और देखें', 'Xem thêm', 'ดูเพิ่ม', 'Ещё', 'Mehr anzeigen', 'Voir plus', 'Mostra altro'],
   showLess: ['Collapse', '접기', '閉じる', '收起', 'Contraer', 'छिपाएं', 'Thu gọn', 'ย่อ', 'Свернуть', 'Einklappen', 'Réduire', 'Comprimi'],
   evSet: ['Current set {s}', '현재 세트 {s}', '現在のセット {s}', '当前局 {s}', 'Set actual {s}', 'वर्तमान सेट {s}', 'Set hiện tại {s}', 'เซ็ตปัจจุบัน {s}', 'Текущий сет {s}', 'Aktueller Satz {s}', 'Set actuel {s}', 'Set attuale {s}'],
@@ -431,7 +439,7 @@ function badge(url, fallback) {
 // ============================================================
 //  탭 전환
 // ============================================================
-const views = { live: 'view-live', table: 'view-table', odds: 'view-odds', info: 'view-info', comm: 'view-comm', board: 'view-board' };
+const views = { home: 'view-home', live: 'view-live', table: 'view-table', odds: 'view-odds', info: 'view-info', comm: 'view-comm', board: 'view-board' };
 function setTab(t) {
   Object.values(views).forEach(id => $('#' + id)?.classList.add('hidden'));
   $('#' + views[t])?.classList.remove('hidden');
@@ -442,7 +450,10 @@ function setTab(t) {
   if (t === 'board') loadPosts();
   if (t === 'odds') initOdds();
   if (t === 'info') { initInfo(); updateInfoGate(); }
+  if (t === 'home') renderHome();
+  // 홈/라이브가 아닌 화면에선 상단 날짜·종목바 등을 숨김 처리(notlive)
   $('.center')?.classList.toggle('notlive', t !== 'live');
+  $('.center')?.classList.toggle('homeview', t === 'home');
   window.scrollTo({ top: 0 });
 }
 // 🔒 경기 정보방 로그인 게이트: 비로그인 시 목록 블러 + 안내 오버레이
@@ -450,6 +461,86 @@ function updateInfoGate() {
   const wrap = $('#view-info'); const gate = $('#infoGate'); if (!wrap || !gate) return;
   if (loggedIn) { wrap.classList.remove('gated'); gate.classList.add('hidden'); }
   else { wrap.classList.add('gated'); gate.classList.remove('hidden'); }
+}
+// ============================================================
+//  🏠 홈(추천) 화면 — 관심팀·뜨거운 경기·오늘의 PICK·주요 경기·AI 한줄
+// ============================================================
+function homeHot(g) {
+  const sc = (g.hs == null && g.as == null) ? 'VS' : `${g.hs ?? 0} - ${g.as ?? 0}`;
+  return `<div class="hhot-card" data-ev="${esc(g.id)}">
+    <div class="hh-top"><span class="hh-live">LIVE</span><span class="hh-st">${esc(koStatus(g))}</span></div>
+    <div class="hh-teams">
+      <span class="hh-t"><span class="hh-ph">${badge(g.homeLogo, '🏟')}</span><b>${esc(teamShort(TN(g.home, g.league)))}</b></span>
+      <span class="hh-sc">${esc(sc)}</span>
+      <span class="hh-t"><span class="hh-ph">${badge(g.awayLogo, '🏟')}</span><b>${esc(teamShort(TN(g.away, g.league)))}</b></span>
+    </div></div>`;
+}
+function homePick(g) {
+  const lu = luProb(g), m = marketProb(g);
+  const name = lu.side === 'home' ? TN(g.home, g.league) : lu.side === 'away' ? TN(g.away, g.league) : t('draw');
+  const pct = lu.side === 'home' ? lu.home : lu.side === 'away' ? lu.away : lu.draw;
+  return `<div class="hpick" data-pick="${esc(g.id)}" data-psport="${esc(g.__sport || '')}">
+    <div class="hp-lg">${esc(g.league)}${g.date ? ' · ' + esc(hhmm(g.date)) : ''}</div>
+    <div class="hp-row">
+      <div class="hp-teams">${esc(TN(g.home, g.league))} <span>vs</span> ${esc(TN(g.away, g.league))}</div>
+      <div class="hp-pickbox"><span class="hp-badge">LIVE UP PICK</span><div class="hp-name">${esc(name)}</div><div class="hp-pct">${pct}<i>%</i></div></div>
+    </div>
+    <div class="hp-bars">
+      ${m ? `<div class="hpb"><span>${esc(t('marketCons'))}</span>${phbBar(m.home, m.away)}<b>${m.home}%</b></div>` : ''}
+      <div class="hpb"><span>LIVE UP AI</span>${phbBar(lu.home, lu.away)}<b>${lu.home}%</b></div>
+    </div>
+    <div class="hp-more">${esc(t('pickDetail'))} ›</div>
+  </div>`;
+}
+function homeKeyRow(g) {
+  const tm = g.date ? hhmm(g.date) : '';
+  const st = g.state === 'live' ? `<span class="hk-live">● ${esc(koStatus(g))}</span>` : g.state === 'finished' ? esc(t('finished')) : `<span class="hk-tm">${esc(tm)}</span>`;
+  return `<div class="hk-row" data-ev="${esc(g.id)}">
+    <span class="hk-lg">${esc(g.league)}</span>
+    <span class="hk-tt"><span class="hk-ph">${badge(g.homeLogo, '🏟')}</span>${esc(teamShort(TN(g.home, g.league)))}</span>
+    <span class="hk-vs">vs</span>
+    <span class="hk-tt"><span class="hk-ph">${badge(g.awayLogo, '🏟')}</span>${esc(teamShort(TN(g.away, g.league)))}</span>
+    <span class="hk-st">${st}</span></div>`;
+}
+let homeBusy = false;
+async function renderHome() {
+  const box = $('#homeBody'); if (!box) return;
+  if (homeBusy) return; homeBusy = true;
+  if (!box.dataset.loaded) box.innerHTML = `<div class="loading">${esc(t('loading'))}</div>`;
+  const sports = ['baseball', 'football', 'basketball'];
+  let all = [];
+  try {
+    const res = await Promise.all(sports.map(sp => fetchJSON(`/api/asports/games?sport=${sp}&date=${state.date}&tz=${encodeURIComponent(USER_TZ)}`, { tries: 1 }).catch(() => ({ games: [] }))));
+    res.forEach((d, i) => (d.games || []).forEach(g => { g.__sport = sports[i]; feedGames[g.id] = g; all.push(g); }));
+  } catch { }
+  const favChips = FAV.length
+    ? FAV.map(nm => `<span class="hchip">${esc(TN(nm, ''))}</span>`).join('')
+    : `<span class="hfav-empty">${esc(t('noFavHint'))}</span>`;
+  const live = all.filter(g => g.state === 'live');
+  const favLive = live.filter(g => isFav(g.home) || isFav(g.away));
+  const hot = [...new Set([...favLive, ...live])].slice(0, 3);
+  const cand = all.filter(g => g.state !== 'finished');
+  const favCand = cand.filter(g => isFav(g.home) || isFav(g.away));
+  const pool = favCand.length ? favCand : cand;
+  let pickG = null, best = -1;
+  pool.forEach(g => { const lu = luProb(g); const top = Math.max(lu.home, lu.away); if (top > best) { best = top; pickG = g; } });
+  const key = cand.slice().sort((a, b) => {
+    const rk = x => { const i = TOP_LEAGUES.indexOf(x); return i < 0 ? 999 : i; };
+    const ra = rk(a.league), rb = rk(b.league); if (ra !== rb) return ra - rb;
+    return (a.date ? new Date(a.date).getTime() : 0) - (b.date ? new Date(b.date).getTime() : 0);
+  }).slice(0, 6);
+  const aiG = live[0];
+  box.dataset.loaded = '1';
+  box.innerHTML = `
+    <div class="home-sec"><div class="home-hd">💛 ${esc(t('myTeams'))}</div><div class="hfav">${favChips}</div></div>
+    ${hot.length ? `<div class="home-sec"><div class="home-hd">🔥 ${esc(t('hotGames'))}</div><div class="hhot">${hot.map(homeHot).join('')}</div></div>` : ''}
+    ${pickG ? `<div class="home-sec"><div class="home-hd">🎯 ${esc(t('todayPick'))}</div>${homePick(pickG)}</div>` : ''}
+    ${key.length ? `<div class="home-sec"><div class="home-hd">📅 ${esc(t('keyGames'))}</div><div class="hkey">${key.map(homeKeyRow).join('')}</div></div>` : ''}
+    ${aiG ? `<div class="home-sec"><div class="home-hd">🤖 ${esc(t('aiOneLine'))}</div><div class="haione" data-ev="${esc(aiG.id)}">${aiLive(aiG)}</div></div>` : ''}
+    <div class="home-empty ${all.length ? 'hidden' : ''}">${esc(t('noGames'))}</div>`;
+  $$('#homeBody [data-pick]').forEach(el => el.addEventListener('click', () => { state.sport = el.dataset.psport || state.sport; openPick(el.dataset.pick); }));
+  $$('#homeBody [data-ev]').forEach(el => el.addEventListener('click', () => openEvent(el.dataset.ev)));
+  homeBusy = false;
 }
 $('#igLogin')?.addEventListener('click', openLogin);
 $$('.topbar .tt[data-tab]').forEach(b => b.addEventListener('click', () => setTab(b.dataset.tab)));
@@ -2560,6 +2651,7 @@ async function init() {
   connectWS();
   buildSportNav();          // 종목 메뉴 즉시 표시(네트워크 불필요)
   initBackButtonHandling(); // 휴대폰 뒤로가기 = 팝업만 닫기
+  setTab('home');           // 🏠 첫 화면 = 홈(추천)
   loadEvents();             // 경기 즉시 로드(자체 자동 재시도 내장)
   // 관심 리그는 백그라운드로, 서버 깰 때까지 재시도
   fetchJSON('/api/leagues', { tries: 15, delay: 4000 })
@@ -2567,6 +2659,8 @@ async function init() {
     .catch(() => {});
   // 라이브 자동 갱신 (10초) · 상세/채팅 열려 있어도 스코어·해설 계속 갱신
   setInterval(() => { if (!$('#view-live').classList.contains('hidden') || modalEventId) loadEvents(true); }, 7000);
+  // 🏠 홈 화면 자동 갱신 (보일 때만, 20초)
+  setInterval(() => { if ($('#view-home') && !$('#view-home').classList.contains('hidden')) renderHome(); }, 20000);
   // 🔔 이전에 알림 켰던 사용자는 재구독 (재시작·재접속 대비)
   if (NOTIF.on && 'Notification' in window && Notification.permission === 'granted') setTimeout(syncPush, 1500);
   // 알림 클릭으로 열린 경우 (?ev=) 해당 경기 상세 자동 오픈
