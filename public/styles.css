@@ -482,11 +482,11 @@ table.rank td.pt{font-weight:900;color:var(--blue)}
 .mbrand-logo img{height:46px;width:auto;max-width:190px;object-fit:contain;display:block;image-rendering:-webkit-optimize-contrast;filter:drop-shadow(0 1px 3px rgba(0,0,0,.55)) drop-shadow(0 0 10px rgba(240,193,78,.18))}
 .mbrand-txt{font-style:italic;font-weight:900;font-size:20px;letter-spacing:.3px;color:#f0c14e}
 /* 🅻 모바일 텍스트 워드마크 (LIVE + ↑로고 + P) */
-.mbrand-logo.mword{gap:2px;text-decoration:none;height:auto}
+.mbrand-logo.mword{gap:0;text-decoration:none;height:auto;align-items:center}
 .mword .mw-live,.mword .mw-p{font-family:"Arial Black",Arial,sans-serif;font-style:italic;font-weight:900;font-size:27px;line-height:1;letter-spacing:1px}
 .mword .mw-live{color:#fff;text-shadow:0 2px 4px rgba(0,0,0,.4)}
 .mword .mw-p{color:#f0c14e;letter-spacing:0;text-shadow:0 0 12px rgba(240,193,78,.35)}
-.mword .mw-logo{height:34px;width:auto;flex:0 0 auto;object-fit:contain;margin:0 0 -1px}
+.mword .mw-logo{height:28px;width:auto;flex:0 0 auto;object-fit:contain;margin:0 -3px 0 -5px;transform:skewX(-11deg);transform-origin:center bottom;position:relative;top:1px;filter:drop-shadow(0 1px 2px rgba(0,0,0,.35))}
 .mword .mw-fallback{font-family:"Arial Black",Arial,sans-serif;font-style:italic;font-weight:900;font-size:27px;line-height:1;color:#f0c14e}
 .mbrand-btns{margin-left:auto;display:flex;gap:6px}
 .dlbtn.share{background:linear-gradient(135deg,#7fc7ff,#2f8fe0);color:#06233d;box-shadow:0 4px 14px rgba(47,143,224,.35)}
