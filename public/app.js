@@ -681,6 +681,40 @@ function toast(msg) {
   el.textContent = msg; el.classList.add('on');
   clearTimeout(toast._t); toast._t = setTimeout(() => el.classList.remove('on'), 1800);
 }
+// 🅿️ 포지션 뱃지 탭 → 뜻 말풍선 (2B = 2루수 …)
+const POS_GLOSS = {
+  P:{ko:'투수',en:'Pitcher',ja:'投手',zh:'投手'}, SP:{ko:'선발투수',en:'Starting pitcher',ja:'先発投手',zh:'先发投手'}, RP:{ko:'구원투수',en:'Relief pitcher',ja:'救援投手',zh:'后援投手'},
+  C:{ko:'포수',en:'Catcher',ja:'捕手',zh:'捕手'},
+  '1B':{ko:'1루수',en:'First baseman',ja:'一塁手',zh:'一垒手'}, '2B':{ko:'2루수',en:'Second baseman',ja:'二塁手',zh:'二垒手'}, '3B':{ko:'3루수',en:'Third baseman',ja:'三塁手',zh:'三垒手'},
+  SS:{ko:'유격수',en:'Shortstop',ja:'遊撃手',zh:'游击手'},
+  LF:{ko:'좌익수',en:'Left fielder',ja:'左翼手',zh:'左外野手'}, CF:{ko:'중견수',en:'Center fielder',ja:'中堅手',zh:'中外野手'}, RF:{ko:'우익수',en:'Right fielder',ja:'右翼手',zh:'右外野手'},
+  OF:{ko:'외야수',en:'Outfielder',ja:'外野手',zh:'外野手'}, IF:{ko:'내야수',en:'Infielder',ja:'内野手',zh:'内野手'},
+  DH:{ko:'지명타자',en:'Designated hitter',ja:'指名打者',zh:'指定打击'}, PH:{ko:'대타',en:'Pinch hitter',ja:'代打',zh:'代打'}, PR:{ko:'대주자',en:'Pinch runner',ja:'代走',zh:'代跑'},
+  UT:{ko:'유틸리티',en:'Utility',ja:'ユーティリティ',zh:'工具人'}
+};
+function posExplain(code){ const g = POS_GLOSS[(code || '').toUpperCase().trim()]; return g ? (g[LANG] || g.en || g.ko) : null; }
+function showPosPop(el){
+  const code = (el.textContent || '').trim();
+  const desc = posExplain(code); if (!desc) return;
+  let p = document.getElementById('posPop');
+  if (!p){ p = document.createElement('div'); p.id = 'posPop'; p.className = 'pos-pop'; document.body.appendChild(p); }
+  p.innerHTML = `<b>${esc(code)}</b> = ${esc(desc)}`;
+  const r = el.getBoundingClientRect(), pw = p.offsetWidth, ph = p.offsetHeight;
+  let left = r.left + r.width / 2 - pw / 2 + scrollX;
+  left = Math.max(8, Math.min(left, innerWidth - pw - 8));
+  let top = r.top - ph - 9 + scrollY;
+  if (r.top - ph - 9 < 4){ top = r.bottom + 9 + scrollY; p.classList.add('below'); } else p.classList.remove('below');
+  p.style.left = left + 'px'; p.style.top = top + 'px'; p.classList.add('on');
+  clearTimeout(showPosPop._t); showPosPop._t = setTimeout(() => p.classList.remove('on'), 2600);
+}
+document.addEventListener('click', e => {
+  const b = e.target.closest('.abc-pos:not(.abc-pos-empty), .ab-pos, .stt td.lr');
+  if (b && (b.textContent || '').trim() && posExplain(b.textContent)){ e.preventDefault(); e.stopPropagation(); showPosPop(b); }
+}, true);
+document.addEventListener('click', e => {
+  if (!e.target.closest('#posPop, .abc-pos, .ab-pos, .stt td.lr')){ const p = document.getElementById('posPop'); if (p) p.classList.remove('on'); }
+});
+addEventListener('scroll', () => { const p = document.getElementById('posPop'); if (p) p.classList.remove('on'); }, true);
 $('#btnShare')?.addEventListener('click', () => shareApp());
 $('#btnShareM')?.addEventListener('click', () => shareApp());
 // 상세화면 공유: 해당 경기 딥링크 + 팀·스코어 문구

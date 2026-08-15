@@ -127,6 +127,15 @@ html,body{overflow-x:hidden;max-width:100%}
 .abc-line i{color:var(--sub);font-style:normal;margin:0 1px}
 .abc-pos{min-width:24px;text-align:center;font-size:9.5px;font-weight:800;color:#fff;background:var(--navy);border-radius:5px;padding:2px 3px;flex:0 0 auto;box-sizing:border-box}
 .abc-pos.abc-pos-empty{background:transparent;visibility:hidden}
+.abc-pos:not(.abc-pos-empty),.ab-pos,.stt td.lr{cursor:pointer;-webkit-tap-highlight-color:transparent}
+.abc-pos:not(.abc-pos-empty):active,.ab-pos:active,.stt td.lr:active{opacity:.6}
+/* 포지션 뜻 말풍선 */
+.pos-pop{position:absolute;z-index:9999;background:#1a2436;color:#fff;font-size:12.5px;font-weight:700;padding:7px 11px;border-radius:9px;box-shadow:0 8px 24px rgba(0,0,0,.4);white-space:nowrap;opacity:0;transform:translateY(4px);transition:opacity .15s ease,transform .15s ease;pointer-events:none}
+.pos-pop.on{opacity:1;transform:translateY(0)}
+.pos-pop b{color:#f0c14e}
+.pos-pop::after{content:"";position:absolute;left:50%;transform:translateX(-50%);border:5px solid transparent}
+.pos-pop:not(.below)::after{bottom:-5px;border-top-color:#1a2436;border-bottom:0}
+.pos-pop.below::after{top:-5px;border-bottom-color:#1a2436;border-top:0}
 /* 🏠 홈(추천) 화면 */
 #view-home{padding:10px 12px 24px}
 .home-sec{margin-bottom:18px}
