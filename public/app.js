@@ -181,6 +181,8 @@ const STR = {
   castInn: ['{x} · {team} scored {n}', '{x} · {team} {n}득점', '{x} · {team} {n}得点', '{x} · {team} {n}得分'],
   castCurBB: ['Now {x} · {h} {hs}:{as} {a}', '현재 {x} · {h} {hs}:{as} {a}', '現在 {x} · {h} {hs}:{as} {a}', '当前 {x} · {h} {hs}:{as} {a}'],
   castCurFB: ['Now {min} · {h} {hs}:{as} {a}', '현재 {min} · {h} {hs}:{as} {a}', '現在 {min} · {h} {hs}:{as} {a}', '当前 {min} · {h} {hs}:{as} {a}'],
+  pitchU: [' P', '구', '球', '球'],
+  pbLegend: ['B=Ball  S=Strike  F=Foul  ●=In play', 'B=볼  S=스트라이크  F=파울  ●=인플레이', 'B=ボール S=ストライク F=ファウル ●=インプレー', 'B=坏球 S=好球 F=界外 ●=击球'],
   nowBatting: ['Now batting', '타격 중', '攻撃中', '进攻中', 'Al bate', 'बल्लेबाजी', 'Đang tấn công', 'กำลังตี', 'Атака', 'Am Schlag', 'À la batte', 'In battuta'],
   homeTab: ['Home', '홈', 'ホーム', '主页', 'Inicio', 'होम', 'Trang chủ', 'หน้าแรก', 'Главная', 'Start', 'Accueil', 'Home'],
   myTeams: ['My Teams', '내 관심팀', 'マイチーム', '我的球队', 'Mis equipos', 'मेरी टीमें', 'Đội của tôi', 'ทีมของฉัน', 'Мои команды', 'Meine Teams', 'Mes équipes', 'Le mie squadre'],
@@ -1372,6 +1374,40 @@ function wireEvTabs(box, id, tabs, curKey, renderBody) {
   };
   draw();
 }
+// ⚾ MLB 타석 결과 → 한국어(그 외 언어는 영문 원문)
+const MLB_EV = {
+  'Strikeout': '삼진', 'strikeout': '삼진', 'Walk': '볼넷', 'Intent Walk': '고의4구', 'Single': '1루타', 'Double': '2루타',
+  'Triple': '3루타', 'Home Run': '홈런', 'Groundout': '땅볼 아웃', 'Grounded Into DP': '병살타', 'Bunt Groundout': '번트 땅볼',
+  'Flyout': '뜬공 아웃', 'Lineout': '직선타 아웃', 'Pop Out': '내야 뜬공', 'Sac Fly': '희생플라이', 'Sac Bunt': '희생번트',
+  'Hit By Pitch': '몸에 맞는 공', 'Field Error': '실책 출루', 'Forceout': '포스아웃', 'Double Play': '병살', 'Triple Play': '삼중살',
+  'Fielders Choice': '야수선택', 'Fielders Choice Out': '야수선택 아웃', 'Catcher Interference': '포수 방해', 'Strikeout Double Play': '삼진+병살'
+};
+function mlbEvName(ev) { return (LANG === 'ko' && MLB_EV[ev]) ? MLB_EV[ev] : (ev || '-'); }
+function pitchBadge(p) {
+  const c = p.c || ''; let cls = 'pb-b', lab = 'B';
+  if ('CSTKLMQW'.indexOf(c) >= 0) { cls = 'pb-s'; lab = 'S'; }
+  else if (c === 'F') { cls = 'pb-f'; lab = 'F'; }
+  else if ('XDE'.indexOf(c) >= 0) { cls = 'pb-x'; lab = '●'; }
+  else if (c === 'H') { cls = 'pb-h'; lab = 'H'; }
+  const cnt = (p.b != null && p.s != null) ? `${p.b}-${p.s}` : '';
+  const tip = cnt + (p.spd ? ` · ${p.spd}mph` : '');
+  return `<span class="pbadge ${cls}"${tip ? ` title="${esc(tip)}"` : ''}>${lab}</span>`;
+}
+function mlbAbRow(ab) {
+  const rbi = ab.rbi > 0 ? ` <span class="ab-rbi">+${ab.rbi}</span>` : '';
+  const seq = (ab.pitches || []).map(pitchBadge).join('');
+  return `<div class="ab-item"><div class="ab-hd"><b>${esc(ab.batter)}</b> <span class="ab-res">${esc(mlbEvName(ab.event))}</span>${rbi}<span class="ab-np">${ab.np || 0}${t('pitchU')}</span></div>${seq ? `<div class="ab-seq">${seq}</div>` : ''}</div>`;
+}
+const pbpCache = {};   // id -> { ts, innings }
+async function fetchPbp(e) {
+  const c = pbpCache[e.id];
+  if (c && Date.now() - c.ts < 12000) return c;
+  try {
+    const d = await fetchJSON(`/api/mlb/pbp?home=${encodeURIComponent(e.home)}&away=${encodeURIComponent(e.away)}&date=${state.date}`, { tries: 1 });
+    const rec = { ts: Date.now(), innings: (d.found && d.innings) ? d.innings : null };
+    pbpCache[e.id] = rec; return rec;
+  } catch { pbpCache[e.id] = { ts: Date.now(), innings: null }; return pbpCache[e.id]; }
+}
 async function updateEvents(e) {
   const box = $('#mEvents'); if (!box) return;
   if (state.sport === 'football') {
@@ -1408,18 +1444,32 @@ async function updateEvents(e) {
     box.innerHTML = situ + (log.length ? log.slice().reverse().map(evRow).join('') : eventEmpty());
     return;
   }
+  // MLB/LMB 등 StatsAPI 리그면 투구 단위 플레이별 데이터 시도
+  const pb = statsLeague(e.league) ? await fetchPbp(e) : null;
+  const pbInn = (pb && pb.innings) ? pb.innings : null;
   const bx = e.box || {}, hIn = (bx.home && bx.home.innings) || {}, aIn = (bx.away && bx.away.innings) || {};
   const keys = [...Object.keys(hIn), ...Object.keys(aIn)].map(Number).filter(n => n > 0);
-  const maxInn = Math.max(e.curInning || 0, keys.length ? Math.max(...keys) : 0, 1);
+  const pbMax = pbInn ? Math.max(0, ...pbInn.map(x => x.inn)) : 0;
+  const maxInn = Math.max(e.curInning || 0, keys.length ? Math.max(...keys) : 0, pbMax, 1);
   const HM = `<b>${esc(TN(e.home, e.league))}</b>`, AW = `<b>${esc(TN(e.away, e.league))}</b>`;
   const tabs = []; for (let i = 1; i <= maxInn; i++) tabs.push({ key: String(i), label: inningLabel(i, null) });
   const curKey = String(e.curInning || maxInn);
   const cur = e.curInning || maxInn;
   const bodyFor = key => {
     const i = Number(key);
+    // 1) MLB 투구 단위 플레이별 (있으면 최우선)
+    if (pbInn) {
+      const parts = [];
+      for (const hf of ['top', 'bottom']) {
+        const seg = pbInn.find(x => x.inn === i && x.half === hf);
+        if (seg && seg.plays.length) parts.push(`<div class="ab-half">${esc(inningLabel(i, hf))}</div>` + seg.plays.map(mlbAbRow).join(''));
+      }
+      if (parts.length) return `<div class="ab-legend">${esc(t('pbLegend'))}</div>` + parts.join('');
+    }
+    // 2) 라이브 적립분
     const live = log.filter(x => x.inn === i);
     if (live.length) return live.slice().reverse().map(evRow).join('');
-    // 라이브 적립분이 없으면 이닝별 득점으로 요약 재구성
+    // 3) 이닝별 득점 요약 재구성
     const ar = numOrNull(aIn[i]), hr = numOrNull(hIn[i]);
     const rows = [];
     const line = (half, team, r) => ({ icon: r > 0 ? '🔴' : '▪️', text: `${inningLabel(i, half)} · ${r > 0 ? ai('recRuns', { team, n: r }) : t('recZero')}` });
