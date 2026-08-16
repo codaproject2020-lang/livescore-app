@@ -1470,7 +1470,13 @@ function renderFeed(games) {
   // 리그별 그룹핑 + 정렬 헬퍼
   const groupBy = list => {
     const gr = {};
-    list.forEach(e => { const k = e.league || '기타'; (gr[k] = gr[k] || { league: e, name: k, items: [] }).items.push(e); });
+    const fb = state.sport === 'football';
+    list.forEach(e => {
+      // 축구는 같은 이름 리그(여러 나라 'Premier League')가 섞이지 않게 나라+리그로 묶고 헤더에 나라 표시
+      const k = fb ? ((e.country || '?') + '|' + (e.league || '기타')) : (e.league || '기타');
+      const nm = fb ? (koCountry(e.country) + ' · ' + (e.league || '기타')) : (e.league || '기타');
+      (gr[k] = gr[k] || { league: e, name: nm, items: [] }).items.push(e);
+    });
     Object.values(gr).forEach(g => g.items.sort(feedSort));
     const groupTier = items => items.some(x => x.state === 'live') ? 0 : items.some(x => x.state === 'scheduled') ? 1 : 2;
     return Object.values(gr).sort((a, b) => {
