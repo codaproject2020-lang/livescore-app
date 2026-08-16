@@ -1060,7 +1060,8 @@ async function buildGamesCore(sport, date, tz) {
   // 🗓️ 날짜 그룹 — KBO/NPB=한국시간, MLB=미국(동부) 날짜 기준. 미국 저녁 경기는 한국시간 다음날 새벽이라 전날·다음날치도 받아 필터
   const prevDate = new Date(Date.parse(date + 'T12:00:00Z') - 864e5).toISOString().slice(0, 10);
   const nextDate = new Date(Date.parse(date + 'T12:00:00Z') + 864e5).toISOString().slice(0, 10);
-  const apiDates = (sport === 'baseball') ? [prevDate, date, nextDate] : [date];
+  // 모든 종목: 자정 경계·미국 리그(NBA/NHL/MLB) 시차 때문에 전날·다음날치도 받아 기기 타임존 날짜로 필터
+  const apiDates = [prevDate, date, nextDate];
   let j = {}; let games = []; const _seen = new Set();
   for (const dt of apiDates) {
     const jj = await asRaw(sport, `${cfg.path}?date=${dt}&timezone=${encodeURIComponent(tz)}`, 6000).catch(() => ({ response: [] }));
@@ -1118,9 +1119,9 @@ async function buildGamesCore(sport, date, tz) {
       }
     } catch (e) { /* TheSports 실패 시 API-Sports 유지 */ }
   }
-  // 🗓️ 야구 날짜 필터: 경기 시작(UTC)을 뷰어 기기 타임존으로 변환한 날짜가 선택 날짜와 같은 경기만
-  //    (tz = 클라이언트가 보낸 기기 IANA 타임존. 한국이면 Asia/Seoul → 한국시간 날짜로 그룹)
-  if (sport === 'baseball') games = games.filter(g => g.date && ymdInTz(g.date, tz) === date);
+  // 🗓️ 모든 종목 날짜 필터: 경기 시작(UTC)을 뷰어 기기 타임존으로 변환한 날짜가 선택 날짜와 같은 경기만
+  //    (tz = 클라이언트가 보낸 기기 IANA 타임존. 한국이면 Asia/Seoul → 한국시간 날짜로 그룹. NBA/NHL/MLB 시차·자정경계 정확 처리)
+  games = games.filter(g => !g.date || ymdInTz(g.date, tz) === date);
   return { games, j };
 }
 
