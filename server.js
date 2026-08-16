@@ -394,6 +394,7 @@ function normAS(sport, g) {
       return {
         id: f.id, league: l.name, leagueLogo: l.logo, country: l.country, round: l.round,
         home: t.home.name, homeLogo: t.home.logo, away: t.away.name, awayLogo: t.away.logo,
+        homeId: t.home.id, awayId: t.away.id,
         hs: go.home, as: go.away, status: f.status.short, statusLong: f.status.long, elapsed: f.status.elapsed,
         date: (f.timestamp ? new Date(f.timestamp * 1000).toISOString() : f.date), state: asState(f.status.short, go.home)
       };
@@ -1150,8 +1151,10 @@ async function buildGamesCore(sport, date, tz) {
           const c = { home: { y: 0, r: 0 }, away: { y: 0, r: 0 } };
           (j2.response || []).forEach(ev => {
             if ((ev.type || '') !== 'Card') return;
-            const tn = ev.team ? ev.team.name : '';
-            const side = tn === g.home ? 'home' : tn === g.away ? 'away' : null;
+            const tid = ev.team ? ev.team.id : null, tn = ev.team ? ev.team.name : '';
+            // 팀 ID 우선 매칭(리그 불문 안정적), 없으면 이름으로 폴백
+            let side = (tid != null && tid === g.homeId) ? 'home' : (tid != null && tid === g.awayId) ? 'away' : null;
+            if (!side) side = tn === g.home ? 'home' : tn === g.away ? 'away' : null;
             if (!side) return;
             if (/red/i.test(ev.detail || '')) c[side].r++; else c[side].y++;
           });
@@ -1230,6 +1233,7 @@ app.get('/api/asports/events', async (req, res) => {
       minute: ev.time ? ev.time.elapsed : null,
       extra: ev.time ? ev.time.extra : null,
       team: ev.team ? ev.team.name : '',
+      teamId: ev.team ? ev.team.id : null,
       type: ev.type || '',
       detail: ev.detail || '',
       player: ev.player ? ev.player.name : '',
