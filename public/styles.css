@@ -588,7 +588,11 @@ table.stt{width:100%;border-collapse:collapse;font-size:11.5px}
 table.stt th,table.stt td{padding:6px 3px;text-align:center;border-bottom:1px solid var(--line2)}
 table.stt th{background:#f3f6f9;color:var(--sub);font-size:10px;font-weight:700}
 table.stt td.nm{text-align:left;font-weight:700;padding-left:8px;white-space:nowrap;max-width:120px;overflow:hidden;text-overflow:ellipsis}
-@media(max-width:600px){table.stt td.nm{max-width:84px}}
+/* 📱 모바일: 표를 가로 스크롤 가능하게 → 표가 화면 밖으로 넓어지지 않고(타격중 0/3 안 밀림) 숫자칸도 스크롤로 다 보임 */
+@media(max-width:600px){
+  table.stt{display:block;overflow-x:auto;-webkit-overflow-scrolling:touch;white-space:nowrap}
+  table.stt td.nm{max-width:100px}
+}
 img.bx-face{width:18px;height:18px;border-radius:50%;object-fit:cover;vertical-align:middle;margin-right:5px;background:#e6ebf1}
 table.stt tr.tsp{cursor:pointer}
 table.stt tr.tsp:hover{background:#f3f8ff}
