@@ -1083,6 +1083,7 @@ async function buildGamesCore(sport, date, tz) {
       const hN = mlbNick(g.home), aN = mlbNick(g.away), e = sm[[hN, aN].sort().join('|')];
       if (!e) return;
       const H = e.byNick[hN] || {}, A = e.byNick[aN] || {};
+      if (H.pitcher || A.pitcher) g.pitchers = { home: H.pitcher || null, away: A.pitcher || null };   // 예상 선발투수
       if (H.r != null) g.hs = H.r;
       if (A.r != null) g.as = A.r;
       g.state = e.state;
@@ -1332,7 +1333,7 @@ async function mlbScoreMap(date, sportId = 1) {
   const rank = s => s === 'live' ? 0 : s === 'finished' ? 1 : 2;
   for (const d of [date, mlbAddDays(date, -1), mlbAddDays(date, 1)]) {
     let sch;
-    try { sch = await mlbFetch(`/api/v1/schedule?sportId=${sportId}&date=${d}&hydrate=linescore`, 15000); } catch { continue; }
+    try { sch = await mlbFetch(`/api/v1/schedule?sportId=${sportId}&date=${d}&hydrate=linescore,probablePitcher`, 15000); } catch { continue; }
     const games = [];
     (sch.dates || []).forEach(dd => (dd.games || []).forEach(g => games.push(g)));
     await Promise.all(games.map(async g => {
@@ -1345,7 +1346,8 @@ async function mlbScoreMap(date, sportId = 1) {
         r: g.teams[who].score != null ? g.teams[who].score : (lt[who] && lt[who].runs != null ? lt[who].runs : null),
         h: lt[who] && lt[who].hits != null ? lt[who].hits : null,
         e: lt[who] && lt[who].errors != null ? lt[who].errors : null,
-        bb: null
+        bb: null,
+        pitcher: (g.teams[who].probablePitcher && g.teams[who].probablePitcher.fullName) || null   // 예상 선발(며칠 전부터 제공)
       });
       const hs = side('home'), as = side('away');
       // 사사구(BB)·안타 보정은 boxscore에서 (진행/종료 경기만 — 비용 절약)
