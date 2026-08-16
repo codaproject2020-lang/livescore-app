@@ -757,6 +757,13 @@ table.boxsc .he{color:var(--sub);background:#fafbfc;font-weight:800}
 .pbadge.pb-f{background:#9aa4b2}
 .pbadge.pb-x{background:#1f9d57}
 .pbadge.pb-h{background:#e08a2f}
+/* ⚽ 축구 카드 현황 바 (상세 이벤트 상단) */
+.fbcards{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:8px 11px;background:#fbfcfe;border-bottom:1px solid var(--line);font-size:12px}
+.fbcards .fbc-side{display:flex;align-items:center;gap:6px;color:var(--navy)}
+.fbcards .cd{font-weight:800;font-size:11.5px}
+.fbcards .cd-y{color:#c99700}
+.fbcards .cd-r{color:#d33}
+.fbcards i{color:var(--dim);font-style:normal}
 /* 예상 선발투수 (팀 이름 아래 · 얼굴 사진 + 이름) */
 .sp-p{display:flex;flex-direction:column;align-items:center;gap:3px;margin-top:5px;max-width:100%}
 .sp-face{width:30px;height:30px;border-radius:50%;object-fit:cover;background:#eef1f5;border:1px solid var(--line);flex:0 0 auto}

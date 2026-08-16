@@ -1128,6 +1128,26 @@ function vibeStr(e) {
   const i = LANGS.indexOf(LANG);
   return row[i >= 0 ? i : 0];
 }
+// ⚽ 축구 생동감 문구 (불꽃 슛팅·공세·막판 총력전 등)
+const FB_VIBE = {
+  open: [['Feeling each other out — sparks soon!', '초반 탐색전, 곧 불붙는다!', '序盤の探り合い、間もなく点火！', '开局试探，即将点燃！'], ['Both sides pressing early!', '기선제압 노리는 초반 맹공!', '主導権を狙う序盤の攻防！', '力争主动的开局攻防！']],
+  tie: [['Level and electric — one strike decides!', '팽팽한 균형, 한 방이면 갈린다!', '互角の緊張、一撃で決まる！', '势均力敌，一击定胜负！'], ['Trading blows at both ends!', '양쪽 골문 뒤흔드는 난타전!', '両ゴールを叩く打ち合い！', '两端互攻的对轰！']],
+  blowout: [['Firing on all cylinders — goal fiesta!', '완전히 기울었다, 골 폭죽!', '完全に傾いた、ゴールラッシュ！', '彻底倾斜，进球盛宴！'], ['A one-sided firepower show!', '일방적인 화력쇼가 펼쳐진다!', '一方的な火力ショー！', '一边倒的火力秀！']],
+  late: [['Second-half surge — shots raining in!', '후반 몰아치는 공세, 슛이 빗발친다!', '後半の猛攻、シュートの雨！', '下半场猛攻，射门如雨！'], ['Turning the screw for a winner!', '결승골 노리고 거세게 몰아친다!', '決勝点狙い猛プッシュ！', '为绝杀猛烈施压！']],
+  closing: [['Crunch time — all-out assault!', '종료 임박, 총력전 돌입!', '終了間際、総力戦へ！', '临近终场，全力总攻！'], ['Final push — end-to-end fireworks!', '막판 스퍼트, 불꽃 튀는 공방!', 'ラストスパート、火花散る攻防！', '最后冲刺，火花四射！']],
+  closeTie: [['Deadlocked in the dying minutes — anyone’s game!', '동점 종료 직전, 폭발 직전의 승부!', '同点で終盤、爆発寸前！', '平局临近终场，一触即发！'], ['Last minute — a hero is about to rise!', '마지막 1분, 누구든 영웅이 된다!', 'ラスト1分、誰もが英雄に！', '最后一分钟，英雄将诞生！']]
+};
+function fbVibeStr(e) {
+  const mn = Number(e.elapsed || e.minute || 0), h = Number(e.hs) || 0, a = Number(e.as) || 0, d = Math.abs(h - a);
+  let key = 'open';
+  if (mn >= 85) key = d === 0 ? 'closeTie' : 'closing';
+  else if (mn >= 60) key = 'late';
+  else if (d >= 3) key = 'blowout';
+  else if (d === 0 && mn >= 20) key = 'tie';
+  const pool = FB_VIBE[key], row = pool[(mn + h + a) % pool.length];
+  const i = LANGS.indexOf(LANG);
+  return row[i] || row[0];
+}
 // 라이브 긴장 태그 (만루/득점권/투아웃)
 function vibeTag(e) {
   if (e.state !== 'live' || state.sport !== 'baseball' || !e.bso) return '';
@@ -1193,6 +1213,8 @@ function aiLive(e) {
   if (state.sport === 'baseball') {
     const vb = vibeStr(e), tg = vibeTag(e);
     msg = `<span class="aivibe">${esc(vb)}</span> ${msg}${tg ? ` <span class="aitag">🔥 ${esc(tg)}</span>` : ''}`;
+  } else if (state.sport === 'football') {
+    msg = `<span class="aivibe">${esc(fbVibeStr(e))}</span> ${msg}`;
   }
   return `<div class="ailive">🤖 <b>${esc(t('aiComm'))}</b> ${msg}</div>`;
 }
@@ -1522,11 +1544,20 @@ async function updateEvents(e) {
       const who = /subst/i.test(ev.type) ? `${esc(ev.assist)} → ${esc(ev.player)}` : `${esc(ev.player)}${ev.assist ? ` (${esc(t('fbAssist'))} ${esc(ev.assist)})` : ''}`;
       return { t: mm, icon, text: `<b>${esc(label)}</b> ${who} · ${esc(ev.team)}` };
     };
+    // 🟨🟥 팀별 카드 집계 (경기 중 카드 현황)
+    const cards = {};
+    evs.forEach(ev => { if (ev.type === 'Card') { const tm = ev.team || ''; (cards[tm] = cards[tm] || { y: 0, r: 0 }); if (/red/i.test(ev.detail)) cards[tm].r++; else cards[tm].y++; } });
+    const cc = tm => cards[tm] || { y: 0, r: 0 };
+    const hc = cc(e.home), ac = cc(e.away);
+    const cardIco = c => `${c.y > 0 ? `<span class="cd cd-y">🟨${c.y}</span>` : ''}${c.r > 0 ? `<span class="cd cd-r">🟥${c.r}</span>` : ''}`;
+    const anyCard = hc.y || hc.r || ac.y || ac.r;
+    const cardBar = anyCard ? `<div class="fbcards"><span class="fbc-side"><b>${esc(TN(e.home, e.league))}</b> ${cardIco(hc) || '<i>-</i>'}</span><span class="fbc-side">${cardIco(ac) || '<i>-</i>'} <b>${esc(TN(e.away, e.league))}</b></span></div>` : '';
     const order = ['1H', '2H', 'ET'], lbl = { '1H': t('fbFirst'), '2H': t('fbSecond'), 'ET': t('fbET') };
     const present = order.filter(k => evs.some(ev => half(ev) === k));
     const tabs = present.map(k => ({ key: k, label: lbl[k] }));
     const curKey = half(evs[evs.length - 1]) || present[present.length - 1] || '1H';
-    wireEvTabs(box, e.id, tabs, curKey, key => {
+    box.innerHTML = cardBar + '<div id="fbEvWrap"></div>';
+    wireEvTabs($('#fbEvWrap', box), e.id, tabs, curKey, key => {
       const list = evs.filter(ev => half(ev) === key).slice().reverse();
       return list.length ? list.map(fmt).map(evRow).join('') : eventEmpty();
     });
