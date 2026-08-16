@@ -183,6 +183,7 @@ const STR = {
   castCurFB: ['Now {min} · {h} {hs}:{as} {a}', '현재 {min} · {h} {hs}:{as} {a}', '現在 {min} · {h} {hs}:{as} {a}', '当前 {min} · {h} {hs}:{as} {a}'],
   pitchU: [' P', '구', '球', '球'],
   starter: ['SP', '선발', '先発', '先发'],
+  starterTBD: ['SP TBD', '선발 미정', '先発未定', '先发未定'],
   pbLegend: ['B=Ball  S=Strike  F=Foul  ●=In play', 'B=볼  S=스트라이크  F=파울  ●=인플레이', 'B=ボール S=ストライク F=ファウル ●=インプレー', 'B=坏球 S=好球 F=界外 ●=击球'],
   nowBatting: ['Now batting', '타격 중', '攻撃中', '进攻中', 'Al bate', 'बल्लेबाजी', 'Đang tấn công', 'กำลังตี', 'Атака', 'Am Schlag', 'À la batte', 'In battuta'],
   homeTab: ['Home', '홈', 'ホーム', '主页', 'Inicio', 'होम', 'Trang chủ', 'หน้าแรก', 'Главная', 'Start', 'Accueil', 'Home'],
@@ -1242,22 +1243,20 @@ function rheRow(e) {
 // 홈/원정 배지 (이모지 대신 또렷한 아이콘 칩)
 const HA_HOME = '<span class="haic home" title="HOME" aria-label="HOME"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.6 1.5 11.2l1.5 1.9L5 11.9V21h5.2v-5.6h3.6V21H19v-9.1l2 1.2 1.5-1.9z"/></svg></span>';
 const HA_AWAY = '<span class="haic away" title="AWAY" aria-label="AWAY"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21.5 15.6 14 11.2V4.9a2 2 0 0 0-4 0v6.3l-7.5 4.4v1.9L10 15.4v3.9l-2.3 1.6V22L12 20.8 16.3 22v-1.1L14 19.3v-3.9l7.5 2.1z"/></svg></span>';
-// ⚾ 예상 선발투수 라인 (며칠 전부터 표시 · MLB 등 StatsAPI 리그)
-function pitcherLine(e) {
+// ⚾ 예상 선발투수 (팀 이름 아래 표시 · MLB 등 StatsAPI 리그 · 며칠 전부터 제공)
+function teamSP(e, side) {
   if (state.sport !== 'baseball' || !e.pitchers) return '';
-  const h = e.pitchers.home, a = e.pitchers.away;
-  if (!h && !a) return '';
-  return `<div class="pline"><span class="pl-tag">⚾ ${esc(t('starter'))}</span><span class="pl-n">${esc(h || '-')}</span><span class="pl-vs">vs</span><span class="pl-n">${esc(a || '-')}</span></div>`;
+  const n = e.pitchers[side];
+  return n ? `<div class="sp-p" title="${esc(n)}">⚾ ${esc(n)}</div>` : `<div class="sp-p sp-tbd">⚾ ${esc(t('starterTBD'))}</div>`;
 }
 function matchCard(e) {
   return `<div class="match" data-ev="${esc(e.id)}">
     <span class="cardlead"><span class="bell favbell${isMatchFav(e) ? ' on' : ''}" data-favmatch="${esc(e.id)}" title="${esc(t('favTeams'))}">${isMatchFav(e) ? '🔔' : '🔕'}</span>${heatHtml(e)}</span>
     <div class="mrow">
-      <div class="side">${HA_HOME}<div class="ph">${badge(e.homeLogo, '🏟')}</div><div class="team">${esc(TN(e.home, e.league))}</div></div>
+      <div class="side">${HA_HOME}<div class="ph">${badge(e.homeLogo, '🏟')}</div><div class="team">${esc(TN(e.home, e.league))}</div>${teamSP(e, 'home')}</div>
       ${scoreBlock(e)}
-      <div class="side">${HA_AWAY}<div class="ph">${badge(e.awayLogo, '🏟')}</div><div class="team">${esc(TN(e.away, e.league))}</div></div>
+      <div class="side">${HA_AWAY}<div class="ph">${badge(e.awayLogo, '🏟')}</div><div class="team">${esc(TN(e.away, e.league))}</div>${teamSP(e, 'away')}</div>
     </div>
-    ${pitcherLine(e)}
     ${aiLive(e)}
     ${bsoMini(e)}
     ${rheRow(e)}
