@@ -556,11 +556,12 @@ async function renderHome() {
   if (homeBusy) return; homeBusy = true;
   try {
   if (!box.dataset.loaded) box.innerHTML = `<div class="loading">${esc(t('loading'))}</div>`;
-  const sports = ['baseball', 'football', 'basketball', 'volleyball', 'hockey', 'handball', 'rugby'];
+  // 🏠 홈은 "현재 선택한 종목"의 홈 (야구면 야구, 축구면 축구 …)
+  const sp = state.sport;
   let all = [];
   try {
-    const res = await Promise.all(sports.map(sp => fetchJSON(`/api/asports/games?sport=${sp}&date=${state.date}&tz=${encodeURIComponent(USER_TZ)}`, { tries: 1 }).catch(() => ({ games: [] }))));
-    res.forEach((d, i) => (d.games || []).forEach(g => { g.__sport = sports[i]; feedGames[g.id] = g; homeCache[g.id] = g; all.push(g); }));
+    const d = await fetchJSON(`/api/asports/games?sport=${sp}&date=${state.date}&tz=${encodeURIComponent(USER_TZ)}`, { tries: 1 }).catch(() => ({ games: [] }));
+    (d.games || []).forEach(g => { g.__sport = sp; feedGames[g.id] = g; homeCache[g.id] = g; all.push(g); });
   } catch { }
   const favChips = FAV.length
     ? FAV.map(nm => `<span class="hchip">${esc(TN(nm, ''))}</span>`).join('')
@@ -919,7 +920,12 @@ function buildSportNav() {
   const list = SPORTS.map(s => `<a data-sport="${s.key}" class="${s.key === state.sport ? 'on' : ''}"><span class="em">${s.em}</span>${esc(t(s.key))}</a>`).join('');
   $('#sportNav').innerHTML = list;
   $('#sportNavD').innerHTML = list;
-  $$('[data-sport]').forEach(el => el.addEventListener('click', () => { state.sport = el.dataset.sport; state.leagueFilter = 'all'; buildSportNav(); loadEvents(); closeDrawer(); }));
+  $$('[data-sport]').forEach(el => el.addEventListener('click', () => {
+    state.sport = el.dataset.sport; state.leagueFilter = 'all'; buildSportNav();
+    // 홈 화면이면 그 종목의 홈(핫경기·픽·주요경기)으로 갱신
+    if ($('#view-home') && !$('#view-home').classList.contains('hidden') && typeof renderHome === 'function') { const b = $('#homeBody'); if (b) b.dataset.loaded = ''; renderHome(); }
+    loadEvents(); closeDrawer();
+  }));
 }
 function buildLeagueNav() {
   // API-Sports는 종목 단위로 조회 → 리그 네비는 현재 종목의 리그로 동적 표시(렌더 후 갱신)
@@ -973,7 +979,11 @@ function buildLeagueRow(games) {
     // 활성 화면에 필터 적용 (픽 제공 / 경기 정보방 / 라이브)
     if ($('#view-odds') && !$('#view-odds').classList.contains('hidden') && typeof renderPickHubList === 'function') renderPickHubList();
     else if ($('#view-info') && !$('#view-info').classList.contains('hidden')) renderInfoList();
-    else renderFeed(filterGames());
+    else {
+      // 홈 등 라이브가 아닌 화면에서 리그를 고르면 라이브 화면으로 이동해 그 리그 경기를 보여줌
+      if ($('#view-live') && $('#view-live').classList.contains('hidden')) setTab('live');
+      renderFeed(filterGames());
+    }
   }));
 }
 // silent=true → 자동 10초 갱신: 로딩 표시(깜빡임) 없이, 스크롤 위치 그대로 유지

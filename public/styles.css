@@ -615,6 +615,8 @@ table.boxsc .r{font-weight:900;color:var(--red);background:#fbfaf4}
 .datenav .refresh{transition:transform .1s}.datenav .refresh:active{transform:scale(.94)}
 /* 라이브 외 화면에선 날짜/뉴스/대화방 바 숨김 */
 .center.notlive .datenav,.center.notlive .ticker,.center.notlive .chatban,.center.notlive .sportrow{display:none}
+/* 홈에서도 종목 탭은 보이게 (야구/축구/농구 … 전환용) */
+.center.homeview .sportrow{display:flex}
 
 /* ===== 모달 ===== */
 .scrim{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:80;opacity:0;pointer-events:none;transition:.2s}
