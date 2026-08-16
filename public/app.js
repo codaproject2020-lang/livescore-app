@@ -1274,8 +1274,28 @@ function aiPreview(e) {
       msg = (msg ? msg + ' · ' : '') + '⚾ ' + seg;
     }
   }
+  // ⚽ 축구: 배당이 없어도 경기마다 다른 프리뷰 (홈 이점 기반 우세 예상 + 변주)
+  if (!msg && state.sport === 'football') msg = fbPreviewLine(e, HM, AW);
   if (!msg) msg = t('aiPrevSoon');
   return `<div class="ailive ai-prev">🤖 <b>${esc(t('aiComm'))}</b> ${msg}</div>`;
+}
+// ⚽ 축구 경기 전 프리뷰 문구 풀 ({h}=홈, {a}=원정) — 팀 이름으로 시드 → 경기마다 다르게
+const FB_PREVIEW = [
+  ['Home {h} eye the home edge!', '홈 {h}, 홈 이점 앞세워 우세 예상!', 'ホーム{h}が優位か！', '主场{h}占优？'],
+  ['{h} vs {a} — a tight one!', '{h}–{a}, 팽팽한 접전 예상!', '接戦の予感！', '势均力敌！'],
+  ['Whoever’s in form smiles!', '최근 기세 탄 팀이 웃는다!', '勢いのある方が制す！', '状态好者胜！'],
+  ['One goal could settle it!', '한 골 싸움, 승부처 주목!', '1点が勝負を分ける！', '一球定胜负！'],
+  ['Can away {a} cause an upset?', '원정 {a}의 반란 가능성?', 'アウェイ{a}の下剋上なるか？', '客队{a}能否爆冷？'],
+  ['Goals expected — open game!', '골 많은 화끈한 경기 기대!', 'ゴールラッシュに期待！', '期待进球大战！'],
+  ['Home crowd behind {h}!', '홈 관중 업은 {h}, 기세 살릴까?', 'ホームの後押しで{h}！', '主场之利助{h}！'],
+  ['Midfield battle is key!', '중원 싸움이 승부를 가른다!', '中盤の攻防が鍵！', '中场对决是关键！']
+];
+function fbPreviewLine(e, HM, AW) {
+  const seed = (String(e.home) + String(e.away)).split('').reduce((a, c) => a + c.charCodeAt(0), 0);
+  const row = FB_PREVIEW[seed % FB_PREVIEW.length];
+  const i = LANGS.indexOf(LANG);
+  const tmpl = row[i] || row[0];
+  return tmpl.split('{h}').join(HM).split('{a}').join(AW);
 }
 // AI 총정리 (상세보기 · 여러 문장)
 function aiSummary(e) {
