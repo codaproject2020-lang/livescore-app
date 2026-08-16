@@ -395,7 +395,7 @@ function normAS(sport, g) {
         id: f.id, league: l.name, leagueLogo: l.logo, country: l.country, round: l.round,
         home: t.home.name, homeLogo: t.home.logo, away: t.away.name, awayLogo: t.away.logo,
         hs: go.home, as: go.away, status: f.status.short, statusLong: f.status.long, elapsed: f.status.elapsed,
-        date: f.date, state: asState(f.status.short, go.home)
+        date: (f.timestamp ? new Date(f.timestamp * 1000).toISOString() : f.date), state: asState(f.status.short, go.home)
       };
     }
     const l = g.league, t = g.teams, s = g.scores || {};
@@ -442,7 +442,8 @@ function normAS(sport, g) {
       hs, as, status: short || long, statusLong: long,
       period: g.period || g.inning || curInning || null, timer: g.timer || (g.status && g.status.timer) || null,
       livePts, box, curInning, inningHalf,
-      date: g.date || g.time || (g.timestamp ? new Date(g.timestamp * 1000).toISOString() : null),
+      // ⏱️ 절대시각(UTC)로 저장 — 유닉스 timestamp 우선(타임존 문자열은 애매해서 최후순위). 표시/그룹은 기기 타임존으로 변환
+      date: (g.timestamp ? new Date(g.timestamp * 1000).toISOString() : (g.date || g.time || null)),
       state: asState(short || long, hs)
     };
   } catch { return null; }
@@ -1056,9 +1057,10 @@ function ymdInTz(iso, tz) {
 async function buildGamesCore(sport, date, tz) {
   const cfg = AS[sport]; if (!cfg) return { games: [], j: {} };
   tz = tz || 'Asia/Seoul';
-  // 🗓️ 뷰어(한국) 날짜 기준으로 그룹 — 그 탭엔 한국시간 그 날짜 경기만. 미국 새벽 경기 누락 방지 위해 전날치도 받아 필터
+  // 🗓️ 날짜 그룹 — KBO/NPB=한국시간, MLB=미국(동부) 날짜 기준. 미국 저녁 경기는 한국시간 다음날 새벽이라 전날·다음날치도 받아 필터
   const prevDate = new Date(Date.parse(date + 'T12:00:00Z') - 864e5).toISOString().slice(0, 10);
-  const apiDates = (sport === 'baseball') ? [prevDate, date] : [date];
+  const nextDate = new Date(Date.parse(date + 'T12:00:00Z') + 864e5).toISOString().slice(0, 10);
+  const apiDates = (sport === 'baseball') ? [prevDate, date, nextDate] : [date];
   let j = {}; let games = []; const _seen = new Set();
   for (const dt of apiDates) {
     const jj = await asRaw(sport, `${cfg.path}?date=${dt}&timezone=${encodeURIComponent(tz)}`, 6000).catch(() => ({ response: [] }));
@@ -1112,8 +1114,9 @@ async function buildGamesCore(sport, date, tz) {
       }
     } catch (e) { /* TheSports 실패 시 API-Sports 유지 */ }
   }
-  // 🗓️ 야구: 뷰어(한국) 로컬 날짜가 선택 날짜와 같은 경기만 — 그 탭엔 한국시간 그 날짜 경기만
-  if (sport === 'baseball') games = games.filter(g => !g.date || ymdInTz(g.date, tz) === date);
+  // 🗓️ 야구 날짜 필터: 경기 시작(UTC)을 뷰어 기기 타임존으로 변환한 날짜가 선택 날짜와 같은 경기만
+  //    (tz = 클라이언트가 보낸 기기 IANA 타임존. 한국이면 Asia/Seoul → 한국시간 날짜로 그룹)
+  if (sport === 'baseball') games = games.filter(g => g.date && ymdInTz(g.date, tz) === date);
   return { games, j };
 }
 
