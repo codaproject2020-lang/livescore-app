@@ -1138,29 +1138,40 @@ async function buildGamesCore(sport, date, tz) {
       }); });
     }
   }
-  // ⚽ 라이브 축구: 팀별 옐로/레드 카드 수 (피드 목록 표시용) — 라이브 경기만, 경기당 30초 캐시로 호출 최소화
+  // ⚽ 라이브 축구: 팀별 통계(점유율·슈팅·유효슈팅·카드) — 라이브 경기만, 경기당 30초 캐시. statistics 한 번으로 카드까지 커버
   if (sport === 'football') {
     const liveG = games.filter(g => g.state === 'live').slice(0, 40);
     await Promise.all(liveG.map(async g => {
       try {
-        const ck = 'FBC:' + g.id, hit = cache.get(ck);
-        let cards;
-        if (hit && Date.now() - hit.t < 30000) cards = hit.v;
+        const ck = 'FBS:' + g.id, hit = cache.get(ck);
+        let stats;
+        if (hit && Date.now() - hit.t < 30000) stats = hit.v;
         else {
-          const j2 = await asRaw('football', `/fixtures/events?fixture=${g.id}`, 9000);
-          const c = { home: { y: 0, r: 0 }, away: { y: 0, r: 0 } };
-          (j2.response || []).forEach(ev => {
-            if ((ev.type || '') !== 'Card') return;
-            const tid = ev.team ? ev.team.id : null, tn = ev.team ? ev.team.name : '';
-            // 팀 ID 우선 매칭(리그 불문 안정적), 없으면 이름으로 폴백
+          const st = await asRaw('football', `/fixtures/statistics?fixture=${g.id}`, 9000);
+          const val = (arr, type) => { const it = (arr || []).find(x => x.type === type); return it ? it.value : null; };
+          const s = {};
+          (st.response || []).forEach(row => {
+            const tid = row.team ? row.team.id : null, tn = row.team ? row.team.name : '';
             let side = (tid != null && tid === g.homeId) ? 'home' : (tid != null && tid === g.awayId) ? 'away' : null;
             if (!side) side = tn === g.home ? 'home' : tn === g.away ? 'away' : null;
             if (!side) return;
-            if (/red/i.test(ev.detail || '')) c[side].r++; else c[side].y++;
+            const a = row.statistics || [];
+            s[side] = {
+              poss: val(a, 'Ball Possession'),                          // "66%"
+              shots: val(a, 'Total Shots'),
+              sot: val(a, 'Shots on Goal'),
+              y: val(a, 'Yellow Cards') || 0,
+              r: val(a, 'Red Cards') || 0
+            };
           });
-          cards = c; cache.set(ck, { t: Date.now(), v: cards });
+          stats = (s.home || s.away) ? { home: s.home || {}, away: s.away || {} } : null;
+          cache.set(ck, { t: Date.now(), v: stats });
         }
-        if (cards.home.y || cards.home.r || cards.away.y || cards.away.r) g.cards = cards;
+        if (stats) {
+          g.stats = stats;
+          const hy = (stats.home || {}).y || 0, hr = (stats.home || {}).r || 0, ay = (stats.away || {}).y || 0, ar = (stats.away || {}).r || 0;
+          if (hy || hr || ay || ar) g.cards = { home: { y: hy, r: hr }, away: { y: ay, r: ar } };
+        }
       } catch {}
     }));
   }
