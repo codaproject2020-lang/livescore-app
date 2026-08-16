@@ -1339,6 +1339,30 @@ app.get('/api/football/lineup', async (req, res) => {
   } catch (e) { res.json({ teams: [], error: String(e.message || e) }); }
 });
 
+// 🔎 진단: 특정 경기(팀명+날짜)의 API-Sports fixture id + 라인업/통계 실제 응답 확인
+app.get('/api/asports/probe', async (req, res) => {
+  const { home, away } = req.query, date = req.query.date || new Date().toISOString().slice(0, 10);
+  const norm = s => String(s || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+  const nh = norm(home), na = norm(away), fit = (a, b) => a && b && (a.includes(b) || b.includes(a));
+  try {
+    const jj = await asRaw('football', `/fixtures?date=${date}&timezone=Asia/Seoul`, 15000);
+    const list = jj.response || [];
+    const fx = list.find(f => fit(norm(f.teams.home.name), nh) && fit(norm(f.teams.away.name), na))
+            || list.find(f => fit(norm(f.teams.home.name), na) && fit(norm(f.teams.away.name), nh));
+    if (!fx) return res.json({ found: false, dayCount: list.length, sample: list.slice(0, 6).map(f => ({ h: f.teams.home.name, a: f.teams.away.name, lg: f.league.name })) });
+    const id = fx.fixture.id;
+    const [lu, st] = await Promise.all([
+      asRaw('football', `/fixtures/lineups?fixture=${id}`, 12000).catch(e => ({ error: String(e.message || e) })),
+      asRaw('football', `/fixtures/statistics?fixture=${id}`, 12000).catch(e => ({ error: String(e.message || e) }))
+    ]);
+    const l0 = (lu.response || [])[0];
+    res.json({
+      found: true, fixtureId: id, league: fx.league.name, status: fx.fixture.status,
+      lineups: { count: (lu.response || []).length, errors: lu.errors, sample: l0 ? { team: l0.team.name, formation: l0.formation, xi: (l0.startXI || []).length, subs: (l0.substitutes || []).length } : null },
+      statistics: { count: (st.response || []).length, errors: st.errors, sample: (st.response || [])[0] ? (st.response[0].statistics || []).slice(0, 4) : null }
+    });
+  } catch (e) { res.json({ error: String(e.message || e) }); }
+});
 // ⚽ 축구 팀 경기 스탯 (점유율·슈팅·코너·파울 등) — API-Sports /fixtures/statistics
 app.get('/api/asports/fbstats', async (req, res) => {
   if (!APISPORTS_KEY) return res.json({ needKey: true, teams: [] });
