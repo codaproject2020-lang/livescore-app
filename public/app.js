@@ -185,6 +185,9 @@ const STR = {
   starter: ['SP', '선발', '先発', '先发'],
   starterTBD: ['SP TBD', '선발 미정', '先発未定', '先发未定'],
   eraShort: ['ERA', '방어율', '防御率', '防御率'],
+  aiPrevFav: ['{team} slightly favored', '{team} 우세 예상', '{team} 優勢予想', '{team} 占优'],
+  aiPrevEven: ['Too close to call', '박빙 예상', '互角の予想', '势均力敌'],
+  aiPrevSoon: ['Kicking off soon — worth a watch!', '곧 시작 · 놓치기 아까운 한 판!', 'まもなく開始・注目の一戦！', '即将开始 · 值得一看！'],
   pbLegend: ['B=Ball  S=Strike  F=Foul  ●=In play', 'B=볼  S=스트라이크  F=파울  ●=인플레이', 'B=ボール S=ストライク F=ファウル ●=インプレー', 'B=坏球 S=好球 F=界外 ●=击球'],
   nowBatting: ['Now batting', '타격 중', '攻撃中', '进攻中', 'Al bate', 'बल्लेबाजी', 'Đang tấn công', 'กำลังตี', 'Атака', 'Am Schlag', 'À la batte', 'In battuta'],
   homeTab: ['Home', '홈', 'ホーム', '主页', 'Inicio', 'होम', 'Trang chủ', 'หน้าแรก', 'Главная', 'Start', 'Accueil', 'Home'],
@@ -1148,6 +1151,25 @@ function aiLive(e) {
   }
   return `<div class="ailive">🤖 <b>${esc(t('aiComm'))}</b> ${msg}</div>`;
 }
+// 🔮 AI 경기 전 한줄평 (예정 경기 · 배당 우세팀 + 야구 선발 맞대결)
+function aiPreview(e) {
+  if (e.state !== 'scheduled') return '';
+  const HM = `<b>${esc(TN(e.home, e.league))}</b>`, AW = `<b>${esc(TN(e.away, e.league))}</b>`;
+  let msg = '';
+  if (e.odds && e.odds.home && e.odds.away) {
+    const oh = Number(e.odds.home), oa = Number(e.odds.away);
+    if (oh && oa) msg = Math.abs(oh - oa) < 0.2 ? t('aiPrevEven') : ai('aiPrevFav', { team: oh < oa ? HM : AW });
+  }
+  if (state.sport === 'baseball' && e.pitchers) {
+    const hp = e.pitchers.home, ap = e.pitchers.away;
+    if (hp && hp.name && ap && ap.name) {
+      const seg = `${esc(hp.name)}${hp.era ? `(${esc(hp.era)})` : ''} vs ${esc(ap.name)}${ap.era ? `(${esc(ap.era)})` : ''}`;
+      msg = (msg ? msg + ' · ' : '') + '⚾ ' + seg;
+    }
+  }
+  if (!msg) msg = t('aiPrevSoon');
+  return `<div class="ailive ai-prev">🤖 <b>${esc(t('aiComm'))}</b> ${msg}</div>`;
+}
 // AI 총정리 (상세보기 · 여러 문장)
 function aiSummary(e) {
   const sp = state.sport;
@@ -1188,7 +1210,8 @@ function aiSummary(e) {
   return lines;
 }
 function scoreBlock(e) {
-  const hasScore = e.hs != null || e.as != null;
+  // 경기 시작 전(예정)에는 점수(0:0) 숨기고 시작 시간만 표시. 라이브·종료일 때만 점수 노출
+  const hasScore = (e.state === 'live' || e.state === 'finished') && (e.hs != null || e.as != null);
   if (!hasScore) {
     return `<div class="mid">${stateBadge(e)}<div class="vs">VS</div></div>`;
   }
@@ -1269,6 +1292,7 @@ function matchCard(e) {
       <div class="side">${HA_AWAY}<div class="ph">${badge(e.awayLogo, '🏟')}</div><div class="team">${esc(TN(e.away, e.league))}</div>${teamSP(e, 'away')}</div>
     </div>
     ${aiLive(e)}
+    ${aiPreview(e)}
     ${bsoMini(e)}
     ${rheRow(e)}
     ${oddsLine(e)}
