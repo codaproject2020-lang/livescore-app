@@ -1612,10 +1612,14 @@ async function updateEvents(e) {
       return { t: mm, icon, text: `<b>${esc(label)}</b> ${who} · ${esc(ev.team)}` };
     };
     // 🟨🟥 팀별 카드 집계 (경기 중 카드 현황)
-    const cards = {};
-    evs.forEach(ev => { if (ev.type === 'Card') { const tm = ev.team || ''; (cards[tm] = cards[tm] || { y: 0, r: 0 }); if (/red/i.test(ev.detail)) cards[tm].r++; else cards[tm].y++; } });
-    const cc = tm => cards[tm] || { y: 0, r: 0 };
-    const hc = cc(e.home), ac = cc(e.away);
+    const hc = { y: 0, r: 0 }, ac = { y: 0, r: 0 };
+    evs.forEach(ev => {
+      if (ev.type !== 'Card') return;
+      let side = (ev.teamId != null && ev.teamId === e.homeId) ? hc : (ev.teamId != null && ev.teamId === e.awayId) ? ac : null;
+      if (!side) side = ev.team === e.home ? hc : ev.team === e.away ? ac : null;
+      if (!side) return;
+      if (/red/i.test(ev.detail)) side.r++; else side.y++;
+    });
     const cardIco = c => `${c.y > 0 ? `<span class="cd cd-y">🟨${c.y}</span>` : ''}${c.r > 0 ? `<span class="cd cd-r">🟥${c.r}</span>` : ''}`;
     const anyCard = hc.y || hc.r || ac.y || ac.r;
     const cardBar = anyCard ? `<div class="fbcards"><span class="fbc-side"><b>${esc(TN(e.home, e.league))}</b> ${cardIco(hc) || '<i>-</i>'}</span><span class="fbc-side">${cardIco(ac) || '<i>-</i>'} <b>${esc(TN(e.away, e.league))}</b></span></div>` : '';
