@@ -1087,7 +1087,7 @@ async function buildGamesCore(sport, date, tz) {
       const e = sm[[hN, aN].sort().join('|') + '|' + gYmd] || sm[[hN, aN].sort().join('|') + '|' + g._apiDate];
       if (!e) return;
       const H = e.byNick[hN] || {}, A = e.byNick[aN] || {};
-      if (H.pitcher || A.pitcher) g.pitchers = { home: H.pitcher || null, away: A.pitcher || null };   // 예상 선발투수
+      if (H.pitcher || A.pitcher) g.pitchers = { home: { name: H.pitcher || null, id: H.pitcherId || null }, away: { name: A.pitcher || null, id: A.pitcherId || null } };   // 예상 선발투수(+사진용 ID)
       if (H.r != null) g.hs = H.r;
       if (A.r != null) g.as = A.r;
       g.state = e.state;
@@ -1355,7 +1355,8 @@ async function mlbScoreMap(date, sportId = 1, tz = 'Asia/Seoul') {
         h: lt[who] && lt[who].hits != null ? lt[who].hits : null,
         e: lt[who] && lt[who].errors != null ? lt[who].errors : null,
         bb: null,
-        pitcher: (g.teams[who].probablePitcher && g.teams[who].probablePitcher.fullName) || null   // 예상 선발(며칠 전부터 제공)
+        pitcher: (g.teams[who].probablePitcher && g.teams[who].probablePitcher.fullName) || null,   // 예상 선발(며칠 전부터 제공)
+        pitcherId: (g.teams[who].probablePitcher && g.teams[who].probablePitcher.id) || null          // 선수 ID(얼굴 사진용)
       });
       const hs = side('home'), as = side('away');
       // 사사구(BB)·안타 보정은 boxscore에서 (진행/종료 경기만 — 비용 절약)
