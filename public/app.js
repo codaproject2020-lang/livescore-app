@@ -1290,23 +1290,17 @@ function renderFeed(games) {
     const head = `<div class="lghd"><span class="flag">${badge(g.league.leagueLogo, '🏆')}</span><span class="nm">${esc(g.name)}</span><span class="cnt">(${g.items.length})</span>${live ? `<span class="live-dot" style="color:#e2231a;font-weight:800">🔴 ${live} LIVE</span>` : ''}<span class="up">∧</span></div>`;
     return `<div class="lg">${head}${g.items.map(e => matchCard(e)).join('')}</div>`;
   };
-  // ⭐ 즐겨찾기(종) → 진행·예정 경기(리그별) → 🔻 종료 경기(맨 아래, 리그별)
+  // ⭐ 즐겨찾기(종) → 리그별 그룹(각 리그 안에서 진행→예정→종료 순, 종료는 아래로)
   const favGames = games.filter(e => isMatchFav(e)); favGames.sort(feedSort);
   const rest = games.filter(e => !isMatchFav(e));
-  const activeG = groupBy(rest.filter(e => e.state !== 'finished'));
-  const finG = groupBy(rest.filter(e => e.state === 'finished'));
+  const allG = groupBy(rest);   // 진행·예정·종료를 한 리그 그룹으로 합침 (라이브스코어 방식)
   let html = '';
   if (favGames.length) {
     const live = favGames.filter(x => x.state === 'live').length;
     const head = `<div class="lghd favhd"><span class="flag">⭐</span><span class="nm">${esc(t('favTeams'))}</span><span class="cnt">(${favGames.length})</span>${live ? `<span class="live-dot" style="color:#e2231a;font-weight:800">🔴 ${live} LIVE</span>` : ''}<span class="up">∧</span></div>`;
     html += `<div class="lg lg-fav">${head}${favGames.map(e => matchCard(e)).join('')}</div>`;
   }
-  html += activeG.map(groupHtml).join('');
-  if (finG.length) {
-    const finCount = finG.reduce((n, g) => n + g.items.length, 0);
-    html += `<div class="fin-divider">🔻 ${esc(t('finishedSec'))} (${finCount})</div>`;
-    html += finG.map(groupHtml).join('');
-  }
+  html += allG.map(groupHtml).join('');
   feed.innerHTML = html;
   $$('#feed .lghd').forEach(h => h.addEventListener('click', () => {
     let el = h.nextElementSibling; const arr = h.querySelector('.up'); const col = arr.textContent === '∨';
