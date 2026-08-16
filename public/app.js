@@ -1197,7 +1197,11 @@ function scoreBlock(e) {
   const setSports = (state.sport === 'volleyball' || state.sport === 'hockey');
   const sub = (setSports && e.livePts && e.state === 'live') ? `<div class="setpts">${esc(t('now'))} ${esc(e.livePts.home ?? 0)}:${esc(e.livePts.away ?? 0)}</div>` : '';
   const mainLbl = setSports ? `<div class="scorelbl">${esc(t('setWord'))}</div>` : '';
-  return `<div class="mid">${stateBadge(e)}<div class="scores"><span class="${cls}">${esc(e.hs ?? 0)}</span><span class="vs">:</span><span class="${cls}">${esc(e.as ?? 0)}</span></div>${mainLbl}${sub}</div>`;
+  // 이기는 쪽(높은 점수) 빨강 / 지는 쪽 검정 (동점은 기본색)
+  const h = Number(e.hs) || 0, a = Number(e.as) || 0;
+  const hCls = h > a ? ' win' : h < a ? ' lose' : '';
+  const aCls = a > h ? ' win' : a < h ? ' lose' : '';
+  return `<div class="mid">${stateBadge(e)}<div class="scores"><span class="${cls}${hCls}">${esc(e.hs ?? 0)}</span><span class="vs">:</span><span class="${cls}${aCls}">${esc(e.as ?? 0)}</span></div>${mainLbl}${sub}</div>`;
 }
 function oddsLine(e) {
   if (!e.odds) return '';

@@ -310,6 +310,9 @@ table.stdtbl tr.hl td{font-weight:800;color:var(--navy)}
 img.uav{width:20px;height:20px;border-radius:50%;object-fit:cover;vertical-align:middle;margin-right:3px}
 .mid .score{font-size:22px;font-weight:900}
 .mid .score.live{color:var(--red)}
+/* 이기는 쪽(높은 점수)=빨강, 지는 쪽=검정 (라이브·종료 공통, .live보다 뒤라 우선 적용) */
+.mid .score.win{color:var(--red)}
+.mid .score.lose{color:#111}
 .mid .vs{font-size:14px;color:var(--dim);font-weight:800}
 .mid .scores{display:flex;align-items:center;gap:10px}
 .mid .scorelbl{font-size:9px;color:var(--dim);font-weight:700;margin-top:1px}
