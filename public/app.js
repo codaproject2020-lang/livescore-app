@@ -499,7 +499,7 @@ function updateInfoGate() {
 function homeHot(g) {
   const sc = (g.hs == null && g.as == null) ? 'VS' : `${g.hs ?? 0} - ${g.as ?? 0}`;
   return `<div class="hhot-card" data-ev="${esc(g.id)}">
-    <div class="hh-top"><span class="hh-live">LIVE</span>${heatHtml(g)}<span class="hh-st">${esc(koStatus(g))}</span></div>
+    <div class="hh-top"><span class="hh-live">LIVE</span>${heatHtml(g)}<span class="hh-st">${esc(koStatus(g))}</span><span class="bell favbell${isMatchFav(g) ? ' on' : ''}" data-favmatch="${esc(g.id)}" title="${esc(t('favTeams'))}">${isMatchFav(g) ? '🔔' : '🔕'}</span></div>
     <div class="hh-teams">
       <span class="hh-t"><span class="hh-ph">${badge(g.homeLogo, '🏟')}</span><b>${esc(teamShort(TN(g.home, g.league)))}</b></span>
       <span class="hh-sc">${esc(sc)}</span>
@@ -527,6 +527,7 @@ function homeKeyRow(g) {
   const tm = g.date ? hhmm(g.date) : '';
   const st = g.state === 'live' ? `<span class="hk-live">● ${esc(koStatus(g))}</span>` : g.state === 'finished' ? esc(t('finished')) : `<span class="hk-tm">${esc(tm)}</span>`;
   return `<div class="hk-row" data-ev="${esc(g.id)}">
+    <span class="bell favbell hk-bell${isMatchFav(g) ? ' on' : ''}" data-favmatch="${esc(g.id)}" title="${esc(t('favTeams'))}">${isMatchFav(g) ? '🔔' : '🔕'}</span>
     <span class="hk-lg">${esc(g.league)}</span>
     <span class="hk-tt"><span class="hk-ph">${badge(g.homeLogo, '🏟')}</span>${esc(teamShort(TN(g.home, g.league)))}</span>
     <span class="hk-vs">vs</span>
@@ -538,7 +539,7 @@ async function renderHome() {
   const box = $('#homeBody'); if (!box) return;
   if (homeBusy) return; homeBusy = true;
   if (!box.dataset.loaded) box.innerHTML = `<div class="loading">${esc(t('loading'))}</div>`;
-  const sports = ['baseball', 'football', 'basketball'];
+  const sports = ['baseball', 'football', 'basketball', 'volleyball', 'hockey', 'handball', 'rugby'];
   let all = [];
   try {
     const res = await Promise.all(sports.map(sp => fetchJSON(`/api/asports/games?sport=${sp}&date=${state.date}&tz=${encodeURIComponent(USER_TZ)}`, { tries: 1 }).catch(() => ({ games: [] }))));
@@ -570,7 +571,11 @@ async function renderHome() {
     ${aiG ? `<div class="home-sec"><div class="home-hd">🤖 ${esc(t('aiOneLine'))}</div><div class="haione" data-ev="${esc(aiG.id)}">${aiLive(aiG)}</div></div>` : ''}
     <div class="home-empty ${all.length ? 'hidden' : ''}">${esc(t('noGames'))}</div>`;
   $$('#homeBody [data-pick]').forEach(el => el.addEventListener('click', () => { state.sport = el.dataset.psport || state.sport; openPick(el.dataset.pick); }));
-  $$('#homeBody [data-ev]').forEach(el => el.addEventListener('click', () => openEvent(el.dataset.ev)));
+  $$('#homeBody [data-ev]').forEach(el => el.addEventListener('click', () => {
+    const id = el.dataset.ev, g = feedGames[id];
+    if (g && g.__sport && g.__sport !== state.sport) { state.sport = g.__sport; if (typeof buildSportNav === 'function') buildSportNav(); }
+    openEvent(id);
+  }));
   homeBusy = false;
 }
 $('#igLogin')?.addEventListener('click', openLogin);
@@ -2736,6 +2741,7 @@ function toggleMatchFav(id) {
   else { if (!isFav(e.home)) FAV.push(e.home); if (!isFav(e.away)) FAV.push(e.away); if (!NOTIF.on) autoEnableNotif(); }
   saveFav(); if (NOTIF.on) syncPush();
   if ($('#view-live') && !$('#view-live').classList.contains('hidden')) renderFeed(filterGames());
+  if ($('#view-home') && !$('#view-home').classList.contains('hidden') && typeof renderHome === 'function') renderHome();
 }
 // 종을 처음 누르면 알림 자동 활성화(권한 요청) → 앱 꺼도 푸시
 async function autoEnableNotif() {
