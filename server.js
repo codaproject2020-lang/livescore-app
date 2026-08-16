@@ -1328,6 +1328,22 @@ app.get('/api/football/lineup', async (req, res) => {
   } catch (e) { res.json({ teams: [], error: String(e.message || e) }); }
 });
 
+// 🔎 진단: API-Football 플랜/사용량 + K/J리그 라인업·통계 커버리지 확인
+app.get('/api/asports/status', async (req, res) => {
+  try {
+    const st = await asRaw('football', '/status', 20000).catch(e => ({ error: String(e.message || e) }));
+    const cov = {};
+    for (const [nm, id] of [['K League 1', 292], ['K League 2', 293], ['J1 League', 98]]) {
+      try {
+        const j = await asRaw('football', `/leagues?id=${id}`, 60000);
+        const r = (j.response || [])[0];
+        const s = r && (r.seasons || []).slice(-1)[0];
+        cov[nm] = s ? { season: s.year, lineups: !!(s.coverage && s.coverage.fixtures && s.coverage.fixtures.lineups), stats_fixtures: !!(s.coverage && s.coverage.fixtures && s.coverage.fixtures.statistics_fixtures), events: !!(s.coverage && s.coverage.fixtures && s.coverage.fixtures.events) } : { note: 'no season' };
+      } catch (e) { cov[nm] = { error: String(e.message || e) }; }
+    }
+    res.json({ status: (st && st.response) ? st.response : st, coverage: cov });
+  } catch (e) { res.json({ error: String(e.message || e) }); }
+});
 // ⚽ 축구 팀 경기 스탯 (점유율·슈팅·코너·파울 등) — API-Sports /fixtures/statistics
 app.get('/api/asports/fbstats', async (req, res) => {
   if (!APISPORTS_KEY) return res.json({ needKey: true, teams: [] });
