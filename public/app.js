@@ -185,6 +185,9 @@ const STR = {
   starter: ['SP', '선발', '先発', '先发'],
   starterTBD: ['SP TBD', '선발 미정', '先発未定', '先发未定'],
   eraShort: ['ERA', '방어율', '防御率', '防御率'],
+  possShort: ['Possession', '점유율', '支配率', '控球率'],
+  shotsShort: ['Shots', '슈팅', 'シュート', '射门'],
+  sotShort: ['on target', '유효', '枠内', '射正'],
   aiPrevFav: ['{team} slightly favored', '{team} 우세 예상', '{team} 優勢予想', '{team} 占优'],
   aiPrevEven: ['Too close to call', '박빙 예상', '互角の予想', '势均力敌'],
   aiPrevSoon: ['Kicking off soon — worth a watch!', '곧 시작 · 놓치기 아까운 한 판!', 'まもなく開始・注目の一戦！', '即将开始 · 值得一看！'],
@@ -1412,10 +1415,26 @@ function teamSP(e, side) {
 }
 // ⚽ 축구 팀별 카드(옐로/레드) — 피드 목록 표시
 function teamCards(e, side) {
-  if (state.sport !== 'football' || !e.cards) return '';
-  const c = e.cards[side] || { y: 0, r: 0 };
-  if (!c.y && !c.r) return '';
-  return `<div class="tm-cards">${c.y > 0 ? `<span class="tc-y">🟨 ${c.y}</span>` : ''}${c.r > 0 ? `<span class="tc-r">🟥 ${c.r}</span>` : ''}</div>`;
+  if (state.sport !== 'football') return '';
+  const src = (e.stats && e.stats[side]) || (e.cards && e.cards[side]);
+  if (!src) return '';
+  const y = Number(src.y) || 0, r = Number(src.r) || 0;
+  if (!y && !r) return '';
+  return `<div class="tm-cards">${y > 0 ? `<span class="tc-y">🟨 ${y}</span>` : ''}${r > 0 ? `<span class="tc-r">🟥 ${r}</span>` : ''}</div>`;
+}
+// ⚽ 축구 라이브 통계 (점유율·슈팅·유효슈팅) — 카드에서 상세 안 열어도 바로 표시
+function fbStatsRow(e) {
+  if (state.sport !== 'football' || e.state !== 'live' || !e.stats) return '';
+  const h = e.stats.home || {}, a = e.stats.away || {};
+  const num = v => { const n = parseInt(v, 10); return isNaN(n) ? null : n; };
+  const hp = num(h.poss), ap = num(a.poss);
+  const hasPoss = hp != null || ap != null;
+  const hasShots = h.shots != null || a.shots != null || h.sot != null || a.sot != null;
+  if (!hasPoss && !hasShots) return '';
+  const hpp = hp != null ? hp : (ap != null ? 100 - ap : 50);
+  const possLine = hasPoss ? `<div class="fs-line"><span class="fs-h">${esc(h.poss || '-')}</span><span class="fs-lbl">${esc(t('possShort'))}</span><span class="fs-a">${esc(a.poss || '-')}</span></div><div class="fs-bar"><i style="width:${hpp}%"></i></div>` : '';
+  const shotLine = hasShots ? `<div class="fs-line"><span class="fs-h">${esc(h.shots ?? 0)} <b>(${esc(h.sot ?? 0)})</b></span><span class="fs-lbl">${esc(t('shotsShort'))} <i>(${esc(t('sotShort'))})</i></span><span class="fs-a">${esc(a.shots ?? 0)} <b>(${esc(a.sot ?? 0)})</b></span></div>` : '';
+  return `<div class="fstats">${possLine}${shotLine}</div>`;
 }
 function matchCard(e) {
   return `<div class="match" data-ev="${esc(e.id)}">
@@ -1427,6 +1446,7 @@ function matchCard(e) {
     </div>
     ${aiLive(e)}
     ${aiPreview(e)}
+    ${fbStatsRow(e)}
     ${bsoMini(e)}
     ${rheRow(e)}
     ${oddsLine(e)}

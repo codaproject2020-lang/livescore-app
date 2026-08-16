@@ -780,6 +780,15 @@ table.boxsc .he{color:var(--sub);background:#fafbfc;font-weight:800}
 .tm-cards{display:flex;justify-content:center;gap:5px;margin-top:4px;font-size:10.5px;font-weight:800}
 .tm-cards .tc-y{color:#c99700}
 .tm-cards .tc-r{color:#d33}
+/* ⚽ 카드 내 라이브 통계 (점유율·슈팅) */
+.fstats{grid-column:2;margin-top:8px;background:#f6f8fb;border:1px solid var(--line);border-radius:10px;padding:8px 10px}
+.fs-line{display:flex;align-items:center;justify-content:space-between;font-size:12px;font-weight:800;color:var(--navy)}
+.fs-line+.fs-line{margin-top:6px}
+.fs-line .fs-lbl{font-size:10.5px;font-weight:700;color:var(--sub)}
+.fs-line .fs-lbl i{font-style:normal;color:var(--dim)}
+.fs-line .fs-h b,.fs-line .fs-a b{color:var(--red)}
+.fs-bar{height:6px;border-radius:3px;background:#b9c6da;overflow:hidden;margin:4px 0 2px}
+.fs-bar i{display:block;height:100%;background:var(--navy);border-radius:3px}
 /* 예상 선발투수 (팀 이름 아래 · 얼굴 사진 + 이름) */
 .sp-p{display:flex;flex-direction:column;align-items:center;gap:3px;margin-top:5px;max-width:100%}
 .sp-face{width:30px;height:30px;border-radius:50%;object-fit:cover;background:#eef1f5;border:1px solid var(--line);flex:0 0 auto}
