@@ -535,15 +535,32 @@ function homeKeyRow(g) {
     <span class="hk-st">${st}</span></div>`;
 }
 let homeBusy = false;
+const homeCache = {};   // 홈 카드용 경기 캐시 (feedGames가 종목전환으로 비워져도 클릭 동작 보장)
+// 홈 클릭은 이벤트 위임으로 #homeBody에 1회만 바인딩 → 재렌더·타이밍과 무관하게 항상 반응
+function wireHomeClicks() {
+  const box = $('#homeBody'); if (!box || box._wired) return; box._wired = true;
+  box.addEventListener('click', ev => {
+    const pk = ev.target.closest && ev.target.closest('[data-pick]');
+    if (pk) { state.sport = pk.dataset.psport || state.sport; openPick(pk.dataset.pick); return; }
+    const ec = ev.target.closest && ev.target.closest('[data-ev]');
+    if (ec) {
+      const id = ec.dataset.ev, g = feedGames[id] || homeCache[id];
+      if (g) { feedGames[id] = g; if (g.__sport && g.__sport !== state.sport) { state.sport = g.__sport; if (typeof buildSportNav === 'function') buildSportNav(); } }
+      openEvent(id);
+    }
+  });
+}
 async function renderHome() {
   const box = $('#homeBody'); if (!box) return;
+  wireHomeClicks();
   if (homeBusy) return; homeBusy = true;
+  try {
   if (!box.dataset.loaded) box.innerHTML = `<div class="loading">${esc(t('loading'))}</div>`;
   const sports = ['baseball', 'football', 'basketball', 'volleyball', 'hockey', 'handball', 'rugby'];
   let all = [];
   try {
     const res = await Promise.all(sports.map(sp => fetchJSON(`/api/asports/games?sport=${sp}&date=${state.date}&tz=${encodeURIComponent(USER_TZ)}`, { tries: 1 }).catch(() => ({ games: [] }))));
-    res.forEach((d, i) => (d.games || []).forEach(g => { g.__sport = sports[i]; feedGames[g.id] = g; all.push(g); }));
+    res.forEach((d, i) => (d.games || []).forEach(g => { g.__sport = sports[i]; feedGames[g.id] = g; homeCache[g.id] = g; all.push(g); }));
   } catch { }
   const favChips = FAV.length
     ? FAV.map(nm => `<span class="hchip">${esc(TN(nm, ''))}</span>`).join('')
@@ -570,13 +587,8 @@ async function renderHome() {
     ${key.length ? `<div class="home-sec"><div class="home-hd">📅 ${esc(t('keyGames'))}</div><div class="hkey">${key.map(homeKeyRow).join('')}</div></div>` : ''}
     ${aiG ? `<div class="home-sec"><div class="home-hd">🤖 ${esc(t('aiOneLine'))}</div><div class="haione" data-ev="${esc(aiG.id)}">${aiLive(aiG)}</div></div>` : ''}
     <div class="home-empty ${all.length ? 'hidden' : ''}">${esc(t('noGames'))}</div>`;
-  $$('#homeBody [data-pick]').forEach(el => el.addEventListener('click', () => { state.sport = el.dataset.psport || state.sport; openPick(el.dataset.pick); }));
-  $$('#homeBody [data-ev]').forEach(el => el.addEventListener('click', () => {
-    const id = el.dataset.ev, g = feedGames[id];
-    if (g && g.__sport && g.__sport !== state.sport) { state.sport = g.__sport; if (typeof buildSportNav === 'function') buildSportNav(); }
-    openEvent(id);
-  }));
-  homeBusy = false;
+  // 클릭은 wireHomeClicks()의 위임 리스너가 처리 (여기서 개별 바인딩 안 함)
+  } finally { homeBusy = false; }
 }
 $('#igLogin')?.addEventListener('click', openLogin);
 $$('.topbar .tt[data-tab]').forEach(b => b.addEventListener('click', () => setTab(b.dataset.tab)));
@@ -2736,7 +2748,7 @@ function toggleFav(name) { name = String(name || ''); const i = FAV.indexOf(name
 // 경기 단위 즐겨찾기 (종 아이콘) — 양 팀을 관심팀에 등록/해제
 function isMatchFav(e) { return isFav(e.home) && isFav(e.away); }
 function toggleMatchFav(id) {
-  const e = feedGames[id]; if (!e) return;
+  const e = feedGames[id] || (typeof homeCache !== 'undefined' ? homeCache[id] : null); if (!e) return;
   if (isMatchFav(e)) { FAV = FAV.filter(x => x !== e.home && x !== e.away); }
   else { if (!isFav(e.home)) FAV.push(e.home); if (!isFav(e.away)) FAV.push(e.away); if (!NOTIF.on) autoEnableNotif(); }
   saveFav(); if (NOTIF.on) syncPush();
