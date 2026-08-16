@@ -1137,6 +1137,30 @@ async function buildGamesCore(sport, date, tz) {
       }); });
     }
   }
+  // ⚽ 라이브 축구: 팀별 옐로/레드 카드 수 (피드 목록 표시용) — 라이브 경기만, 경기당 30초 캐시로 호출 최소화
+  if (sport === 'football') {
+    const liveG = games.filter(g => g.state === 'live').slice(0, 40);
+    await Promise.all(liveG.map(async g => {
+      try {
+        const ck = 'FBC:' + g.id, hit = cache.get(ck);
+        let cards;
+        if (hit && Date.now() - hit.t < 30000) cards = hit.v;
+        else {
+          const j2 = await asRaw('football', `/fixtures/events?fixture=${g.id}`, 9000);
+          const c = { home: { y: 0, r: 0 }, away: { y: 0, r: 0 } };
+          (j2.response || []).forEach(ev => {
+            if ((ev.type || '') !== 'Card') return;
+            const tn = ev.team ? ev.team.name : '';
+            const side = tn === g.home ? 'home' : tn === g.away ? 'away' : null;
+            if (!side) return;
+            if (/red/i.test(ev.detail || '')) c[side].r++; else c[side].y++;
+          });
+          cards = c; cache.set(ck, { t: Date.now(), v: cards });
+        }
+        if (cards.home.y || cards.home.r || cards.away.y || cards.away.r) g.cards = cards;
+      } catch {}
+    }));
+  }
   return { games, j };
 }
 
