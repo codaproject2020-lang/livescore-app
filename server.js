@@ -1292,15 +1292,16 @@ app.get('/api/football/lineup', async (req, res) => {
     // 1) TheSports 경기 찾기 (당일·전날·다음날)
     const prev = new Date(Date.parse(date + 'T12:00:00Z') - 864e5).toISOString().slice(0, 10);
     const next = new Date(Date.parse(date + 'T12:00:00Z') + 864e5).toISOString().slice(0, 10);
-    let match = null, swap = false;
+    let match = null, swap = false, diag = [];
     for (const dt of [date, prev, next]) {
-      const games = await tsFootballGames(dt).catch(() => []);
+      const games = await tsFootballGames(dt).catch(e => { diag.push({ dt, err: String(e.message || e) }); return []; });
+      diag.push({ dt, count: games.length, sample: games.slice(0, 8).map(g => ({ home: g.home, away: g.away, league: g.league })) });
       match = games.find(g => fit(norm(g.home), nh) && fit(norm(g.away), na));
       if (match) break;
       const sw = games.find(g => fit(norm(g.home), na) && fit(norm(g.away), nh));
       if (sw) { match = sw; swap = true; break; }
     }
-    if (!match) return res.json({ teams: [], reason: 'no-match' });
+    if (!match) return res.json({ teams: [], reason: 'no-match', diag: debug ? diag : undefined });
     // 2) 라인업
     const lu = await tsFetch('/football/match/lineup', { uuid: match.id }, 8000).catch(() => null);
     if (debug) return res.json({ matchId: match.id, home: match.home, away: match.away, raw: lu });
