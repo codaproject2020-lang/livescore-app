@@ -1246,8 +1246,10 @@ const HA_AWAY = '<span class="haic away" title="AWAY" aria-label="AWAY"><svg vie
 // ⚾ 예상 선발투수 (팀 이름 아래 표시 · MLB 등 StatsAPI 리그 · 며칠 전부터 제공)
 function teamSP(e, side) {
   if (state.sport !== 'baseball' || !e.pitchers) return '';
-  const n = e.pitchers[side];
-  return n ? `<div class="sp-p" title="${esc(n)}">⚾ ${esc(n)}</div>` : `<div class="sp-p sp-tbd">⚾ ${esc(t('starterTBD'))}</div>`;
+  const p = e.pitchers[side] || {};
+  if (!p.name) return `<div class="sp-p sp-tbd"><span class="sp-face ic">⚾</span><span class="sp-nm">${esc(t('starterTBD'))}</span></div>`;
+  const face = p.id ? `<img class="sp-face" src="${esc(mlbFace(p.id))}" referrerpolicy="no-referrer" loading="lazy" onerror="this.replaceWith(Object.assign(document.createElement('span'),{className:'sp-face ic',textContent:'⚾'}))">` : `<span class="sp-face ic">⚾</span>`;
+  return `<div class="sp-p" title="${esc(p.name)}">${face}<span class="sp-nm">${esc(p.name)}</span></div>`;
 }
 function matchCard(e) {
   return `<div class="match" data-ev="${esc(e.id)}">
