@@ -117,12 +117,12 @@ html,body{overflow-x:hidden;max-width:100%}
 /* 🏏 카드: 타격 중 타자(좌) + R/H/E/BB(우) */
 .rhemini-row{grid-column:2;display:flex;gap:8px;align-items:flex-start;margin-top:8px;min-width:0}
 .rhemini-row .rhemini{grid-column:auto;margin-top:0;flex:0 0 auto;max-width:56%;overflow-x:auto}
-/* 📱 모바일: 타격중 패널과 R/H/E/BB 표를 위아래로 쌓아 표가 잘리지 않게 */
+/* 📱 모바일: 타격중 패널 + R/H/E/BB 표를 한 줄 유지, 넘치면 가로 스크롤 */
 @media(max-width:600px){
-  .rhemini-row{flex-direction:column;gap:6px}
-  .rhemini-row .rhemini{max-width:100%;width:100%}
-  .rhemini-row .abcard{width:100%}
-  table.rhe-tbl{width:100%}
+  .rhemini-row{flex-wrap:nowrap;overflow-x:auto;-webkit-overflow-scrolling:touch;padding-bottom:2px}
+  .rhemini-row .abcard{flex:1 1 auto;min-width:0}
+  .rhemini-row .rhemini{flex:0 0 auto;max-width:none}
+  table.rhe-tbl{width:auto}
 }
 .abcard{flex:1;min-width:0;background:#fff;border:1px solid var(--line);border-radius:10px;padding:5px 8px;align-self:stretch}
 .abc-hd{font-size:9.5px;font-weight:800;color:var(--sub);margin-bottom:3px}
