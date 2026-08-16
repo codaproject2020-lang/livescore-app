@@ -238,6 +238,9 @@ table.stdtbl tr.hl td{font-weight:800;color:var(--navy)}
 .mid .badge-state.sched{background:var(--blueDark);color:#fff}
 .mid .badge-state.ft{background:#eef1f4;color:var(--sub)}
 .mid .badge-state.abn{background:#7a5b16;color:#ffe9b0}
+.mid .badge-state.abn2{display:inline-flex;flex-direction:column;align-items:center;line-height:1.1;padding:3px 9px}
+.mid .badge-state.abn2 b{font-size:12px;font-weight:900}
+.mid .badge-state.abn2 em{font-size:8.5px;font-style:normal;font-weight:700;opacity:.92;margin-top:1px}
 /* ===== PICK 화면 ===== */
 .pickcard{background:#fff;border:1px solid var(--line);border-radius:14px;padding:12px 14px;margin:10px 0;cursor:pointer;box-shadow:0 2px 8px rgba(20,30,50,.05);transition:transform .12s,box-shadow .12s}
 .pickcard:hover{transform:translateY(-2px);box-shadow:0 6px 18px rgba(20,30,50,.12)}

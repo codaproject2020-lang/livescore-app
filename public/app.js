@@ -1073,8 +1073,26 @@ function koStatus(e) {
   if (p) return periodLabel(p, sp === 'volleyball' ? 'set' : sp === 'hockey' ? 'period' : 'quarter');
   return long || e.status || t('inplay');
 }
+// 이상상태 배지: 큰 글씨(취소/중단…) + 작은 설명(우천취소/우천중단…). 야구는 우천 표현으로 명확화
+function abnParts(e) {
+  if (!e || !e.abnStatus) return null;
+  const bb = (e.sport === 'baseball') || (e.__sport === 'baseball') || (state.sport === 'baseball') || (e.curInning != null);
+  const P = {
+    canceled:  { main: ['Canceled', '취소', '中止', '取消'], sub: bb ? ['Rain canceled', '우천취소', '雨天中止', '雨天取消'] : ['Canceled', '경기취소', '中止', '取消'] },
+    postponed: bb ? { main: ['Canceled', '취소', '中止', '取消'], sub: ['Rain canceled', '우천취소', '雨天中止', '雨天取消'] }
+                  : { main: ['Postponed', '연기', '延期', '延期'], sub: ['Rescheduled', '일정연기', '延期', '改期'] },
+    suspended: { main: ['Suspended', '중단', '中断', '中断'], sub: bb ? ['Rain delay', '우천중단', '雨天中断', '雨天中断'] : ['Suspended', '경기중단', '中断', '中断'] },
+    delayed:   { main: ['Delayed', '지연', '遅延', '延迟'], sub: ['Start delayed', '시작지연', '開始遅延', '开始延迟'] },
+    halved:    { main: ['Called', '콜드', 'コールド', '提前结束'], sub: ['Called game', '콜드게임', 'コールドゲーム', '提前结束'] },
+    tbd:       { main: ['TBD', '미정', '未定', '待定'], sub: ['Time TBD', '일정미정', '日程未定', '日程待定'] },
+    abnormal:  { main: ['Abnormal', '이상', '異常', '异常'], sub: ['', '', '', ''] }
+  };
+  const p = P[e.abnStatus] || P.abnormal, i = LANG === 'ko' ? 1 : LANG === 'ja' ? 2 : LANG === 'zh' ? 3 : 0;
+  return { main: p.main[i] || p.main[0], sub: (p.sub[i] || p.sub[0] || '') };
+}
 function stateBadge(e) {
-  const ab = abnLabel(e); if (ab && ab !== '—') return `<span class="badge-state abn">${esc(ab)}</span>`;
+  const ap = abnParts(e);
+  if (ap) return `<span class="badge-state abn abn2"><b>${esc(ap.main)}</b>${ap.sub ? `<em>${esc(ap.sub)}</em>` : ''}</span>`;
   if (e.state === 'live') return `<span class="badge-state live">● ${esc(koStatus(e))}</span>`;
   if (e.state === 'finished') return `<span class="badge-state ft">${esc(t('finished'))}</span>`;
   return `<span class="badge-state sched">${hhmm(e.date)}</span>`;
