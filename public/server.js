@@ -1060,8 +1060,8 @@ async function buildGamesCore(sport, date, tz) {
   // 🗓️ 날짜 그룹 — KBO/NPB=한국시간, MLB=미국(동부) 날짜 기준. 미국 저녁 경기는 한국시간 다음날 새벽이라 전날·다음날치도 받아 필터
   const prevDate = new Date(Date.parse(date + 'T12:00:00Z') - 864e5).toISOString().slice(0, 10);
   const nextDate = new Date(Date.parse(date + 'T12:00:00Z') + 864e5).toISOString().slice(0, 10);
-  // 모든 종목: 자정 경계·미국 리그(NBA/NHL/MLB) 시차 때문에 전날·다음날치도 받아 기기 타임존 날짜로 필터
-  const apiDates = [prevDate, date, nextDate];
+  // 야구만 전날·당일·다음날 3일치(미국 리그 KST 시차 보정). 그 외 종목은 API가 timezone으로 이미 정확히 그룹 → 당일만(호출량 절약)
+  const apiDates = (sport === 'baseball') ? [prevDate, date, nextDate] : [date];
   let j = {}; let games = []; const _seen = new Set();
   for (const dt of apiDates) {
     const jj = await asRaw(sport, `${cfg.path}?date=${dt}&timezone=${encodeURIComponent(tz)}`, 6000).catch(() => ({ response: [] }));
@@ -1087,7 +1087,10 @@ async function buildGamesCore(sport, date, tz) {
       const e = sm[[hN, aN].sort().join('|') + '|' + gYmd] || sm[[hN, aN].sort().join('|') + '|' + g._apiDate];
       if (!e) return;
       const H = e.byNick[hN] || {}, A = e.byNick[aN] || {};
-      if (H.pitcher || A.pitcher) g.pitchers = { home: H.pitcher || null, away: A.pitcher || null };   // 예상 선발투수
+      if (H.pitcher || A.pitcher) g.pitchers = {   // 예상 선발투수(+사진용 ID·시즌 성적)
+        home: { name: H.pitcher || null, id: H.pitcherId || null, era: H.era || null, w: H.w != null ? H.w : null, l: H.l != null ? H.l : null },
+        away: { name: A.pitcher || null, id: A.pitcherId || null, era: A.era || null, w: A.w != null ? A.w : null, l: A.l != null ? A.l : null }
+      };
       if (H.r != null) g.hs = H.r;
       if (A.r != null) g.as = A.r;
       g.state = e.state;
@@ -1108,20 +1111,32 @@ async function buildGamesCore(sport, date, tz) {
       // KBO(한국)·NPB(일본)·CPBL(대만) 아시아 프로리그만 TheSports로 (고교/아마추어 제외)
       const wantRe = /KBO|NPB|CPBL|Korea|Korean|Nippon|Japan|Chinese Professional|Taiwan|일본|한국|대만|Futures|퓨처스|퓨쳐스|Eastern League|Western League/i;
       const hsRe = /koshien|senbatsu|high\s*school|甲子園|고교|amateur|university|college/i;
-      let kn = []; const knSeen = new Set();
-      for (const dt of apiDates) {
-        const ts = await tsBaseballGames(dt).catch(() => []);
-        ts.filter(g => wantRe.test(g.league || '') && !hsRe.test(g.league || '')).forEach(g => { if (!knSeen.has(g.id)) { knSeen.add(g.id); kn.push(g); } });
-      }
+      // KBO/NPB/CPBL은 아시아(한국시간) 리그 → 보는 날짜 하루만 조회 (전날치까지 넣으면 날짜필터에 걸려 사라지는 버그 방지 + 호출 절감)
+      const ts = await tsBaseballGames(date).catch(() => []);
+      const kn = ts.filter(g => wantRe.test(g.league || '') && !hsRe.test(g.league || ''));
       if (kn.length) {
-        games = games.filter(g => !wantRe.test(g.league || ''));   // API-Sports 동일리그 제거(중복 방지)
+        // TheSports가 해당 날짜 경기를 갖고 있을 때만 API-Sports 동일리그 제거 후 교체(더 정확). 없으면 API-Sports 그대로 유지
+        games = games.filter(g => !wantRe.test(g.league || ''));
         games = games.concat(kn);
       }
     } catch (e) { /* TheSports 실패 시 API-Sports 유지 */ }
   }
-  // 🗓️ 모든 종목 날짜 필터: 경기 시작(UTC)을 뷰어 기기 타임존으로 변환한 날짜가 선택 날짜와 같은 경기만
-  //    (tz = 클라이언트가 보낸 기기 IANA 타임존. 한국이면 Asia/Seoul → 한국시간 날짜로 그룹. NBA/NHL/MLB 시차·자정경계 정확 처리)
-  games = games.filter(g => !g.date || ymdInTz(g.date, tz) === date);
+  // 🗓️ 야구만 날짜 필터: 경기 시작(UTC)을 기기 타임존으로 변환한 날짜가 선택 날짜와 같은 경기만 (MLB KST 시차 정확 처리)
+  //    그 외 종목은 API가 timezone 파라미터로 이미 그날 경기만 반환 → 추가 필터 없음(경기 누락 방지)
+  if (sport === 'baseball') games = games.filter(g => !g.date || ymdInTz(g.date, tz) === date);
+  // ⚾ 선발투수 시즌성적(ERA·승·패) 채우기 — 화면에 보이는 경기 투수만, 선수별 1시간 캐시로 호출 최소화
+  if (sport === 'baseball') {
+    const need = new Set();
+    games.forEach(g => { if (g.pitchers) ['home', 'away'].forEach(s => { const p = g.pitchers[s]; if (p && p.id && p.era == null) need.add(p.id); }); });
+    if (need.size) {
+      const stats = {};
+      await Promise.all([...need].map(async id => { stats[id] = await mlbPitcherSeason(id).catch(() => null); }));
+      games.forEach(g => { if (g.pitchers) ['home', 'away'].forEach(s => {
+        const p = g.pitchers[s], st = p && p.id ? stats[p.id] : null;
+        if (p && st) { if (p.era == null && st.era && st.era !== '-') p.era = String(st.era); if (p.w == null) p.w = st.w; if (p.l == null) p.l = st.l; }
+      }); });
+    }
+  }
   return { games, j };
 }
 
@@ -1333,6 +1348,17 @@ async function mlbFindGame(home, away, date) {
   pool.sort((a, b) => rank(a.st) - rank(b.st));
   return pool[0];
 }
+// 예상 선발투수의 시즌 성적(ERA·승·패) 파싱 (schedule hydrate 안에 함께 옴 → 추가 호출 없음)
+function ppStat(pp) {
+  if (!pp || !pp.stats) return {};
+  for (const s of pp.stats) {
+    const st = s.stats || (s.splits && s.splits[0] && s.splits[0].stat);
+    if (st && (st.era != null || st.wins != null || st.losses != null)) {
+      return { era: st.era != null ? String(st.era) : null, w: st.wins != null ? st.wins : null, l: st.losses != null ? st.losses : null };
+    }
+  }
+  return {};
+}
 // MLB 스코어/상태/이닝을 공식 StatsAPI로 덮어쓰기용 맵 (API-Sports보다 훨씬 빠름·정확)
 async function mlbScoreMap(date, sportId = 1, tz = 'Asia/Seoul') {
   const map = {};
@@ -1355,7 +1381,9 @@ async function mlbScoreMap(date, sportId = 1, tz = 'Asia/Seoul') {
         h: lt[who] && lt[who].hits != null ? lt[who].hits : null,
         e: lt[who] && lt[who].errors != null ? lt[who].errors : null,
         bb: null,
-        pitcher: (g.teams[who].probablePitcher && g.teams[who].probablePitcher.fullName) || null   // 예상 선발(며칠 전부터 제공)
+        pitcher: (g.teams[who].probablePitcher && g.teams[who].probablePitcher.fullName) || null,   // 예상 선발(며칠 전부터 제공)
+        pitcherId: (g.teams[who].probablePitcher && g.teams[who].probablePitcher.id) || null,         // 선수 ID(얼굴 사진용)
+        ...ppStat(g.teams[who].probablePitcher)                                                       // era / w / l (시즌 성적)
       });
       const hs = side('home'), as = side('away');
       // 사사구(BB)·안타 보정은 boxscore에서 (진행/종료 경기만 — 비용 절약)
