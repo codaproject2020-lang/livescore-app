@@ -1717,7 +1717,7 @@ function renderLineupList(t) {
   const hd = `<div class="pitch-hd">${esc(t.team)}${t.formation ? ` · <b>${esc(t.formation)}</b>` : ''}${t.coach ? ` · ${esc(t('coach'))} ${esc(t.coach)}` : ''}</div>`;
   if (!all.length) return `<div class="pitch">${hd}<div class="lu-note">-</div></div>`;
   const rows = all.map(p => {
-    const face = footFace(p.id), num = esc(p.number == null ? '' : String(p.number));
+    const face = p.photo || footFace(p.id), num = esc(p.number == null ? '' : String(p.number));
     const av = face
       ? `<span class="lulist-av has-face"><img src="${face}" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.parentNode.classList.remove('has-face');this.parentNode.textContent='${num || '·'}'"></span>`
       : `<span class="lulist-av">${num || '·'}</span>`;
@@ -1738,7 +1738,7 @@ function renderPitch(t) {
     const line = rows[r].sort((a, b) => a.c - b.c), n = line.length;
     line.forEach((p, ci) => {
       const top = ((ri + 1) / (R + 1)) * 100, left = ((ci + 1) / (n + 1)) * 100;
-      const face = footFace(p.id), num = esc(p.number || '');
+      const face = p.photo || footFace(p.id), num = esc(p.number || '');
       const av = face
         ? `<span class="lu-av has-face"><img src="${face}" alt="" loading="lazy" onerror="this.parentNode.classList.remove('has-face');this.parentNode.innerHTML='${num}'"><b class="lu-badge">${num}</b></span>`
         : `<span class="lu-av">${num}</span>`;
@@ -2013,8 +2013,15 @@ async function updateLineup(e) {
   if (sp === 'football') {
     box.innerHTML = `<div class="odsec">📋 ${esc(t('lineup'))}</div><div class="lineupbox"><div class="loading" style="padding:12px">${esc(t('loading'))}</div></div>`;
     try {
-      const d = await fetchJSON(`/api/asports/lineups?fixture=${encodeURIComponent(e.id)}`, { tries: 1 });
-      const teams = d.teams || [];
+      let teams = [];
+      try { const d = await fetchJSON(`/api/asports/lineups?fixture=${encodeURIComponent(e.id)}`, { tries: 1 }); teams = d.teams || []; } catch { }
+      // API-Sports가 라인업을 안 주면(K/J리그 등) TheSports 폴백
+      if (teams.length < 2 || !(teams[0].startXI || []).length) {
+        try {
+          const d2 = await fetchJSON(`/api/football/lineup?home=${encodeURIComponent(e.home)}&away=${encodeURIComponent(e.away)}&date=${state.date}`, { tries: 1 });
+          if (d2.teams && d2.teams.length >= 2 && (d2.teams[0].startXI || []).length) teams = d2.teams;
+        } catch { }
+      }
       if (teams.length < 2 || !(teams[0].startXI || []).length) { box.innerHTML = `<div class="odsec">📋 ${esc(t('lineup'))}</div><div class="lu-note">-</div><div id="mFbStats"></div>`; loadFbStats(e); return; }
       box.innerHTML = `<div class="odsec">📋 ${esc(t('lineup'))} <span class="rhe">${esc(teams[0].formation)} · ${esc(teams[1].formation)}</span></div>${teams.map(renderPitch).join('')}<div id="mPlayer"></div><div id="mFbStats"></div>`;
       wirePlayerClicks('football');
