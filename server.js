@@ -1075,12 +1075,15 @@ async function buildGamesCore(sport, date, tz) {
     for (const dt of apiDates) {
       const need = [...new Set(games.filter(g => g._apiDate === dt && STATS_LG[g.league]).map(g => STATS_LG[g.league]))];
       if (!need.length) continue;
-      const sm = {}; for (const sid of need) Object.assign(sm, await mlbScoreMap(dt, sid).catch(() => ({}))); smByDate[dt] = sm;
+      const sm = {}; for (const sid of need) Object.assign(sm, await mlbScoreMap(dt, sid, tz).catch(() => ({}))); smByDate[dt] = sm;
     }
     games.forEach(g => {
       if (!STATS_LG[g.league]) return;
       const sm = smByDate[g._apiDate] || {};
-      const hN = mlbNick(g.home), aN = mlbNick(g.away), e = sm[[hN, aN].sort().join('|')];
+      const gYmd = g.date ? ymdInTz(g.date, tz) : g._apiDate;
+      const hN = mlbNick(g.home), aN = mlbNick(g.away);
+      // 날짜까지 맞춰 매칭(시리즈 혼동 방지). 혹시 못 찾으면 팀조합만으로 폴백
+      const e = sm[[hN, aN].sort().join('|') + '|' + gYmd] || sm[[hN, aN].sort().join('|') + '|' + g._apiDate];
       if (!e) return;
       const H = e.byNick[hN] || {}, A = e.byNick[aN] || {};
       if (H.pitcher || A.pitcher) g.pitchers = { home: H.pitcher || null, away: A.pitcher || null };   // 예상 선발투수
@@ -1316,19 +1319,21 @@ async function mlbFindGame(home, away, date) {
       (sch.dates || []).forEach(dd => (dd.games || []).forEach(g => games.push(g)));
     for (const g of games) {
       const st = (g.status && g.status.abstractGameState) || '';
-      if (mlbTeamMatch(g.teams.home.team.name, home) && mlbTeamMatch(g.teams.away.team.name, away)) cands.push({ gamePk: g.gamePk, swap: false, st, sportId, homeId: g.teams.home.team.id, awayId: g.teams.away.team.id });
-      else if (mlbTeamMatch(g.teams.home.team.name, away) && mlbTeamMatch(g.teams.away.team.name, home)) cands.push({ gamePk: g.gamePk, swap: true, st, sportId, homeId: g.teams.home.team.id, awayId: g.teams.away.team.id });
+      if (mlbTeamMatch(g.teams.home.team.name, home) && mlbTeamMatch(g.teams.away.team.name, away)) cands.push({ gamePk: g.gamePk, swap: false, st, sportId, homeId: g.teams.home.team.id, awayId: g.teams.away.team.id, gameDate: g.gameDate });
+      else if (mlbTeamMatch(g.teams.home.team.name, away) && mlbTeamMatch(g.teams.away.team.name, home)) cands.push({ gamePk: g.gamePk, swap: true, st, sportId, homeId: g.teams.home.team.id, awayId: g.teams.away.team.id, gameDate: g.gameDate });
       }
     }
   }
   if (!cands.length) return null;
-  // 진행 중(Live) > 종료(Final) > 예정(Preview) 순으로 선택 → 시리즈 중 실제 라이브 경기를 잡음
+  // 🔑 시리즈(같은 두 팀 며칠 연속) 구분: 선택 날짜(한국시간)와 같은 경기 우선, 그 안에서 진행>종료>예정 순
   const rank = s => s === 'Live' ? 0 : s === 'Final' ? 1 : 2;
-  cands.sort((a, b) => rank(a.st) - rank(b.st));
-  return cands[0];
+  const onDate = cands.filter(c => c.gameDate && ymdInTz(c.gameDate, 'Asia/Seoul') === date);
+  const pool = onDate.length ? onDate : cands;
+  pool.sort((a, b) => rank(a.st) - rank(b.st));
+  return pool[0];
 }
 // MLB 스코어/상태/이닝을 공식 StatsAPI로 덮어쓰기용 맵 (API-Sports보다 훨씬 빠름·정확)
-async function mlbScoreMap(date, sportId = 1) {
+async function mlbScoreMap(date, sportId = 1, tz = 'Asia/Seoul') {
   const map = {};
   const rank = s => s === 'live' ? 0 : s === 'finished' ? 1 : 2;
   for (const d of [date, mlbAddDays(date, -1), mlbAddDays(date, 1)]) {
@@ -1339,7 +1344,9 @@ async function mlbScoreMap(date, sportId = 1) {
     await Promise.all(games.map(async g => {
       const hN = mlbNick(g.teams.home.team.name), aN = mlbNick(g.teams.away.team.name);
       if (!hN || !aN) return;
-      const key = [hN, aN].sort().join('|');
+      // 🔑 같은 두 팀이 며칠 연속 붙는 시리즈 구분 위해 날짜(뷰어 타임존)까지 키에 포함
+      const gYmd = g.gameDate ? ymdInTz(g.gameDate, tz) : d;
+      const key = [hN, aN].sort().join('|') + '|' + gYmd;
       const st = (g.status && g.status.abstractGameState) || '';
       const ls = g.linescore || {}, lt = ls.teams || {};
       const side = who => ({
