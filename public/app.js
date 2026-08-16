@@ -764,6 +764,26 @@ document.addEventListener('click', e => {
   if (!e.target.closest('#posPop, .abc-pos, .ab-pos, .stt td.lr')){ const p = document.getElementById('posPop'); if (p) p.classList.remove('on'); }
 });
 addEventListener('scroll', () => { const p = document.getElementById('posPop'); if (p) p.classList.remove('on'); }, true);
+// 🔠 말줄임(…)된 이름 클릭 → 풀네임 박스 표시
+function showNamePop(el, name){
+  let p = document.getElementById('posPop');
+  if (!p){ p = document.createElement('div'); p.id = 'posPop'; p.className = 'pos-pop'; document.body.appendChild(p); }
+  p.innerHTML = `<b>${esc(name)}</b>`;
+  const r = el.getBoundingClientRect(), pw = p.offsetWidth, ph = p.offsetHeight;
+  let left = r.left + r.width / 2 - pw / 2 + scrollX;
+  left = Math.max(8, Math.min(left, innerWidth - pw - 8));
+  let top = r.top - ph - 9 + scrollY;
+  if (r.top - ph - 9 < 4){ top = r.bottom + 9 + scrollY; p.classList.add('below'); } else p.classList.remove('below');
+  p.style.left = left + 'px'; p.style.top = top + 'px'; p.classList.add('on');
+  clearTimeout(showNamePop._t); showNamePop._t = setTimeout(() => p.classList.remove('on'), 2600);
+}
+document.addEventListener('click', e => {
+  const nm = e.target.closest && e.target.closest('.ab-nm, .abc-nm, .sp-nm, .stt td.nm');
+  if (nm && nm.scrollWidth > nm.clientWidth + 1){   // 실제로 잘린 경우에만
+    const full = (nm.getAttribute('title') || nm.textContent || '').trim();
+    if (full){ e.preventDefault(); e.stopPropagation(); showNamePop(nm, full); }
+  }
+}, true);
 $('#btnShare')?.addEventListener('click', () => shareApp());
 $('#btnShareM')?.addEventListener('click', () => shareApp());
 // 상세화면 공유: 해당 경기 딥링크 + 팀·스코어 문구
