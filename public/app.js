@@ -1350,13 +1350,20 @@ function teamSP(e, side) {
   const statLine = stat.length ? `<div class="sp-stat">${esc(stat.join(' · '))}</div>` : '';
   return `<div class="sp-p" title="${esc(p.name)}">${face}<span class="sp-nm">${esc(p.name)}</span>${statLine}</div>`;
 }
+// ⚽ 축구 팀별 카드(옐로/레드) — 피드 목록 표시
+function teamCards(e, side) {
+  if (state.sport !== 'football' || !e.cards) return '';
+  const c = e.cards[side] || { y: 0, r: 0 };
+  if (!c.y && !c.r) return '';
+  return `<div class="tm-cards">${c.y > 0 ? `<span class="tc-y">🟨 ${c.y}</span>` : ''}${c.r > 0 ? `<span class="tc-r">🟥 ${c.r}</span>` : ''}</div>`;
+}
 function matchCard(e) {
   return `<div class="match" data-ev="${esc(e.id)}">
     <span class="cardlead"><span class="bell favbell${isMatchFav(e) ? ' on' : ''}" data-favmatch="${esc(e.id)}" title="${esc(t('favTeams'))}">${isMatchFav(e) ? '🔔' : '🔕'}</span>${heatHtml(e)}</span>
     <div class="mrow">
-      <div class="side">${HA_HOME}<div class="ph">${badge(e.homeLogo, '🏟')}</div><div class="team">${esc(TN(e.home, e.league))}</div>${teamSP(e, 'home')}</div>
+      <div class="side">${HA_HOME}<div class="ph">${badge(e.homeLogo, '🏟')}</div><div class="team">${esc(TN(e.home, e.league))}</div>${teamSP(e, 'home')}${teamCards(e, 'home')}</div>
       ${scoreBlock(e)}
-      <div class="side">${HA_AWAY}<div class="ph">${badge(e.awayLogo, '🏟')}</div><div class="team">${esc(TN(e.away, e.league))}</div>${teamSP(e, 'away')}</div>
+      <div class="side">${HA_AWAY}<div class="ph">${badge(e.awayLogo, '🏟')}</div><div class="team">${esc(TN(e.away, e.league))}</div>${teamSP(e, 'away')}${teamCards(e, 'away')}</div>
     </div>
     ${aiLive(e)}
     ${aiPreview(e)}
