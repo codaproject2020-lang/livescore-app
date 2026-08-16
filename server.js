@@ -1125,6 +1125,19 @@ async function buildGamesCore(sport, date, tz) {
   // 🗓️ 모든 종목 날짜 필터: 경기 시작(UTC)을 뷰어 기기 타임존으로 변환한 날짜가 선택 날짜와 같은 경기만
   //    (tz = 클라이언트가 보낸 기기 IANA 타임존. 한국이면 Asia/Seoul → 한국시간 날짜로 그룹. NBA/NHL/MLB 시차·자정경계 정확 처리)
   games = games.filter(g => !g.date || ymdInTz(g.date, tz) === date);
+  // ⚾ 선발투수 시즌성적(ERA·승·패) 채우기 — 화면에 보이는 경기 투수만, 선수별 1시간 캐시로 호출 최소화
+  if (sport === 'baseball') {
+    const need = new Set();
+    games.forEach(g => { if (g.pitchers) ['home', 'away'].forEach(s => { const p = g.pitchers[s]; if (p && p.id && p.era == null) need.add(p.id); }); });
+    if (need.size) {
+      const stats = {};
+      await Promise.all([...need].map(async id => { stats[id] = await mlbPitcherSeason(id).catch(() => null); }));
+      games.forEach(g => { if (g.pitchers) ['home', 'away'].forEach(s => {
+        const p = g.pitchers[s], st = p && p.id ? stats[p.id] : null;
+        if (p && st) { if (p.era == null && st.era && st.era !== '-') p.era = String(st.era); if (p.w == null) p.w = st.w; if (p.l == null) p.l = st.l; }
+      }); });
+    }
+  }
   return { games, j };
 }
 
@@ -1353,7 +1366,7 @@ async function mlbScoreMap(date, sportId = 1, tz = 'Asia/Seoul') {
   const rank = s => s === 'live' ? 0 : s === 'finished' ? 1 : 2;
   for (const d of [date, mlbAddDays(date, -1), mlbAddDays(date, 1)]) {
     let sch;
-    try { sch = await mlbFetch(`/api/v1/schedule?sportId=${sportId}&date=${d}&hydrate=linescore,probablePitcher(stats(group=[pitching],type=[season]))`, 15000); } catch { continue; }
+    try { sch = await mlbFetch(`/api/v1/schedule?sportId=${sportId}&date=${d}&hydrate=linescore,probablePitcher`, 15000); } catch { continue; }
     const games = [];
     (sch.dates || []).forEach(dd => (dd.games || []).forEach(g => games.push(g)));
     await Promise.all(games.map(async g => {
