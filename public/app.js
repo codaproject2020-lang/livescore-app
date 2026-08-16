@@ -977,22 +977,42 @@ async function fetchJSON(url, { tries = 15, delay = 4000, onWait } = {}) {
 // ============================================================
 let feedGames = {};   // id -> game (상세 모달용)
 let allFeedGames = [];   // 필터 전 전체 경기
-function filterGames() { return state.leagueFilter === 'all' ? allFeedGames : allFeedGames.filter(g => g.league === state.leagueFilter); }
+// 🌍 나라 이름 한글화 (축구 상단 필터용)
+const COUNTRY_KO = {
+  'South-Korea': '대한민국', 'Korea': '대한민국', 'Korea Republic': '대한민국', 'Japan': '일본', 'China': '중국', 'Taiwan': '대만', 'Hong-Kong': '홍콩',
+  'England': '잉글랜드', 'Great-Britain': '영국', 'United-Kingdom': '영국', 'Scotland': '스코틀랜드', 'Wales': '웨일스', 'Ireland': '아일랜드', 'Northern-Ireland': '북아일랜드',
+  'Spain': '스페인', 'Italy': '이탈리아', 'Germany': '독일', 'France': '프랑스', 'Netherlands': '네덜란드', 'Portugal': '포르투갈', 'Belgium': '벨기에',
+  'Turkey': '튀르키예', 'Greece': '그리스', 'Switzerland': '스위스', 'Austria': '오스트리아', 'Russia': '러시아', 'Ukraine': '우크라이나', 'Poland': '폴란드',
+  'Denmark': '덴마크', 'Sweden': '스웨덴', 'Norway': '노르웨이', 'Croatia': '크로아티아', 'Serbia': '세르비아', 'Czech-Republic': '체코', 'Romania': '루마니아',
+  'USA': '미국', 'Mexico': '멕시코', 'Brazil': '브라질', 'Argentina': '아르헨티나', 'Colombia': '콜롬비아', 'Chile': '칠레', 'Canada': '캐나다',
+  'Saudi-Arabia': '사우디', 'Qatar': '카타르', 'UAE': 'UAE', 'Australia': '호주', 'Thailand': '태국', 'Vietnam': '베트남', 'India': '인도', 'Indonesia': '인도네시아',
+  'Europe': '유럽', 'World': '국제', 'South-America': '남미', 'Africa': '아프리카', 'Asia': '아시아'
+};
+function koCountry(c) { return (LANG === 'ko' && COUNTRY_KO[c]) ? COUNTRY_KO[c] : (c || '기타'); }
+const COUNTRY_ORDER = ['South-Korea', 'Korea', 'Japan', 'China', 'England', 'Spain', 'Italy', 'Germany', 'France', 'Netherlands', 'Portugal', 'Scotland', 'Belgium', 'Turkey', 'Saudi-Arabia', 'USA', 'Brazil', 'Argentina', 'Mexico', 'Europe', 'World'];
+// 필터 키: 축구는 나라, 그 외는 리그
+function lgKey(g) { return state.sport === 'football' ? (g.country || '기타') : (g.league || '기타'); }
+function gameInFilter(g) { return state.leagueFilter === 'all' || lgKey(g) === state.leagueFilter; }
+function filterGames() { return state.leagueFilter === 'all' ? allFeedGames : allFeedGames.filter(gameInFilter); }
 // 상단 리그 선택 바 (전체 / KBO / MLB / … · 모든 종목 공통)
 function buildLeagueRow(games) {
   const row = $('#leagueRow'); if (!row) return;
+  // ⚽ 축구는 나라별로, 그 외 종목은 리그별로 칩 구성
+  const byCountry = (state.sport === 'football');
   const counts = {};
-  games.forEach(g => { const k = g.league || '기타'; counts[k] = (counts[k] || 0) + 1; });
+  games.forEach(g => { const k = (byCountry ? (g.country || '기타') : (g.league || '기타')); counts[k] = (counts[k] || 0) + 1; });
+  const ORDER = byCountry ? COUNTRY_ORDER : TOP_LEAGUES;
   const leagues = Object.entries(counts).sort((a, b) => {
-    const ra = TOP_LEAGUES.indexOf(a[0]), rb = TOP_LEAGUES.indexOf(b[0]);
+    const ra = ORDER.indexOf(a[0]), rb = ORDER.indexOf(b[0]);
     const ia = ra < 0 ? 999 : ra, ib = rb < 0 ? 999 : rb;
     if (ia !== ib) return ia - ib;
     return b[1] - a[1];
   });
   if (!leagues.length) { row.style.display = 'none'; row.innerHTML = ''; return; }
   row.style.display = 'flex';
+  const label = k => byCountry ? koCountry(k) : k;
   row.innerHTML = `<div class="lgchip ${state.leagueFilter === 'all' ? 'on' : ''}" data-lg="all">${esc(t('all'))} <b>${games.length}</b></div>`
-    + leagues.map(([nm, n]) => `<div class="lgchip ${state.leagueFilter === nm ? 'on' : ''}" data-lg="${esc(nm)}">${esc(nm)} <b>${n}</b></div>`).join('');
+    + leagues.map(([nm, n]) => `<div class="lgchip ${state.leagueFilter === nm ? 'on' : ''}" data-lg="${esc(nm)}">${esc(label(nm))} <b>${n}</b></div>`).join('');
   $$('#leagueRow .lgchip').forEach(c => c.addEventListener('click', () => {
     state.leagueFilter = c.dataset.lg;
     $$('#leagueRow .lgchip').forEach(x => x.classList.remove('on')); c.classList.add('on');
@@ -1020,7 +1040,7 @@ async function loadEvents(silent) {
     feedGames = {}; games.forEach(g => feedGames[g.id] = g);
     // (알림 감지는 서버 웹푸시가 담당 — 앱이 꺼져 있어도 동작)
     // 현재 리그 필터가 이번 데이터에 없으면 전체로 리셋
-    if (state.leagueFilter !== 'all' && !games.some(g => g.league === state.leagueFilter)) state.leagueFilter = 'all';
+    if (state.leagueFilter !== 'all' && !games.some(gameInFilter)) state.leagueFilter = 'all';
     // ▼ 화면이 위로 튀지 않도록: 재렌더 전 스크롤 위치 저장 → 후(레이아웃 반영까지) 복원
     const sy = window.pageYOffset || document.documentElement.scrollTop || document.body.scrollTop || 0;
     const modalEl = $('#modal'); const moy = modalEl ? modalEl.scrollTop : 0;
@@ -2343,7 +2363,7 @@ async function loadPickHub() {
 // 픽 목록 렌더 (상단 리그칩 필터 적용) — 리그칩 클릭 시에도 이걸로 다시 그림
 function renderPickHubList() {
   const board = $('#oddsBoard'); if (!board) return;
-  const games = state.leagueFilter === 'all' ? pickHubGames : (pickHubGames || []).filter(g => g.league === state.leagueFilter);
+  const games = state.leagueFilter === 'all' ? pickHubGames : (pickHubGames || []).filter(gameInFilter);
   if (!games || !games.length) { board.innerHTML = `<div class="loading">${esc(t('noPickGames'))}</div>`; return; }
   board.innerHTML = games.map(pickCard).join('') + `<div class="foot">${esc(t('pickWarn'))}</div>`;
   $$('#oddsBoard .pickcard').forEach(c => c.addEventListener('click', () => { state.sport = pickHubSport; openPick(c.dataset.pick); }));
@@ -2492,7 +2512,7 @@ async function initInfo() {
 // 정보방 목록 렌더 (상단 리그 칩 필터 적용) → 클릭 시 PICK 상세
 function renderInfoList() {
   const list = $('#infoList'); if (!list) return;
-  const games = state.leagueFilter === 'all' ? infoGames : infoGames.filter(g => g.league === state.leagueFilter);
+  const games = state.leagueFilter === 'all' ? infoGames : infoGames.filter(gameInFilter);
   if (!games.length) { list.innerHTML = `<div class="loading">${esc(t('noGames'))}</div>`; return; }
   list.innerHTML = games.map(g => {
     const stx = g.state === 'live' ? `<span style="color:var(--red);font-weight:800">● ${esc(koStatus(g))}</span>` : g.state === 'finished' ? esc(t('finished')) : hhmm(g.date);
