@@ -184,6 +184,7 @@ const STR = {
   pitchU: [' P', '구', '球', '球'],
   starter: ['SP', '선발', '先発', '先发'],
   starterTBD: ['SP TBD', '선발 미정', '先発未定', '先发未定'],
+  eraShort: ['ERA', '방어율', '防御率', '防御率'],
   pbLegend: ['B=Ball  S=Strike  F=Foul  ●=In play', 'B=볼  S=스트라이크  F=파울  ●=인플레이', 'B=ボール S=ストライク F=ファウル ●=インプレー', 'B=坏球 S=好球 F=界外 ●=击球'],
   nowBatting: ['Now batting', '타격 중', '攻撃中', '进攻中', 'Al bate', 'बल्लेबाजी', 'Đang tấn công', 'กำลังตี', 'Атака', 'Am Schlag', 'À la batte', 'In battuta'],
   homeTab: ['Home', '홈', 'ホーム', '主页', 'Inicio', 'होम', 'Trang chủ', 'หน้าแรก', 'Главная', 'Start', 'Accueil', 'Home'],
@@ -1249,7 +1250,11 @@ function teamSP(e, side) {
   const p = e.pitchers[side] || {};
   if (!p.name) return `<div class="sp-p sp-tbd"><span class="sp-face ic">⚾</span><span class="sp-nm">${esc(t('starterTBD'))}</span></div>`;
   const face = p.id ? `<img class="sp-face" src="${esc(mlbFace(p.id))}" referrerpolicy="no-referrer" loading="lazy" onerror="this.replaceWith(Object.assign(document.createElement('span'),{className:'sp-face ic',textContent:'⚾'}))">` : `<span class="sp-face ic">⚾</span>`;
-  return `<div class="sp-p" title="${esc(p.name)}">${face}<span class="sp-nm">${esc(p.name)}</span></div>`;
+  const stat = [];
+  if (p.era) stat.push(`${t('eraShort')} ${p.era}`);
+  if (p.w != null && p.l != null) stat.push(LANG === 'ko' ? `${p.w}승 ${p.l}패` : `${p.w}-${p.l}`);
+  const statLine = stat.length ? `<div class="sp-stat">${esc(stat.join(' · '))}</div>` : '';
+  return `<div class="sp-p" title="${esc(p.name)}">${face}<span class="sp-nm">${esc(p.name)}</span>${statLine}</div>`;
 }
 function matchCard(e) {
   return `<div class="match" data-ev="${esc(e.id)}">

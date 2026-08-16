@@ -752,6 +752,7 @@ table.boxsc .he{color:var(--sub);background:#fafbfc;font-weight:800}
 .sp-face{width:30px;height:30px;border-radius:50%;object-fit:cover;background:#eef1f5;border:1px solid var(--line);flex:0 0 auto}
 .sp-face.ic{display:flex;align-items:center;justify-content:center;font-size:14px}
 .sp-nm{font-size:10.5px;font-weight:700;color:var(--navy);line-height:1.2;text-align:center;word-break:keep-all;overflow-wrap:anywhere}
+.sp-stat{font-size:9.5px;font-weight:700;color:var(--sub);line-height:1.2;text-align:center;margin-top:1px}
 .sp-p.sp-tbd .sp-nm{color:var(--dim);font-weight:600}
 .ev-rest.hidden{display:none}
 /* 라인업 공통 */
