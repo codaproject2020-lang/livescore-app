@@ -1087,7 +1087,10 @@ async function buildGamesCore(sport, date, tz) {
       const e = sm[[hN, aN].sort().join('|') + '|' + gYmd] || sm[[hN, aN].sort().join('|') + '|' + g._apiDate];
       if (!e) return;
       const H = e.byNick[hN] || {}, A = e.byNick[aN] || {};
-      if (H.pitcher || A.pitcher) g.pitchers = { home: { name: H.pitcher || null, id: H.pitcherId || null }, away: { name: A.pitcher || null, id: A.pitcherId || null } };   // 예상 선발투수(+사진용 ID)
+      if (H.pitcher || A.pitcher) g.pitchers = {   // 예상 선발투수(+사진용 ID·시즌 성적)
+        home: { name: H.pitcher || null, id: H.pitcherId || null, era: H.era || null, w: H.w != null ? H.w : null, l: H.l != null ? H.l : null },
+        away: { name: A.pitcher || null, id: A.pitcherId || null, era: A.era || null, w: A.w != null ? A.w : null, l: A.l != null ? A.l : null }
+      };
       if (H.r != null) g.hs = H.r;
       if (A.r != null) g.as = A.r;
       g.state = e.state;
@@ -1333,13 +1336,24 @@ async function mlbFindGame(home, away, date) {
   pool.sort((a, b) => rank(a.st) - rank(b.st));
   return pool[0];
 }
+// 예상 선발투수의 시즌 성적(ERA·승·패) 파싱 (schedule hydrate 안에 함께 옴 → 추가 호출 없음)
+function ppStat(pp) {
+  if (!pp || !pp.stats) return {};
+  for (const s of pp.stats) {
+    const st = s.stats || (s.splits && s.splits[0] && s.splits[0].stat);
+    if (st && (st.era != null || st.wins != null || st.losses != null)) {
+      return { era: st.era != null ? String(st.era) : null, w: st.wins != null ? st.wins : null, l: st.losses != null ? st.losses : null };
+    }
+  }
+  return {};
+}
 // MLB 스코어/상태/이닝을 공식 StatsAPI로 덮어쓰기용 맵 (API-Sports보다 훨씬 빠름·정확)
 async function mlbScoreMap(date, sportId = 1, tz = 'Asia/Seoul') {
   const map = {};
   const rank = s => s === 'live' ? 0 : s === 'finished' ? 1 : 2;
   for (const d of [date, mlbAddDays(date, -1), mlbAddDays(date, 1)]) {
     let sch;
-    try { sch = await mlbFetch(`/api/v1/schedule?sportId=${sportId}&date=${d}&hydrate=linescore,probablePitcher`, 15000); } catch { continue; }
+    try { sch = await mlbFetch(`/api/v1/schedule?sportId=${sportId}&date=${d}&hydrate=linescore,probablePitcher(stats(group=[pitching],type=[season]))`, 15000); } catch { continue; }
     const games = [];
     (sch.dates || []).forEach(dd => (dd.games || []).forEach(g => games.push(g)));
     await Promise.all(games.map(async g => {
@@ -1356,7 +1370,8 @@ async function mlbScoreMap(date, sportId = 1, tz = 'Asia/Seoul') {
         e: lt[who] && lt[who].errors != null ? lt[who].errors : null,
         bb: null,
         pitcher: (g.teams[who].probablePitcher && g.teams[who].probablePitcher.fullName) || null,   // 예상 선발(며칠 전부터 제공)
-        pitcherId: (g.teams[who].probablePitcher && g.teams[who].probablePitcher.id) || null          // 선수 ID(얼굴 사진용)
+        pitcherId: (g.teams[who].probablePitcher && g.teams[who].probablePitcher.id) || null,         // 선수 ID(얼굴 사진용)
+        ...ppStat(g.teams[who].probablePitcher)                                                       // era / w / l (시즌 성적)
       });
       const hs = side('home'), as = side('away');
       // 사사구(BB)·안타 보정은 boxscore에서 (진행/종료 경기만 — 비용 절약)
