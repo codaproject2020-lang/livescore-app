@@ -1272,6 +1272,61 @@ app.get('/api/asports/lineups', async (req, res) => {
   } catch (e) { res.status(502).json({ error: String(e.message || e), teams: [] }); }
 });
 
+// ⚽ TheSports 축구 라인업 폴백 (API-Sports가 K/J리그 라인업을 안 줄 때) — 팀명+날짜로 매칭 후 라인업+선수사진
+const FB_PLAYER = new Map();   // TheSports 축구 선수 id -> {name, logo}
+async function tsFbPlayer(pid) {
+  if (!pid) return {};
+  if (FB_PLAYER.has(pid)) return FB_PLAYER.get(pid);
+  let v = {};
+  try { const r = await tsFetch('/football/player/list', { uuid: pid }, 5000); const p = (r.results || [])[0]; if (p) v = { name: p.name || '', logo: p.logo || '' }; } catch (e) {}
+  FB_PLAYER.set(pid, v); return v;
+}
+app.get('/api/football/lineup', async (req, res) => {
+  if (!TS_ON) return res.json({ teams: [] });
+  const home = req.query.home, away = req.query.away, debug = req.query.debug;
+  const date = req.query.date || new Date().toISOString().slice(0, 10);
+  const norm = s => String(s || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+  const nh = norm(home), na = norm(away);
+  const fit = (a, b) => a && b && (a.includes(b) || b.includes(a));
+  try {
+    // 1) TheSports 경기 찾기 (당일·전날·다음날)
+    const prev = new Date(Date.parse(date + 'T12:00:00Z') - 864e5).toISOString().slice(0, 10);
+    const next = new Date(Date.parse(date + 'T12:00:00Z') + 864e5).toISOString().slice(0, 10);
+    let match = null, swap = false;
+    for (const dt of [date, prev, next]) {
+      const games = await tsFootballGames(dt).catch(() => []);
+      match = games.find(g => fit(norm(g.home), nh) && fit(norm(g.away), na));
+      if (match) break;
+      const sw = games.find(g => fit(norm(g.home), na) && fit(norm(g.away), nh));
+      if (sw) { match = sw; swap = true; break; }
+    }
+    if (!match) return res.json({ teams: [], reason: 'no-match' });
+    // 2) 라인업
+    const lu = await tsFetch('/football/match/lineup', { uuid: match.id }, 8000).catch(() => null);
+    if (debug) return res.json({ matchId: match.id, home: match.home, away: match.away, raw: lu });
+    const r = (lu && lu.results) ? lu.results : (lu || {});
+    const homeArr = (r.lineup && r.lineup.home) || r.home || r.home_players || [];
+    const awayArr = (r.lineup && r.lineup.away) || r.away || r.away_players || [];
+    const hForm = r.home_formation || r.homeFormation || (r.home && r.home.formation) || '';
+    const aForm = r.away_formation || r.awayFormation || (r.away && r.away.formation) || '';
+    const isStarter = p => p.first === 1 || p.first === true || p.first === '1' || p.type === 1 || p.on_bench === 0;
+    const build = async arr => {
+      if (!Array.isArray(arr)) return { xi: [], subs: [] };
+      const mk = async p => {
+        const pid = p.id || p.player_id || p.uuid;
+        const info = await tsFbPlayer(pid);
+        return { id: pid, name: p.name || info.name || '', number: (p.shirt_number != null ? p.shirt_number : (p.number != null ? p.number : '')), pos: p.position || p.pos || '', grid: '', photo: p.logo || info.logo || '' };
+      };
+      const st = arr.filter(isStarter), sb = arr.filter(p => !isStarter(p));
+      return { xi: await Promise.all(st.slice(0, 11).map(mk)), subs: await Promise.all(sb.slice(0, 12).map(mk)) };
+    };
+    const H = await build(homeArr), A = await build(awayArr);
+    const t1 = { team: match.home, logo: match.homeLogo, formation: hForm, coach: (r.home_coach && r.home_coach.name) || '', startXI: H.xi, subs: H.subs };
+    const t2 = { team: match.away, logo: match.awayLogo, formation: aForm, coach: (r.away_coach && r.away_coach.name) || '', startXI: A.xi, subs: A.subs };
+    res.json({ teams: [t1, t2], src: 'thesports', swap });
+  } catch (e) { res.json({ teams: [], error: String(e.message || e) }); }
+});
+
 // ⚽ 축구 팀 경기 스탯 (점유율·슈팅·코너·파울 등) — API-Sports /fixtures/statistics
 app.get('/api/asports/fbstats', async (req, res) => {
   if (!APISPORTS_KEY) return res.json({ needKey: true, teams: [] });
