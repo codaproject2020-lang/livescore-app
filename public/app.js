@@ -256,7 +256,7 @@ function setLang(l) {
   applyI18n();
   if (typeof buildSportNav === 'function') buildSportNav();
   if (typeof loadEvents === 'function' && $('#view-live') && !$('#view-live').classList.contains('hidden')) loadEvents();
-  if (typeof renderInfoList === 'function' && $('#view-info') && !$('#view-info').classList.contains('hidden')) renderInfoList();
+  if (typeof renderInfoList === 'function' && $('#view-info') && !$('#view-info').classList.contains('hidden')) { if (typeof buildInfoNav === 'function') buildInfoNav(); renderInfoList(); }
   // 픽제공(배당) 화면이 열려 있으면 종목 네비 + 목록 + 리그칩까지 새 언어로 다시 그림
   if ($('#view-odds') && !$('#view-odds').classList.contains('hidden')) {
     if (typeof buildPickHubNav === 'function') buildPickHubNav();
@@ -2787,8 +2787,19 @@ const INFO = [
 let infoBuilt = false;
 let infoGames = [];   // 정보방 전체 경기(필터 전)
 // 경기 정보방: 현재 종목의 실제 경기 목록 → 클릭 시 실제 상세(라인업·투수/타자 기록 포함)
+// 정보방 상단 종목 선택 칩 (축구/야구/농구…) — 픽제공과 동일 방식
+function buildInfoNav() {
+  const box = $('#infoChips'); if (!box) return;
+  box.innerHTML = SPORTS.map(s => `<div class="ochip ${s.key === state.sport ? 'on' : ''}" data-isport="${s.key}">${s.em} ${esc(sportLabel(s))}</div>`).join('');
+  $$('#infoChips .ochip').forEach(c => c.addEventListener('click', () => {
+    state.sport = c.dataset.isport; state.leagueFilter = 'all';
+    $$('#infoChips .ochip').forEach(x => x.classList.toggle('on', x.dataset.isport === state.sport));
+    initInfo();
+  }));
+}
 async function initInfo() {
   const list = $('#infoList'); if (!list) return;
+  buildInfoNav();
   list.innerHTML = `<div class="loading">${esc(t('loadingGames'))}</div>`;
   try {
     const d = await fetchJSON(`/api/asports/games?sport=${encodeURIComponent(state.sport)}&date=${state.date}&tz=${encodeURIComponent(USER_TZ)}`, { tries: 2, delay: 3000 });

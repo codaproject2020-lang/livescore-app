@@ -8,7 +8,7 @@
 <link rel="manifest" href="/manifest.json">
 <link rel="apple-touch-icon" href="/icon-512.png?v=2">
 <link rel="icon" href="/icon-192.png?v=2">
-<link rel="stylesheet" href="styles.css?v=176">
+<link rel="stylesheet" href="styles.css?v=177">
 </head>
 <body>
 <div class="shell">
@@ -126,7 +126,8 @@
     <!-- ===== 경기 정보방 뷰 ===== -->
     <section class="view hidden" id="view-info">
       <div class="infohd">🎯 PICK · 경기 정보방</div>
-      <div class="infonote">경기를 누르면 <b>종합 지표(승률)·배당·최근 전적·상대전적·AI 코멘트</b>가 한눈에 나와요. 상단 종목 아이콘으로 축구·야구·농구 등 종목을 바꿀 수 있어요.</div>
+      <div class="infonote">경기를 누르면 <b>종합 지표(승률)·배당·최근 전적·상대전적·AI 코멘트</b>가 한눈에 나와요. 아래 종목 버튼으로 축구·야구·농구 등 종목을 바꿀 수 있어요.</div>
+      <div class="oddschips" id="infoChips"></div>
       <div class="infowrap">
         <div id="infoList" class="infolist"></div>
         <div id="infoGate" class="infogate hidden">
@@ -255,6 +256,6 @@
     window.addEventListener('load', () => navigator.serviceWorker.register('/sw.js').catch(() => {}));
   }
 </script>
-<script src="app.js?v=176"></script>
+<script src="app.js?v=177"></script>
 </body>
 </html>
