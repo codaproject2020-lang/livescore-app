@@ -2103,6 +2103,44 @@ async function updateBox(e) {
   } catch { box.innerHTML = `<div class="odsec">📋 ${esc(t('boxRec'))}</div><div class="lu-note">-</div>`; }
 }
 // 경기정보방: 예상 선발투수 + 양팀 최근 10경기 (MLB·LMB)
+// ⚾ MLB 정보 블록 (예상선발+최근10경기(클릭 시 선수기록)+상대전적+순위) — 상세/픽제공/정보방 공용
+function mlbInfoBlocks(e, d) {
+  let html = '';
+  const p = d.probable || {};
+  if (p.home || p.away) {
+    const row = (nm, pp) => pp ? `<tr><td class="tn">${esc(nm)}</td><td class="nm">${esc(pp.name)}</td><td><b>${esc(pp.w)}${sl('w')} ${esc(pp.l)}${sl('l')}</b> ${esc(pp.era)}</td><td>${esc(pp.ip)}${sl('ip')} ${esc(pp.k)}K ${esc(pp.bb)}BB</td></tr>` : '';
+    html += `<div class="odsec">🎯 ${esc(t('probable'))}</div><table class="stt inf"><tbody>${row(TN(e.home, e.league), p.home)}${row(TN(e.away, e.league), p.away)}</tbody></table>`;
+  }
+  const rc = d.recent || {};
+  const col = (nm, arr) => `<div class="recol"><div class="rec-hd">${esc(nm)}</div>${(arr || []).map(g => `<div class="rec-row clik" data-gp="${esc(g.gamePk || '')}"><span class="rb ${g.win ? 'W' : 'L'}">${g.win ? 'W' : 'L'}</span><span class="ro">${esc(teamShort(g.opp))}</span><span class="rs">${esc(g.ts)}:${esc(g.os)}</span></div>`).join('') || '<div class="rec-empty">-</div>'}</div>`;
+  if ((rc.home && rc.home.length) || (rc.away && rc.away.length)) {
+    html += `<div class="odsec">📅 ${esc(t('recent'))} <span class="rhe">${esc(t('tapDetail'))}</span></div><div class="recent2">${col(TN(e.home, e.league), rc.home)}${col(TN(e.away, e.league), rc.away)}</div>`;
+  }
+  const h = d.h2h || [];
+  if (h.length) {
+    html += `<div class="odsec">⚔️ ${esc(t('h2h'))} <span class="rhe">${esc(t('tapDetail'))}</span></div><div class="h2hbox">${h.map(g => {
+      const md = (g.date || '').slice(5);
+      return `<div class="h2h-row clik" data-gp="${esc(g.gamePk || '')}"><span class="h2h-d">${esc(md)}</span><span class="h2h-t">${esc(teamShort(g.home))}</span><span class="h2h-s">${esc(g.hs)}:${esc(g.as)}</span><span class="h2h-t r">${esc(teamShort(g.away))}</span></div>`;
+    }).join('')}</div>`;
+  }
+  const st = d.standings || [];
+  if (st.length) {
+    html += `<div class="odsec">🏆 ${esc(t('standings'))}</div><table class="stt stdtbl"><thead><tr><th>#</th><th>${sl('team')}</th><th>${sl('w')}</th><th>${sl('l')}</th><th>${sl('pct')}</th><th>${sl('rs')}</th><th>${sl('ra')}</th><th>${sl('streak')}</th></tr></thead><tbody>${st.map(r => `<tr class="${r.hl ? 'hl' : ''}"><td>${esc(r.rank)}</td><td class="nm">${esc(teamShort(r.name))}</td><td>${esc(r.w)}</td><td>${esc(r.l)}</td><td>${esc(String(r.pct).replace(/^0/, ''))}</td><td>${esc(r.rs)}</td><td>${esc(r.ra)}</td><td>${esc(r.streak)}</td></tr>`).join('')}</tbody></table>`;
+  }
+  html += `<div id="mMini"></div>`;
+  return html;
+}
+// ⚾ KBO/NPB 정보 블록 (최근10경기 + 상대전적)
+function kboInfoBlocks(e, d) {
+  const col = (nm, arr) => `<div class="recol"><div class="rec-hd">${esc(nm)}</div>${(arr || []).map(g => `<div class="rec-row"><span class="rb ${g.win ? 'W' : (g.draw ? 'D' : 'L')}">${g.win ? 'W' : (g.draw ? 'D' : 'L')}</span><span class="ro">${esc(teamShort(TN(g.opp, e.league)))}</span><span class="rs">${esc(g.ts)}:${esc(g.os)}</span></div>`).join('') || `<div class="rec-empty">-</div>`}</div>`;
+  const h = d.home && d.home.games || [], a = d.away && d.away.games || [];
+  let html = '';
+  if (h.length || a.length) html += `<div class="odsec">📅 ${esc(t('recent'))} <span class="rhe">${esc(t('last10'))}</span></div><div class="recent2">${col(TN(e.away, e.league), a)}${col(TN(e.home, e.league), h)}</div>`;
+  const hh = d.h2h || [];
+  if (hh.length) html += `<div class="odsec">⚔️ ${esc(t('h2h'))}</div><div class="h2hbox">${hh.map(g => { const md = (g.date ? new Date(g.date).toISOString() : '').slice(5, 10); return `<div class="h2h-row"><span class="h2h-d">${esc(md)}</span><span class="h2h-t">${esc(teamShort(TN(g.aName, e.league)))}</span><span class="h2h-s">${esc(g.as)}:${esc(g.hs)}</span><span class="h2h-t r">${esc(teamShort(TN(g.hName, e.league)))}</span></div>`; }).join('')}</div>`;
+  return html;
+}
+function wireGpClicks(sel) { $$(sel + ' .clik[data-gp]').forEach(el => el.addEventListener('click', () => showMini(el.dataset.gp))); }
 async function updateInfo(e) {
   const box = $('#mInfoWrap'); if (!box) return;
   // ⚾ KBO/NPB: 양팀 최근 10경기 (TheSports diary 기반)
@@ -2111,19 +2149,7 @@ async function updateInfo(e) {
     try {
       const d = await fetchJSON(`/api/baseball/teamrecent?match=${encodeURIComponent(e.id)}&date=${state.date}`, { tries: 1 });
       if (!d.found) return;
-      const col = (nm, arr) => `<div class="recol"><div class="rec-hd">${esc(nm)}</div>${(arr || []).map(g => `<div class="rec-row"><span class="rb ${g.win ? 'W' : (g.draw ? 'D' : 'L')}">${g.win ? 'W' : (g.draw ? 'D' : 'L')}</span><span class="ro">${esc(teamShort(TN(g.opp, e.league)))}</span><span class="rs">${esc(g.ts)}:${esc(g.os)}</span></div>`).join('') || `<div class="rec-empty">-</div>`}</div>`;
-      const h = d.home && d.home.games || [], a = d.away && d.away.games || [];
-      let html = '';
-      if (h.length || a.length) html += `<div class="odsec">📅 ${esc(t('recent'))} <span class="rhe">${esc(t('last10'))}</span></div><div class="recent2">${col(TN(e.away, e.league), a)}${col(TN(e.home, e.league), h)}</div>`;
-      // 🆚 상대전적(H2H)
-      const hh = d.h2h || [];
-      if (hh.length) {
-        html += `<div class="odsec">⚔️ ${esc(t('h2h'))}</div><div class="h2hbox">${hh.map(g => {
-          const md = (g.date ? new Date(g.date).toISOString() : '').slice(5, 10);
-          return `<div class="h2h-row"><span class="h2h-d">${esc(md)}</span><span class="h2h-t">${esc(teamShort(TN(g.aName, e.league)))}</span><span class="h2h-s">${esc(g.as)}:${esc(g.hs)}</span><span class="h2h-t r">${esc(teamShort(TN(g.hName, e.league)))}</span></div>`;
-        }).join('')}</div>`;
-      }
-      box.innerHTML = html;
+      box.innerHTML = kboInfoBlocks(e, d);
     } catch { }
     return;
   }
@@ -2132,36 +2158,8 @@ async function updateInfo(e) {
   try {
     const d = await fetchJSON(`/api/mlb/info?home=${encodeURIComponent(e.home)}&away=${encodeURIComponent(e.away)}&date=${state.date}`, { tries: 1 });
     if (!d.found) return;
-    let html = '';
-    const p = d.probable || {};
-    if (p.home || p.away) {
-      const row = (nm, pp) => pp ? `<tr><td class="tn">${esc(nm)}</td><td class="nm">${esc(pp.name)}</td><td><b>${esc(pp.w)}${sl('w')} ${esc(pp.l)}${sl('l')}</b> ${esc(pp.era)}</td><td>${esc(pp.ip)}${sl('ip')} ${esc(pp.k)}K ${esc(pp.bb)}BB</td></tr>` : '';
-      html += `<div class="odsec">🎯 ${esc(t('probable'))}</div><table class="stt inf"><tbody>${row(TN(e.home, e.league), p.home)}${row(TN(e.away, e.league), p.away)}</tbody></table>`;
-    }
-    const rc = d.recent || {};
-    const col = (nm, arr) => `<div class="recol"><div class="rec-hd">${esc(nm)}</div>${(arr || []).map(g => `<div class="rec-row clik" data-gp="${esc(g.gamePk || '')}"><span class="rb ${g.win ? 'W' : 'L'}">${g.win ? 'W' : 'L'}</span><span class="ro">${esc(teamShort(g.opp))}</span><span class="rs">${esc(g.ts)}:${esc(g.os)}</span></div>`).join('') || '<div class="rec-empty">-</div>'}</div>`;
-    if ((rc.home && rc.home.length) || (rc.away && rc.away.length)) {
-      html += `<div class="odsec">📅 ${esc(t('recent'))}</div><div class="recent2">${col(TN(e.home, e.league), rc.home)}${col(TN(e.away, e.league), rc.away)}</div>`;
-    }
-    // 맞대결(H2H)
-    const h = d.h2h || [];
-    if (h.length) {
-      html += `<div class="odsec">⚔️ ${esc(t('h2h'))} <span class="rhe">${esc(t('tapDetail'))}</span></div><div class="h2hbox">${h.map(g => {
-        const md = (g.date || '').slice(5);
-        return `<div class="h2h-row clik" data-gp="${esc(g.gamePk || '')}"><span class="h2h-d">${esc(md)}</span><span class="h2h-t">${esc(teamShort(g.home))}</span><span class="h2h-s">${esc(g.hs)}:${esc(g.as)}</span><span class="h2h-t r">${esc(teamShort(g.away))}</span></div>`;
-      }).join('')}</div>`;
-    }
-    // 팀 순위표
-    const st = d.standings || [];
-    if (st.length) {
-      html += `<div class="odsec">🏆 ${esc(t('standings'))}</div><table class="stt stdtbl"><thead><tr><th>#</th><th>${sl('team')}</th><th>${sl('w')}</th><th>${sl('l')}</th><th>${sl('pct')}</th><th>${sl('rs')}</th><th>${sl('ra')}</th><th>${sl('streak')}</th></tr></thead><tbody>${
-        st.map(r => `<tr class="${r.hl ? 'hl' : ''}"><td>${esc(r.rank)}</td><td class="nm">${esc(teamShort(r.name))}</td><td>${esc(r.w)}</td><td>${esc(r.l)}</td><td>${esc(String(r.pct).replace(/^0/, ''))}</td><td>${esc(r.rs)}</td><td>${esc(r.ra)}</td><td>${esc(r.streak)}</td></tr>`).join('')
-        }</tbody></table>`;
-    }
-    html += `<div id="mMini"></div>`;
-    box.innerHTML = html;
-    // 최근경기·맞대결 행 클릭 → 그 경기 상세(이닝스코어+투수/타자) 펼쳐보기
-    $$('#mInfoWrap .clik[data-gp]').forEach(el => el.addEventListener('click', () => showMini(el.dataset.gp)));
+    box.innerHTML = mlbInfoBlocks(e, d);
+    wireGpClicks('#mInfoWrap');   // 최근경기·맞대결 행 클릭 → 그 경기 선수기록 박스 펼쳐보기
   } catch {}
 }
 async function showMini(gp) {
@@ -2666,11 +2664,14 @@ async function loadPickData(e) {
     const refineSummary = (homeArr, awayArr) => { const ps = $('#pickSummary'); if (ps) ps.innerHTML = pickSummaryHtml(e, homeArr, awayArr); };
     if (tsLeague(e.league)) {
       const d = await fetchJSON(`/api/baseball/teamrecent?match=${encodeURIComponent(e.id)}&date=${state.date}`, { tries: 1 });
-      box.innerHTML = pickDataHtml(e, d.away && d.away.games, d.home && d.home.games, d.h2h);
+      // 최근 5폼 요약 + 최근10경기(점수) + 상대전적 풀버전
+      box.innerHTML = pickDataHtml(e, d.away && d.away.games, d.home && d.home.games, d.h2h) + kboInfoBlocks(e, d);
       refineSummary(d.home && d.home.games, d.away && d.away.games);
     } else if (statsLeague(e.league)) {
       const d = await fetchJSON(`/api/mlb/info?home=${encodeURIComponent(e.home)}&away=${encodeURIComponent(e.away)}&date=${state.date}`, { tries: 1 });
-      box.innerHTML = pickDataHtml(e, d.recent && d.recent.away, d.recent && d.recent.home, d.h2h);
+      // 최근 5폼 요약 + 예상선발 + 최근10경기(클릭 시 선수기록) + 상대전적 + 순위표
+      box.innerHTML = pickDataHtml(e, d.recent && d.recent.away, d.recent && d.recent.home, d.h2h) + mlbInfoBlocks(e, d);
+      wireGpClicks('#pickData');
       refineSummary(d.recent && d.recent.home, d.recent && d.recent.away);
     } else {
       box.innerHTML = `<div class="lu-note">${esc(t('oddsSoon'))}</div>`;
