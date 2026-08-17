@@ -1286,6 +1286,82 @@ app.get('/api/asports/lineups', async (req, res) => {
   } catch (e) { res.status(502).json({ error: String(e.message || e), teams: [] }); }
 });
 
+// ⚽ 예상 라인업 — 각 팀의 "직전 종료 경기 선발 XI"를 예측으로 사용 (확정 라인업 나오기 전 표시용)
+async function fbLastLineup(teamId) {
+  try {
+    const j = await asRaw('football', `/fixtures?team=${teamId}&last=6&timezone=Asia/Seoul`, 3 * 3600 * 1000);
+    const fins = (j.response || []).filter(fx => ['FT', 'AET', 'PEN'].includes(fx.fixture && fx.fixture.status && fx.fixture.status.short));
+    for (const fx of fins) {
+      const lu = await asRaw('football', `/fixtures/lineups?fixture=${fx.fixture.id}`, 24 * 3600 * 1000).catch(() => ({}));
+      const mine = (lu.response || []).find(t => t.team && t.team.id === teamId);
+      if (mine && (mine.startXI || []).length >= 11) {
+        return {
+          team: mine.team.name, logo: mine.team.logo, formation: mine.formation || '',
+          coach: mine.coach ? mine.coach.name : '',
+          startXI: (mine.startXI || []).map(x => ({ id: x.player.id, name: x.player.name, number: x.player.number, pos: x.player.pos, grid: x.player.grid })),
+          subs: (mine.substitutes || []).map(x => ({ id: x.player.id, name: x.player.name, number: x.player.number, pos: x.player.pos })),
+          fromDate: fx.fixture.date
+        };
+      }
+    }
+  } catch { }
+  return null;
+}
+app.get('/api/football/predlineup', async (req, res) => {
+  const homeId = parseInt(req.query.home, 10), awayId = parseInt(req.query.away, 10);
+  if (!homeId || !awayId) return res.json({ found: false });
+  try {
+    const [h, a] = await Promise.all([fbLastLineup(homeId), fbLastLineup(awayId)]);
+    const teams = [];
+    if (h) teams.push(h); if (a) teams.push(a);
+    res.json({ found: teams.length === 2, predicted: true, teams });
+  } catch (e) { res.json({ found: false, error: String(e.message || e) }); }
+});
+
+// ⚾ MLB 예상 라인업 — 각 팀 직전 경기 타순(선발 야수) + 이 경기 예상 선발투수
+async function mlbLastLineup(teamId, sportId, date) {
+  const recent = await mlbRecent(teamId, sportId, date).catch(() => []);
+  for (const g of recent) {
+    if (!g.gamePk) continue;
+    try {
+      const box = await mlbFetch(`/api/v1/game/${g.gamePk}/boxscore`, 6 * 3600 * 1000);
+      for (const side of ['home', 'away']) {
+        const T = box.teams[side]; if (!T || !T.team || T.team.id !== teamId) continue;
+        const players = T.players || {};
+        const arr = Object.values(players).filter(p => p.battingOrder).map(p => ({
+          bo: parseInt(p.battingOrder, 10), id: p.person.id, name: p.person.fullName,
+          pos: p.position ? p.position.abbreviation : '', number: p.jerseyNumber || ''
+        }));
+        const lineup = arr.filter(p => p.bo % 100 === 0).sort((a, b) => a.bo - b.bo).map((p, i) => ({ order: i + 1, id: p.id, name: p.name, pos: p.pos, number: p.number }));
+        if (lineup.length) return { lineup, fromDate: g.date || null };
+      }
+    } catch { }
+  }
+  return { lineup: [] };
+}
+app.get('/api/mlb/predlineup', async (req, res) => {
+  const { home, away } = req.query, date = req.query.date || new Date().toISOString().slice(0, 10);
+  try {
+    const f = await mlbFindGame(home, away, date);
+    if (!f) return res.json({ found: false });
+    const hId = f.swap ? f.awayId : f.homeId, aId = f.swap ? f.homeId : f.awayId;
+    // 이 경기 예상 선발투수 (schedule hydrate)
+    let hp = null, ap = null;
+    try {
+      const sg = await mlbFetch(`/api/v1/schedule?sportId=${f.sportId}&gamePk=${f.gamePk}&hydrate=probablePitcher`, 3600000);
+      const gg = ((sg.dates || [])[0] || {}).games || [];
+      const g0 = gg[0];
+      if (g0) {
+        const hpp = g0.teams.home.probablePitcher, app_ = g0.teams.away.probablePitcher;
+        const mk = pp => pp ? { id: pp.id, name: pp.fullName, pos: 'P' } : null;
+        hp = f.swap ? mk(app_) : mk(hpp); ap = f.swap ? mk(hpp) : mk(app_);
+      }
+    } catch { }
+    const [hL, aL] = await Promise.all([mlbLastLineup(hId, f.sportId, date), mlbLastLineup(aId, f.sportId, date)]);
+    res.json({ found: true, predicted: true, home: { lineup: hL.lineup, pitcher: hp, fromDate: hL.fromDate }, away: { lineup: aL.lineup, pitcher: ap, fromDate: aL.fromDate } });
+  } catch (e) { res.json({ found: false, error: String(e.message || e) }); }
+});
+
 // ⚽ TheSports 축구 라인업 폴백 (API-Sports가 K/J리그 라인업을 안 줄 때) — 팀명+날짜로 매칭 후 라인업+선수사진
 const FB_PLAYER = new Map();   // TheSports 축구 선수 id -> {name, logo}
 async function tsFbPlayer(pid) {
