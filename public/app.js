@@ -558,6 +558,8 @@ function fbTeamName(name) {
   if (LANG === 'ko' && name) return enToKo(name);   // 그 외: 한글 자동 음역
   return name;
 }
+// 축구 선수명: 한국어일 때 자동 음역(예: Messi→메시), 그 외 언어는 원문
+function fbPN(name) { return (LANG === 'ko' && name) ? enToKo(name) : name; }
 // 표시용 팀명: CJK 언어에서만, 종목/리그별 사전 매칭 → 없으면 원문 유지
 function TN(name, league) {
   if (!name || (LANG !== 'ko' && LANG !== 'ja' && LANG !== 'zh')) return name;
@@ -1973,9 +1975,9 @@ function renderLineupList(t) {
     const av = face
       ? `<span class="lulist-av has-face"><img src="${face}" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.parentNode.classList.remove('has-face');this.parentNode.textContent='${num || '·'}'"></span>`
       : `<span class="lulist-av">${num || '·'}</span>`;
-    return `<div class="lulist-row lu-dot" data-pid="${esc(p.id)}" data-name="${esc(p.name)}" data-pos="${esc(p.pos || '')}" data-num="${num}">${av}<span class="lulist-num">${num}</span><span class="lulist-nm">${esc(p.name)}</span>${p.pos ? `<span class="lulist-pos">${esc(p.pos)}</span>` : ''}</div>`;
+    return `<div class="lulist-row lu-dot" data-pid="${esc(p.id)}" data-name="${esc(p.name)}" data-pos="${esc(p.pos || '')}" data-num="${num}">${av}<span class="lulist-num">${num}</span><span class="lulist-nm">${esc(fbPN(p.name))}</span>${p.pos ? `<span class="lulist-pos">${esc(p.pos)}</span>` : ''}</div>`;
   }).join('');
-  const subs = (t.subs || []).length ? `<div class="lulist-sub-hd">${esc(t('subs') || '교체')}</div>` + (t.subs || []).map(p => `<div class="lulist-row lu-dot sub" data-pid="${esc(p.id)}" data-name="${esc(p.name)}" data-pos="${esc(p.pos || '')}" data-num="${esc(p.number == null ? '' : String(p.number))}"><span class="lulist-av sm">${esc(p.number == null ? '' : String(p.number))}</span><span class="lulist-nm">${esc(p.name)}</span></div>`).join('') : '';
+  const subs = (t.subs || []).length ? `<div class="lulist-sub-hd">${esc(t('subs') || '교체')}</div>` + (t.subs || []).map(p => `<div class="lulist-row lu-dot sub" data-pid="${esc(p.id)}" data-name="${esc(p.name)}" data-pos="${esc(p.pos || '')}" data-num="${esc(p.number == null ? '' : String(p.number))}"><span class="lulist-av sm">${esc(p.number == null ? '' : String(p.number))}</span><span class="lulist-nm">${esc(fbPN(p.name))}</span></div>`).join('') : '';
   return `<div class="pitch">${hd}<div class="lulist">${rows}${subs}</div></div>`;
 }
 function renderPitch(t) {
@@ -1994,7 +1996,7 @@ function renderPitch(t) {
       const av = face
         ? `<span class="lu-av has-face"><img src="${face}" alt="" loading="lazy" onerror="this.parentNode.classList.remove('has-face');this.parentNode.innerHTML='${num}'"><b class="lu-badge">${num}</b></span>`
         : `<span class="lu-av">${num}</span>`;
-      dots.push(`<div class="lu-dot" data-pid="${esc(p.id)}" data-name="${esc(p.name)}" data-pos="${esc(p.pos || '')}" data-num="${esc(p.number || '')}" style="top:${top}%;left:${left}%">${av}<span class="lu-nm">${esc(shortName(p.name))}</span></div>`);
+      dots.push(`<div class="lu-dot" data-pid="${esc(p.id)}" data-name="${esc(p.name)}" data-pos="${esc(p.pos || '')}" data-num="${esc(p.number || '')}" style="top:${top}%;left:${left}%">${av}<span class="lu-nm">${esc(fbPN(shortName(p.name)))}</span></div>`);
     });
   });
   return `<div class="pitch"><div class="pitch-hd">${esc(t.team)} · <b>${esc(t.formation)}</b>${t.coach ? ` · 감독 ${esc(t.coach)}` : ''}</div><div class="pitch-field">${dots.join('')}</div></div>`;
@@ -2233,7 +2235,7 @@ function fbpListHtml(tm) {
     if (p.goals) badges.push('⚽' + p.goals);
     if (p.assists) badges.push('🅰' + p.assists);
     if (p.yellow) badges.push('🟨'); if (p.red) badges.push('🟥');
-    return `<div class="fbp-row"><span class="fbp-num">${p.number == null ? '' : esc(String(p.number))}</span>${p.photo ? `<img class="fbp-ph" src="${esc(p.photo)}" referrerpolicy="no-referrer" onerror="this.style.display='none'">` : '<span class="fbp-ph noimg">👤</span>'}<span class="fbp-nm">${esc(p.name)}</span><span class="fbp-meta">${esc(p.pos || '')} ${badges.join(' ')}</span><span class="fbp-rt ${(parseFloat(p.rating) || 0) >= 7.5 ? 'hi' : ((parseFloat(p.rating) || 0) && (parseFloat(p.rating) < 6) ? 'lo' : '')}">${r}</span></div>`;
+    return `<div class="fbp-row"><span class="fbp-num">${p.number == null ? '' : esc(String(p.number))}</span>${p.photo ? `<img class="fbp-ph" src="${esc(p.photo)}" referrerpolicy="no-referrer" onerror="this.style.display='none'">` : '<span class="fbp-ph noimg">👤</span>'}<span class="fbp-nm">${esc(fbPN(p.name))}</span><span class="fbp-meta">${esc(p.pos || '')} ${badges.join(' ')}</span><span class="fbp-rt ${(parseFloat(p.rating) || 0) >= 7.5 ? 'hi' : ((parseFloat(p.rating) || 0) && (parseFloat(p.rating) < 6) ? 'lo' : '')}">${r}</span></div>`;
   }).join('');
 }
 function renderFbPlayers(teams, e) {
@@ -2520,12 +2522,13 @@ function lineScoreTable(e) {
     </tbody></table>`;
 }
 // 배당 위젯 — "해외 ▲홈 / 무 / ▼원정" (홈=초록 상승, 원정=빨강 하락)
-function oddsWidget(od) {
+function oddsWidget(od, label) {
   if (!od || (!od.home && !od.away)) return '';
   const f = v => v ? Number(v).toFixed(2) : '-';
   const hasDraw = od.draw != null && od.draw !== '' && Number(od.draw) > 0;
+  const lbl = label === undefined ? t('odds') : label;   // 기본 라벨 "배당" (빈 문자열이면 라벨 숨김)
   return `<div class="odds3">
-    <span class="odds3-lbl">${esc(t('intlOdds'))}</span>
+    ${lbl ? `<span class="odds3-lbl">${esc(lbl)}</span>` : ''}
     <div class="odds3-cells">
       <div class="o3"><span class="tri up">▲</span><b>${f(od.home)}</b></div>
       ${hasDraw ? `<div class="o3"><b>${f(od.draw)}</b></div>` : ''}
@@ -2541,7 +2544,7 @@ function renderDetail(e, pr) {
   const setpts = (setSports && e.livePts && e.state === 'live') ? `<div class="msc-set">${esc(t('now'))} ${esc(t('setWord'))} ${esc(e.livePts.home ?? 0)}:${esc(e.livePts.away ?? 0)}</div>` : '';
   const dd = e.date ? new Date(e.date) : null;
   const when = dd ? `${dd.getMonth() + 1}/${dd.getDate()} ${hhmm(e.date)}` : '';
-  const odds = e.odds ? `<div class="odsec">💰 ${esc(t('odds'))}</div>${oddsWidget(e.odds)}` : '';
+  const odds = e.odds ? `<div class="odsec">💰 ${esc(t('odds'))}</div>${oddsWidget(e.odds, '')}` : '';
   // 점수판은 별도 영역(#mScore)에 — 그 바로 밑에 하이라이트(#mYtWrap)가 오도록
   const sc = $('#mScore');
   // 팀 이름 바로 아래 AI 해설 (라이브=생동감 한 줄 / 그 외=요약 첫 줄)
@@ -2962,7 +2965,7 @@ async function openPick(id) {
   const stars = Math.max(1, Math.min(5, Math.round(p.conf / 20)));
   const od = e.odds || {};
   const oddsRow = (od.home || od.away)
-    ? `${oddsWidget(od)}<div class="pi-note">${esc(t('oddsNote'))}</div>`
+    ? `${oddsWidget(od, '')}<div class="pi-note">${esc(t('oddsNote'))}</div>`
     : `<div class="lu-note">${esc(t('oddsSoon'))}</div>`;
   $('#mBody').innerHTML = `
     <div class="pick-hero">
@@ -2997,7 +3000,7 @@ async function openPick(id) {
 // 픽제공/정보방 라인업 — 확정 없으면 예상(각 팀 직전 선발). 간결 리스트형(양팀 2열).
 function luColHtml(nm, players, isFb) {
   const rows = (players || []).map(p => isFb
-    ? `<div class="plu-row"><span class="plu-n">${p.number == null ? '' : esc(String(p.number))}</span><span class="plu-nm">${esc(p.name)}</span><span class="plu-pos">${esc(p.pos || '')}</span></div>`
+    ? `<div class="plu-row"><span class="plu-n">${p.number == null ? '' : esc(String(p.number))}</span><span class="plu-nm">${esc(fbPN(p.name))}</span><span class="plu-pos">${esc(p.pos || '')}</span></div>`
     : `<div class="plu-row"><span class="plu-n">${esc(String(p.order || ''))}</span><span class="plu-nm">${esc(p.name)}</span><span class="plu-pos">${esc(p.pos || '')}</span></div>`
   ).join('') || `<div class="rec-empty">-</div>`;
   return `<div class="plu-col"><div class="rec-hd">${esc(nm)}</div>${rows}</div>`;
