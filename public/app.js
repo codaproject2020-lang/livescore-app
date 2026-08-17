@@ -254,6 +254,13 @@ function setLang(l) {
   if (typeof buildSportNav === 'function') buildSportNav();
   if (typeof loadEvents === 'function' && $('#view-live') && !$('#view-live').classList.contains('hidden')) loadEvents();
   if (typeof renderInfoList === 'function' && $('#view-info') && !$('#view-info').classList.contains('hidden')) renderInfoList();
+  // 픽제공(배당) 화면이 열려 있으면 종목 네비 + 목록 + 리그칩까지 새 언어로 다시 그림
+  if ($('#view-odds') && !$('#view-odds').classList.contains('hidden')) {
+    if (typeof buildPickHubNav === 'function') buildPickHubNav();
+    if (typeof buildLeagueRow === 'function' && pickHubGames) buildLeagueRow(pickHubGames);
+    if (typeof renderPickHubList === 'function') renderPickHubList();
+  }
+  if (typeof renderHome === 'function' && $('#view-home') && !$('#view-home').classList.contains('hidden')) renderHome();
   if (typeof refreshDateLabel === 'function') refreshDateLabel();
   if (typeof initGIS === 'function') { try { initGIS(); } catch { } }   // 구글 버튼 언어 다시 반영
   if (typeof renderAuthUI === 'function') renderAuthUI();   // 로그인/로그아웃 라벨 언어 반영
@@ -360,9 +367,119 @@ function leagueDict(league) {
   if (league === 'LMB') return LMB_TEAMS;
   return MLB_TEAMS;   // MLB·IL·PCL(미국) 및 기본
 }
-// 표시용 팀명: CJK 언어에서만, 리그별 사전 매칭 → 없으면 원문 유지
+// ⚽ 축구 주요 클럽·대표팀 팀명 (ko/ja/zh) — 별칭 여러 개를 한 항목에 매핑
+const FB_TEAMS_RAW = [
+  // 잉글랜드
+  [['manchester united', 'man utd', 'man united'], '맨체스터 유나이티드', 'マンチェスター・ユナイテッド', '曼联'],
+  [['manchester city', 'man city'], '맨체스터 시티', 'マンチェスター・シティ', '曼城'],
+  [['liverpool'], '리버풀', 'リバプール', '利物浦'],
+  [['arsenal'], '아스날', 'アーセナル', '阿森纳'],
+  [['chelsea'], '첼시', 'チェルシー', '切尔西'],
+  [['tottenham', 'tottenham hotspur'], '토트넘', 'トッテナム', '热刺'],
+  [['newcastle', 'newcastle united'], '뉴캐슬', 'ニューカッスル', '纽卡斯尔'],
+  [['aston villa'], '아스톤 빌라', 'アストン・ヴィラ', '阿斯顿维拉'],
+  [['west ham', 'west ham united'], '웨스트햄', 'ウェストハム', '西汉姆'],
+  [['brighton'], '브라이턴', 'ブライトン', '布莱顿'],
+  [['everton'], '에버턴', 'エバートン', '埃弗顿'],
+  [['wolves', 'wolverhampton'], '울버햄튼', 'ウルヴァーハンプトン', '狼队'],
+  [['leicester', 'leicester city'], '레스터', 'レスター', '莱斯特城'],
+  [['fulham'], '풀럼', 'フラム', '富勒姆'],
+  [['crystal palace'], '크리스탈 팰리스', 'クリスタル・パレス', '水晶宫'],
+  [['nottingham forest'], '노팅엄 포레스트', 'ノッティンガム・フォレスト', '诺丁汉森林'],
+  // 스페인
+  [['real madrid'], '레알 마드리드', 'レアル・マドリード', '皇家马德里'],
+  [['barcelona', 'fc barcelona'], '바르셀로나', 'バルセロナ', '巴塞罗那'],
+  [['atletico madrid', 'atletico'], '아틀레티코 마드리드', 'アトレティコ・マドリード', '马德里竞技'],
+  [['sevilla'], '세비야', 'セビージャ', '塞维利亚'],
+  [['valencia'], '발렌시아', 'バレンシア', '瓦伦西亚'],
+  [['villarreal'], '비야레알', 'ビジャレアル', '比利亚雷亚尔'],
+  [['real sociedad'], '레알 소시에다드', 'レアル・ソシエダ', '皇家社会'],
+  [['real betis', 'betis'], '레알 베티스', 'ベティス', '皇家贝蒂斯'],
+  [['athletic club', 'athletic bilbao'], '아틀레틱 빌바오', 'アスレティック・ビルバオ', '毕尔巴鄂竞技'],
+  // 이탈리아
+  [['juventus'], '유벤투스', 'ユベントス', '尤文图斯'],
+  [['ac milan', 'milan'], 'AC 밀란', 'ACミラン', 'AC米兰'],
+  [['inter', 'internazionale', 'inter milan'], '인테르', 'インテル', '国际米兰'],
+  [['napoli'], '나폴리', 'ナポリ', '那不勒斯'],
+  [['as roma', 'roma'], 'AS 로마', 'ASローマ', '罗马'],
+  [['lazio'], '라치오', 'ラツィオ', '拉齐奥'],
+  [['atalanta'], '아탈란타', 'アタランタ', '亚特兰大'],
+  [['fiorentina'], '피오렌티나', 'フィオレンティーナ', '佛罗伦萨'],
+  // 독일
+  [['bayern munich', 'bayern munchen', 'bayern'], '바이에른 뮌헨', 'バイエルン・ミュンヘン', '拜仁慕尼黑'],
+  [['borussia dortmund', 'dortmund'], '도르트문트', 'ドルトムント', '多特蒙德'],
+  [['rb leipzig', 'leipzig'], 'RB 라이프치히', 'RBライプツィヒ', 'RB莱比锡'],
+  [['bayer leverkusen', 'leverkusen'], '레버쿠젠', 'レバークーゼン', '勒沃库森'],
+  [['borussia monchengladbach', 'monchengladbach'], '묀헨글라트바흐', 'メンヒェングラートバッハ', '门兴格拉德巴赫'],
+  [['eintracht frankfurt', 'frankfurt'], '프랑크푸르트', 'フランクフルト', '法兰克福'],
+  [['wolfsburg'], '볼프스부르크', 'ヴォルフスブルク', '沃尔夫斯堡'],
+  // 프랑스
+  [['paris saint germain', 'psg'], '파리 생제르맹', 'パリ・サンジェルマン', '巴黎圣日耳曼'],
+  [['marseille', 'olympique marseille'], '마르세유', 'マルセイユ', '马赛'],
+  [['lyon', 'olympique lyonnais'], '리옹', 'リヨン', '里昂'],
+  [['monaco', 'as monaco'], '모나코', 'モナコ', '摩纳哥'],
+  [['lille'], '릴', 'リール', '里尔'],
+  [['nice'], '니스', 'ニース', '尼斯'],
+  // 네덜란드·포르투갈·스코틀랜드
+  [['ajax'], '아약스', 'アヤックス', '阿贾克斯'],
+  [['psv', 'psv eindhoven'], 'PSV', 'PSV', 'PSV埃因霍温'],
+  [['feyenoord'], '페예노르트', 'フェイエノールト', '费耶诺德'],
+  [['benfica'], '벤피카', 'ベンフィカ', '本菲卡'],
+  [['porto', 'fc porto'], '포르투', 'ポルト', '波尔图'],
+  [['sporting cp', 'sporting lisbon', 'sporting'], '스포르팅', 'スポルティング', '里斯本竞技'],
+  [['celtic'], '셀틱', 'セルティック', '凯尔特人'],
+  [['rangers'], '레인저스', 'レンジャーズ', '流浪者'],
+  // 사우디
+  [['al nassr'], '알 나스르', 'アル・ナスル', '利雅得胜利'],
+  [['al hilal'], '알 힐랄', 'アル・ヒラル', '利雅得新月'],
+  [['al ittihad'], '알 이티하드', 'アル・イテハド', '吉达联合'],
+  [['al ahli'], '알 아흘리', 'アル・アハリ', '吉达国民'],
+  // K리그
+  [['ulsan', 'ulsan hyundai', 'ulsan hd'], '울산 HD', 'ウルサン', '蔚山现代'],
+  [['jeonbuk', 'jeonbuk hyundai', 'jeonbuk motors'], '전북 현대', 'チョンブク', '全北现代'],
+  [['pohang', 'pohang steelers'], '포항 스틸러스', 'ポハン', '浦项制铁'],
+  [['fc seoul', 'seoul'], 'FC 서울', 'FCソウル', '首尔FC'],
+  [['suwon', 'suwon samsung'], '수원 삼성', 'スウォン', '水原三星'],
+  [['incheon', 'incheon united'], '인천 유나이티드', 'インチョン', '仁川联'],
+  [['daegu', 'daegu fc'], '대구 FC', 'テグ', '大邱FC'],
+  [['gangwon', 'gangwon fc'], '강원 FC', 'カンウォン', '江原FC'],
+  [['gwangju', 'gwangju fc'], '광주 FC', 'クァンジュ', '光州FC'],
+  [['jeju', 'jeju united'], '제주 유나이티드', 'チェジュ', '济州联'],
+  // J리그
+  [['kawasaki frontale', 'kawasaki'], '가와사키 프론탈레', '川崎フロンターレ', '川崎前锋'],
+  [['yokohama f marinos', 'yokohama marinos', 'yokohama fm'], '요코하마 F 마리노스', '横浜F・マリノス', '横滨水手'],
+  [['urawa', 'urawa reds', 'urawa red diamonds'], '우라와 레즈', '浦和レッズ', '浦和红钻'],
+  [['vissel kobe', 'vissel'], '비셀 고베', 'ヴィッセル神戸', '神户胜利船'],
+  [['gamba osaka', 'gamba'], '감바 오사카', 'ガンバ大阪', '大阪钢巴'],
+  [['kashima antlers', 'kashima'], '가시마 앤틀러스', '鹿島アントラーズ', '鹿岛鹿角'],
+  [['fc tokyo'], 'FC 도쿄', 'FC東京', '东京FC'],
+  [['cerezo osaka'], '세레소 오사카', 'セレッソ大阪', '大阪樱花'],
+  // 대표팀
+  [['south korea', 'korea republic'], '대한민국', '韓国', '韩国'],
+  [['japan'], '일본', '日本', '日本'],
+  [['brazil'], '브라질', 'ブラジル', '巴西'],
+  [['argentina'], '아르헨티나', 'アルゼンチン', '阿根廷'],
+  [['france'], '프랑스', 'フランス', '法国'],
+  [['england'], '잉글랜드', 'イングランド', '英格兰'],
+  [['germany'], '독일', 'ドイツ', '德国'],
+  [['spain'], '스페인', 'スペイン', '西班牙'],
+  [['portugal'], '포르투갈', 'ポルトガル', '葡萄牙'],
+  [['netherlands'], '네덜란드', 'オランダ', '荷兰'],
+  [['italy'], '이탈리아', 'イタリア', '意大利']
+];
+function fbNorm(s) { return String(s || '').toLowerCase().replace(/[^a-z0-9]/g, ''); }
+const FB_TEAMS = {};
+FB_TEAMS_RAW.forEach(([aliases, ko, ja, zh]) => aliases.forEach(a => { FB_TEAMS[fbNorm(a)] = { ko, ja, zh }; }));
+function fbTeamName(name) {
+  const key = fbNorm(name);
+  let e = FB_TEAMS[key];
+  if (!e) { const k2 = key.replace(/^(fc|afc|sc|cf|ac)/, '').replace(/(fc|afc|sc|cf)$/, ''); e = FB_TEAMS[k2]; }
+  return (e && e[LANG]) ? e[LANG] : name;
+}
+// 표시용 팀명: CJK 언어에서만, 종목/리그별 사전 매칭 → 없으면 원문 유지
 function TN(name, league) {
   if (!name || (LANG !== 'ko' && LANG !== 'ja' && LANG !== 'zh')) return name;
+  if (state.sport === 'football') return fbTeamName(name);
   const d = leagueDict(league);
   const nick = tmNick(name);
   let e = d[nick] || d[String(name).toLowerCase()];
@@ -981,17 +1098,31 @@ async function fetchJSON(url, { tries = 15, delay = 4000, onWait } = {}) {
 let feedGames = {};   // id -> game (상세 모달용)
 let allFeedGames = [];   // 필터 전 전체 경기
 // 🌍 나라 이름 한글화 (축구 상단 필터용)
-const COUNTRY_KO = {
-  'South-Korea': '대한민국', 'Korea': '대한민국', 'Korea Republic': '대한민국', 'Japan': '일본', 'China': '중국', 'Taiwan': '대만', 'Hong-Kong': '홍콩',
-  'England': '잉글랜드', 'Great-Britain': '영국', 'United-Kingdom': '영국', 'Scotland': '스코틀랜드', 'Wales': '웨일스', 'Ireland': '아일랜드', 'Northern-Ireland': '북아일랜드',
-  'Spain': '스페인', 'Italy': '이탈리아', 'Germany': '독일', 'France': '프랑스', 'Netherlands': '네덜란드', 'Portugal': '포르투갈', 'Belgium': '벨기에',
-  'Turkey': '튀르키예', 'Greece': '그리스', 'Switzerland': '스위스', 'Austria': '오스트리아', 'Russia': '러시아', 'Ukraine': '우크라이나', 'Poland': '폴란드',
-  'Denmark': '덴마크', 'Sweden': '스웨덴', 'Norway': '노르웨이', 'Croatia': '크로아티아', 'Serbia': '세르비아', 'Czech-Republic': '체코', 'Romania': '루마니아',
-  'USA': '미국', 'Mexico': '멕시코', 'Brazil': '브라질', 'Argentina': '아르헨티나', 'Colombia': '콜롬비아', 'Chile': '칠레', 'Canada': '캐나다',
-  'Saudi-Arabia': '사우디', 'Qatar': '카타르', 'UAE': 'UAE', 'Australia': '호주', 'Thailand': '태국', 'Vietnam': '베트남', 'India': '인도', 'Indonesia': '인도네시아',
-  'Europe': '유럽', 'World': '국제', 'South-America': '남미', 'Africa': '아프리카', 'Asia': '아시아'
+// 국가명 다국어 (ko/ja/zh) — 그 외 언어는 영어 원문(대시 제거)로 표시
+const COUNTRY_I18N = {
+  'South-Korea': { ko: '대한민국', ja: '韓国', zh: '韩国' }, 'Korea': { ko: '대한민국', ja: '韓国', zh: '韩国' }, 'Korea Republic': { ko: '대한민국', ja: '韓国', zh: '韩国' },
+  'Japan': { ko: '일본', ja: '日本', zh: '日本' }, 'China': { ko: '중국', ja: '中国', zh: '中国' }, 'Taiwan': { ko: '대만', ja: '台湾', zh: '台湾' }, 'Hong-Kong': { ko: '홍콩', ja: '香港', zh: '香港' },
+  'England': { ko: '잉글랜드', ja: 'イングランド', zh: '英格兰' }, 'Great-Britain': { ko: '영국', ja: 'イギリス', zh: '英国' }, 'United-Kingdom': { ko: '영국', ja: 'イギリス', zh: '英国' },
+  'Scotland': { ko: '스코틀랜드', ja: 'スコットランド', zh: '苏格兰' }, 'Wales': { ko: '웨일스', ja: 'ウェールズ', zh: '威尔士' }, 'Ireland': { ko: '아일랜드', ja: 'アイルランド', zh: '爱尔兰' }, 'Northern-Ireland': { ko: '북아일랜드', ja: '北アイルランド', zh: '北爱尔兰' },
+  'Spain': { ko: '스페인', ja: 'スペイン', zh: '西班牙' }, 'Italy': { ko: '이탈리아', ja: 'イタリア', zh: '意大利' }, 'Germany': { ko: '독일', ja: 'ドイツ', zh: '德国' }, 'France': { ko: '프랑스', ja: 'フランス', zh: '法国' },
+  'Netherlands': { ko: '네덜란드', ja: 'オランダ', zh: '荷兰' }, 'Portugal': { ko: '포르투갈', ja: 'ポルトガル', zh: '葡萄牙' }, 'Belgium': { ko: '벨기에', ja: 'ベルギー', zh: '比利时' },
+  'Turkey': { ko: '튀르키예', ja: 'トルコ', zh: '土耳其' }, 'Greece': { ko: '그리스', ja: 'ギリシャ', zh: '希腊' }, 'Switzerland': { ko: '스위스', ja: 'スイス', zh: '瑞士' }, 'Austria': { ko: '오스트리아', ja: 'オーストリア', zh: '奥地利' },
+  'Russia': { ko: '러시아', ja: 'ロシア', zh: '俄罗斯' }, 'Ukraine': { ko: '우크라이나', ja: 'ウクライナ', zh: '乌克兰' }, 'Poland': { ko: '폴란드', ja: 'ポーランド', zh: '波兰' },
+  'Denmark': { ko: '덴마크', ja: 'デンマーク', zh: '丹麦' }, 'Sweden': { ko: '스웨덴', ja: 'スウェーデン', zh: '瑞典' }, 'Norway': { ko: '노르웨이', ja: 'ノルウェー', zh: '挪威' },
+  'Croatia': { ko: '크로아티아', ja: 'クロアチア', zh: '克罗地亚' }, 'Serbia': { ko: '세르비아', ja: 'セルビア', zh: '塞尔维亚' }, 'Czech-Republic': { ko: '체코', ja: 'チェコ', zh: '捷克' }, 'Romania': { ko: '루마니아', ja: 'ルーマニア', zh: '罗马尼亚' },
+  'USA': { ko: '미국', ja: 'アメリカ', zh: '美国' }, 'Mexico': { ko: '멕시코', ja: 'メキシコ', zh: '墨西哥' }, 'Brazil': { ko: '브라질', ja: 'ブラジル', zh: '巴西' }, 'Argentina': { ko: '아르헨티나', ja: 'アルゼンチン', zh: '阿根廷' },
+  'Colombia': { ko: '콜롬비아', ja: 'コロンビア', zh: '哥伦比亚' }, 'Chile': { ko: '칠레', ja: 'チリ', zh: '智利' }, 'Canada': { ko: '캐나다', ja: 'カナダ', zh: '加拿大' },
+  'Saudi-Arabia': { ko: '사우디', ja: 'サウジアラビア', zh: '沙特阿拉伯' }, 'Qatar': { ko: '카타르', ja: 'カタール', zh: '卡塔尔' }, 'UAE': { ko: 'UAE', ja: 'UAE', zh: '阿联酋' },
+  'Australia': { ko: '호주', ja: 'オーストラリア', zh: '澳大利亚' }, 'Thailand': { ko: '태국', ja: 'タイ', zh: '泰国' }, 'Vietnam': { ko: '베트남', ja: 'ベトナム', zh: '越南' }, 'India': { ko: '인도', ja: 'インド', zh: '印度' }, 'Indonesia': { ko: '인도네시아', ja: 'インドネシア', zh: '印度尼西亚' },
+  'Europe': { ko: '유럽', ja: 'ヨーロッパ', zh: '欧洲' }, 'World': { ko: '국제', ja: '国際', zh: '国际' }, 'South-America': { ko: '남미', ja: '南米', zh: '南美' }, 'Africa': { ko: '아프리카', ja: 'アフリカ', zh: '非洲' }, 'Asia': { ko: '아시아', ja: 'アジア', zh: '亚洲' }
 };
-function koCountry(c) { return (LANG === 'ko' && COUNTRY_KO[c]) ? COUNTRY_KO[c] : (c || '기타'); }
+// 함수명은 호환 위해 koCountry 유지 — 실제로는 현재 선택 언어로 반환
+function koCountry(c) {
+  if (!c) return t('all');
+  const e = COUNTRY_I18N[c];
+  if (e && e[LANG]) return e[LANG];
+  return String(c).replace(/-/g, ' ');   // 영어 등: 대시 제거한 원문
+}
 const COUNTRY_ORDER = ['South-Korea', 'Korea', 'Japan', 'China', 'England', 'Spain', 'Italy', 'Germany', 'France', 'Netherlands', 'Portugal', 'Scotland', 'Belgium', 'Turkey', 'Saudi-Arabia', 'USA', 'Brazil', 'Argentina', 'Mexico', 'Europe', 'World'];
 // 필터 키: 축구는 나라, 그 외는 리그
 function lgKey(g) { return state.sport === 'football' ? (g.country || '기타') : (g.league || '기타'); }
