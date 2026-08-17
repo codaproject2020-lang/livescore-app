@@ -2867,8 +2867,45 @@ async function openPick(id) {
     </div>
     <div class="pick-sec"><div class="ps-hd">💰 ${esc(t('odds'))}</div>${oddsRow}</div>
     <div class="pick-sec"><div class="ps-hd">📈 ${esc(t('pickData'))}</div><div id="pickData"><div class="loading" style="padding:8px">${esc(t('loading'))}</div></div></div>
+    <div class="pick-sec"><div class="ps-hd">📋 ${esc(t('lineup'))}</div><div id="pickLineup"><div class="loading" style="padding:8px">${esc(t('loading'))}</div></div></div>
     <div class="pick-sec"><div class="ps-hd">🤖 ${esc(t('aiSum'))}</div><div class="pick-ai">${aiSummary(e).map(l => `<p>${l}</p>`).join('')}</div></div>`;
   loadPickData(e);
+  loadPickLineup(e);
+}
+// 픽제공/정보방 라인업 — 확정 없으면 예상(각 팀 직전 선발). 간결 리스트형(양팀 2열).
+function luColHtml(nm, players, isFb) {
+  const rows = (players || []).map(p => isFb
+    ? `<div class="plu-row"><span class="plu-n">${p.number == null ? '' : esc(String(p.number))}</span><span class="plu-nm">${esc(p.name)}</span><span class="plu-pos">${esc(p.pos || '')}</span></div>`
+    : `<div class="plu-row"><span class="plu-n">${esc(String(p.order || ''))}</span><span class="plu-nm">${esc(p.name)}</span><span class="plu-pos">${esc(p.pos || '')}</span></div>`
+  ).join('') || `<div class="rec-empty">-</div>`;
+  return `<div class="plu-col"><div class="rec-hd">${esc(nm)}</div>${rows}</div>`;
+}
+async function loadPickLineup(e) {
+  const box = $('#pickLineup'); if (!box) return;
+  const sp = state.sport;
+  try {
+    if (sp === 'football') {
+      let teams = [];
+      try { const d = await fetchJSON(`/api/asports/lineups?fixture=${encodeURIComponent(e.id)}`, { tries: 1 }); teams = d.teams || []; } catch { }
+      let predicted = false;
+      if ((teams.length < 2 || !(teams[0].startXI || []).length) && e.homeId && e.awayId) {
+        try { const dp = await fetchJSON(`/api/football/predlineup?home=${encodeURIComponent(e.homeId)}&away=${encodeURIComponent(e.awayId)}`, { tries: 1 }); if (dp.found) { teams = dp.teams; predicted = true; } } catch { }
+      }
+      if (teams.length < 2 || !(teams[0].startXI || []).length) { box.innerHTML = `<div class="lu-note">-</div>`; return; }
+      box.innerHTML = `${predicted ? `<div class="odsec" style="padding-top:0">🔮 ${esc(t('predLineup'))} <span class="rhe">${esc(teams[0].formation)} · ${esc(teams[1].formation)}</span></div><div class="pred-note">${esc(t('predNote'))}</div>` : `<div class="odsec" style="padding-top:0">${esc(t('confLineup'))} <span class="rhe">${esc(teams[0].formation)} · ${esc(teams[1].formation)}</span></div>`}<div class="plu-2">${luColHtml(TN(e.home, e.league), teams[0].startXI, true)}${luColHtml(TN(e.away, e.league), teams[1].startXI, true)}</div>`;
+    } else if (statsLeague(e.league)) {
+      let d = await fetchJSON(`/api/mlb/game?home=${encodeURIComponent(e.home)}&away=${encodeURIComponent(e.away)}&date=${state.date}`, { tries: 1 });
+      let predicted = false;
+      if (!d.found || (!(d.home.lineup || []).length && !(d.away.lineup || []).length)) {
+        try { const dp = await fetchJSON(`/api/mlb/predlineup?home=${encodeURIComponent(e.home)}&away=${encodeURIComponent(e.away)}&date=${state.date}`, { tries: 1 }); if (dp.found) { d = { found: true, home: dp.home, away: dp.away }; predicted = true; } } catch { }
+      }
+      if (!d.found || (!(d.home.lineup || []).length && !(d.away.lineup || []).length)) { box.innerHTML = `<div class="lu-note">-</div>`; return; }
+      const pit = s => s && s.pitcher ? `<div class="plu-sp">⚾ ${esc(t('probable'))}: <b>${esc(s.pitcher.name)}</b></div>` : '';
+      box.innerHTML = `${predicted ? `<div class="odsec" style="padding-top:0">🔮 ${esc(t('predLineup'))}</div><div class="pred-note">${esc(t('predNote'))}</div>` : `<div class="odsec" style="padding-top:0">${esc(t('confLineup'))}</div>`}${pit(d.home)}${pit(d.away)}<div class="plu-2">${luColHtml(TN(e.home, e.league), d.home.lineup, false)}${luColHtml(TN(e.away, e.league), d.away.lineup, false)}</div>`;
+    } else {
+      box.innerHTML = `<div class="lu-note">-</div>`;
+    }
+  } catch { box.innerHTML = `<div class="lu-note">-</div>`; }
 }
 async function loadPickData(e) {
   const box = $('#pickData'); if (!box) return;
