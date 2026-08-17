@@ -268,21 +268,22 @@ app.get('/api/odds', async (req, res) => {
     const data = await cachedJSON(url, 90000);
     const arr = Array.isArray(data) ? data : [];
     const games = arr.map(g => {
-      // 여러 북메이커의 h2h 배당 중 최고값(사용자에게 유리) 집계
-      let hi = { home: 0, draw: 0, away: 0 }, books = 0, sample = null;
+      // 여러 북메이커의 h2h 배당을 결과별 평균(시장 컨센서스)으로 → 일관된 승·무·패 배당
+      const acc = { home: [], draw: [], away: [] }; let books = 0, sample = null;
       (g.bookmakers || []).forEach(bk => {
         const m = (bk.markets || []).find(x => x.key === 'h2h'); if (!m) return;
         books++; if (!sample) sample = bk.title;
         (m.outcomes || []).forEach(o => {
-          if (o.name === g.home_team) hi.home = Math.max(hi.home, o.price);
-          else if (o.name === g.away_team) hi.away = Math.max(hi.away, o.price);
-          else if (o.name === 'Draw') hi.draw = Math.max(hi.draw, o.price);
+          if (o.name === g.home_team) acc.home.push(o.price);
+          else if (o.name === g.away_team) acc.away.push(o.price);
+          else if (o.name === 'Draw') acc.draw.push(o.price);
         });
       });
+      const avg = a => a.length ? Math.round((a.reduce((s, x) => s + x, 0) / a.length) * 100) / 100 : null;
       return {
         id: g.id, league: g.sport_title, home: g.home_team, away: g.away_team,
         time: g.commence_time,
-        homeOdds: hi.home || null, drawOdds: hi.draw || null, awayOdds: hi.away || null,
+        homeOdds: avg(acc.home), drawOdds: avg(acc.draw), awayOdds: avg(acc.away),
         books, sample
       };
     }).sort((a, b) => new Date(a.time) - new Date(b.time));
@@ -562,17 +563,19 @@ async function oddsLookup(oddsSport) {
     const arr = await r.json();
     const map = {};
     (Array.isArray(arr) ? arr : []).forEach(g => {
-      const hi = { home: 0, away: 0, draw: 0 };
+      // 여러 북메이커의 h2h 배당을 결과별 평균(시장 컨센서스)으로 → 승·무·패가 일관된 배당(합산 확률 >100%)
+      const acc = { home: [], away: [], draw: [] };
       (g.bookmakers || []).forEach(bk => {
         const m = (bk.markets || []).find(x => x.key === 'h2h'); if (!m) return;
         (m.outcomes || []).forEach(o => {
-          if (o.name === g.home_team) hi.home = Math.max(hi.home, o.price);
-          else if (o.name === g.away_team) hi.away = Math.max(hi.away, o.price);
-          else if (o.name === 'Draw') hi.draw = Math.max(hi.draw, o.price);
+          if (o.name === g.home_team) acc.home.push(o.price);
+          else if (o.name === g.away_team) acc.away.push(o.price);
+          else if (o.name === 'Draw') acc.draw.push(o.price);
         });
       });
+      const avg = a => a.length ? Math.round((a.reduce((s, x) => s + x, 0) / a.length) * 100) / 100 : null;
       const key = normTeam(g.home_team) + '|' + normTeam(g.away_team);
-      const val = { home: hi.home || null, away: hi.away || null, draw: hi.draw || null };
+      const val = { home: avg(acc.home), away: avg(acc.away), draw: avg(acc.draw) };
       map[key] = val;
       if (val.home || val.away) oddsStore.set(key, { ...val, t: now });   // 영구 저장소에도 적립
     });
