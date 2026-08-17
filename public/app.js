@@ -1534,17 +1534,30 @@ function aiPreview(e) {
 }
 // ⚽ 축구 경기 전 프리뷰 문구 풀 ({h}=홈, {a}=원정) — 팀 이름으로 시드 → 경기마다 다르게
 const FB_PREVIEW = [
-  ['Home {h} eye the home edge!', '홈 {h}, 홈 이점 앞세워 우세 예상!', 'ホーム{h}が優位か！', '主场{h}占优？'],
-  ['{h} vs {a} — a tight one!', '{h}–{a}, 팽팽한 접전 예상!', '接戦の予感！', '势均力敌！'],
-  ['Whoever’s in form smiles!', '최근 기세 탄 팀이 웃는다!', '勢いのある方が制す！', '状态好者胜！'],
-  ['One goal could settle it!', '한 골 싸움, 승부처 주목!', '1点が勝負を分ける！', '一球定胜负！'],
-  ['Can away {a} cause an upset?', '원정 {a}의 반란 가능성?', 'アウェイ{a}の下剋上なるか？', '客队{a}能否爆冷？'],
-  ['Goals expected — open game!', '골 많은 화끈한 경기 기대!', 'ゴールラッシュに期待！', '期待进球大战！'],
-  ['Home crowd behind {h}!', '홈 관중 업은 {h}, 기세 살릴까?', 'ホームの後押しで{h}！', '主场之利助{h}！'],
-  ['Midfield battle is key!', '중원 싸움이 승부를 가른다!', '中盤の攻防が鍵！', '中场对决是关键！']
+  ['{h} eye a home win to seal three points.', '안방에서 만나는 {h}, 초반 주도권이 승부의 관건.', 'ホーム{h}、序盤の主導権が鍵。', '主场{h}，开局掌控是关键。'],
+  ['Fine margins — one moment could decide it.', '전력차 크지 않은 두 팀, 한 방이 승부를 가른다.', '拮抗した一戦、一瞬が勝負を分ける。', '实力接近，一瞬定胜负。'],
+  ['{a} bank on defensive steel and the counter.', '원정 {a}, 탄탄한 수비 조직력으로 실리 축구 예고.', 'アウェイ{a}、堅守速攻で実を取る。', '客队{a}，稳守反击求实利。'],
+  ['A set-piece may tip the balance.', '세트피스 한 방이 균형을 깰 수 있는 경기.', 'セットプレー一発が均衡を破るか。', '定位球或将打破均衡。'],
+  ['Whoever owns midfield owns the tempo.', '중원을 장악하는 쪽이 경기 흐름을 가져간다.', '中盤を制する側が流れを握る。', '掌控中场者主导节奏。'],
+  ['{h}’s flanks vs {a}’s counters — contrasting styles.', '{h}의 측면 공략과 {a}의 역습, 색깔 대결.', '{h}のサイド攻撃と{a}のカウンター、色の対決。', '{h}边路 vs {a}反击，风格之争。'],
+  ['The opener should shape how this unfolds.', '선제골이 경기 양상을 좌우할 전망.', '先制点が試合展開を左右する。', '首球将左右比赛走向。'],
+  ['Can {a} break the away-day hoodoo?', '원정 징크스 깨려는 {a}, 이변을 노린다.', '{a}、アウェイのジンクスを破れるか。', '{a}能否打破客场魔咒。'],
+  ['Two willing attacks — goals on the cards.', '골 욕심 강한 두 팀, 난타전 가능성도.', '得点意欲旺盛な両者、打ち合いも。', '两队求进球，或成对攻大战。'],
+  ['Fitness down the stretch could be decisive.', '체력 안배가 종반 승부를 가를 변수.', '終盤の体力配分が勝敗を左右。', '末段体能分配成变数。'],
+  ['{h}’s aerial power vs {a}’s pace — a real matchup.', '{h}의 높이와 {a}의 스피드, 상성 대결 주목.', '{h}の高さと{a}のスピード、相性の対決。', '{h}的高度 vs {a}的速度。'],
+  ['{h}’s game management could carry them through.', '노련한 경기 운영의 {h}, 승기 잡을 수 있을까.', '試合巧者の{h}、主導権を握れるか。', '{h}老练调度，能否掌控。'],
+  ['Win the early duels, win the rhythm.', '초반 기싸움에서 흐름 잡는 팀이 유리하다.', '立ち上がりの攻防で流れを掴む。', '开局占先者掌握节奏。'],
+  ['{a}’s press may unsettle {h}’s build-up.', '{a}의 조직적 압박이 {h}의 빌드업을 흔들까.', '{a}のプレスが{h}の組み立てを乱すか。', '{a}逼抢或扰乱{h}组织。'],
+  ['A goalkeeper’s save could be the difference.', '골키퍼의 선방이 승부처가 될 대결.', 'GKのビッグセーブが勝負所に。', '门将扑救或成胜负手。'],
+  ['Backed by the home crowd, {h} look to assert control.', '홈 팬을 등에 업은 {h}, 승점 굳히기에 나선다.', 'ホームの後押しで{h}が主導を狙う。', '主场助威，{h}力争控局。'],
+  ['A cagey, tactical chess match in prospect.', '치밀한 전술 수싸움이 예상되는 신중한 승부.', '緻密な戦術戦が予想される一戦。', '预计是缜密的战术博弈。'],
+  ['Momentum favours the side that strikes first.', '먼저 리듬을 타는 팀에게 무게가 실린다.', '先にリズムを掴む側が有利。', '先入状态者更占优。'],
+  ['Transition speed will be worth watching.', '공수 전환 속도가 관전 포인트.', '攻守の切り替えが見どころ。', '攻防转换速度是看点。'],
+  ['Discipline at the back could decide a tight one.', '수비 집중력이 팽팽한 승부의 열쇠.', '守備の集中力が接戦を分ける。', '防守专注度是胜负钥匙。']
 ];
 function fbPreviewLine(e, HM, AW) {
-  const seed = (String(e.home) + String(e.away)).split('').reduce((a, c) => a + c.charCodeAt(0), 0);
+  const base = String(e.id || '') + String(e.home) + String(e.away);
+  const seed = base.split('').reduce((a, c) => (a * 31 + c.charCodeAt(0)) >>> 0, 7);
   const row = FB_PREVIEW[seed % FB_PREVIEW.length];
   const i = LANGS.indexOf(LANG);
   const tmpl = row[i] || row[0];
