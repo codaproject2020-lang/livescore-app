@@ -20,6 +20,7 @@ const STR = {
   rank: ['Standings', '순위', '順位', '排名', 'Clasificación', 'रैंकिंग', 'BXH', 'อันดับ', 'Таблица', 'Tabelle', 'Classement', 'Classifica'],
   odds: ['Odds', '배당', 'オッズ', '赔率', 'Cuotas', 'ऑड्स', 'Tỷ lệ', 'อัตราต่อรอง', 'Ставки', 'Quoten', 'Cotes', 'Quote'],
   intlOdds: ['Intl', '해외', '海外', '海外', 'Intl', 'विदेशी', 'Quốc tế', 'ต่างประเทศ', 'Межд.', 'Intl', 'Intl', 'Intl'],
+  estOdds: ['Est.', '예상배당', '予想', '预测', 'Est.', 'अनुमान', 'Dự kiến', 'ประมาณ', 'Прогноз', 'Est.', 'Est.', 'Est.'],
   community: ['Community', '커뮤니티', 'コミュニティ', '社区', 'Comunidad', 'समुदाय', 'Cộng đồng', 'ชุมชน', 'Сообщество', 'Community', 'Communauté', 'Community'],
   chat: ['Chat', '채팅', 'チャット', '聊天', 'Chat', 'चैट', 'Trò chuyện', 'แชท', 'Чат', 'Chat', 'Chat', 'Chat'],
   login: ['Login', '로그인', 'ログイン', '登录', 'Entrar', 'लॉगिन', 'Đăng nhập', 'เข้าสู่ระบบ', 'Вход', 'Anmelden', 'Connexion', 'Accedi'],
@@ -1619,9 +1620,18 @@ function scoreBlock(e) {
   const aCls = a > h ? ' win' : a < h ? ' lose' : '';
   return `<div class="mid">${stateBadge(e)}<div class="scores"><span class="${cls}${hCls}">${esc(e.hs ?? 0)}</span><span class="vs">:</span><span class="${cls}${aCls}">${esc(e.as ?? 0)}</span></div>${mainLbl}${sub}</div>`;
 }
+// 시장 배당 없을 때 LIVE UP 승률 모델로 예상 배당(십진) 산출
+function estOdds(e) {
+  const p = (typeof luProb === 'function') ? luProb(e) : pickProb(e);
+  const f = pc => pc >= 1 ? Math.round((100 / pc) * 100) / 100 : null;
+  return { home: f(p.home), away: f(p.away), draw: state.sport === 'football' ? f(p.draw) : null };
+}
 function oddsLine(e) {
-  if (!e.odds || (!e.odds.home && !e.odds.away)) return '';
-  return `<div class="odds3-card">${oddsWidget(e.odds)}</div>`;
+  if (e.odds && (e.odds.home || e.odds.away)) return `<div class="odds3-card">${oddsWidget(e.odds)}</div>`;
+  // 시장 배당이 없으면 LIVE UP 예상 배당으로 채움("예상"으로 표시)
+  const est = estOdds(e);
+  if (!est.home && !est.away) return '';
+  return `<div class="odds3-card est">${oddsWidget(est, t('estOdds'))}</div>`;
 }
 function predictBanner(e) {
   const h = Number(e.hs), a = Number(e.as);
@@ -2557,7 +2567,9 @@ function renderDetail(e, pr) {
   const setpts = (setSports && e.livePts && e.state === 'live') ? `<div class="msc-set">${esc(t('now'))} ${esc(t('setWord'))} ${esc(e.livePts.home ?? 0)}:${esc(e.livePts.away ?? 0)}</div>` : '';
   const dd = e.date ? new Date(e.date) : null;
   const when = dd ? `${dd.getMonth() + 1}/${dd.getDate()} ${hhmm(e.date)}` : '';
-  const odds = e.odds ? `<div class="odsec">💰 ${esc(t('odds'))}</div>${oddsWidget(e.odds, '')}` : '';
+  const odds = (e.odds && (e.odds.home || e.odds.away))
+    ? `<div class="odsec">💰 ${esc(t('odds'))}</div>${oddsWidget(e.odds, '')}`
+    : (() => { const est = estOdds(e); return (est.home || est.away) ? `<div class="odsec">💰 ${esc(t('odds'))} <span class="rhe">${esc(t('estOdds'))}</span></div>${oddsWidget(est, '')}` : ''; })();
   // 점수판은 별도 영역(#mScore)에 — 그 바로 밑에 하이라이트(#mYtWrap)가 오도록
   const sc = $('#mScore');
   // 팀 이름 바로 아래 AI 해설 (라이브=생동감 한 줄 / 그 외=요약 첫 줄)
@@ -2977,9 +2989,12 @@ async function openPick(id) {
   const recoLbl = recoSide === 'home' ? t('recoHome') : recoSide === 'away' ? t('recoAway') : t('recoDraw');
   const stars = Math.max(1, Math.min(5, Math.round(p.conf / 20)));
   const od = e.odds || {};
+  const estp = estOdds(e);
   const oddsRow = (od.home || od.away)
     ? `${oddsWidget(od, '')}<div class="pi-note">${esc(t('oddsNote'))}</div>`
-    : `<div class="lu-note">${esc(t('oddsSoon'))}</div>`;
+    : ((estp.home || estp.away)
+      ? `${oddsWidget(estp, '')}<div class="pi-note">${esc(t('estOdds'))} · ${esc(t('oddsNote'))}</div>`
+      : `<div class="lu-note">${esc(t('oddsSoon'))}</div>`);
   $('#mBody').innerHTML = `
     <div class="pick-hero">
       <div class="ph-team"><div class="ph-logo">${badge(e.homeLogo, '🏟')}</div><div class="ph-nm">${esc(TN(e.home, e.league))}</div></div>
