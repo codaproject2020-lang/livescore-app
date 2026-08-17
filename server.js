@@ -549,6 +549,37 @@ async function oddsSportKeys(group) {
   }
   return (Array.isArray(oddsSportsList) ? oddsSportsList : []).filter(s => s.group === group && s.active && !s.has_outrights).map(s => s.key);
 }
+// ⚽ 축구 리그명 → The Odds API soccer 키 자동 매칭 (LEAGUE_TO_ODDS에 없는 리그 커버)
+//    /v4/sports 목록(무료)의 title/description 을 리그명·나라로 대조. 오매칭 방지 위해 나라도 확인.
+const _soccerKeyCache = new Map();   // "league|country" -> key|null
+async function ensureOddsSports() {
+  const now = Date.now();
+  if (!oddsSportsList || now - oddsSportsListT > 3600000) {
+    try { const r = await fetch(`https://api.the-odds-api.com/v4/sports/?apiKey=${ODDS_KEY}`); oddsSportsList = await r.json(); oddsSportsListT = now; } catch { }
+  }
+  return Array.isArray(oddsSportsList) ? oddsSportsList : [];
+}
+const _nrm = s => String(s || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+async function soccerKeyForLeague(league, country) {
+  if (!ODDS_KEY || !league) return null;
+  const ck = league + '|' + (country || '');
+  if (_soccerKeyCache.has(ck)) return _soccerKeyCache.get(ck);
+  const list = (await ensureOddsSports()).filter(s => s.group === 'Soccer' && s.active && !s.has_outrights);
+  const nl = _nrm(league), nc = _nrm(country);
+  let best = null;
+  for (const s of list) {
+    const nt = _nrm(s.title), nd = _nrm(s.description);
+    const hay = nt + '|' + nd;
+    // 리그명이 title/description 안에 들어가면 후보. 나라가 있으면 나라도 일치해야 채택(오매칭 방지)
+    const leagueHit = nl.length >= 4 && (hay.includes(nl) || nl.includes(nt));
+    if (!leagueHit) continue;
+    const countryOk = !nc || nc.length < 3 || hay.includes(nc) || (nc === 'england' && hay.includes('epl'));
+    if (countryOk) { best = s.key; break; }
+    if (!best) best = s.key;   // 나라 불일치여도 일단 후보로 (더 나은 게 없을 때)
+  }
+  _soccerKeyCache.set(ck, best);
+  return best;
+}
 const normTeam = s => String(s || '').toLowerCase().replace(/[^a-z0-9가-힣]/g, '');
 // 경기별 배당 영구 저장소(팀쌍 키). 경기 시작 후 The Odds API에서 사라져도 마지막 배당을 계속 보여줌.
 const oddsStore = new Map();   // key -> { home, away, draw, t }
@@ -1272,7 +1303,15 @@ app.get('/api/asports/games', async (req, res) => {
     //     → MLB·KBO·NPB·MiLB, NBA·WNBA·유로리그, NHL·SHL 등 자동 커버
     let needed;
     if (sport === 'football') {
-      needed = [...new Set(games.map(g => LEAGUE_TO_ODDS[g.league]).filter(Boolean))];
+      // 1) 하드코딩 매핑 우선, 2) 없으면 The Odds API 축구 키 목록에서 자동 매칭 → 그날 있는 리그 전부 커버
+      const present = [...new Set(games.map(g => g.league).filter(Boolean))];
+      const keys = new Set();
+      await Promise.all(present.map(async lg => {
+        let k = LEAGUE_TO_ODDS[lg];
+        if (!k) { const g0 = games.find(x => x.league === lg); k = await soccerKeyForLeague(lg, g0 && g0.country).catch(() => null); }
+        if (k) keys.add(k);
+      }));
+      needed = [...keys];
     } else {
       needed = await oddsSportKeys(ODDS_GROUP[sport]);
     }
