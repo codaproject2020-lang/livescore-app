@@ -2233,8 +2233,11 @@ function renderDetail(e, pr) {
       <div class="mt">${HA_AWAY}<div class="ph">${badge(e.awayLogo, '🏟')}</div><div class="nm">${esc(TN(e.away, e.league))}</div></div>
     </div>
     ${topAI}`;
+  // 🔒 스크롤 튐 방지: 비동기로 채워지는 영역(#mEvents·#mMlbLive)의 기존 내용을 유지 → 재렌더 시 높이가 확 줄지 않게
+  const _pEv = document.getElementById('mEvents'), _pMlb = document.getElementById('mMlbLive');
+  const prevEv = _pEv ? _pEv.innerHTML : '', prevMlb = _pMlb ? _pMlb.innerHTML : '';
   el.innerHTML = `
-    <div id="mMlbLive"></div>
+    <div id="mMlbLive">${prevMlb}</div>
     ${lineScoreTable(e)}
     ${odds}
     <div class="aisum">
@@ -2242,7 +2245,7 @@ function renderDetail(e, pr) {
       ${aiSummary(e).map(l => `<p>${l}</p>`).join('')}
     </div>
     <div class="odsec">📻 ${esc(t('liveEv'))} <span class="rhe">${esc(t('aiAuto'))}${state.sport === 'football' ? ' · ' + esc(t('goalsCards')) : ' · ' + esc(t('runsHits'))}</span></div>
-    <div id="mEvents" class="evfeed">${eventEmpty()}</div>
+    <div id="mEvents" class="evfeed">${prevEv || eventEmpty()}</div>
     <div class="probwrap">
       <div class="probttl"><span>🤖 ${esc(t('aiPred'))}</span><span>${esc(t('confidence'))} ${pr.confidence}%</span></div>
       <div class="probbar"><div class="pw" style="width:${pr.home}%">${pr.home}%</div><div class="pd" style="width:${pr.draw}%">${pr.draw}%</div><div class="pl" style="width:${pr.away}%">${pr.away}%</div></div>
