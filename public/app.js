@@ -1029,6 +1029,35 @@ function buildLeagueRow(games) {
     }
   }));
 }
+// ▼ 사용자가 직접 스크롤/터치 중인지 추적 (자동 갱신이 사용자 스크롤을 방해하지 않게)
+let _lastUserScroll = 0;
+function markUserScroll() { _lastUserScroll = Date.now(); }
+(function bindUserScroll() {
+  const opt = { passive: true };
+  ['touchstart', 'touchmove', 'wheel', 'pointerdown', 'keydown'].forEach(ev =>
+    window.addEventListener(ev, markUserScroll, opt));
+})();
+// 자동 갱신 직후, 비동기로 내용이 채워지는 동안 스크롤 위치를 잠시 재고정.
+// 사용자가 실제로 스크롤을 시작하면 즉시 중단(사용자 조작 우선).
+let _holdRaf = 0;
+function holdScroll(pageY, modalEl, modalY) {
+  if (_holdRaf) cancelAnimationFrame(_holdRaf);
+  const modalOn = modalEl && modalEl.classList.contains('on');
+  const start = performance.now();
+  const startedAt = Date.now();
+  const apply = () => {
+    // 이 갱신 이후에 사용자가 새로 스크롤을 시작했으면 손을 뗀다
+    if (_lastUserScroll > startedAt) { _holdRaf = 0; return; }
+    if (modalOn) { if (modalEl.scrollTop !== modalY) modalEl.scrollTop = modalY; }
+    else {
+      if (document.scrollingElement) document.scrollingElement.scrollTop = pageY;
+      window.scrollTo(0, pageY);
+    }
+    if (performance.now() - start < 900) _holdRaf = requestAnimationFrame(apply);
+    else _holdRaf = 0;
+  };
+  apply();
+}
 // silent=true → 자동 10초 갱신: 로딩 표시(깜빡임) 없이, 스크롤 위치 그대로 유지
 async function loadEvents(silent) {
   const feed = $('#feed');
@@ -1055,13 +1084,10 @@ async function loadEvents(silent) {
       renderDetail(feedGames[modalEventId], modalPredict);
     }
     if (silent) {
-      const restore = () => {
-        window.scrollTo(0, sy);
-        if (document.scrollingElement) document.scrollingElement.scrollTop = sy;
-        if (modalEl && modalEl.classList.contains('on')) modalEl.scrollTop = moy;
-      };
-      restore();                       // 즉시
-      requestAnimationFrame(restore);  // 레이아웃 반영 직후 한 번 더 (브라우저 자동 스크롤 보정 무력화)
+      // ▼ 튐 방지: 비동기(updateEvents·updateMlbLive)로 내용이 나중에 채워질 때도
+      //   스크롤이 맨위로 튀지 않도록, 잠깐 동안(≈900ms) 저장 위치를 계속 재고정.
+      //   단, 사용자가 실제로 스크롤 중이면 즉시 손을 뗌.
+      holdScroll(sy, modalEl, moy);
     }
   } catch (e) {
     if (!silent) feed.innerHTML = `<div class="loading">${esc(t('loading'))}<br><button onclick="loadEvents()" style="margin-top:10px;padding:9px 18px;border:none;border-radius:8px;background:#24568f;color:#fff;font-weight:800;cursor:pointer">${esc(t('retry'))}</button></div>`;
@@ -2140,9 +2166,40 @@ function kboInfoBlocks(e, d) {
   if (hh.length) html += `<div class="odsec">⚔️ ${esc(t('h2h'))}</div><div class="h2hbox">${hh.map(g => { const md = (g.date ? new Date(g.date).toISOString() : '').slice(5, 10); return `<div class="h2h-row"><span class="h2h-d">${esc(md)}</span><span class="h2h-t">${esc(teamShort(TN(g.aName, e.league)))}</span><span class="h2h-s">${esc(g.as)}:${esc(g.hs)}</span><span class="h2h-t r">${esc(teamShort(TN(g.hName, e.league)))}</span></div>`; }).join('')}</div>`;
   return html;
 }
+// ⚽ 축구 정보 블록 (양팀 최근 10경기 + 상대전적) — 상세/픽제공/정보방 공용
+function fbInfoBlocks(e, d) {
+  const col = (nm, arr) => `<div class="recol"><div class="rec-hd">${esc(nm)}</div>${(arr || []).map(g => {
+    const r = g.win ? 'W' : (g.draw ? 'D' : 'L');
+    return `<div class="rec-row"><span class="rb ${r}">${r}</span><span class="ro">${esc(teamShort(TN(g.opp, e.league)))}</span><span class="rs">${esc(g.ts)}:${esc(g.os)}</span></div>`;
+  }).join('') || `<div class="rec-empty">-</div>`}</div>`;
+  const rc = d.recent || {};
+  let html = '';
+  if ((rc.home && rc.home.length) || (rc.away && rc.away.length)) {
+    html += `<div class="odsec">📅 ${esc(t('recent'))} <span class="rhe">${esc(t('last10'))}</span></div><div class="recent2">${col(TN(e.away, e.league), rc.away)}${col(TN(e.home, e.league), rc.home)}</div>`;
+  }
+  const hh = d.h2h || [];
+  if (hh.length) {
+    html += `<div class="odsec">⚔️ ${esc(t('h2h'))}</div><div class="h2hbox">${hh.map(g => {
+      const md = (g.date ? new Date(g.date).toISOString() : '').slice(5, 10);
+      return `<div class="h2h-row"><span class="h2h-d">${esc(md)}</span><span class="h2h-t">${esc(teamShort(TN(g.hName, e.league)))}</span><span class="h2h-s">${esc(g.hs)}:${esc(g.as)}</span><span class="h2h-t r">${esc(teamShort(TN(g.aName, e.league)))}</span></div>`;
+    }).join('')}</div>`;
+  }
+  return html;
+}
 function wireGpClicks(sel) { $$(sel + ' .clik[data-gp]').forEach(el => el.addEventListener('click', () => showMini(el.dataset.gp))); }
 async function updateInfo(e) {
   const box = $('#mInfoWrap'); if (!box) return;
+  // ⚽ 축구: 양팀 최근 10경기 + 상대전적 (API-Football · 팀 ID 기준)
+  if (state.sport === 'football') {
+    box.innerHTML = '';
+    if (!e.homeId || !e.awayId) return;
+    try {
+      const d = await fetchJSON(`/api/football/info?home=${encodeURIComponent(e.homeId)}&away=${encodeURIComponent(e.awayId)}`, { tries: 1 });
+      if (!d.found) return;
+      box.innerHTML = fbInfoBlocks(e, d);
+    } catch { }
+    return;
+  }
   // ⚾ KBO/NPB: 양팀 최근 10경기 (TheSports diary 기반)
   if (!statsLeague(e.league) && state.sport === 'baseball' && tsLeague(e.league)) {
     box.innerHTML = '';
@@ -2423,7 +2480,7 @@ function renderPickHubList() {
   const board = $('#oddsBoard'); if (!board) return;
   const games = state.leagueFilter === 'all' ? pickHubGames : (pickHubGames || []).filter(gameInFilter);
   if (!games || !games.length) { board.innerHTML = `<div class="loading">${esc(t('noPickGames'))}</div>`; return; }
-  board.innerHTML = games.map(pickCard).join('') + `<div class="foot">${esc(t('pickWarn'))}</div>`;
+  board.innerHTML = games.map(pickCard).join('');
   $$('#oddsBoard .pickcard').forEach(c => c.addEventListener('click', () => { state.sport = pickHubSport; openPick(c.dataset.pick); }));
 }
 // 📌 픽 요약 블록 (시장 컨센서스 + LIVE UP 분석 + 최종 PICK) — 폼 로드 후 갱신됨
@@ -2654,8 +2711,7 @@ async function openPick(id) {
     </div>
     <div class="pick-sec"><div class="ps-hd">💰 ${esc(t('odds'))}</div>${oddsRow}</div>
     <div class="pick-sec"><div class="ps-hd">📈 ${esc(t('pickData'))}</div><div id="pickData"><div class="loading" style="padding:8px">${esc(t('loading'))}</div></div></div>
-    <div class="pick-sec"><div class="ps-hd">🤖 ${esc(t('aiSum'))}</div><div class="pick-ai">${aiSummary(e).map(l => `<p>${l}</p>`).join('')}</div></div>
-    <div class="pick-warn">⚠️ ${esc(t('pickWarn'))}</div>`;
+    <div class="pick-sec"><div class="ps-hd">🤖 ${esc(t('aiSum'))}</div><div class="pick-ai">${aiSummary(e).map(l => `<p>${l}</p>`).join('')}</div></div>`;
   loadPickData(e);
 }
 async function loadPickData(e) {
@@ -2673,6 +2729,15 @@ async function loadPickData(e) {
       box.innerHTML = pickDataHtml(e, d.recent && d.recent.away, d.recent && d.recent.home, d.h2h) + mlbInfoBlocks(e, d);
       wireGpClicks('#pickData');
       refineSummary(d.recent && d.recent.home, d.recent && d.recent.away);
+    } else if (state.sport === 'football' && e.homeId && e.awayId) {
+      // ⚽ 축구: 양팀 최근 10경기 + 상대전적
+      const d = await fetchJSON(`/api/football/info?home=${encodeURIComponent(e.homeId)}&away=${encodeURIComponent(e.awayId)}`, { tries: 1 });
+      const fbForm = arr => (arr || []).slice(-5).map(g => { const w = g.win ? 'W' : (g.draw ? 'D' : 'L'); return `<span class="fm ${w}">${w}</span>`; }).join('') || '<span class="lu-note">-</span>';
+      const rc = d.recent || {};
+      box.innerHTML = `<div class="ps-sub">📅 ${esc(t('recent'))} 5</div><div class="pick-form">
+        <div class="pf-row"><span class="pf-nm">${esc(TN(e.away, e.league))}</span><span class="pf-b">${fbForm(rc.away)}</span></div>
+        <div class="pf-row"><span class="pf-nm">${esc(TN(e.home, e.league))}</span><span class="pf-b">${fbForm(rc.home)}</span></div></div>` + fbInfoBlocks(e, d);
+      const ps = $('#pickSummary'); if (ps) ps.innerHTML = pickSummaryHtml(e, rc.home, rc.away);
     } else {
       box.innerHTML = `<div class="lu-note">${esc(t('oddsSoon'))}</div>`;
     }
