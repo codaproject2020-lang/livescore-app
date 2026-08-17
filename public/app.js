@@ -1605,10 +1605,8 @@ function scoreBlock(e) {
   return `<div class="mid">${stateBadge(e)}<div class="scores"><span class="${cls}${hCls}">${esc(e.hs ?? 0)}</span><span class="vs">:</span><span class="${cls}${aCls}">${esc(e.as ?? 0)}</span></div>${mainLbl}${sub}</div>`;
 }
 function oddsLine(e) {
-  if (!e.odds) return '';
-  const o = e.odds, c = (v, l) => v ? `<span>${l} <b>${Number(v).toFixed(2)}</b></span>` : '';
-  const parts = [c(o.home, t('win')), o.draw ? c(o.draw, t('draw')) : '', c(o.away, t('loss'))].filter(Boolean).join('');
-  return parts ? `<div class="modds">💰 ${esc(t('odds'))} ${parts}</div>` : '';
+  if (!e.odds || (!e.odds.home && !e.odds.away)) return '';
+  return `<div class="odds3-card">${oddsWidget(e.odds)}</div>`;
 }
 function predictBanner(e) {
   const h = Number(e.hs), a = Number(e.as);
