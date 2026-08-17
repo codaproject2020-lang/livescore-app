@@ -633,6 +633,15 @@ table.boxsc .r{font-weight:900;color:var(--red);background:#fbfaf4}
 /* 홈에서도 종목 탭은 보이게 (야구/축구/농구 … 전환용) */
 .center.homeview .sportrow{display:flex}
 
+/* 배당 위젯 (해외 ▲홈 / 무 / ▼원정) */
+.odds3{display:flex;align-items:stretch;gap:8px;margin:2px 0 4px}
+.odds3-lbl{display:flex;align-items:center;color:var(--blueDark);font-weight:800;font-size:13px;min-width:34px}
+.odds3-cells{flex:1;display:flex;border:1px solid var(--line);border-radius:8px;overflow:hidden}
+.odds3-cells .o3{flex:1;display:flex;align-items:center;justify-content:center;gap:6px;padding:11px 6px;font-size:15px;font-weight:800;color:var(--navy);border-left:1px solid var(--line);background:#fff}
+.odds3-cells .o3:first-child{border-left:0}
+.o3 .tri{font-size:12px;line-height:1}
+.o3 .tri.up{color:#12b34a}
+.o3 .tri.dn{color:#e2231a}
 /* 픽/정보방 라인업 리스트 (2열) */
 .plu-2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
 .plu-col{border:1px solid var(--line);border-radius:10px;overflow:hidden}

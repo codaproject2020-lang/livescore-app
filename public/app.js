@@ -19,6 +19,7 @@ const STR = {
   info: ['Match Info', '경기 정보방', '試合情報', '比赛信息', 'Partidos', 'मैच जानकारी', 'Thông tin', 'ข้อมูลแมตช์', 'Матчи', 'Spielinfo', 'Infos match', 'Info partite'],
   rank: ['Standings', '순위', '順位', '排名', 'Clasificación', 'रैंकिंग', 'BXH', 'อันดับ', 'Таблица', 'Tabelle', 'Classement', 'Classifica'],
   odds: ['Odds', '배당', 'オッズ', '赔率', 'Cuotas', 'ऑड्स', 'Tỷ lệ', 'อัตราต่อรอง', 'Ставки', 'Quoten', 'Cotes', 'Quote'],
+  intlOdds: ['Intl', '해외', '海外', '海外', 'Intl', 'विदेशी', 'Quốc tế', 'ต่างประเทศ', 'Межд.', 'Intl', 'Intl', 'Intl'],
   community: ['Community', '커뮤니티', 'コミュニティ', '社区', 'Comunidad', 'समुदाय', 'Cộng đồng', 'ชุมชน', 'Сообщество', 'Community', 'Communauté', 'Community'],
   chat: ['Chat', '채팅', 'チャット', '聊天', 'Chat', 'चैट', 'Trò chuyện', 'แชท', 'Чат', 'Chat', 'Chat', 'Chat'],
   login: ['Login', '로그인', 'ログイン', '登录', 'Entrar', 'लॉगिन', 'Đăng nhập', 'เข้าสู่ระบบ', 'Вход', 'Anmelden', 'Connexion', 'Accedi'],
@@ -2442,6 +2443,20 @@ function lineScoreTable(e) {
       <tr><td class="tn">${esc(TN(e.home, e.league))}</td>${cells(hi)}<td class="r">${esc(bh.r ?? 0)}</td><td class="he">${esc(bh.h ?? 0)}</td><td class="he">${esc(bh.e ?? 0)}</td>${showBB ? `<td class="he">${esc(bh.bb ?? '-')}</td>` : ''}</tr>
     </tbody></table>`;
 }
+// 배당 위젯 — "해외 ▲홈 / 무 / ▼원정" (홈=초록 상승, 원정=빨강 하락)
+function oddsWidget(od) {
+  if (!od || (!od.home && !od.away)) return '';
+  const f = v => v ? Number(v).toFixed(2) : '-';
+  const hasDraw = od.draw != null && od.draw !== '' && Number(od.draw) > 0;
+  return `<div class="odds3">
+    <span class="odds3-lbl">${esc(t('intlOdds'))}</span>
+    <div class="odds3-cells">
+      <div class="o3"><span class="tri up">▲</span><b>${f(od.home)}</b></div>
+      ${hasDraw ? `<div class="o3"><b>${f(od.draw)}</b></div>` : ''}
+      <div class="o3"><span class="tri dn">▼</span><b>${f(od.away)}</b></div>
+    </div>
+  </div>`;
+}
 function renderDetail(e, pr) {
   const el = $('#mDetail'); if (!el) return;
   const st = e.state === 'live' ? ('● ' + koStatus(e)) : (e.state === 'finished' ? t('finished') : hhmm(e.date));
@@ -2450,7 +2465,7 @@ function renderDetail(e, pr) {
   const setpts = (setSports && e.livePts && e.state === 'live') ? `<div class="msc-set">${esc(t('now'))} ${esc(t('setWord'))} ${esc(e.livePts.home ?? 0)}:${esc(e.livePts.away ?? 0)}</div>` : '';
   const dd = e.date ? new Date(e.date) : null;
   const when = dd ? `${dd.getMonth() + 1}/${dd.getDate()} ${hhmm(e.date)}` : '';
-  const odds = e.odds ? `<div class="odsec">💰 ${esc(t('odds'))}</div><div class="modds-detail">${esc(t('win'))} <b>${e.odds.home ? Number(e.odds.home).toFixed(2) : '-'}</b>${e.odds.draw ? ` · ${esc(t('draw'))} <b>${Number(e.odds.draw).toFixed(2)}</b>` : ''} · ${esc(t('loss'))} <b>${e.odds.away ? Number(e.odds.away).toFixed(2) : '-'}</b></div>` : '';
+  const odds = e.odds ? `<div class="odsec">💰 ${esc(t('odds'))}</div>${oddsWidget(e.odds)}` : '';
   // 점수판은 별도 영역(#mScore)에 — 그 바로 밑에 하이라이트(#mYtWrap)가 오도록
   const sc = $('#mScore');
   // 팀 이름 바로 아래 AI 해설 (라이브=생동감 한 줄 / 그 외=요약 첫 줄)
@@ -2871,7 +2886,7 @@ async function openPick(id) {
   const stars = Math.max(1, Math.min(5, Math.round(p.conf / 20)));
   const od = e.odds || {};
   const oddsRow = (od.home || od.away)
-    ? `<div class="pick-odds"><div class="po-c win"><span>${esc(t('win'))}</span><b>${od.home ? Number(od.home).toFixed(2) : '-'}</b></div>${od.draw ? `<div class="po-c draw"><span>${esc(t('draw'))}</span><b>${Number(od.draw).toFixed(2)}</b></div>` : ''}<div class="po-c loss"><span>${esc(t('loss'))}</span><b>${od.away ? Number(od.away).toFixed(2) : '-'}</b></div></div><div class="pi-note">${esc(t('oddsNote'))}</div>`
+    ? `${oddsWidget(od)}<div class="pi-note">${esc(t('oddsNote'))}</div>`
     : `<div class="lu-note">${esc(t('oddsSoon'))}</div>`;
   $('#mBody').innerHTML = `
     <div class="pick-hero">
