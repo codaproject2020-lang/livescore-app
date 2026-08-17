@@ -68,7 +68,7 @@ const STR = {
   matchStats: ['Match Stats', '경기 스탯', '試合スタッツ', '比赛数据', 'Estadísticas', 'मैच आँकड़े', 'Thống kê trận', 'สถิติแมตช์', 'Статистика матча', 'Spielstatistik', 'Stats du match', 'Statistiche'],
   playerRatings: ['Player Ratings', '선수 평점', '選手評価', '球员评分', 'Notas jugadores', 'खिलाड़ी रेटिंग', 'Điểm cầu thủ', 'คะแนนผู้เล่น', 'Оценки игроков', 'Spielernoten', 'Notes des joueurs', 'Voti giocatori'],
   coach: ['Coach', '감독', '監督', '主教练', 'Entrenador', 'कोच', 'HLV', 'โค้ช', 'Тренер', 'Trainer', 'Entraîneur', 'Allenatore'],
-  pickHub: ['Picks', '픽 제공', 'ピック', '推荐', 'Picks', 'पिक', 'Kèo', 'พิค', 'Пики', 'Tipps', 'Pronostics', 'Pick'],
+  pickHub: ['Picks', '픽', 'ピック', '推荐', 'Picks', 'पिक', 'Kèo', 'พิค', 'Пики', 'Tipps', 'Pronostics', 'Pick'],
   pickHubSub: ['Win% · market consensus · LIVE UP analysis', '전 경기 승률 · 시장 컨센서스 · LIVE UP 분석', '勝率・市場・LIVE UP分析', '胜率·市场共识·LIVE UP分析', '% victoria · consenso · LIVE UP', 'जीत% · बाज़ार · LIVE UP', 'Tỷ lệ thắng · thị trường · LIVE UP', '% ชนะ · ตลาด · LIVE UP', '% побед · рынок · LIVE UP', 'Sieg% · Markt · LIVE UP', '% victoire · marché · LIVE UP', '% vittoria · mercato · LIVE UP'],
   marketCons: ['Market consensus', '시장 컨센서스', '市場コンセンサス', '市场共识', 'Consenso mercado', 'मार्केट सहमति', 'Đồng thuận thị trường', 'ตลาดรวม', 'Консенсус рынка', 'Marktkonsens', 'Consensus marché', 'Consenso mercato'],
   luAnalysis: ['LIVE UP analysis', 'LIVE UP 데이터 분석', 'LIVE UP分析', 'LIVE UP分析', 'Análisis LIVE UP', 'LIVE UP विश्लेषण', 'Phân tích LIVE UP', 'วิเคราะห์ LIVE UP', 'Анализ LIVE UP', 'LIVE UP-Analyse', 'Analyse LIVE UP', 'Analisi LIVE UP'],
