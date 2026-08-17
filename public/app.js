@@ -1627,11 +1627,11 @@ function estOdds(e) {
   return { home: f(p.home), away: f(p.away), draw: state.sport === 'football' ? f(p.draw) : null };
 }
 function oddsLine(e) {
-  if (e.odds && (e.odds.home || e.odds.away)) return `<div class="odds3-card">${oddsWidget(e.odds)}</div>`;
-  // 시장 배당이 없으면 LIVE UP 예상 배당으로 채움("예상"으로 표시)
+  if (e.odds && (e.odds.home || e.odds.away)) return `<div class="odds3-card">${oddsWidget(e.odds, '')}</div>`;
+  // 시장 배당이 없으면 LIVE UP 예상 배당으로 채움 (라벨 없이 숫자만)
   const est = estOdds(e);
   if (!est.home && !est.away) return '';
-  return `<div class="odds3-card est">${oddsWidget(est, t('estOdds'))}</div>`;
+  return `<div class="odds3-card est">${oddsWidget(est, '')}</div>`;
 }
 function predictBanner(e) {
   const h = Number(e.hs), a = Number(e.as);
@@ -2569,7 +2569,7 @@ function renderDetail(e, pr) {
   const when = dd ? `${dd.getMonth() + 1}/${dd.getDate()} ${hhmm(e.date)}` : '';
   const odds = (e.odds && (e.odds.home || e.odds.away))
     ? `<div class="odsec">💰 ${esc(t('odds'))}</div>${oddsWidget(e.odds, '')}`
-    : (() => { const est = estOdds(e); return (est.home || est.away) ? `<div class="odsec">💰 ${esc(t('odds'))} <span class="rhe">${esc(t('estOdds'))}</span></div>${oddsWidget(est, '')}` : ''; })();
+    : (() => { const est = estOdds(e); return (est.home || est.away) ? `<div class="odsec">💰 ${esc(t('odds'))}</div>${oddsWidget(est, '')}` : ''; })();
   // 점수판은 별도 영역(#mScore)에 — 그 바로 밑에 하이라이트(#mYtWrap)가 오도록
   const sc = $('#mScore');
   // 팀 이름 바로 아래 AI 해설 (라이브=생동감 한 줄 / 그 외=요약 첫 줄)
@@ -2993,7 +2993,7 @@ async function openPick(id) {
   const oddsRow = (od.home || od.away)
     ? `${oddsWidget(od, '')}<div class="pi-note">${esc(t('oddsNote'))}</div>`
     : ((estp.home || estp.away)
-      ? `${oddsWidget(estp, '')}<div class="pi-note">${esc(t('estOdds'))} · ${esc(t('oddsNote'))}</div>`
+      ? `${oddsWidget(estp, '')}<div class="pi-note">${esc(t('oddsNote'))}</div>`
       : `<div class="lu-note">${esc(t('oddsSoon'))}</div>`);
   $('#mBody').innerHTML = `
     <div class="pick-hero">
