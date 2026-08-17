@@ -650,7 +650,11 @@ async function soccerKeyForLeague(league, country) {
 const _foldAccents = s => String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').normalize('NFC');
 const normTeam = s => _foldAccents(s).toLowerCase().replace(/[^a-z0-9가-힣]/g, '');
 // 팀명 토큰화 (배당 매칭용) — 흔한 접미/접두어 제거, 3글자+ 의미토큰만
-const _TEAMSTOP = new Set(['fc', 'cf', 'sc', 'ac', 'afc', 'cd', 'ca', 'ss', 'us', 'sv', 'sk', 'fk', 'bk', 'if', 'club', 'de', 'la', 'el', 'los', 'las', 'do', 'da', 'the', 'real', 'deportivo', 'atletico', 'athletic', 'sporting', 'racing', 'calcio', 'ii']);
+const _TEAMSTOP = new Set([
+  'fc', 'cf', 'sc', 'ac', 'afc', 'cd', 'ca', 'ss', 'us', 'sv', 'sk', 'fk', 'bk', 'if', 'club', 'de', 'la', 'el', 'los', 'las', 'do', 'da', 'the', 'real', 'deportivo', 'atletico', 'athletic', 'sporting', 'racing', 'calcio', 'ii',
+  // 야구 별명(여러 리그에 중복 → 오매칭 방지: 롯데 자이언츠↔SF 자이언츠 등)
+  'giants', 'tigers', 'lions', 'twins', 'dragons', 'eagles', 'bears', 'hawks', 'marines', 'buffaloes', 'swallows', 'carp', 'fighters', 'heroes', 'wiz', 'dinos', 'landers', 'monkeys', 'guardians', 'brothers', 'redbirds'
+]);
 function teamTokens(name) {
   return _foldAccents(name).toLowerCase().split(/[^a-z0-9가-힣]+/).filter(w => w && w.length >= 3 && !_TEAMSTOP.has(w));
 }
