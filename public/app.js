@@ -768,17 +768,23 @@ async function renderHome() {
     const d = await fetchJSON(`/api/asports/games?sport=${sp}&date=${state.date}&tz=${encodeURIComponent(USER_TZ)}`, { tries: 1 }).catch(() => ({ games: [] }));
     (d.games || []).forEach(g => { g.__sport = sp; feedGames[g.id] = g; homeCache[g.id] = g; all.push(g); });
   } catch { }
+  // 상단 나라/리그 칩 (클릭 시 홈에서 그 나라 픽으로 필터 · 라이브로 안 나감)
+  if (typeof buildLeagueRow === 'function') buildLeagueRow(all);
+  // 선택된 나라/리그 필터 적용
+  const fall = (state.leagueFilter === 'all') ? all : all.filter(gameInFilter);
+  const flabel = state.leagueFilter === 'all' ? '' : ` · ${esc(sp === 'football' ? koCountry(state.leagueFilter) : state.leagueFilter)}`;
   const favChips = FAV.length
     ? FAV.map(nm => `<span class="hchip">${esc(TN(nm, ''))}</span>`).join('')
     : `<span class="hfav-empty">${esc(t('noFavHint'))}</span>`;
-  const live = all.filter(g => g.state === 'live');
+  const live = fall.filter(g => g.state === 'live');
   const favLive = live.filter(g => isFav(g.home) || isFav(g.away));
   const hot = [...new Set([...favLive, ...live])].slice(0, 3);
-  const cand = all.filter(g => g.state !== 'finished');
+  const cand = fall.filter(g => g.state !== 'finished');
+  // 오늘의 픽: 필터된 경기 중 확신도 높은 순 최대 5개 (나라 선택 시 그 나라 픽만)
   const favCand = cand.filter(g => isFav(g.home) || isFav(g.away));
-  const pool = favCand.length ? favCand : cand;
-  let pickG = null, best = -1;
-  pool.forEach(g => { const lu = luProb(g); const top = Math.max(lu.home, lu.away); if (top > best) { best = top; pickG = g; } });
+  const pickPool = favCand.length ? favCand : cand;
+  const picks = pickPool.map(g => ({ g, top: Math.max(luProb(g).home, luProb(g).away) }))
+    .sort((a, b) => b.top - a.top).slice(0, 5).map(x => x.g);
   const key = cand.slice().sort((a, b) => {
     const rk = x => { const i = TOP_LEAGUES.indexOf(x); return i < 0 ? 999 : i; };
     const ra = rk(a.league), rb = rk(b.league); if (ra !== rb) return ra - rb;
@@ -788,9 +794,9 @@ async function renderHome() {
   box.dataset.loaded = '1';
   box.innerHTML = `
     <div class="home-sec"><div class="home-hd">💛 ${esc(t('myTeams'))}</div><div class="hfav">${favChips}</div></div>
-    ${hot.length ? `<div class="home-sec"><div class="home-hd">🔥 ${esc(t('hotGames'))}</div><div class="hhot">${hot.map(homeHot).join('')}</div></div>` : ''}
-    ${pickG ? `<div class="home-sec"><div class="home-hd">🎯 ${esc(t('todayPick'))}</div>${homePick(pickG)}</div>` : ''}
-    ${key.length ? `<div class="home-sec"><div class="home-hd">📅 ${esc(t('keyGames'))}</div><div class="hkey">${key.map(homeKeyRow).join('')}</div></div>` : ''}
+    ${hot.length ? `<div class="home-sec"><div class="home-hd">🔥 ${esc(t('hotGames'))}${flabel}</div><div class="hhot">${hot.map(homeHot).join('')}</div></div>` : ''}
+    ${picks.length ? `<div class="home-sec"><div class="home-hd">🎯 ${esc(t('todayPick'))}${flabel}</div>${picks.map(homePick).join('')}</div>` : ''}
+    ${key.length ? `<div class="home-sec"><div class="home-hd">📅 ${esc(t('keyGames'))}${flabel}</div><div class="hkey">${key.map(homeKeyRow).join('')}</div></div>` : ''}
     ${aiG ? `<div class="home-sec"><div class="home-hd">🤖 ${esc(t('aiOneLine'))}</div><div class="haione" data-ev="${esc(aiG.id)}">${aiLive(aiG)}</div></div>` : ''}
     <div class="home-empty ${all.length ? 'hidden' : ''}">${esc(t('noGames'))}</div>`;
   // 클릭은 wireHomeClicks()의 위임 리스너가 처리 (여기서 개별 바인딩 안 함)
@@ -1244,11 +1250,12 @@ function buildLeagueRow(games) {
   $$('#leagueRow .lgchip').forEach(c => c.addEventListener('click', () => {
     state.leagueFilter = c.dataset.lg;
     $$('#leagueRow .lgchip').forEach(x => x.classList.remove('on')); c.classList.add('on');
-    // 활성 화면에 필터 적용 (픽 제공 / 경기 정보방 / 라이브)
+    // 활성 화면에 필터 적용 (픽 / 경기 정보방 / 홈 / 라이브)
     if ($('#view-odds') && !$('#view-odds').classList.contains('hidden') && typeof renderPickHubList === 'function') renderPickHubList();
     else if ($('#view-info') && !$('#view-info').classList.contains('hidden')) renderInfoList();
+    else if ($('#view-home') && !$('#view-home').classList.contains('hidden') && typeof renderHome === 'function') { const b = $('#homeBody'); if (b) b.dataset.loaded = ''; renderHome(); }   // 홈: 라이브로 안 나가고 그 나라 픽으로 필터
     else {
-      // 홈 등 라이브가 아닌 화면에서 리그를 고르면 라이브 화면으로 이동해 그 리그 경기를 보여줌
+      // 라이브가 아닌 화면에서 리그를 고르면 라이브 화면으로 이동해 그 리그 경기를 보여줌
       if ($('#view-live') && $('#view-live').classList.contains('hidden')) setTab('live');
       renderFeed(filterGames());
     }
