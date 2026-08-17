@@ -682,7 +682,7 @@ function setTab(t) {
   $$('.topbar .tt[data-tab]').forEach(x => x.classList.toggle('on', x.dataset.tab === t));
   $$('.topnav a[data-tab]').forEach(x => x.classList.toggle('on', x.dataset.tab === t));
   $$('.dmenu a[data-tab]').forEach(x => x.classList.toggle('on', x.dataset.tab === t));
-  if (t === 'table' && !$('#tblLeague').options.length) buildTableControls();
+  if (t === 'table') { if (!$('#tblLeague').options.length) buildTableControls(); const lr = $('#leagueRow'); if (lr) lr.style.display = 'none'; }
   if (t === 'board') loadPosts();
   if (t === 'odds') initOdds();
   if (t === 'info') { initInfo(); updateInfoGate(); }
@@ -2719,6 +2719,7 @@ async function loadTable() {
     const d = await fetchJSON(`/api/rank?sport=${encodeURIComponent(rankSport)}&league=${encodeURIComponent(league)}&season=${encodeURIComponent(season)}`, { tries: 2, delay: 2500 });
     const tb = d.table || [];
     if (!tb.length) { wrap.innerHTML = `<div class="loading">${d.note === 'ts-todo' ? '이 리그 순위는 준비 중입니다.' : '해당 시즌 순위 데이터가 없습니다.'}</div>`; return; }
+    if (d.season) { const si = $('#tblSeason'); if (si) si.value = String(d.season); }   // 실제 반환된 시즌 반영
     if (rankSport === 'baseball') {
       wrap.innerHTML = `<table class="rank"><thead><tr><th>#</th><th style="text-align:left">${sl('team')}</th><th>${sl('w')}</th><th>${sl('l')}</th><th>${sl('pct')}</th><th>GB</th><th>${sl('streak')}</th></tr></thead><tbody>${
         tb.map(x => `<tr><td>${esc(x.rank)}</td><td class="tm">${esc(rankName(x.team, league))}${x.div ? ` <span class="rk-div">${esc(x.div)}</span>` : ''}</td><td>${esc(x.win)}</td><td>${esc(x.loss)}</td><td>${esc(String(x.pct).replace(/^0/, ''))}</td><td>${esc(x.gb)}</td><td>${esc(x.streak)}</td></tr>`).join('')
