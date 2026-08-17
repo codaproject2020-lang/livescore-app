@@ -583,6 +583,20 @@ async function soccerKeyForLeague(league, country) {
 // 악센트(é·ñ·í…)를 기본 문자로 접어서 매칭 (한글은 NFC로 복원해 보존)
 const _foldAccents = s => String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').normalize('NFC');
 const normTeam = s => _foldAccents(s).toLowerCase().replace(/[^a-z0-9가-힣]/g, '');
+// 팀명 토큰화 (배당 매칭용) — 흔한 접미/접두어 제거, 3글자+ 의미토큰만
+const _TEAMSTOP = new Set(['fc', 'cf', 'sc', 'ac', 'afc', 'cd', 'ca', 'ss', 'us', 'sv', 'sk', 'fk', 'bk', 'if', 'club', 'de', 'la', 'el', 'los', 'las', 'do', 'da', 'the', 'real', 'deportivo', 'atletico', 'athletic', 'sporting', 'racing', 'calcio', 'ii']);
+function teamTokens(name) {
+  return _foldAccents(name).toLowerCase().split(/[^a-z0-9가-힣]+/).filter(w => w && w.length >= 3 && !_TEAMSTOP.has(w));
+}
+// 두 토큰집합의 최대 공유 토큰 길이 (0=공유없음)
+function tokShare(a, b) {
+  let best = 0;
+  for (const x of a) for (const y of b) {
+    if (x === y) best = Math.max(best, x.length);
+    else if (x.length >= 5 && y.length >= 5 && (x.includes(y) || y.includes(x))) best = Math.max(best, Math.min(x.length, y.length));
+  }
+  return best;
+}
 // 경기별 배당 영구 저장소(팀쌍 키). 경기 시작 후 The Odds API에서 사라져도 마지막 배당을 계속 보여줌.
 const oddsStore = new Map();   // key -> { home, away, draw, t }
 const ODDS_STORE_TTL = 8 * 3600 * 1000;   // 8시간 유지
@@ -595,7 +609,7 @@ async function oddsLookup(oddsSport) {
   try {
     const r = await fetch(url); if (!r.ok) throw new Error('odds ' + r.status);
     const arr = await r.json();
-    const map = {};
+    const map = {}, list = [];
     (Array.isArray(arr) ? arr : []).forEach(g => {
       // 여러 북메이커의 h2h 배당을 결과별 평균(시장 컨센서스)으로 → 승·무·패가 일관된 배당(합산 확률 >100%)
       const acc = { home: [], away: [], draw: [] };
@@ -611,10 +625,12 @@ async function oddsLookup(oddsSport) {
       const key = normTeam(g.home_team) + '|' + normTeam(g.away_team);
       const val = { home: avg(acc.home), away: avg(acc.away), draw: avg(acc.draw) };
       map[key] = val;
+      list.push({ ht: teamTokens(g.home_team), at: teamTokens(g.away_team), val });   // 토큰 매칭용
       if (val.home || val.away) oddsStore.set(key, { ...val, t: now });   // 영구 저장소에도 적립
     });
-    cache.set(ck, { t: now, v: map });
-    return map;
+    const out = { map, list };
+    cache.set(ck, { t: now, v: out });
+    return out;
   } catch { return null; }
 }
 function fuzzyFind(container, hk, ak, getEntries) {
@@ -624,10 +640,37 @@ function fuzzyFind(container, hk, ak, getEntries) {
   }
   return null;
 }
-function attachOdds(g, map) {
+// 배당 오디스리스트 토큰 DF(문서빈도) → 여러 팀에 흔한 토큰은 매칭 신뢰도 낮춤(더비 오매칭 방지)
+function tokenMatchOdds(g, list, df) {
+  if (!list || !list.length) return null;
+  const gh = teamTokens(g.home), ga = teamTokens(g.away);
+  const sideOk = (gt, et) => {
+    // 공유 토큰이 있고, 그 중 하나라도 리스트에서 유일(df==1)하면 신뢰
+    let share = 0, uniq = false;
+    for (const x of gt) for (const y of et) {
+      if (x === y || (x.length >= 5 && y.length >= 5 && (x.includes(y) || y.includes(x)))) {
+        share = Math.max(share, Math.min(x.length, y.length));
+        if ((df[y] || 0) <= 1) uniq = true;
+      }
+    }
+    return share >= 4 ? (uniq ? 2 : 1) : 0;
+  };
+  let best = null, bestScore = 0;
+  for (const e of list) {
+    const h = sideOk(gh, e.ht), a = sideOk(ga, e.at);
+    if (h && a) { const sc = h + a; if (sc > bestScore) { bestScore = sc; best = e.val; } }
+    const h2 = sideOk(gh, e.at), a2 = sideOk(ga, e.ht);   // 홈/원정 뒤집힌 경우
+    if (h2 && a2) { const sc = h2 + a2; if (sc > bestScore) { bestScore = sc; best = { home: e.val.away, away: e.val.home, draw: e.val.draw }; } }
+  }
+  // 적어도 한 쪽은 유일 토큰(df==1)으로 확정돼야 채택 (bestScore>=3: 2+1 이상)
+  return bestScore >= 3 ? best : null;
+}
+function attachOdds(g, merged, df) {
+  const map = (merged && merged.map) || merged || {}, list = (merged && merged.list) || [];
   const hk = normTeam(g.home), ak = normTeam(g.away), pair = hk + '|' + ak;
-  let f = map ? map[pair] : null;
-  if (!f && map) f = fuzzyFind(map, hk, ak, m => Object.entries(m));
+  let f = map[pair] || map[ak + '|' + hk];
+  if (!f) f = fuzzyFind(map, hk, ak, m => Object.entries(m));
+  if (!f) f = tokenMatchOdds(g, list, df || {});   // 토큰 기반 매칭 (이름 변형 흡수)
   // 라이브 등으로 현재 맵에 없으면 영구 저장소에서 마지막 배당 사용
   if (!f) {
     const now = Date.now();
@@ -1317,16 +1360,19 @@ app.get('/api/asports/games', async (req, res) => {
     } else {
       needed = await oddsSportKeys(ODDS_GROUP[sport]);
     }
-    const merged = {};
+    const merged = { map: {}, list: [] };
     await Promise.all(needed.map(async os => {
-      let map = null;
+      let r = null;
       const hit = cache.get('OL:' + os);
-      if (hit && Date.now() - hit.t < 600000) map = hit.v;
-      else map = await Promise.race([oddsLookup(os), new Promise(r => setTimeout(() => r(null), 3500))]);
-      if (map) Object.assign(merged, map);
+      if (hit && Date.now() - hit.t < 600000) r = hit.v;
+      else r = await Promise.race([oddsLookup(os), new Promise(res => setTimeout(() => res(null), 3500))]);
+      if (r && r.map) { Object.assign(merged.map, r.map); merged.list.push(...r.list); }
     }));
-    // 모든 경기에 팀명으로 매칭 시도 (merged에 없으면 attachOdds가 영구 저장소에서 보완)
-    games.forEach(g => attachOdds(g, merged));
+    // 토큰 DF 계산 (여러 팀에 흔한 토큰 판별 → 오매칭 방지)
+    const df = {};
+    for (const e of merged.list) { new Set([...e.ht, ...e.at]).forEach(t => df[t] = (df[t] || 0) + 1); }
+    // 모든 경기에 팀명·토큰으로 매칭 시도 (merged에 없으면 attachOdds가 영구 저장소에서 보완)
+    games.forEach(g => attachOdds(g, merged, df));
     games.sort((a, b) => (b.state === 'live') - (a.state === 'live'));
     res.json({ sport, date, count: games.length, apiErrors: j.errors || null, results: j.results, games });
   } catch (e) {
