@@ -212,27 +212,38 @@ const AB_RANK_ID = { 'NBA': 12, 'EuroLeague': 120, 'KBL': 48 };
 async function rankFootball(league, season) {
   const lid = AF_RANK_ID[league] || (/^\d+$/.test(league) ? league : null);
   if (!lid) return { table: [], note: 'unmapped' };
-  const yr = String(season || '').match(/\d{4}/); const sy = yr ? yr[0] : String(new Date().getFullYear());
-  const j = await asRaw('football', `/standings?league=${lid}&season=${sy}`, 3600000).catch(() => null);
-  const resp = j && j.response && j.response[0];
-  const rows = (resp && resp.league && resp.league.standings && resp.league.standings[0]) || [];
-  return {
-    table: rows.map(r => ({ rank: r.rank, team: r.team.name, logo: r.team.logo, played: r.all.played, win: r.all.win, draw: r.all.draw, loss: r.all.lose, points: r.points, gd: r.goalsDiff, form: r.form || '' })),
-    kind: 'football'
+  const yr = String(season || '').match(/\d{4}/); const sy = yr ? +yr[0] : new Date().getFullYear();
+  const parse = j => {
+    const resp = j && j.response && j.response[0];
+    const st = resp && resp.league && resp.league.standings;
+    const rows = (st && (st[0] || [])) || [];
+    return rows.map(r => ({ rank: r.rank, team: r.team.name, logo: r.team.logo, played: r.all.played, win: r.all.win, draw: r.all.draw, loss: r.all.lose, points: r.points, gd: r.goalsDiff, form: r.form || '' }));
   };
+  // 요청 시즌 → 비어있으면(새 시즌 시작 전 등) 직전 시즌으로 폴백
+  for (const s of [sy, sy - 1]) {
+    const j = await asRaw('football', `/standings?league=${lid}&season=${s}`, 3600000).catch(() => null);
+    const table = parse(j);
+    if (table.length) return { table, kind: 'football', season: s };
+  }
+  return { table: [], kind: 'football' };
 }
 async function rankMLB(season) {
-  const sy = String(season || '').match(/\d{4}/); const yr = sy ? sy[0] : String(new Date().getFullYear());
-  const st = await mlbFetch(`/api/v1/standings?leagueId=103,104&season=${yr}&standingsTypes=regularSeason`, 600000).catch(() => null);
-  if (!st) return { table: [] };
+  const m = String(season || '').match(/\d{4}/); const sy = m ? +m[0] : new Date().getFullYear();
   const DIV = { 200: 'AL West', 201: 'AL East', 202: 'AL Central', 203: 'NL West', 204: 'NL East', 205: 'NL Central' };
-  const rows = [];
-  (st.records || []).forEach(rec => (rec.teamRecords || []).forEach(tr => {
-    rows.push({ team: tr.team.name, div: DIV[rec.division && rec.division.id] || '', win: tr.wins, loss: tr.losses, pct: tr.winningPercentage, gb: tr.gamesBack, streak: tr.streak ? tr.streak.streakCode : '' });
-  }));
-  rows.sort((a, b) => parseFloat(b.pct) - parseFloat(a.pct));
-  rows.forEach((r, i) => r.rank = i + 1);
-  return { table: rows, kind: 'baseball' };
+  for (const yr of [sy, sy - 1]) {
+    const st = await mlbFetch(`/api/v1/standings?leagueId=103,104&season=${yr}&standingsTypes=regularSeason`, 600000).catch(() => null);
+    if (!st) continue;
+    const rows = [];
+    (st.records || []).forEach(rec => (rec.teamRecords || []).forEach(tr => {
+      rows.push({ team: tr.team.name, div: DIV[rec.division && rec.division.id] || '', win: tr.wins, loss: tr.losses, pct: tr.winningPercentage, gb: tr.gamesBack, streak: tr.streak ? tr.streak.streakCode : '' });
+    }));
+    if (rows.length) {
+      rows.sort((a, b) => parseFloat(b.pct) - parseFloat(a.pct));
+      rows.forEach((r, i) => r.rank = i + 1);
+      return { table: rows, kind: 'baseball', season: yr };
+    }
+  }
+  return { table: [], kind: 'baseball' };
 }
 async function rankBasketball(league, season) {
   const lid = AB_RANK_ID[league] || (/^\d+$/.test(league) ? league : null);
