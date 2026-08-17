@@ -555,7 +555,8 @@ const oddsStore = new Map();   // key -> { home, away, draw, t }
 const ODDS_STORE_TTL = 8 * 3600 * 1000;   // 8시간 유지
 async function oddsLookup(oddsSport) {
   if (!ODDS_KEY) return null;
-  const url = `https://api.the-odds-api.com/v4/sports/${oddsSport}/odds/?apiKey=${ODDS_KEY}&regions=us,uk,eu&markets=h2h&oddsFormat=decimal`;
+  // au(호주) 지역 추가 → KBO/NPB 등 아시아 야구 배당은 호주 북메이커가 많이 취급함
+  const url = `https://api.the-odds-api.com/v4/sports/${oddsSport}/odds/?apiKey=${ODDS_KEY}&regions=us,uk,eu,au&markets=h2h&oddsFormat=decimal`;
   const ck = 'OL:' + oddsSport, now = Date.now(), hit = cache.get(ck);
   if (hit && now - hit.t < 600000) return hit.v;   // 15분 캐시(무료 쿼터 절약)
   try {
