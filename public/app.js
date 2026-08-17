@@ -1126,7 +1126,16 @@ function koCountry(c) {
   if (e && e[LANG]) return e[LANG];
   return String(c).replace(/-/g, ' ');   // 영어 등: 대시 제거한 원문
 }
-const COUNTRY_ORDER = ['South-Korea', 'Korea', 'Japan', 'China', 'England', 'Spain', 'Italy', 'Germany', 'France', 'Netherlands', 'Portugal', 'Scotland', 'Belgium', 'Turkey', 'Saudi-Arabia', 'USA', 'Brazil', 'Argentina', 'Mexico', 'Europe', 'World'];
+// 축구 나라 필터 정렬 순서 (요청 순서)
+const COUNTRY_ORDER = [
+  'South-Korea', 'Korea', 'Korea Republic', 'England', 'Germany', 'Spain', 'France', 'Italy',
+  'Netherlands', 'Japan', 'USA', 'Australia', 'Norway', 'Portugal', 'Turkey',
+  'Brazil', 'Argentina', 'Saudi-Arabia', 'China', 'Serbia', 'Belgium',
+  'Vietnam', 'Qatar', 'Denmark', 'Scotland', 'Sweden', 'Austria',
+  'Ireland', 'Russia', 'Ukraine', 'Greece', 'Czech-Republic', 'Mexico', 'Indonesia',
+  'India', 'Switzerland', 'Thailand', 'UAE', 'Colombia',
+  'World', 'Europe'
+];
 // 필터 키: 축구는 나라, 그 외는 리그
 function lgKey(g) { return state.sport === 'football' ? (g.country || '기타') : (g.league || '기타'); }
 function gameInFilter(g) { return state.leagueFilter === 'all' || lgKey(g) === state.leagueFilter; }
