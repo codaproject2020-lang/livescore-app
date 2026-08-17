@@ -196,6 +196,72 @@ app.get('/api/table', async (req, res) => {
   }
 });
 
+// ============================================================
+//  🏆 순위표 (실데이터) — 축구=API-Football, 야구=MLB StatsAPI/TheSports, 농구=API-Sports
+// ============================================================
+// 축구 리그명 → API-Football 리그 ID
+const AF_RANK_ID = {
+  'Premier League': 39, 'Championship': 40, 'La Liga': 140, 'Segunda División': 141, 'Serie A': 135, 'Serie B': 136,
+  'Bundesliga': 78, 'Bundesliga 2': 79, 'Ligue 1': 61, 'Ligue 2': 62, 'Eredivisie': 88, 'Primeira Liga': 94,
+  'Süper Lig': 203, 'Saudi Pro League': 307, 'K League 1': 292, 'K League 2': 293, 'J1 League': 98, 'J2 League': 99,
+  'Major League Soccer': 253, 'Liga MX': 262, 'Brasileirão': 71, 'Liga Profesional Argentina': 128,
+  'UEFA Champions League': 2, 'UEFA Europa League': 3, 'Eliteserien': 103, 'Allsvenskan': 113
+};
+// 농구 리그명 → API-Sports 농구 리그 ID
+const AB_RANK_ID = { 'NBA': 12, 'EuroLeague': 120, 'KBL': 48 };
+async function rankFootball(league, season) {
+  const lid = AF_RANK_ID[league] || (/^\d+$/.test(league) ? league : null);
+  if (!lid) return { table: [], note: 'unmapped' };
+  const yr = String(season || '').match(/\d{4}/); const sy = yr ? yr[0] : String(new Date().getFullYear());
+  const j = await asRaw('football', `/standings?league=${lid}&season=${sy}`, 3600000).catch(() => null);
+  const resp = j && j.response && j.response[0];
+  const rows = (resp && resp.league && resp.league.standings && resp.league.standings[0]) || [];
+  return {
+    table: rows.map(r => ({ rank: r.rank, team: r.team.name, logo: r.team.logo, played: r.all.played, win: r.all.win, draw: r.all.draw, loss: r.all.lose, points: r.points, gd: r.goalsDiff, form: r.form || '' })),
+    kind: 'football'
+  };
+}
+async function rankMLB(season) {
+  const sy = String(season || '').match(/\d{4}/); const yr = sy ? sy[0] : String(new Date().getFullYear());
+  const st = await mlbFetch(`/api/v1/standings?leagueId=103,104&season=${yr}&standingsTypes=regularSeason`, 600000).catch(() => null);
+  if (!st) return { table: [] };
+  const DIV = { 200: 'AL West', 201: 'AL East', 202: 'AL Central', 203: 'NL West', 204: 'NL East', 205: 'NL Central' };
+  const rows = [];
+  (st.records || []).forEach(rec => (rec.teamRecords || []).forEach(tr => {
+    rows.push({ team: tr.team.name, div: DIV[rec.division && rec.division.id] || '', win: tr.wins, loss: tr.losses, pct: tr.winningPercentage, gb: tr.gamesBack, streak: tr.streak ? tr.streak.streakCode : '' });
+  }));
+  rows.sort((a, b) => parseFloat(b.pct) - parseFloat(a.pct));
+  rows.forEach((r, i) => r.rank = i + 1);
+  return { table: rows, kind: 'baseball' };
+}
+async function rankBasketball(league, season) {
+  const lid = AB_RANK_ID[league] || (/^\d+$/.test(league) ? league : null);
+  if (!lid) return { table: [], note: 'unmapped' };
+  const sy = String(season || '2025-2026');
+  const j = await asRaw('basketball', `/standings?league=${lid}&season=${encodeURIComponent(sy)}`, 3600000).catch(() => null);
+  const groups = (j && j.response) || [];
+  const flat = [];
+  groups.forEach(g => (Array.isArray(g) ? g : [g]).forEach(r => { if (r && r.team) flat.push(r); }));
+  flat.sort((a, b) => (a.position || 99) - (b.position || 99));
+  return {
+    table: flat.map((r, i) => ({ rank: r.position || i + 1, team: r.team.name, logo: r.team.logo, played: r.games && r.games.played, win: r.games && r.games.win && r.games.win.total, loss: r.games && r.games.lose && r.games.lose.total, points: r.points || '' })),
+    kind: 'basketball'
+  };
+}
+app.get('/api/rank', async (req, res) => {
+  const sport = req.query.sport || 'football', league = req.query.league || '', season = req.query.season || '';
+  try {
+    let out = { table: [] };
+    if (sport === 'football') out = await rankFootball(league, season);
+    else if (sport === 'baseball') {
+      if (/KBO|NPB|CPBL/i.test(league)) out = { table: [], note: 'ts-todo' };   // KBO/NPB 준비중
+      else out = await rankMLB(season);   // MLB(및 기본)
+    }
+    else if (sport === 'basketball') out = await rankBasketball(league, season);
+    res.json(out);
+  } catch (e) { res.status(502).json({ table: [], error: String(e.message || e) }); }
+});
+
 // 경기 상세 (클릭 시)
 app.get('/api/event', async (req, res) => {
   try {
