@@ -474,11 +474,89 @@ const FB_TEAMS_RAW = [
 function fbNorm(s) { return String(s || '').toLowerCase().replace(/[^a-z0-9]/g, ''); }
 const FB_TEAMS = {};
 FB_TEAMS_RAW.forEach(([aliases, ko, ja, zh]) => aliases.forEach(a => { FB_TEAMS[fbNorm(a)] = { ko, ja, zh }; }));
+// 🈁 영문→한글 자동 음역 (사전에 없는 축구팀명을 한국어로 근사 표기 · 완벽하진 않음)
+const _KCHO = ['ㄱ', 'ㄲ', 'ㄴ', 'ㄷ', 'ㄸ', 'ㄹ', 'ㅁ', 'ㅂ', 'ㅃ', 'ㅅ', 'ㅆ', 'ㅇ', 'ㅈ', 'ㅉ', 'ㅊ', 'ㅋ', 'ㅌ', 'ㅍ', 'ㅎ'];
+const _KJUNG = ['ㅏ', 'ㅐ', 'ㅑ', 'ㅒ', 'ㅓ', 'ㅔ', 'ㅕ', 'ㅖ', 'ㅗ', 'ㅘ', 'ㅙ', 'ㅚ', 'ㅛ', 'ㅜ', 'ㅝ', 'ㅞ', 'ㅟ', 'ㅠ', 'ㅡ', 'ㅢ', 'ㅣ'];
+const _KCHOi = {}; _KCHO.forEach((c, i) => _KCHOi[c] = i);
+const _KJUNGi = {}; _KJUNG.forEach((c, i) => _KJUNGi[c] = i);
+const _KJONGi = { '': 0, 'ㄱ': 1, 'ㄴ': 4, 'ㄹ': 8, 'ㅁ': 16, 'ㅂ': 17, 'ㅅ': 19, 'ㅇ': 21 };
+const _KFIN = { 'ㄴ': 1, 'ㅁ': 1, 'ㅇ': 1, 'ㄹ': 1, 'ㄱ': 1, 'ㅂ': 1 };
+function _kcomp(c, j, g) { return String.fromCharCode(0xAC00 + (_KCHOi[c] * 21 + _KJUNGi[j]) * 28 + (_KJONGi[g] || 0)); }
+function _kphon(w) {
+  w = w.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z]/g, '');
+  w = w.replace(/([bcdfgkmnprstz])\1/g, '$1');
+  const P = [], V = { a: 'ㅏ', e: 'ㅔ', i: 'ㅣ', o: 'ㅗ', u: 'ㅜ' }; let i = 0; const two = a => w.substr(i, 2) === a;
+  while (i < w.length) {
+    if (two('gh')) { i += 2; continue; }
+    if (two('sh')) { P.push({ t: 'C', j: 'ㅅ' }); i += 2; continue; }
+    if (two('ch')) { P.push({ t: 'C', j: 'ㅊ' }); i += 2; continue; }
+    if (two('th')) { P.push({ t: 'C', j: 'ㅅ' }); i += 2; continue; }
+    if (two('ph')) { P.push({ t: 'C', j: 'ㅍ' }); i += 2; continue; }
+    if (two('ck')) { P.push({ t: 'C', j: 'ㅋ' }); i += 2; continue; }
+    if (two('gn')) { P.push({ t: 'C', j: 'ㄴ', gy: 1 }); i += 2; continue; }
+    if (two('ng')) { P.push({ t: 'NG' }); i += 2; continue; }
+    if (two('qu')) { P.push({ t: 'C', j: 'ㅋ' }); P.push({ t: 'V', j: 'ㅝ' }); i += 2; continue; }
+    if (two('oo')) { P.push({ t: 'V', j: 'ㅜ' }); i += 2; continue; }
+    if (two('ee') || two('ea') || two('ie')) { P.push({ t: 'V', j: 'ㅣ' }); i += 2; continue; }
+    if (two('ou') || two('ow')) { P.push({ t: 'V', j: 'ㅜ' }); i += 2; continue; }
+    if (two('oa') || two('au') || two('aw')) { P.push({ t: 'V', j: 'ㅗ' }); i += 2; continue; }
+    if (two('ai') || two('ay')) { P.push({ t: 'V', j: 'ㅐ' }); i += 2; continue; }
+    if (two('ei') || two('ey')) { P.push({ t: 'V', j: 'ㅔ' }); i += 2; continue; }
+    const c = w[i], n = w[i + 1];
+    if (V[c]) { P.push({ t: 'V', j: V[c] }); i++; continue; }
+    if (c === 'y') { if (n && V[n]) { P.push({ t: 'GY' }); i++; continue; } P.push({ t: 'V', j: 'ㅣ' }); i++; continue; }
+    if (c === 'w') { P.push({ t: 'GW' }); i++; continue; }
+    if (c === 'r') { P.push({ t: 'C', j: 'ㄹ', rr: 1 }); i++; continue; }
+    if (c === 'l') { P.push({ t: 'C', j: 'ㄹ', ll: 1 }); i++; continue; }
+    if (c === 'x') { P.push({ t: 'C', j: 'ㄱ' }); P.push({ t: 'C', j: 'ㅅ' }); i++; continue; }
+    if (c === 'c') { P.push({ t: 'C', j: ('eiy'.includes(n) ? 'ㅅ' : 'ㅋ') }); i++; continue; }
+    const M = { b: 'ㅂ', d: 'ㄷ', f: 'ㅍ', g: 'ㄱ', h: 'ㅎ', j: 'ㅈ', k: 'ㅋ', m: 'ㅁ', n: 'ㄴ', p: 'ㅍ', q: 'ㅋ', s: 'ㅅ', t: 'ㅌ', v: 'ㅂ', z: 'ㅈ' };
+    if (M[c]) { P.push({ t: 'C', j: M[c] }); i++; continue; }
+    i++;
+  }
+  return P;
+}
+function _ktl(word) {
+  const P = _kphon(word), syl = []; let lead = null, glide = null, gy = false;
+  const push = (c, j, g) => syl.push({ cho: c, jung: j, jong: g || '' }); const last = () => syl[syl.length - 1];
+  for (let k = 0; k < P.length; k++) {
+    const p = P[k], nx = P[k + 1], nextIsV = nx && (nx.t === 'V' || nx.t === 'GW' || nx.t === 'GY'), isLast = !P.slice(k + 1).some(x => x.t === 'V');
+    if (p.t === 'GW') { glide = 'w'; continue; }
+    if (p.t === 'GY') { glide = 'y'; continue; }
+    if (p.t === 'V') {
+      let j = p.j; const ym = { 'ㅏ': 'ㅑ', 'ㅔ': 'ㅖ', 'ㅗ': 'ㅛ', 'ㅜ': 'ㅠ', 'ㅓ': 'ㅕ', 'ㅐ': 'ㅒ' };
+      if (gy) { j = ym[j] || j; gy = false; }
+      if (glide === 'y') { j = ym[j] || j; glide = null; }
+      if (glide === 'w') { const m = { 'ㅏ': 'ㅘ', 'ㅔ': 'ㅞ', 'ㅣ': 'ㅟ', 'ㅓ': 'ㅝ', 'ㅐ': 'ㅙ' }; j = m[j] || j; glide = null; }
+      push(lead || 'ㅇ', j, ''); lead = null;
+    } else if (p.t === 'NG') { if (syl.length && last().jong === '') last().jong = 'ㅇ'; else push('ㅇ', 'ㅡ', ''); lead = null; }
+    else if (p.t === 'C') {
+      if (p.rr) { if (nextIsV) { if (lead) push(lead, 'ㅡ', ''); lead = 'ㄹ'; } else if (isLast) { if (lead) { if (last() && last().jong === '' && _KFIN[lead]) last().jong = lead; else push(lead, 'ㅡ', ''); lead = null; } } else { if (lead) push(lead, 'ㅡ', ''); push('ㄹ', 'ㅡ', ''); lead = null; } continue; }
+      if (p.ll && nextIsV && syl.length && last().jong === '' && !lead) { last().jong = 'ㄹ'; lead = 'ㄹ'; if (p.gy) gy = true; continue; }
+      if (nextIsV) { if (lead) push(lead, 'ㅡ', ''); lead = p.j; if (p.gy) gy = true; }
+      else { if (lead) { push(lead, 'ㅡ', ''); lead = null; } if (syl.length && last().jong === '' && _KFIN[p.j]) last().jong = p.j; else push(p.j, 'ㅡ', ''); }
+    }
+  }
+  if (lead) { if (syl.length && last().jong === '' && _KFIN[lead]) last().jong = lead; else push(lead, 'ㅡ', ''); }
+  return syl.map(s => _kcomp(s.cho, s.jung, s.jong)).join('');
+}
+const _kcache = {};
+function enToKo(name) {
+  if (_kcache[name] != null) return _kcache[name];
+  const out = String(name).split(/\s+/).map(tok => {
+    if (/\d/.test(tok) || /^[IVX]+$/i.test(tok) || (tok.length <= 2 && tok === tok.toUpperCase())) return tok;   // 숫자·로마자·짧은 약어(W,II,FC…)는 원문 유지
+    const t = _ktl(tok);
+    return t || tok;
+  }).join(' ');
+  _kcache[name] = out; return out;
+}
 function fbTeamName(name) {
   const key = fbNorm(name);
   let e = FB_TEAMS[key];
   if (!e) { const k2 = key.replace(/^(fc|afc|sc|cf|ac)/, '').replace(/(fc|afc|sc|cf)$/, ''); e = FB_TEAMS[k2]; }
-  return (e && e[LANG]) ? e[LANG] : name;
+  if (e && e[LANG]) return e[LANG];                 // 주요 클럽: 정확한 수동 번역
+  if (LANG === 'ko' && name) return enToKo(name);   // 그 외: 한글 자동 음역
+  return name;
 }
 // 표시용 팀명: CJK 언어에서만, 종목/리그별 사전 매칭 → 없으면 원문 유지
 function TN(name, league) {
