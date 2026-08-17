@@ -628,8 +628,8 @@ table.boxsc .r{font-weight:900;color:var(--red);background:#fbfaf4}
 .match{transition:background .15s,box-shadow .15s}
 .pick{box-shadow:0 2px 6px rgba(226,59,47,.28)}
 .datenav .refresh{transition:transform .1s}.datenav .refresh:active{transform:scale(.94)}
-/* 라이브 외 화면에선 날짜/뉴스/대화방 바 숨김 */
-.center.notlive .datenav,.center.notlive .ticker,.center.notlive .chatban,.center.notlive .sportrow{display:none}
+/* 라이브 외 화면에선 뉴스/대화방/종목 바만 숨김 (날짜바는 모든 화면에서 표시) */
+.center.notlive .ticker,.center.notlive .chatban,.center.notlive .sportrow{display:none}
 /* 홈에서도 종목 탭은 보이게 (야구/축구/농구 … 전환용) */
 .center.homeview .sportrow{display:flex}
 

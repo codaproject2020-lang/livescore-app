@@ -3050,17 +3050,25 @@ function refreshDateLabel() {
   const el = $('#dateToday'); if (!el) return;
   el.textContent = (state.date === localYMD()) ? t('today') : state.date.slice(5);
 }
+// 날짜 변경 시 현재 열려 있는 화면(라이브/홈/픽제공/정보방)을 그 날짜로 다시 로드
+function reloadActiveView() {
+  const vis = id => $('#' + id) && !$('#' + id).classList.contains('hidden');
+  if (vis('view-odds')) { if (typeof loadPickHub === 'function') loadPickHub(); }
+  else if (vis('view-info')) { if (typeof initInfo === 'function') initInfo(); }
+  else if (vis('view-home')) { if (typeof renderHome === 'function') renderHome(); }
+  else loadEvents();
+}
 function shiftDate(days) {
   const d = new Date(state.date + 'T12:00:00'); d.setDate(d.getDate() + days);
   state.date = localYMD(d); $('#datePick').value = state.date;
   state.dateAuto = (state.date === localYMD());
   refreshDateLabel();
-  loadEvents();
+  reloadActiveView();
 }
 $('#datePrev').addEventListener('click', () => shiftDate(-1));
 $('#dateNext').addEventListener('click', () => shiftDate(1));
-$('#dateToday').addEventListener('click', () => { state.date = localYMD(); state.dateAuto = true; $('#datePick').value = state.date; refreshDateLabel(); loadEvents(); });
-$('#datePick').addEventListener('change', e => { state.date = e.target.value; state.dateAuto = (state.date === localYMD()); refreshDateLabel(); loadEvents(); });
+$('#dateToday').addEventListener('click', () => { state.date = localYMD(); state.dateAuto = true; $('#datePick').value = state.date; refreshDateLabel(); reloadActiveView(); });
+$('#datePick').addEventListener('change', e => { state.date = e.target.value; state.dateAuto = (state.date === localYMD()); refreshDateLabel(); reloadActiveView(); });
 $('#btnRefresh').addEventListener('click', () => loadEvents());
 $('#btnUser')?.addEventListener('click', openLogin);
 $('#btnMenu').addEventListener('click', openDrawer);
