@@ -643,6 +643,9 @@ table.boxsc .r{font-weight:900;color:var(--red);background:#fbfaf4}
 .odds3-card.est .odds3-lbl{color:#9aa3ae;font-weight:700}
 .odds3-card.est .odds3-cells{border-style:dashed}
 .odds3-card.est .o3{color:#5b6470}
+/* 순위표 종목칩 여백 + 디비전 태그 */
+#tblSport{margin-bottom:8px}
+.rk-div{font-size:10px;color:#8b93a0;font-weight:700}
 /* 배당 위젯 (해외 ▲홈 / 무 / ▼원정) */
 .odds3{display:flex;align-items:stretch;gap:8px;margin:2px 0 4px}
 .odds3-lbl{display:flex;align-items:center;color:var(--blueDark);font-weight:800;font-size:13px;min-width:34px}

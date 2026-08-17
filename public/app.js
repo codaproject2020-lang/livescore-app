@@ -2668,24 +2668,69 @@ $('#scrim').addEventListener('click', closeModal);
 // ============================================================
 //  순위표
 // ============================================================
+// 🏆 순위 — 종목 선택 + 리그별 실데이터 (축구=API-Football, 야구=MLB StatsAPI, 농구=API-Sports)
+let rankSport = 'football';
+const RANK_LEAGUES = {
+  football: ['Premier League', 'La Liga', 'Serie A', 'Bundesliga', 'Ligue 1', 'Eredivisie', 'Primeira Liga', 'Championship', 'K League 1', 'J1 League', 'Major League Soccer', 'Süper Lig', 'Saudi Pro League', 'Liga MX', 'Brasileirão', 'Liga Profesional Argentina', 'UEFA Champions League'],
+  baseball: ['MLB', 'KBO', 'NPB', 'CPBL'],
+  basketball: ['NBA', 'EuroLeague', 'KBL']
+};
+const RANK_SPORTS = SPORTS.filter(s => ['football', 'baseball', 'basketball'].includes(s.key));
+function rankSeason(sport) { return sport === 'basketball' ? '2025-2026' : '2026'; }
 function buildTableControls() {
-  $('#tblLeague').innerHTML = state.leagues.map(l => `<option value="${l.id}" data-season="${l.sport==='Baseball'?'2026':'2025-2026'}">${l.name}</option>`).join('');
-  $('#tblSeason').value = '2025-2026';
-  $('#tblLeague').addEventListener('change', () => { $('#tblSeason').value = $('#tblLeague').selectedOptions[0].dataset.season; });
-  $('#tblSeason').value = $('#tblLeague').selectedOptions[0]?.dataset.season || '2025-2026';
+  rankSport = ['football', 'baseball', 'basketball'].includes(state.sport) ? state.sport : 'football';
+  buildRankSportNav();
+  buildRankLeagues();
   $('#tblLoad').addEventListener('click', loadTable);
+  $('#tblLeague').addEventListener('change', loadTable);
   loadTable();
 }
+function buildRankSportNav() {
+  const box = $('#tblSport'); if (!box) return;
+  box.innerHTML = RANK_SPORTS.map(s => `<div class="ochip ${s.key === rankSport ? 'on' : ''}" data-rsport="${s.key}">${s.em} ${esc(sportLabel(s))}</div>`).join('');
+  $$('#tblSport .ochip').forEach(c => c.addEventListener('click', () => {
+    rankSport = c.dataset.rsport;
+    $$('#tblSport .ochip').forEach(x => x.classList.toggle('on', x.dataset.rsport === rankSport));
+    buildRankLeagues(); loadTable();
+  }));
+}
+function buildRankLeagues() {
+  const sel = $('#tblLeague'); if (!sel) return;
+  sel.innerHTML = (RANK_LEAGUES[rankSport] || []).map(l => `<option value="${esc(l)}">${esc(l)}</option>`).join('');
+  $('#tblSeason').value = rankSeason(rankSport);
+}
+// 순위 전용 팀명 변환 (state.sport에 의존하지 않고 rankSport 기준)
+function rankName(nm, league) {
+  if (LANG !== 'ko' && LANG !== 'ja' && LANG !== 'zh') return nm;
+  if (rankSport === 'football') return fbTeamName(nm);
+  if (rankSport === 'baseball') {
+    const d = leagueDict(league), nick = tmNick(nm);
+    let e = d[nick] || d[String(nm).toLowerCase()];
+    if (!e && d !== MLB_TEAMS) e = MLB_TEAMS[nick];
+    return (e && e[LANG]) ? e[LANG] : nm;
+  }
+  return nm;
+}
 async function loadTable() {
-  const id = $('#tblLeague').value, season = $('#tblSeason').value.trim();
-  const wrap = $('#tableWrap'); wrap.innerHTML = `<div class="loading">순위 불러오는 중…</div>`;
+  const league = $('#tblLeague').value, season = $('#tblSeason').value.trim();
+  const wrap = $('#tableWrap'); wrap.innerHTML = `<div class="loading">${esc(t('loading'))}</div>`;
   try {
-    const d = await fetch(`/api/table?id=${id}&season=${encodeURIComponent(season)}`).then(r => r.json());
-    const t = d.table || [];
-    if (!t.length) { wrap.innerHTML = `<div class="loading">해당 시즌 순위 데이터가 없습니다. 시즌 형식을 확인하세요.<br>(축구: 2025-2026 / 야구·농구: 2026)</div>`; return; }
-    wrap.innerHTML = `<table class="rank"><thead><tr><th>#</th><th style="text-align:left">팀</th><th>경기</th><th>승</th><th>무</th><th>패</th><th>승점</th></tr></thead><tbody>${
-      t.map(x => `<tr><td>${esc(x.intRank)}</td><td class="tm">${badge(x.strBadge,'🏳')}${esc(x.strTeam)}</td><td>${esc(x.intPlayed)}</td><td>${esc(x.intWin)}</td><td>${esc(x.intDraw)}</td><td>${esc(x.intLoss)}</td><td class="pt">${esc(x.intPoints)}</td></tr>`).join('')
-    }</tbody></table>`;
+    const d = await fetchJSON(`/api/rank?sport=${encodeURIComponent(rankSport)}&league=${encodeURIComponent(league)}&season=${encodeURIComponent(season)}`, { tries: 2, delay: 2500 });
+    const tb = d.table || [];
+    if (!tb.length) { wrap.innerHTML = `<div class="loading">${d.note === 'ts-todo' ? '이 리그 순위는 준비 중입니다.' : '해당 시즌 순위 데이터가 없습니다.'}</div>`; return; }
+    if (rankSport === 'baseball') {
+      wrap.innerHTML = `<table class="rank"><thead><tr><th>#</th><th style="text-align:left">${sl('team')}</th><th>${sl('w')}</th><th>${sl('l')}</th><th>${sl('pct')}</th><th>GB</th><th>${sl('streak')}</th></tr></thead><tbody>${
+        tb.map(x => `<tr><td>${esc(x.rank)}</td><td class="tm">${esc(rankName(x.team, league))}${x.div ? ` <span class="rk-div">${esc(x.div)}</span>` : ''}</td><td>${esc(x.win)}</td><td>${esc(x.loss)}</td><td>${esc(String(x.pct).replace(/^0/, ''))}</td><td>${esc(x.gb)}</td><td>${esc(x.streak)}</td></tr>`).join('')
+        }</tbody></table>`;
+    } else if (rankSport === 'basketball') {
+      wrap.innerHTML = `<table class="rank"><thead><tr><th>#</th><th style="text-align:left">팀</th><th>경기</th><th>${sl('w')}</th><th>${sl('l')}</th><th>승점</th></tr></thead><tbody>${
+        tb.map(x => `<tr><td>${esc(x.rank)}</td><td class="tm">${badge(x.logo, '🏀')}${esc(rankName(x.team, league))}</td><td>${esc(x.played ?? '-')}</td><td>${esc(x.win ?? '-')}</td><td>${esc(x.loss ?? '-')}</td><td class="pt">${esc(x.points ?? '-')}</td></tr>`).join('')
+        }</tbody></table>`;
+    } else {
+      wrap.innerHTML = `<table class="rank"><thead><tr><th>#</th><th style="text-align:left">팀</th><th>경기</th><th>${sl('w')}</th><th>무</th><th>${sl('l')}</th><th>득실</th><th>승점</th></tr></thead><tbody>${
+        tb.map(x => `<tr><td>${esc(x.rank)}</td><td class="tm">${badge(x.logo, '🏳')}${esc(rankName(x.team, league))}</td><td>${esc(x.played)}</td><td>${esc(x.win)}</td><td>${esc(x.draw)}</td><td>${esc(x.loss)}</td><td>${x.gd > 0 ? '+' : ''}${esc(x.gd)}</td><td class="pt">${esc(x.points)}</td></tr>`).join('')
+        }</tbody></table>`;
+    }
   } catch (e) {
     wrap.innerHTML = `<div class="loading">순위를 불러오지 못했습니다.</div>`;
   }
