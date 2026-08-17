@@ -47,6 +47,9 @@ const STR = {
   send: ['Send', '전송', '送信', '发送', 'Enviar', 'भेजें', 'Gửi', 'ส่ง', 'Отпр.', 'Senden', 'Envoyer', 'Invia'],
   finished: ['Final', '종료', '終了', '完场', 'Final', 'समाप्त', 'Kết thúc', 'จบ', 'Заверш.', 'Ende', 'Terminé', 'Finita'],
   lineup: ['Lineup', '선발 라인업', 'スタメン', '首发阵容', 'Alineación', 'लाइनअप', 'Đội hình', 'ผู้เล่นตัวจริง', 'Состав', 'Aufstellung', 'Composition', 'Formazione'],
+  predLineup: ['Predicted XI', '예상 라인업', '予想スタメン', '预测首发', 'Alineación prevista', 'संभावित लाइनअप', 'Đội hình dự kiến', 'ผู้เล่นคาดการณ์', 'Ожидаемый состав', 'Voraussichtliche Aufstellung', 'Composition probable', 'Formazione probabile'],
+  predNote: ['Based on each team\'s last starting XI · updates to confirmed lineup at kickoff', '각 팀 직전 경기 선발 기준 · 경기 시작 시 확정 라인업으로 전환', '各チーム前節スタメン基準・試合開始で確定', '基于各队上场首发·开赛后更新为确定阵容', 'Según el último 11 · se confirma al inicio', 'पिछली लाइनअप के आधार पर', 'Dựa trên đội hình trận trước', 'อ้างอิงตัวจริงนัดก่อน', 'По прошлому составу', 'Basierend auf letzter Aufstellung', 'Selon la dernière compo', 'In base all\'ultima formazione'],
+  confLineup: ['Confirmed', '확정', '確定', '已确认', 'Confirmada', 'पुष्ट', 'Đã xác nhận', 'ยืนยันแล้ว', 'Подтверждён', 'Bestätigt', 'Confirmée', 'Confermata'],
   boxRec: ['Box Score', '경기 기록', '成績', '比赛数据', 'Estadísticas', 'रिकॉर्ड', 'Thống kê', 'สถิติ', 'Статистика', 'Statistik', 'Statistiques', 'Statistiche'],
   boxSoon: ['Available after the game', '경기 후 제공', '試合後に表示', '比赛后提供', 'Disponible tras el partido', 'मैच के बाद उपलब्ध', 'Có sau trận đấu', 'มีให้หลังจบเกม', 'Доступно после матча', 'Nach dem Spiel verfügbar', 'Disponible après le match', 'Disponibile dopo la partita'],
   probable: ['Starting Pitchers', '선발투수', '先発投手', '先发投手', 'Abridores', 'गेंदबाज', 'Ném bóng', 'พิตเชอร์', 'Питчеры', 'Starter', 'Lanceurs', 'Lanciatori'],
@@ -2185,18 +2188,40 @@ async function updateLineup(e) {
           if (d2.teams && d2.teams.length >= 2 && (d2.teams[0].startXI || []).length) teams = d2.teams;
         } catch { }
       }
+      // 확정 라인업이 없으면 → 예상 라인업(각 팀 직전 경기 선발)으로 대체
+      let predicted = false;
+      if (teams.length < 2 || !(teams[0].startXI || []).length) {
+        if (e.homeId && e.awayId) {
+          try {
+            const dp = await fetchJSON(`/api/football/predlineup?home=${encodeURIComponent(e.homeId)}&away=${encodeURIComponent(e.awayId)}`, { tries: 1 });
+            if (dp.found && (dp.teams[0].startXI || []).length) { teams = dp.teams; predicted = true; }
+          } catch { }
+        }
+      }
       if (teams.length < 2 || !(teams[0].startXI || []).length) { box.innerHTML = `<div class="odsec">📋 ${esc(t('lineup'))}</div><div class="lu-note">-</div><div id="mFbStats"></div>`; loadFbStats(e); return; }
-      box.innerHTML = `<div class="odsec">📋 ${esc(t('lineup'))} <span class="rhe">${esc(teams[0].formation)} · ${esc(teams[1].formation)}</span></div>${teams.map(renderPitch).join('')}<div id="mPlayer"></div><div id="mFbStats"></div>`;
+      const luTitle = predicted
+        ? `<div class="odsec">🔮 ${esc(t('predLineup'))} <span class="rhe">${esc(teams[0].formation)} · ${esc(teams[1].formation)}</span></div><div class="pred-note">${esc(t('predNote'))}</div>`
+        : `<div class="odsec">📋 ${esc(t('lineup'))} <span class="badge-conf">${esc(t('confLineup'))}</span> <span class="rhe">${esc(teams[0].formation)} · ${esc(teams[1].formation)}</span></div>`;
+      box.innerHTML = `${luTitle}${teams.map(renderPitch).join('')}<div id="mPlayer"></div><div id="mFbStats"></div>`;
       wirePlayerClicks('football');
       loadFbStats(e);
     } catch { box.innerHTML = `<div class="odsec">📋 ${esc(t('lineup'))}</div><div class="lu-note">-</div>`; }
   } else if (statsLeague(e.league)) {
     box.innerHTML = `<div class="odsec">📋 ${esc(t('lineup'))}</div><div class="lineupbox"><div class="loading" style="padding:12px">${esc(t('loading'))}</div></div>`;
     try {
-      const d = await fetchJSON(`/api/mlb/game?home=${encodeURIComponent(e.home)}&away=${encodeURIComponent(e.away)}&date=${state.date}`, { tries: 1 });
+      let d = await fetchJSON(`/api/mlb/game?home=${encodeURIComponent(e.home)}&away=${encodeURIComponent(e.away)}&date=${state.date}`, { tries: 1 });
+      let mlbPred = false;
+      if (!d.found || (!(d.home.lineup || []).length && !(d.away.lineup || []).length)) {
+        // 확정 타순이 없으면 → 예상 라인업(각 팀 직전 경기 타순 + 예상 선발투수)
+        try {
+          const dp = await fetchJSON(`/api/mlb/predlineup?home=${encodeURIComponent(e.home)}&away=${encodeURIComponent(e.away)}&date=${state.date}`, { tries: 1 });
+          if (dp.found && ((dp.home.lineup || []).length || (dp.away.lineup || []).length)) { d = { found: true, home: dp.home, away: dp.away }; mlbPred = true; }
+        } catch { }
+      }
       if (!d.found || (!(d.home.lineup || []).length && !(d.away.lineup || []).length)) { box.innerHTML = `<div class="odsec">📋 ${esc(t('lineup'))}</div><div class="lu-note">-</div>`; return; }
       box.innerHTML = `
-        <div class="odsec">📋 ${esc(t('lineup'))} <span class="rhe">${esc(t('fieldPos'))} · ${esc(t('tapPlayer'))}</span></div>
+        <div class="odsec">${mlbPred ? '🔮 ' + esc(t('predLineup')) : '📋 ' + esc(t('lineup')) + ' <span class="badge-conf">' + esc(t('confLineup')) + '</span>'} <span class="rhe">${esc(t('fieldPos'))} · ${esc(t('tapPlayer'))}</span></div>
+        ${mlbPred ? `<div class="pred-note">${esc(t('predNote'))}</div>` : ''}
         <div class="bfield-tabs"><span class="bft on" data-t="home">${esc(TN(e.home, e.league))}</span><span class="bft" data-t="away">${esc(TN(e.away, e.league))}</span></div>
         <div id="bfieldBox">${mlbField(d.home, e.home)}</div>
         <div class="odsec">${esc(t('order'))}</div>

@@ -633,6 +633,10 @@ table.boxsc .r{font-weight:900;color:var(--red);background:#fbfaf4}
 /* 홈에서도 종목 탭은 보이게 (야구/축구/농구 … 전환용) */
 .center.homeview .sportrow{display:flex}
 
+/* 예상 라인업 안내/뱃지 */
+.pred-note{font-size:11.5px;color:#8b93a0;background:#f5f8fc;border:1px dashed #cdd8e6;border-radius:8px;padding:6px 10px;margin:2px 0 8px;line-height:1.4}
+.badge-conf{display:inline-block;font-size:10px;font-weight:800;color:#0a7d33;background:#e3f6e8;border:1px solid #a9e2ba;border-radius:6px;padding:1px 6px;vertical-align:middle}
+
 /* ===== 모달 ===== */
 .scrim{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:80;opacity:0;pointer-events:none;transition:.2s}
 .scrim.on{opacity:1;pointer-events:auto}
