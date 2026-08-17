@@ -268,21 +268,22 @@ app.get('/api/odds', async (req, res) => {
     const data = await cachedJSON(url, 90000);
     const arr = Array.isArray(data) ? data : [];
     const games = arr.map(g => {
-      // 여러 북메이커의 h2h 배당 중 최고값(사용자에게 유리) 집계
-      let hi = { home: 0, draw: 0, away: 0 }, books = 0, sample = null;
+      // 여러 북메이커의 h2h 배당을 결과별 평균(시장 컨센서스)으로 → 일관된 승·무·패 배당
+      const acc = { home: [], draw: [], away: [] }; let books = 0, sample = null;
       (g.bookmakers || []).forEach(bk => {
         const m = (bk.markets || []).find(x => x.key === 'h2h'); if (!m) return;
         books++; if (!sample) sample = bk.title;
         (m.outcomes || []).forEach(o => {
-          if (o.name === g.home_team) hi.home = Math.max(hi.home, o.price);
-          else if (o.name === g.away_team) hi.away = Math.max(hi.away, o.price);
-          else if (o.name === 'Draw') hi.draw = Math.max(hi.draw, o.price);
+          if (o.name === g.home_team) acc.home.push(o.price);
+          else if (o.name === g.away_team) acc.away.push(o.price);
+          else if (o.name === 'Draw') acc.draw.push(o.price);
         });
       });
+      const avg = a => a.length ? Math.round((a.reduce((s, x) => s + x, 0) / a.length) * 100) / 100 : null;
       return {
         id: g.id, league: g.sport_title, home: g.home_team, away: g.away_team,
         time: g.commence_time,
-        homeOdds: hi.home || null, drawOdds: hi.draw || null, awayOdds: hi.away || null,
+        homeOdds: avg(acc.home), drawOdds: avg(acc.draw), awayOdds: avg(acc.away),
         books, sample
       };
     }).sort((a, b) => new Date(a.time) - new Date(b.time));
@@ -394,6 +395,7 @@ function normAS(sport, g) {
       return {
         id: f.id, league: l.name, leagueLogo: l.logo, country: l.country, round: l.round,
         home: t.home.name, homeLogo: t.home.logo, away: t.away.name, awayLogo: t.away.logo,
+        homeId: t.home.id, awayId: t.away.id,
         hs: go.home, as: go.away, status: f.status.short, statusLong: f.status.long, elapsed: f.status.elapsed,
         date: (f.timestamp ? new Date(f.timestamp * 1000).toISOString() : f.date), state: asState(f.status.short, go.home)
       };
@@ -475,7 +477,18 @@ app.get('/api/asports/debug', (req, res) => {
 // 키/쿼터 상태 확인 (배포 후 검증용)
 app.get('/api/asports/status', async (req, res) => {
   if (!APISPORTS_KEY) return res.json({ key: false, msg: 'APISPORTS_KEY 미설정' });
-  try { const j = await asRaw('football', '/status', 10000); res.json({ key: true, status: j.response || j }); }
+  try {
+    const j = await asRaw('football', '/status', 10000);
+    const cov = {};
+    for (const [nm, id] of [['K League 1', 292], ['K League 2', 293], ['J1 League', 98]]) {
+      try {
+        const lj = await asRaw('football', `/leagues?id=${id}`, 60000);
+        const r = (lj.response || [])[0], s = r && (r.seasons || []).slice(-1)[0], c = s && s.coverage && s.coverage.fixtures;
+        cov[nm] = s ? { season: s.year, lineups: !!(c && c.lineups), stats_fixtures: !!(c && c.statistics_fixtures), events: !!(c && c.events) } : { note: 'no season' };
+      } catch (e) { cov[nm] = { error: String(e.message || e) }; }
+    }
+    res.json({ key: true, status: j.response || j, coverage: cov });
+  }
   catch (e) { res.status(502).json({ key: true, error: String(e.message || e) }); }
 });
 // 종목 목록
@@ -536,13 +549,47 @@ async function oddsSportKeys(group) {
   }
   return (Array.isArray(oddsSportsList) ? oddsSportsList : []).filter(s => s.group === group && s.active && !s.has_outrights).map(s => s.key);
 }
-const normTeam = s => String(s || '').toLowerCase().replace(/[^a-z0-9가-힣]/g, '');
+// ⚽ 축구 리그명 → The Odds API soccer 키 자동 매칭 (LEAGUE_TO_ODDS에 없는 리그 커버)
+//    /v4/sports 목록(무료)의 title/description 을 리그명·나라로 대조. 오매칭 방지 위해 나라도 확인.
+const _soccerKeyCache = new Map();   // "league|country" -> key|null
+async function ensureOddsSports() {
+  const now = Date.now();
+  if (!oddsSportsList || now - oddsSportsListT > 3600000) {
+    try { const r = await fetch(`https://api.the-odds-api.com/v4/sports/?apiKey=${ODDS_KEY}`); oddsSportsList = await r.json(); oddsSportsListT = now; } catch { }
+  }
+  return Array.isArray(oddsSportsList) ? oddsSportsList : [];
+}
+const _nrm = s => String(s || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+async function soccerKeyForLeague(league, country) {
+  if (!ODDS_KEY || !league) return null;
+  const ck = league + '|' + (country || '');
+  if (_soccerKeyCache.has(ck)) return _soccerKeyCache.get(ck);
+  const list = (await ensureOddsSports()).filter(s => s.group === 'Soccer' && s.active && !s.has_outrights);
+  const nl = _nrm(league), nc = _nrm(country);
+  let best = null;
+  for (const s of list) {
+    const nt = _nrm(s.title), nd = _nrm(s.description);
+    const hay = nt + '|' + nd;
+    // 리그명이 title/description 안에 들어가면 후보. 나라가 있으면 나라도 일치해야 채택(오매칭 방지)
+    const leagueHit = nl.length >= 4 && (hay.includes(nl) || nl.includes(nt));
+    if (!leagueHit) continue;
+    const countryOk = !nc || nc.length < 3 || hay.includes(nc) || (nc === 'england' && hay.includes('epl'));
+    if (countryOk) { best = s.key; break; }
+    if (!best) best = s.key;   // 나라 불일치여도 일단 후보로 (더 나은 게 없을 때)
+  }
+  _soccerKeyCache.set(ck, best);
+  return best;
+}
+// 악센트(é·ñ·í…)를 기본 문자로 접어서 매칭 (한글은 NFC로 복원해 보존)
+const _foldAccents = s => String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').normalize('NFC');
+const normTeam = s => _foldAccents(s).toLowerCase().replace(/[^a-z0-9가-힣]/g, '');
 // 경기별 배당 영구 저장소(팀쌍 키). 경기 시작 후 The Odds API에서 사라져도 마지막 배당을 계속 보여줌.
 const oddsStore = new Map();   // key -> { home, away, draw, t }
 const ODDS_STORE_TTL = 8 * 3600 * 1000;   // 8시간 유지
 async function oddsLookup(oddsSport) {
   if (!ODDS_KEY) return null;
-  const url = `https://api.the-odds-api.com/v4/sports/${oddsSport}/odds/?apiKey=${ODDS_KEY}&regions=us,uk,eu&markets=h2h&oddsFormat=decimal`;
+  // au(호주) 지역 추가 → KBO/NPB 등 아시아 야구 배당은 호주 북메이커가 많이 취급함
+  const url = `https://api.the-odds-api.com/v4/sports/${oddsSport}/odds/?apiKey=${ODDS_KEY}&regions=us,uk,eu,au&markets=h2h&oddsFormat=decimal`;
   const ck = 'OL:' + oddsSport, now = Date.now(), hit = cache.get(ck);
   if (hit && now - hit.t < 600000) return hit.v;   // 15분 캐시(무료 쿼터 절약)
   try {
@@ -550,17 +597,19 @@ async function oddsLookup(oddsSport) {
     const arr = await r.json();
     const map = {};
     (Array.isArray(arr) ? arr : []).forEach(g => {
-      const hi = { home: 0, away: 0, draw: 0 };
+      // 여러 북메이커의 h2h 배당을 결과별 평균(시장 컨센서스)으로 → 승·무·패가 일관된 배당(합산 확률 >100%)
+      const acc = { home: [], away: [], draw: [] };
       (g.bookmakers || []).forEach(bk => {
         const m = (bk.markets || []).find(x => x.key === 'h2h'); if (!m) return;
         (m.outcomes || []).forEach(o => {
-          if (o.name === g.home_team) hi.home = Math.max(hi.home, o.price);
-          else if (o.name === g.away_team) hi.away = Math.max(hi.away, o.price);
-          else if (o.name === 'Draw') hi.draw = Math.max(hi.draw, o.price);
+          if (o.name === g.home_team) acc.home.push(o.price);
+          else if (o.name === g.away_team) acc.away.push(o.price);
+          else if (o.name === 'Draw') acc.draw.push(o.price);
         });
       });
+      const avg = a => a.length ? Math.round((a.reduce((s, x) => s + x, 0) / a.length) * 100) / 100 : null;
       const key = normTeam(g.home_team) + '|' + normTeam(g.away_team);
-      const val = { home: hi.home || null, away: hi.away || null, draw: hi.draw || null };
+      const val = { home: avg(acc.home), away: avg(acc.away), draw: avg(acc.draw) };
       map[key] = val;
       if (val.home || val.away) oddsStore.set(key, { ...val, t: now });   // 영구 저장소에도 적립
     });
@@ -823,6 +872,51 @@ app.get('/api/baseball/box', async (req, res) => {
     });
     res.json({ available: true, src, team: b.team, battingTeam: b.battingTeam, players: { home: attach(b.players.home), away: attach(b.players.away) } });
   } catch (e) { res.json({ error: String(e.message || e) }); }
+});
+// ⚾ KBO/NPB 예상 라인업 — 각 팀 직전 완료경기의 라인업(타순·수비위치·선수사진)을 예측으로 사용
+app.get('/api/baseball/predlineup', async (req, res) => {
+  const mid = req.query.match, date = req.query.date;
+  if (!mid || !date) return res.json({ available: false });
+  try {
+    const dcur = await tsFetch('/baseball/match/diary', { date: String(date).replace(/-/g, '') }, 60000).catch(() => null);
+    const m0 = dcur && (dcur.results || []).find(x => x.id === mid);
+    if (!m0) return res.json({ available: false });
+    const now = Date.now();
+    // 특정 팀의 "직전 완료경기"에서 그 팀 라인업(선수배열) 찾기
+    const findLast = async (teamId) => {
+      for (let i = 0; i < 21; i++) {
+        const ymd = new Date(Date.parse(date + 'T12:00:00Z') - i * 864e5).toISOString().slice(0, 10).replace(/-/g, '');
+        const d = await tsFetch('/baseball/match/diary', { date: ymd }, 3600000).catch(() => null);
+        if (!d) continue;
+        const cand = (d.results || [])
+          .filter(x => (x.home_team_id === teamId || x.away_team_id === teamId) && x.id !== mid)
+          .filter(x => { const t = x.match_time ? x.match_time * 1000 : 0; return x.status_id === 100 || (t && t < now - 3 * 3600e3); })
+          .sort((a, b) => (b.match_time || 0) - (a.match_time || 0));
+        for (const x of cand) {
+          const b = await tsBox(x.id, 86400000).catch(() => null);
+          if (!b) continue;
+          const isHome = x.home_team_id === teamId;
+          const arr = isHome ? b.players.home : b.players.away;
+          if (arr && arr.length) return { arr, gameId: x.id, date: x.match_time ? x.match_time * 1000 : null };
+        }
+      }
+      return null;
+    };
+    const [hL, aL] = await Promise.all([findLast(m0.home_team_id), findLast(m0.away_team_id)]);
+    const homeArr = hL ? hL.arr : [], awayArr = aL ? aL.arr : [];
+    const pids = [...new Set([...homeArr, ...awayArr].map(p => p.id))];
+    await Promise.all(pids.map(tsName));
+    const attach = arr => arr.map(p => {
+      const n = TS_PNAME.get(p.id) || {};
+      const posCode = p.pos != null ? String(p.pos) : '';
+      return Object.assign({}, p, { name: n.name || null, name_ko: koName(p.id, n.name), photo: n.logo || '', position: POS_NAME[posCode] || n.pos || '', pitcher: p.ip != null });
+    });
+    res.json({
+      available: !!(homeArr.length || awayArr.length), predicted: true,
+      players: { home: attach(homeArr), away: attach(awayArr) },
+      fromDate: { home: hL && hL.date ? new Date(hL.date).toISOString() : null, away: aL && aL.date ? new Date(aL.date).toISOString() : null }
+    });
+  } catch (e) { res.json({ available: false, error: String(e.message || e) }); }
 });
 // ⚾ KBO/NPB 선수 최근 경기 기록 — 그 선수 팀의 최근 완료경기들에서 개인 기록 추출
 app.get('/api/baseball/playerlog', async (req, res) => {
@@ -1137,6 +1231,43 @@ async function buildGamesCore(sport, date, tz) {
       }); });
     }
   }
+  // ⚽ 라이브 축구: 팀별 통계(점유율·슈팅·유효슈팅·카드) — 라이브 경기만, 경기당 30초 캐시. statistics 한 번으로 카드까지 커버
+  if (sport === 'football') {
+    const liveG = games.filter(g => g.state === 'live').slice(0, 40);
+    await Promise.all(liveG.map(async g => {
+      try {
+        const ck = 'FBS:' + g.id, hit = cache.get(ck);
+        let stats;
+        if (hit && Date.now() - hit.t < 30000) stats = hit.v;
+        else {
+          const st = await asRaw('football', `/fixtures/statistics?fixture=${g.id}`, 9000);
+          const val = (arr, type) => { const it = (arr || []).find(x => x.type === type); return it ? it.value : null; };
+          const s = {};
+          (st.response || []).forEach(row => {
+            const tid = row.team ? row.team.id : null, tn = row.team ? row.team.name : '';
+            let side = (tid != null && tid === g.homeId) ? 'home' : (tid != null && tid === g.awayId) ? 'away' : null;
+            if (!side) side = tn === g.home ? 'home' : tn === g.away ? 'away' : null;
+            if (!side) return;
+            const a = row.statistics || [];
+            s[side] = {
+              poss: val(a, 'Ball Possession'),                          // "66%"
+              shots: val(a, 'Total Shots'),
+              sot: val(a, 'Shots on Goal'),
+              y: val(a, 'Yellow Cards') || 0,
+              r: val(a, 'Red Cards') || 0
+            };
+          });
+          stats = (s.home || s.away) ? { home: s.home || {}, away: s.away || {} } : null;
+          cache.set(ck, { t: Date.now(), v: stats });
+        }
+        if (stats) {
+          g.stats = stats;
+          const hy = (stats.home || {}).y || 0, hr = (stats.home || {}).r || 0, ay = (stats.away || {}).y || 0, ar = (stats.away || {}).r || 0;
+          if (hy || hr || ay || ar) g.cards = { home: { y: hy, r: hr }, away: { y: ay, r: ar } };
+        }
+      } catch {}
+    }));
+  }
   return { games, j };
 }
 
@@ -1174,7 +1305,15 @@ app.get('/api/asports/games', async (req, res) => {
     //     → MLB·KBO·NPB·MiLB, NBA·WNBA·유로리그, NHL·SHL 등 자동 커버
     let needed;
     if (sport === 'football') {
-      needed = [...new Set(games.map(g => LEAGUE_TO_ODDS[g.league]).filter(Boolean))];
+      // 1) 하드코딩 매핑 우선, 2) 없으면 The Odds API 축구 키 목록에서 자동 매칭 → 그날 있는 리그 전부 커버
+      const present = [...new Set(games.map(g => g.league).filter(Boolean))];
+      const keys = new Set();
+      await Promise.all(present.map(async lg => {
+        let k = LEAGUE_TO_ODDS[lg];
+        if (!k) { const g0 = games.find(x => x.league === lg); k = await soccerKeyForLeague(lg, g0 && g0.country).catch(() => null); }
+        if (k) keys.add(k);
+      }));
+      needed = [...keys];
     } else {
       needed = await oddsSportKeys(ODDS_GROUP[sport]);
     }
@@ -1206,6 +1345,7 @@ app.get('/api/asports/events', async (req, res) => {
       minute: ev.time ? ev.time.elapsed : null,
       extra: ev.time ? ev.time.extra : null,
       team: ev.team ? ev.team.name : '',
+      teamId: ev.team ? ev.team.id : null,
       type: ev.type || '',
       detail: ev.detail || '',
       player: ev.player ? ev.player.name : '',
@@ -1233,6 +1373,221 @@ app.get('/api/asports/lineups', async (req, res) => {
   } catch (e) { res.status(502).json({ error: String(e.message || e), teams: [] }); }
 });
 
+// ⚽ 예상 라인업 — 각 팀의 "직전 종료 경기 선발 XI"를 예측으로 사용 (확정 라인업 나오기 전 표시용)
+async function fbLastLineup(teamId) {
+  try {
+    const j = await asRaw('football', `/fixtures?team=${teamId}&last=6&timezone=Asia/Seoul`, 3 * 3600 * 1000);
+    const fins = (j.response || []).filter(fx => ['FT', 'AET', 'PEN'].includes(fx.fixture && fx.fixture.status && fx.fixture.status.short));
+    for (const fx of fins) {
+      const lu = await asRaw('football', `/fixtures/lineups?fixture=${fx.fixture.id}`, 24 * 3600 * 1000).catch(() => ({}));
+      const mine = (lu.response || []).find(t => t.team && t.team.id === teamId);
+      if (mine && (mine.startXI || []).length >= 11) {
+        return {
+          team: mine.team.name, logo: mine.team.logo, formation: mine.formation || '',
+          coach: mine.coach ? mine.coach.name : '',
+          startXI: (mine.startXI || []).map(x => ({ id: x.player.id, name: x.player.name, number: x.player.number, pos: x.player.pos, grid: x.player.grid })),
+          subs: (mine.substitutes || []).map(x => ({ id: x.player.id, name: x.player.name, number: x.player.number, pos: x.player.pos })),
+          fromDate: fx.fixture.date
+        };
+      }
+    }
+  } catch { }
+  return null;
+}
+app.get('/api/football/predlineup', async (req, res) => {
+  const homeId = parseInt(req.query.home, 10), awayId = parseInt(req.query.away, 10);
+  if (!homeId || !awayId) return res.json({ found: false });
+  try {
+    const [h, a] = await Promise.all([fbLastLineup(homeId), fbLastLineup(awayId)]);
+    const teams = [];
+    if (h) teams.push(h); if (a) teams.push(a);
+    res.json({ found: teams.length === 2, predicted: true, teams });
+  } catch (e) { res.json({ found: false, error: String(e.message || e) }); }
+});
+
+// ⚾ MLB 예상 라인업 — 각 팀 직전 경기 타순(선발 야수) + 이 경기 예상 선발투수
+async function mlbLastLineup(teamId, sportId, date) {
+  const recent = await mlbRecent(teamId, sportId, date).catch(() => []);
+  for (const g of recent) {
+    if (!g.gamePk) continue;
+    try {
+      const box = await mlbFetch(`/api/v1/game/${g.gamePk}/boxscore`, 6 * 3600 * 1000);
+      for (const side of ['home', 'away']) {
+        const T = box.teams[side]; if (!T || !T.team || T.team.id !== teamId) continue;
+        const players = T.players || {};
+        const arr = Object.values(players).filter(p => p.battingOrder).map(p => ({
+          bo: parseInt(p.battingOrder, 10), id: p.person.id, name: p.person.fullName,
+          pos: p.position ? p.position.abbreviation : '', number: p.jerseyNumber || ''
+        }));
+        const lineup = arr.filter(p => p.bo % 100 === 0).sort((a, b) => a.bo - b.bo).map((p, i) => ({ order: i + 1, id: p.id, name: p.name, pos: p.pos, number: p.number }));
+        if (lineup.length) return { lineup, fromDate: g.date || null };
+      }
+    } catch { }
+  }
+  return { lineup: [] };
+}
+app.get('/api/mlb/predlineup', async (req, res) => {
+  const { home, away } = req.query, date = req.query.date || new Date().toISOString().slice(0, 10);
+  try {
+    const f = await mlbFindGame(home, away, date);
+    if (!f) return res.json({ found: false });
+    const hId = f.swap ? f.awayId : f.homeId, aId = f.swap ? f.homeId : f.awayId;
+    // 이 경기 예상 선발투수 (schedule hydrate)
+    let hp = null, ap = null;
+    try {
+      const sg = await mlbFetch(`/api/v1/schedule?sportId=${f.sportId}&gamePk=${f.gamePk}&hydrate=probablePitcher`, 3600000);
+      const gg = ((sg.dates || [])[0] || {}).games || [];
+      const g0 = gg[0];
+      if (g0) {
+        const hpp = g0.teams.home.probablePitcher, app_ = g0.teams.away.probablePitcher;
+        const mk = pp => pp ? { id: pp.id, name: pp.fullName, pos: 'P' } : null;
+        hp = f.swap ? mk(app_) : mk(hpp); ap = f.swap ? mk(hpp) : mk(app_);
+      }
+    } catch { }
+    const [hL, aL] = await Promise.all([mlbLastLineup(hId, f.sportId, date), mlbLastLineup(aId, f.sportId, date)]);
+    res.json({ found: true, predicted: true, home: { lineup: hL.lineup, pitcher: hp, fromDate: hL.fromDate }, away: { lineup: aL.lineup, pitcher: ap, fromDate: aL.fromDate } });
+  } catch (e) { res.json({ found: false, error: String(e.message || e) }); }
+});
+
+// ⚽ TheSports 축구 라인업 폴백 (API-Sports가 K/J리그 라인업을 안 줄 때) — 팀명+날짜로 매칭 후 라인업+선수사진
+const FB_PLAYER = new Map();   // TheSports 축구 선수 id -> {name, logo}
+async function tsFbPlayer(pid) {
+  if (!pid) return {};
+  if (FB_PLAYER.has(pid)) return FB_PLAYER.get(pid);
+  let v = {};
+  try { const r = await tsFetch('/football/player/list', { uuid: pid }, 5000); const p = (r.results || [])[0]; if (p) v = { name: p.name || '', logo: p.logo || '' }; } catch (e) {}
+  FB_PLAYER.set(pid, v); return v;
+}
+app.get('/api/football/lineup', async (req, res) => {
+  if (!TS_ON) return res.json({ teams: [] });
+  const home = req.query.home, away = req.query.away, debug = req.query.debug;
+  const date = req.query.date || new Date().toISOString().slice(0, 10);
+  const norm = s => String(s || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+  const nh = norm(home), na = norm(away);
+  const fit = (a, b) => a && b && (a.includes(b) || b.includes(a));
+  try {
+    // 1) TheSports 경기 찾기 (당일·전날·다음날)
+    const prev = new Date(Date.parse(date + 'T12:00:00Z') - 864e5).toISOString().slice(0, 10);
+    const next = new Date(Date.parse(date + 'T12:00:00Z') + 864e5).toISOString().slice(0, 10);
+    let match = null, swap = false, diag = [];
+    for (const dt of [date, prev, next]) {
+      const games = await tsFootballGames(dt).catch(e => { diag.push({ dt, err: String(e.message || e) }); return []; });
+      diag.push({ dt, count: games.length, sample: games.slice(0, 8).map(g => ({ home: g.home, away: g.away, league: g.league })) });
+      match = games.find(g => fit(norm(g.home), nh) && fit(norm(g.away), na));
+      if (match) break;
+      const sw = games.find(g => fit(norm(g.home), na) && fit(norm(g.away), nh));
+      if (sw) { match = sw; swap = true; break; }
+    }
+    if (!match) return res.json({ teams: [], reason: 'no-match', diag: debug ? diag : undefined });
+    // 2) 라인업
+    const lu = await tsFetch('/football/match/lineup', { uuid: match.id }, 8000).catch(() => null);
+    if (debug) return res.json({ matchId: match.id, home: match.home, away: match.away, raw: lu });
+    const r = (lu && lu.results) ? lu.results : (lu || {});
+    const homeArr = (r.lineup && r.lineup.home) || r.home || r.home_players || [];
+    const awayArr = (r.lineup && r.lineup.away) || r.away || r.away_players || [];
+    const hForm = r.home_formation || r.homeFormation || (r.home && r.home.formation) || '';
+    const aForm = r.away_formation || r.awayFormation || (r.away && r.away.formation) || '';
+    const isStarter = p => p.first === 1 || p.first === true || p.first === '1' || p.type === 1 || p.on_bench === 0;
+    const build = async arr => {
+      if (!Array.isArray(arr)) return { xi: [], subs: [] };
+      const mk = async p => {
+        const pid = p.id || p.player_id || p.uuid;
+        const info = await tsFbPlayer(pid);
+        return { id: pid, name: p.name || info.name || '', number: (p.shirt_number != null ? p.shirt_number : (p.number != null ? p.number : '')), pos: p.position || p.pos || '', grid: '', photo: p.logo || info.logo || '' };
+      };
+      const st = arr.filter(isStarter), sb = arr.filter(p => !isStarter(p));
+      return { xi: await Promise.all(st.slice(0, 11).map(mk)), subs: await Promise.all(sb.slice(0, 12).map(mk)) };
+    };
+    const H = await build(homeArr), A = await build(awayArr);
+    const t1 = { team: match.home, logo: match.homeLogo, formation: hForm, coach: (r.home_coach && r.home_coach.name) || '', startXI: H.xi, subs: H.subs };
+    const t2 = { team: match.away, logo: match.awayLogo, formation: aForm, coach: (r.away_coach && r.away_coach.name) || '', startXI: A.xi, subs: A.subs };
+    res.json({ teams: [t1, t2], src: 'thesports', swap });
+  } catch (e) { res.json({ teams: [], error: String(e.message || e) }); }
+});
+
+// ⚽ 축구 상대전적(H2H) + 최근 10경기 — API-Football (팀 ID 기준)
+//    프론트 이벤트의 homeId/awayId 를 그대로 넘겨받아 조회한다.
+function fbFixRow(fx, myId) {
+  // 내 팀 관점의 승/무/패 + 상대/스코어
+  const t = fx.teams || {}, g = fx.goals || {};
+  const iAmHome = t.home && t.home.id === myId;
+  const my = iAmHome ? g.home : g.away;
+  const op = iAmHome ? g.away : g.home;
+  const opName = iAmHome ? (t.away && t.away.name) : (t.home && t.home.name);
+  const win = my != null && op != null && my > op;
+  const draw = my != null && op != null && my === op;
+  return {
+    date: (fx.fixture && fx.fixture.date) || null,
+    win, draw,
+    opp: opName || '',
+    ts: my != null ? my : '-',
+    os: op != null ? op : '-',
+    league: (fx.league && fx.league.name) || ''
+  };
+}
+async function fbTeamRecent(teamId) {
+  try {
+    const j = await asRaw('football', `/fixtures?team=${teamId}&last=10&timezone=Asia/Seoul`, 6 * 3600 * 1000);
+    const list = (j.response || []).filter(fx => {
+      const s = fx.fixture && fx.fixture.status && fx.fixture.status.short;
+      return ['FT', 'AET', 'PEN'].includes(s);   // 종료 경기만
+    });
+    return list.map(fx => fbFixRow(fx, teamId)).reverse().slice(0, 10);
+  } catch { return []; }
+}
+async function fbH2H(homeId, awayId) {
+  try {
+    const j = await asRaw('football', `/fixtures/headtohead?h2h=${homeId}-${awayId}&last=10&timezone=Asia/Seoul`, 6 * 3600 * 1000);
+    const list = (j.response || []).filter(fx => {
+      const s = fx.fixture && fx.fixture.status && fx.fixture.status.short;
+      return ['FT', 'AET', 'PEN'].includes(s);
+    });
+    return list.map(fx => {
+      const t = fx.teams || {}, g = fx.goals || {};
+      return {
+        date: (fx.fixture && fx.fixture.date) || null,
+        hName: (t.home && t.home.name) || '', aName: (t.away && t.away.name) || '',
+        hs: g.home != null ? g.home : '-', as: g.away != null ? g.away : '-'
+      };
+    }).reverse().slice(0, 10);
+  } catch { return []; }
+}
+app.get('/api/football/info', async (req, res) => {
+  const homeId = parseInt(req.query.home, 10), awayId = parseInt(req.query.away, 10);
+  if (!homeId || !awayId) return res.json({ found: false });
+  try {
+    const [rh, ra, h2h] = await Promise.all([
+      fbTeamRecent(homeId), fbTeamRecent(awayId), fbH2H(homeId, awayId)
+    ]);
+    const found = rh.length || ra.length || h2h.length;
+    res.json({ found: !!found, recent: { home: rh, away: ra }, h2h });
+  } catch (e) { res.json({ found: false, error: String(e.message || e) }); }
+});
+
+// 🔎 진단: 특정 경기(팀명+날짜)의 API-Sports fixture id + 라인업/통계 실제 응답 확인
+app.get('/api/asports/probe', async (req, res) => {
+  const { home, away } = req.query, date = req.query.date || new Date().toISOString().slice(0, 10);
+  const norm = s => String(s || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+  const nh = norm(home), na = norm(away), fit = (a, b) => a && b && (a.includes(b) || b.includes(a));
+  try {
+    const jj = await asRaw('football', `/fixtures?date=${date}&timezone=Asia/Seoul`, 15000);
+    const list = jj.response || [];
+    const fx = list.find(f => fit(norm(f.teams.home.name), nh) && fit(norm(f.teams.away.name), na))
+            || list.find(f => fit(norm(f.teams.home.name), na) && fit(norm(f.teams.away.name), nh));
+    if (!fx) return res.json({ found: false, dayCount: list.length, sample: list.slice(0, 6).map(f => ({ h: f.teams.home.name, a: f.teams.away.name, lg: f.league.name })) });
+    const id = fx.fixture.id;
+    const [lu, st] = await Promise.all([
+      asRaw('football', `/fixtures/lineups?fixture=${id}`, 12000).catch(e => ({ error: String(e.message || e) })),
+      asRaw('football', `/fixtures/statistics?fixture=${id}`, 12000).catch(e => ({ error: String(e.message || e) }))
+    ]);
+    const l0 = (lu.response || [])[0];
+    res.json({
+      found: true, fixtureId: id, league: fx.league.name, status: fx.fixture.status,
+      lineups: { count: (lu.response || []).length, errors: lu.errors, sample: l0 ? { team: l0.team.name, formation: l0.formation, xi: (l0.startXI || []).length, subs: (l0.substitutes || []).length } : null },
+      statistics: { count: (st.response || []).length, errors: st.errors, sample: (st.response || [])[0] ? (st.response[0].statistics || []).slice(0, 4) : null }
+    });
+  } catch (e) { res.json({ error: String(e.message || e) }); }
+});
 // ⚽ 축구 팀 경기 스탯 (점유율·슈팅·코너·파울 등) — API-Sports /fixtures/statistics
 app.get('/api/asports/fbstats', async (req, res) => {
   if (!APISPORTS_KEY) return res.json({ needKey: true, teams: [] });
