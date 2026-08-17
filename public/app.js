@@ -2237,13 +2237,22 @@ async function updateLineup(e) {
   } else if (sp === 'baseball' && tsLeague(e.league)) {
     box.innerHTML = `<div class="odsec">📋 ${esc(t('boxRec'))}</div><div class="lineupbox"><div class="loading" style="padding:12px">${esc(t('loading'))}</div></div>`;
     try {
-      const d = await fetchJSON(`/api/baseball/box?id=${encodeURIComponent(e.id)}&live=${e.state === 'live' ? 1 : 0}`, { tries: 1 });
+      let d = await fetchJSON(`/api/baseball/box?id=${encodeURIComponent(e.id)}&live=${e.state === 'live' ? 1 : 0}`, { tries: 1 });
+      let tsPred = false;
+      if (!d.available || (!(d.players && d.players.home || []).length && !(d.players && d.players.away || []).length)) {
+        // 확정 라인업이 없으면 → 예상 라인업(각 팀 직전 경기 라인업 · 사진 포함)
+        try {
+          const dp = await fetchJSON(`/api/baseball/predlineup?match=${encodeURIComponent(e.id)}&date=${state.date}`, { tries: 1 });
+          if (dp.available && ((dp.players.home || []).length || (dp.players.away || []).length)) { d = dp; tsPred = true; }
+        } catch { }
+      }
       if (!d.available || (!(d.players && d.players.home || []).length && !(d.players && d.players.away || []).length)) {
         box.innerHTML = `<div class="odsec">📋 ${esc(t('boxRec'))}</div><div class="lu-note">${esc(t('boxSoon'))}</div>`; return;
       }
       const render = t => { const side = t === 'home' ? 'home' : 'away'; const arr = side === 'home' ? d.players.home : d.players.away; $('#tsFieldBox').innerHTML = tsField(arr, side); $('#tsBoxBody').innerHTML = tsBoxSide(arr, side); wireTsPlayers(); };
       box.innerHTML = `${e.state === 'live' ? atbatPanel(d, e) : ''}
-        <div class="odsec">📋 ${esc(t('lineup'))} <span class="rhe">${esc(t('fieldPos'))} · ${esc(t('tapPlayer'))}</span></div>
+        <div class="odsec">${tsPred ? '🔮 ' + esc(t('predLineup')) : '📋 ' + esc(t('lineup'))} <span class="rhe">${esc(t('fieldPos'))} · ${esc(t('tapPlayer'))}</span></div>
+        ${tsPred ? `<div class="pred-note">${esc(t('predNote'))}</div>` : ''}
         <div class="bfield-tabs"><span class="bft on" data-t="home">${esc(TN(e.home, e.league))}</span><span class="bft" data-t="away">${esc(TN(e.away, e.league))}</span></div>
         <div id="tsFieldBox">${tsField(d.players.home, 'home')}</div>
         <div id="tsBoxBody">${tsBoxSide(d.players.home, 'home')}</div>
@@ -2904,6 +2913,15 @@ async function loadPickLineup(e) {
       if (!d.found || (!(d.home.lineup || []).length && !(d.away.lineup || []).length)) { box.innerHTML = `<div class="lu-note">-</div>`; return; }
       const pit = s => s && s.pitcher ? `<div class="plu-sp">⚾ ${esc(t('probable'))}: <b>${esc(s.pitcher.name)}</b></div>` : '';
       box.innerHTML = `${predicted ? `<div class="odsec" style="padding-top:0">🔮 ${esc(t('predLineup'))}</div><div class="pred-note">${esc(t('predNote'))}</div>` : `<div class="odsec" style="padding-top:0">${esc(t('confLineup'))}</div>`}${pit(d.home)}${pit(d.away)}<div class="plu-2">${luColHtml(TN(e.home, e.league), d.home.lineup, false)}${luColHtml(TN(e.away, e.league), d.away.lineup, false)}</div>`;
+    } else if (sp === 'baseball' && tsLeague(e.league)) {
+      let d = await fetchJSON(`/api/baseball/box?id=${encodeURIComponent(e.id)}&live=${e.state === 'live' ? 1 : 0}`, { tries: 1 });
+      let predicted = false;
+      if (!d.available || (!(d.players && d.players.home || []).length && !(d.players && d.players.away || []).length)) {
+        try { const dp = await fetchJSON(`/api/baseball/predlineup?match=${encodeURIComponent(e.id)}&date=${state.date}`, { tries: 1 }); if (dp.available) { d = dp; predicted = true; } } catch { }
+      }
+      if (!d.available || (!(d.players && d.players.home || []).length && !(d.players && d.players.away || []).length)) { box.innerHTML = `<div class="lu-note">-</div>`; return; }
+      const bcol = (nm, arr) => `<div class="plu-col"><div class="rec-hd">${esc(nm)}</div>${(arr || []).filter(p => !p.pitcher).slice(0, 11).map(p => `<div class="plu-row">${p.photo ? `<img class="plu-face" src="${esc(p.photo)}" referrerpolicy="no-referrer" onerror="this.style.display='none'">` : ''}<span class="plu-nm">${esc((LANG === 'ko' && p.name_ko) ? p.name_ko : (p.name || ''))}</span><span class="plu-pos">${esc(p.position || '')}</span></div>`).join('') || `<div class="rec-empty">-</div>`}</div>`;
+      box.innerHTML = `${predicted ? `<div class="odsec" style="padding-top:0">🔮 ${esc(t('predLineup'))}</div><div class="pred-note">${esc(t('predNote'))}</div>` : `<div class="odsec" style="padding-top:0">${esc(t('confLineup'))}</div>`}<div class="plu-2">${bcol(TN(e.home, e.league), d.players.home)}${bcol(TN(e.away, e.league), d.players.away)}</div>`;
     } else {
       box.innerHTML = `<div class="lu-note">-</div>`;
     }
