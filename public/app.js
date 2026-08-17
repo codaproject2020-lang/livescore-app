@@ -2570,9 +2570,9 @@ function buildPickHubNav() {
   box.innerHTML = SPORTS.map(s => `<div class="ochip ${s.key === pickHubSport ? 'on' : ''}" data-psport="${s.key}">${s.em} ${esc(sportLabel(s))}</div>`).join('');
   $$('#oddsChips .ochip').forEach(c => c.addEventListener('click', () => {
     pickHubSport = c.dataset.psport;
+    state.sport = pickHubSport;    // 리그칩/필터가 state.sport 기준 → 픽제공 종목과 동기화
     state.leagueFilter = 'all';   // 종목 바꾸면 리그 필터 초기화 (이전 종목 리그 잔존 방지)
     $$('#oddsChips .ochip').forEach(x => x.classList.toggle('on', x.dataset.psport === pickHubSport));
-    $$('#leagueRow .lgchip').forEach(x => x.classList.toggle('on', x.dataset.lg === 'all'));
     loadPickHub();
   }));
 }
@@ -2628,6 +2628,7 @@ async function loadPickHub() {
     games.forEach(g => { feedGames[g.id] = g; });
     games.sort((a, b) => (b.state === 'live') - (a.state === 'live'));
     pickHubGames = games;
+    buildLeagueRow(games);   // 상단 리그칩을 픽제공 현재 종목/경기 기준으로 다시 구성
     renderPickHubList();
   } catch { board.innerHTML = `<div class="loading">-</div>`; }
 }
@@ -2777,6 +2778,7 @@ async function initInfo() {
     games.forEach(g => { feedGames[g.id] = g; });   // openEvent가 사용
     games.sort((a, b) => (b.state === 'live') - (a.state === 'live'));
     infoGames = games;
+    buildLeagueRow(games);   // 정보방도 현재 종목 기준으로 리그칩 재구성
     renderInfoList();
   } catch { list.innerHTML = `<div class="loading">불러오지 못했습니다.</div>`; }
 }
