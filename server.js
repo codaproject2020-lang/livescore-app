@@ -580,7 +580,9 @@ async function soccerKeyForLeague(league, country) {
   _soccerKeyCache.set(ck, best);
   return best;
 }
-const normTeam = s => String(s || '').toLowerCase().replace(/[^a-z0-9가-힣]/g, '');
+// 악센트(é·ñ·í…)를 기본 문자로 접어서 매칭 (한글은 NFC로 복원해 보존)
+const _foldAccents = s => String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').normalize('NFC');
+const normTeam = s => _foldAccents(s).toLowerCase().replace(/[^a-z0-9가-힣]/g, '');
 // 경기별 배당 영구 저장소(팀쌍 키). 경기 시작 후 The Odds API에서 사라져도 마지막 배당을 계속 보여줌.
 const oddsStore = new Map();   // key -> { home, away, draw, t }
 const ODDS_STORE_TTL = 8 * 3600 * 1000;   // 8시간 유지
