@@ -1342,6 +1342,65 @@ app.get('/api/football/lineup', async (req, res) => {
   } catch (e) { res.json({ teams: [], error: String(e.message || e) }); }
 });
 
+// ⚽ 축구 상대전적(H2H) + 최근 10경기 — API-Football (팀 ID 기준)
+//    프론트 이벤트의 homeId/awayId 를 그대로 넘겨받아 조회한다.
+function fbFixRow(fx, myId) {
+  // 내 팀 관점의 승/무/패 + 상대/스코어
+  const t = fx.teams || {}, g = fx.goals || {};
+  const iAmHome = t.home && t.home.id === myId;
+  const my = iAmHome ? g.home : g.away;
+  const op = iAmHome ? g.away : g.home;
+  const opName = iAmHome ? (t.away && t.away.name) : (t.home && t.home.name);
+  const win = my != null && op != null && my > op;
+  const draw = my != null && op != null && my === op;
+  return {
+    date: (fx.fixture && fx.fixture.date) || null,
+    win, draw,
+    opp: opName || '',
+    ts: my != null ? my : '-',
+    os: op != null ? op : '-',
+    league: (fx.league && fx.league.name) || ''
+  };
+}
+async function fbTeamRecent(teamId) {
+  try {
+    const j = await asRaw('football', `/fixtures?team=${teamId}&last=10&timezone=Asia/Seoul`, 6 * 3600 * 1000);
+    const list = (j.response || []).filter(fx => {
+      const s = fx.fixture && fx.fixture.status && fx.fixture.status.short;
+      return ['FT', 'AET', 'PEN'].includes(s);   // 종료 경기만
+    });
+    return list.map(fx => fbFixRow(fx, teamId)).reverse().slice(0, 10);
+  } catch { return []; }
+}
+async function fbH2H(homeId, awayId) {
+  try {
+    const j = await asRaw('football', `/fixtures/headtohead?h2h=${homeId}-${awayId}&last=10&timezone=Asia/Seoul`, 6 * 3600 * 1000);
+    const list = (j.response || []).filter(fx => {
+      const s = fx.fixture && fx.fixture.status && fx.fixture.status.short;
+      return ['FT', 'AET', 'PEN'].includes(s);
+    });
+    return list.map(fx => {
+      const t = fx.teams || {}, g = fx.goals || {};
+      return {
+        date: (fx.fixture && fx.fixture.date) || null,
+        hName: (t.home && t.home.name) || '', aName: (t.away && t.away.name) || '',
+        hs: g.home != null ? g.home : '-', as: g.away != null ? g.away : '-'
+      };
+    }).reverse().slice(0, 10);
+  } catch { return []; }
+}
+app.get('/api/football/info', async (req, res) => {
+  const homeId = parseInt(req.query.home, 10), awayId = parseInt(req.query.away, 10);
+  if (!homeId || !awayId) return res.json({ found: false });
+  try {
+    const [rh, ra, h2h] = await Promise.all([
+      fbTeamRecent(homeId), fbTeamRecent(awayId), fbH2H(homeId, awayId)
+    ]);
+    const found = rh.length || ra.length || h2h.length;
+    res.json({ found: !!found, recent: { home: rh, away: ra }, h2h });
+  } catch (e) { res.json({ found: false, error: String(e.message || e) }); }
+});
+
 // 🔎 진단: 특정 경기(팀명+날짜)의 API-Sports fixture id + 라인업/통계 실제 응답 확인
 app.get('/api/asports/probe', async (req, res) => {
   const { home, away } = req.query, date = req.query.date || new Date().toISOString().slice(0, 10);
