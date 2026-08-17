@@ -839,6 +839,51 @@ app.get('/api/baseball/box', async (req, res) => {
     res.json({ available: true, src, team: b.team, battingTeam: b.battingTeam, players: { home: attach(b.players.home), away: attach(b.players.away) } });
   } catch (e) { res.json({ error: String(e.message || e) }); }
 });
+// ⚾ KBO/NPB 예상 라인업 — 각 팀 직전 완료경기의 라인업(타순·수비위치·선수사진)을 예측으로 사용
+app.get('/api/baseball/predlineup', async (req, res) => {
+  const mid = req.query.match, date = req.query.date;
+  if (!mid || !date) return res.json({ available: false });
+  try {
+    const dcur = await tsFetch('/baseball/match/diary', { date: String(date).replace(/-/g, '') }, 60000).catch(() => null);
+    const m0 = dcur && (dcur.results || []).find(x => x.id === mid);
+    if (!m0) return res.json({ available: false });
+    const now = Date.now();
+    // 특정 팀의 "직전 완료경기"에서 그 팀 라인업(선수배열) 찾기
+    const findLast = async (teamId) => {
+      for (let i = 0; i < 21; i++) {
+        const ymd = new Date(Date.parse(date + 'T12:00:00Z') - i * 864e5).toISOString().slice(0, 10).replace(/-/g, '');
+        const d = await tsFetch('/baseball/match/diary', { date: ymd }, 3600000).catch(() => null);
+        if (!d) continue;
+        const cand = (d.results || [])
+          .filter(x => (x.home_team_id === teamId || x.away_team_id === teamId) && x.id !== mid)
+          .filter(x => { const t = x.match_time ? x.match_time * 1000 : 0; return x.status_id === 100 || (t && t < now - 3 * 3600e3); })
+          .sort((a, b) => (b.match_time || 0) - (a.match_time || 0));
+        for (const x of cand) {
+          const b = await tsBox(x.id, 86400000).catch(() => null);
+          if (!b) continue;
+          const isHome = x.home_team_id === teamId;
+          const arr = isHome ? b.players.home : b.players.away;
+          if (arr && arr.length) return { arr, gameId: x.id, date: x.match_time ? x.match_time * 1000 : null };
+        }
+      }
+      return null;
+    };
+    const [hL, aL] = await Promise.all([findLast(m0.home_team_id), findLast(m0.away_team_id)]);
+    const homeArr = hL ? hL.arr : [], awayArr = aL ? aL.arr : [];
+    const pids = [...new Set([...homeArr, ...awayArr].map(p => p.id))];
+    await Promise.all(pids.map(tsName));
+    const attach = arr => arr.map(p => {
+      const n = TS_PNAME.get(p.id) || {};
+      const posCode = p.pos != null ? String(p.pos) : '';
+      return Object.assign({}, p, { name: n.name || null, name_ko: koName(p.id, n.name), photo: n.logo || '', position: POS_NAME[posCode] || n.pos || '', pitcher: p.ip != null });
+    });
+    res.json({
+      available: !!(homeArr.length || awayArr.length), predicted: true,
+      players: { home: attach(homeArr), away: attach(awayArr) },
+      fromDate: { home: hL && hL.date ? new Date(hL.date).toISOString() : null, away: aL && aL.date ? new Date(aL.date).toISOString() : null }
+    });
+  } catch (e) { res.json({ available: false, error: String(e.message || e) }); }
+});
 // ⚾ KBO/NPB 선수 최근 경기 기록 — 그 선수 팀의 최근 완료경기들에서 개인 기록 추출
 app.get('/api/baseball/playerlog', async (req, res) => {
   const pid = req.query.pid, mid = req.query.match, side = req.query.side, date = req.query.date;
