@@ -758,14 +758,15 @@ async function sportmonksOdds(date) {
   try {
     let page = 1, more = true, guard = 0;
     while (more && guard++ < 12) {
-      const j = await smFetch(`/fixtures/date/${date}?include=participants;premiumOdds&per_page=50&page=${page}`);
+      // 표준 odds(모든 플랜 포함) 우선 — Premium 애드온 있으면 premiumOdds도 자동 포함해 읽음
+      const j = await smFetch(`/fixtures/date/${date}?include=participants;odds&per_page=50&page=${page}`);
       const fixtures = j.data || [];
       for (const f of fixtures) {
         const parts = f.participants || [];
         const home = parts.find(p => p.meta && (p.meta.location === 'home')) || parts[0];
         const away = parts.find(p => p.meta && (p.meta.location === 'away')) || parts[1];
         if (!home || !away) continue;
-        const odds = f.premiumOdds || f.premiumodds || f.premium_odds || f.odds || [];
+        const odds = f.odds || f.premiumOdds || f.premiumodds || f.premium_odds || [];
         const acc = { home: [], away: [], draw: [] };
         for (const o of odds) {
           if (!smIsFT(o)) continue;
@@ -796,13 +797,13 @@ app.get('/api/sportmonks/probe', async (req, res) => {
   if (!SM_ON) return res.json({ enabled: false, hint: 'SPORTMONKS_TOKEN 환경변수를 설정하세요' });
   const date = req.query.date || new Date().toISOString().slice(0, 10);
   try {
-    const j = await smFetch(`/fixtures/date/${date}?include=participants;premiumOdds&per_page=5&page=1`);
+    const j = await smFetch(`/fixtures/date/${date}?include=participants;odds&per_page=5&page=1`);
     const f = (j.data || [])[0] || null;
     const parsed = await sportmonksOdds(date);
     res.json({
       enabled: true, date, fixtures: (j.data || []).length,
       matchedGames: parsed ? parsed.list.length : 0,
-      sample: f ? { name: f.name, participants: (f.participants || []).map(p => ({ name: p.name, loc: p.meta && p.meta.location })), oddsKeys: Object.keys(f).filter(k => /odd/i.test(k)), oddsCount: ((f.premiumOdds || f.premiumodds || f.odds) || []).length, firstOdd: ((f.premiumOdds || f.premiumodds || f.odds) || [])[0] || null } : null,
+      sample: f ? { name: f.name, participants: (f.participants || []).map(p => ({ name: p.name, loc: p.meta && p.meta.location })), oddsKeys: Object.keys(f).filter(k => /odd/i.test(k)), oddsCount: ((f.odds || f.premiumOdds || f.premiumodds) || []).length, firstOdd: ((f.odds || f.premiumOdds || f.premiumodds) || [])[0] || null } : null,
       pagination: j.pagination || null, subscription: j.subscription || null
     });
   } catch (e) { res.status(502).json({ enabled: true, error: String(e.message || e) }); }
