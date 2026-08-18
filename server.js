@@ -792,6 +792,20 @@ async function sportmonksOdds(date) {
   cache.set(ck, { t: now, v: out });
   return out;
 }
+// 🔎 진단: 현재 Sportmonks 구독에 포함된 리그 목록 (여기서 우리 30개가 맞는지 확인)
+app.get('/api/sportmonks/leagues', async (req, res) => {
+  if (!SM_ON) return res.json({ enabled: false });
+  try {
+    let out = [], page = 1, guard = 0, more = true;
+    while (more && guard++ < 20) {
+      const j = await smFetch(`/leagues?per_page=50&page=${page}`);
+      (j.data || []).forEach(l => out.push({ id: l.id, name: l.name }));
+      const pag = j.pagination || {}; more = !!pag.has_more; page++;
+    }
+    out.sort((a, b) => a.name.localeCompare(b.name));
+    res.json({ enabled: true, count: out.length, leagues: out });
+  } catch (e) { res.status(502).json({ error: String(e.message || e) }); }
+});
 // 🔎 진단: Sportmonks 응답/파싱 확인
 app.get('/api/sportmonks/probe', async (req, res) => {
   if (!SM_ON) return res.json({ enabled: false, hint: 'SPORTMONKS_TOKEN 환경변수를 설정하세요' });
