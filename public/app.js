@@ -565,6 +565,8 @@ function fbPN(name) { return (LANG === 'ko' && name) ? enToKo(name) : name; }
 function TN(name, league) {
   if (!name || (LANG !== 'ko' && LANG !== 'ja' && LANG !== 'zh')) return name;
   if (state.sport === 'football') return fbTeamName(name);
+  // 농구·배구·하키 등: 한국어일 때 자동 음역(그 외 언어는 원문)
+  if (['basketball', 'volleyball', 'hockey', 'handball', 'rugby'].includes(state.sport)) return LANG === 'ko' ? enToKo(name) : name;
   const d = leagueDict(league);
   const nick = tmNick(name);
   let e = d[nick] || d[String(name).toLowerCase()];
@@ -1225,14 +1227,16 @@ const COUNTRY_ORDER = [
   'World', 'Europe'
 ];
 // 필터 키: 축구는 나라, 그 외는 리그
-function lgKey(g) { return state.sport === 'football' ? (g.country || '기타') : (g.league || '기타'); }
+// 나라별로 묶는 종목 (축구·농구·배구·하키·핸드볼·럭비) — 야구/MMA는 리그별
+function isCountrySport(sp) { return ['football', 'basketball', 'volleyball', 'hockey', 'handball', 'rugby'].includes(sp || state.sport); }
+function lgKey(g) { return isCountrySport(state.sport) ? (g.country || '기타') : (g.league || '기타'); }
 function gameInFilter(g) { return state.leagueFilter === 'all' || lgKey(g) === state.leagueFilter; }
 function filterGames() { return state.leagueFilter === 'all' ? allFeedGames : allFeedGames.filter(gameInFilter); }
 // 상단 리그 선택 바 (전체 / KBO / MLB / … · 모든 종목 공통)
 function buildLeagueRow(games) {
   const row = $('#leagueRow'); if (!row) return;
   // ⚽ 축구는 나라별로, 그 외 종목은 리그별로 칩 구성
-  const byCountry = (state.sport === 'football');
+  const byCountry = isCountrySport(state.sport);
   const counts = {};
   games.forEach(g => { const k = (byCountry ? (g.country || '기타') : (g.league || '기타')); counts[k] = (counts[k] || 0) + 1; });
   const ORDER = byCountry ? COUNTRY_ORDER : TOP_LEAGUES;
@@ -1749,11 +1753,11 @@ function renderFeed(games) {
   // 리그별 그룹핑 + 정렬 헬퍼
   const groupBy = list => {
     const gr = {};
-    const fb = state.sport === 'football';
+    const fb = isCountrySport(state.sport);
     list.forEach(e => {
-      // 축구는 같은 이름 리그(여러 나라 'Premier League')가 섞이지 않게 나라+리그로 묶고 헤더에 나라 표시
+      // 나라별 종목(축구·농구·배구 등)은 같은 이름 리그가 섞이지 않게 나라+리그로 묶고 헤더에 나라 표시
       const k = fb ? ((e.country || '?') + '|' + (e.league || '기타')) : (e.league || '기타');
-      const nm = fb ? (koCountry(e.country) + ' · ' + (e.league || '기타')) : (e.league || '기타');
+      const nm = fb ? ((e.country ? koCountry(e.country) + ' · ' : '') + (e.league || '기타')) : (e.league || '기타');
       (gr[k] = gr[k] || { league: e, name: nm, items: [] }).items.push(e);
     });
     Object.values(gr).forEach(g => g.items.sort(feedSort));
@@ -2681,10 +2685,11 @@ let rankSport = 'football';
 const RANK_LEAGUES = {
   football: ['Premier League', 'La Liga', 'Serie A', 'Bundesliga', 'Ligue 1', 'Eredivisie', 'Primeira Liga', 'Championship', 'K League 1', 'J1 League', 'Major League Soccer', 'Süper Lig', 'Saudi Pro League', 'Liga MX', 'Brasileirão', 'Liga Profesional Argentina', 'UEFA Champions League'],
   baseball: ['MLB', 'KBO', 'NPB', 'CPBL'],
-  basketball: ['NBA', 'EuroLeague', 'KBL']
+  basketball: ['NBA', 'EuroLeague', 'EuroCup', 'Liga ACB', 'Lega A', 'Basketball Bundesliga', 'Super Ligi', 'Basket League', 'LNB', 'CBA', 'NBL', 'KBL'],
+  volleyball: ['SuperLega', 'PlusLiga', 'Ligue A', 'Superliga', 'V-League', 'V.League', 'Efeler Ligi', 'Champions League', 'A1']
 };
-const RANK_SPORTS = SPORTS.filter(s => ['football', 'baseball', 'basketball'].includes(s.key));
-function rankSeason(sport) { return sport === 'basketball' ? '2025-2026' : '2026'; }
+const RANK_SPORTS = SPORTS.filter(s => ['football', 'baseball', 'basketball', 'volleyball'].includes(s.key));
+function rankSeason(sport) { return (sport === 'basketball' || sport === 'volleyball') ? '2025-2026' : '2026'; }
 function buildTableControls() {
   rankSport = ['football', 'baseball', 'basketball'].includes(state.sport) ? state.sport : 'football';
   buildRankSportNav();
@@ -2717,7 +2722,7 @@ function rankName(nm, league) {
     if (!e && d !== MLB_TEAMS) e = MLB_TEAMS[nick];
     return (e && e[LANG]) ? e[LANG] : nm;
   }
-  return nm;
+  return LANG === 'ko' ? enToKo(nm) : nm;   // 농구·배구: 한글 음역
 }
 async function loadTable() {
   const league = $('#tblLeague').value, season = $('#tblSeason').value.trim();
