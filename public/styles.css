@@ -87,7 +87,8 @@ html,body{overflow-x:hidden;max-width:100%}
   100%{transform:scale(1) rotate(-5deg) translateY(0);filter:brightness(1) saturate(1)}
 }
 @media (prefers-reduced-motion: reduce){.heat .fl{animation:none}}
-.match .pick{background:var(--pick);color:#fff;font-size:11px;font-weight:800;padding:4px 6px;border-radius:5px;align-self:start;justify-self:end}
+.match .pick{background:var(--pick);color:#fff;font-size:11px;font-weight:800;padding:4px 6px;border-radius:5px;align-self:start;justify-self:end;cursor:pointer;transition:transform .1s}
+.match .pick:active{transform:scale(.92)}
 .modds{grid-column:2;text-align:center;font-size:10px;color:var(--sub);margin-top:7px;padding-top:6px;border-top:1px dashed var(--line2)}
 .modds b{color:var(--navy);font-weight:800}
 .modds span{margin:0 5px}

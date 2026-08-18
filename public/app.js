@@ -1760,7 +1760,7 @@ function matchCard(e) {
     ${bsoMini(e)}
     ${rheRow(e)}
     ${oddsLine(e)}
-    <span class="pick">${esc(t('pick'))}</span>
+    <span class="pick" data-pickbtn="${esc(e.id)}" title="${esc(t('pickHub'))}">${esc(t('pick'))}</span>
   </div>`;
 }
 function renderFeed(games) {
@@ -1821,6 +1821,11 @@ function renderFeed(games) {
     arr.textContent = col ? '∧' : '∨';
   }));
   $$('#feed [data-ev]').forEach(el => el.addEventListener('click', () => openEvent(el.dataset.ev)));
+  // 🔴 "픽" 배지 클릭 → 전체 상세가 아니라 픽제공 상세(그 경기의 PICK) 열기
+  $$('#feed .pick[data-pickbtn]').forEach(el => el.addEventListener('click', (ev) => {
+    ev.stopPropagation();
+    if (typeof openPick === 'function') openPick(el.dataset.pickbtn); else openEvent(el.dataset.pickbtn);
+  }));
 }
 
 // ============================================================
