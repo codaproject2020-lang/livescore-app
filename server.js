@@ -245,19 +245,57 @@ async function rankMLB(season) {
   }
   return { table: [], kind: 'baseball' };
 }
-async function rankBasketball(league, season) {
-  const lid = AB_RANK_ID[league] || (/^\d+$/.test(league) ? league : null);
-  if (!lid) return { table: [], note: 'unmapped' };
-  const sy = String(season || '2025-2026');
-  const j = await asRaw('basketball', `/standings?league=${lid}&season=${encodeURIComponent(sy)}`, 3600000).catch(() => null);
+// API-Sports 농구/배구 리그명 → 리그 ID 자동 검색 (하드코딩 없이 커버)
+const _leagueIdCache = new Map();
+async function asLeagueId(sport, name) {
+  if (!name) return null;
+  const ck = sport + '|' + name;
+  if (_leagueIdCache.has(ck)) return _leagueIdCache.get(ck);
+  let id = null;
+  try {
+    const j = await asRaw(sport, `/leagues?search=${encodeURIComponent(name)}`, 86400000);
+    const arr = (j && j.response) || [];
+    const nl = _nrm(name);
+    let best = arr.find(l => _nrm(l.name) === nl) || arr.find(l => _nrm(l.name).includes(nl) || nl.includes(_nrm(l.name))) || arr[0];
+    id = best && best.id;
+  } catch { }
+  _leagueIdCache.set(ck, id);
+  return id;
+}
+function parseHoopStandings(j) {
   const groups = (j && j.response) || [];
   const flat = [];
   groups.forEach(g => (Array.isArray(g) ? g : [g]).forEach(r => { if (r && r.team) flat.push(r); }));
   flat.sort((a, b) => (a.position || 99) - (b.position || 99));
-  return {
-    table: flat.map((r, i) => ({ rank: r.position || i + 1, team: r.team.name, logo: r.team.logo, played: r.games && r.games.played, win: r.games && r.games.win && r.games.win.total, loss: r.games && r.games.lose && r.games.lose.total, points: r.points || '' })),
-    kind: 'basketball'
-  };
+  return flat.map((r, i) => ({
+    rank: r.position || i + 1, team: r.team.name, logo: r.team.logo,
+    played: r.games && r.games.played,
+    win: r.games && r.games.win && (r.games.win.total ?? r.games.win),
+    loss: r.games && (r.games.lose ? (r.games.lose.total ?? r.games.lose) : (r.games.loss && (r.games.loss.total ?? r.games.loss))),
+    points: r.points != null ? r.points : ''
+  }));
+}
+async function rankBasketball(league, season) {
+  let lid = AB_RANK_ID[league] || (/^\d+$/.test(league) ? league : null);
+  if (!lid) lid = await asLeagueId('basketball', league);
+  if (!lid) return { table: [], note: 'unmapped' };
+  for (const sy of [String(season || '2025-2026'), '2024-2025']) {
+    const j = await asRaw('basketball', `/standings?league=${lid}&season=${encodeURIComponent(sy)}`, 3600000).catch(() => null);
+    const table = parseHoopStandings(j);
+    if (table.length) return { table, kind: 'basketball', season: sy };
+  }
+  return { table: [], kind: 'basketball' };
+}
+async function rankVolleyball(league, season) {
+  let lid = /^\d+$/.test(league) ? league : await asLeagueId('volleyball', league);
+  if (!lid) return { table: [], note: 'unmapped' };
+  const m = String(season || '').match(/\d{4}/); const y = m ? +m[0] : new Date().getFullYear();
+  for (const sy of [`${y}-${y + 1}`, String(y), `${y - 1}-${y}`, String(y - 1)]) {
+    const j = await asRaw('volleyball', `/standings?league=${lid}&season=${encodeURIComponent(sy)}`, 3600000).catch(() => null);
+    const table = parseHoopStandings(j);
+    if (table.length) return { table, kind: 'volleyball', season: sy };
+  }
+  return { table: [], kind: 'volleyball' };
 }
 app.get('/api/rank', async (req, res) => {
   const sport = req.query.sport || 'football', league = req.query.league || '', season = req.query.season || '';
@@ -269,6 +307,7 @@ app.get('/api/rank', async (req, res) => {
       else out = await rankMLB(season);   // MLB(및 기본)
     }
     else if (sport === 'basketball') out = await rankBasketball(league, season);
+    else if (sport === 'volleyball') out = await rankVolleyball(league, season);
     res.json(out);
   } catch (e) { res.status(502).json({ table: [], error: String(e.message || e) }); }
 });
