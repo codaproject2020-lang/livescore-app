@@ -753,11 +753,11 @@ function smIsFT(o) {
 async function sportmonksOdds(date) {
   if (!SM_ON) return null;
   const ck = 'SM:' + date, now = Date.now(), hit = cache.get(ck);
-  if (hit && now - hit.t < 600000) return hit.v;
+  if (hit && now - hit.t < 900000) return hit.v;   // 15분 캐시(API 호출 절약)
   const map = {}, list = [];
   try {
     let page = 1, more = true, guard = 0;
-    while (more && guard++ < 12) {
+    while (more && guard++ < 8) {   // 최대 8페이지(400경기)로 상한 → 응답/호출 제한
       // 표준 odds(모든 플랜 포함) 우선 — Premium 애드온 있으면 premiumOdds도 자동 포함해 읽음
       const j = await smFetch(`/fixtures/date/${date}?include=participants;odds&per_page=50&page=${page}`);
       const fixtures = j.data || [];
