@@ -639,6 +639,9 @@ const SPORTS = [
 ];
 // 주요 리그 우선 정렬 (이 리그들을 상단에)
 const TOP_LEAGUES = ['KBO', 'MLB', 'NPB', 'K League 1', 'K League 2', 'J1 League', 'J League', 'J2 League', 'WK-League', 'AFC Champions League', 'AFC Champions League Elite', 'Korea Cup', "Emperor's Cup", 'Premier League', 'La Liga', 'Serie A', 'Bundesliga', 'Ligue 1', 'NBA', 'WNBA', 'KBL', 'CPBL', 'NHL', 'UEFA Champions League', 'UEFA Europa League'];
+// 배당(Sportmonks) 커버되는 축구 리그 — 이 순서대로 피드 최상단에 노출 (리그명 기준 매칭)
+const FB_ODDS_ORDER = ['Premier League', 'La Liga', 'Bundesliga', 'Serie A', 'Ligue 1', 'Eredivisie', 'Primeira Liga', 'Liga Portugal', 'Championship', 'La Liga 2', 'Segunda División', 'Serie B', '2. Bundesliga', 'Ligue 2', 'K League 1', 'K League 2', 'J1 League', 'J League', 'J2 League', 'Major League Soccer', 'MLS', 'Liga MX', 'Serie A - Brazil', 'Brasileirão', 'Brazil Serie A', 'Liga Profesional Argentina', 'Süper Lig', 'Super Lig', 'Saudi Pro League', 'Pro League', 'Jupiler Pro League', 'Scottish Premiership', 'Premiership', 'Eliteserien', 'Allsvenskan', 'Superligaen', 'Superliga', 'Coppa Italia', 'FA Cup', 'DFB Pokal', 'UEFA Europa League', 'UEFA Champions League'];
+const fbOddsRank = lg => { const i = FB_ODDS_ORDER.indexOf(lg || ''); return i < 0 ? 999 : i; };
 // MLB StatsAPI(무료)로 라인업·투수/타자·최근경기까지 되는 야구 리그
 const STATS_LEAGUES = ['MLB', 'LMB', 'IL', 'PCL'];
 function statsLeague(lg) { return STATS_LEAGUES.includes(lg); }
@@ -1789,6 +1792,11 @@ function renderFeed(games) {
     return Object.values(gr).sort((a, b) => {
       const ta = groupTier(a.items), tb = groupTier(b.items);
       if (ta !== tb) return ta - tb;
+      if (fb) {
+        // 축구: 우리가 넣은 배당 커버 리그를 리그명 기준으로 최상단 정렬
+        const oa = fbOddsRank(a.league && a.league.league), ob = fbOddsRank(b.league && b.league.league);
+        if (oa !== ob) return oa - ob;
+      }
       const ra = TOP_LEAGUES.indexOf(a.name) < 0 ? 999 : TOP_LEAGUES.indexOf(a.name);
       const rb = TOP_LEAGUES.indexOf(b.name) < 0 ? 999 : TOP_LEAGUES.indexOf(b.name);
       if (ra !== rb) return ra - rb;
