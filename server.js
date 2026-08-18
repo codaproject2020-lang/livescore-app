@@ -757,9 +757,11 @@ async function sportmonksOdds(date) {
   const map = {}, list = [];
   try {
     let page = 1, more = true, guard = 0;
-    while (more && guard++ < 8) {   // 최대 8페이지(400경기)로 상한 → 응답/호출 제한
-      // 표준 odds(모든 플랜 포함) 우선 — Premium 애드온 있으면 premiumOdds도 자동 포함해 읽음
-      const j = await smFetch(`/fixtures/date/${date}?include=participants;odds&per_page=50&page=${page}`);
+    while (more && guard++ < 20) {   // per_page 작게 → 페이지당 메모리 상한(OOM 방지)
+      // ⚡ 배당은 1X2(market_id 1)만 요청해 응답/메모리 99% 절감. 필터 미지원 시 필터 없이 재시도.
+      let j;
+      try { j = await smFetch(`/fixtures/date/${date}?include=participants;odds&filters=markets:1&per_page=25&page=${page}`); }
+      catch (e) { j = await smFetch(`/fixtures/date/${date}?include=participants;odds&per_page=25&page=${page}`); }
       const fixtures = j.data || [];
       for (const f of fixtures) {
         const parts = f.participants || [];
@@ -1572,8 +1574,11 @@ app.get('/api/asports/games', async (req, res) => {
     if (sport === 'football' && SM_ON) {
       // ⚽ Sportmonks Premium Odds (2200+ 리그) — 당일 + 다음날(UTC 경계) 조회
       const nextD = mlbAddDays(date, 1);
-      const parts = await Promise.all([sportmonksOdds(date), sportmonksOdds(nextD)]);
-      parts.forEach(r => { if (r && r.map) { Object.assign(merged.map, r.map); merged.list.push(...r.list); } });
+      // 순차 조회(동시 X) → 피크 메모리 절감
+      for (const d of [date, nextD]) {
+        const r = await sportmonksOdds(d);
+        if (r && r.map) { Object.assign(merged.map, r.map); merged.list.push(...r.list); }
+      }
     } else {
       let needed;
       if (sport === 'football') {
