@@ -1790,13 +1790,20 @@ function renderFeed(games) {
     Object.values(gr).forEach(g => g.items.sort(feedSort));
     const groupTier = items => items.some(x => x.state === 'live') ? 0 : items.some(x => x.state === 'scheduled') ? 1 : 2;
     return Object.values(gr).sort((a, b) => {
+      if (fb) {
+        // 축구: 배당 커버 리그(우리 30개)를 라이브 여부와 무관하게 최상단으로,
+        // 우리가 정한 순서(EPL→라리가→…→K리그→J리그) 그대로 노출
+        const oa = fbOddsRank(a.league && a.league.league), ob = fbOddsRank(b.league && b.league.league);
+        const ca = oa < 999 ? 0 : 1, cb = ob < 999 ? 0 : 1;
+        if (ca !== cb) return ca - cb;            // 커버 리그 먼저
+        if (ca === 0 && oa !== ob) return oa - ob; // 커버 리그끼리는 우리 순서대로
+        // 그 다음은 진행→예정→종료 순
+        const ta2 = groupTier(a.items), tb2 = groupTier(b.items);
+        if (ta2 !== tb2) return ta2 - tb2;
+        return b.items.length - a.items.length;
+      }
       const ta = groupTier(a.items), tb = groupTier(b.items);
       if (ta !== tb) return ta - tb;
-      if (fb) {
-        // 축구: 우리가 넣은 배당 커버 리그를 리그명 기준으로 최상단 정렬
-        const oa = fbOddsRank(a.league && a.league.league), ob = fbOddsRank(b.league && b.league.league);
-        if (oa !== ob) return oa - ob;
-      }
       const ra = TOP_LEAGUES.indexOf(a.name) < 0 ? 999 : TOP_LEAGUES.indexOf(a.name);
       const rb = TOP_LEAGUES.indexOf(b.name) < 0 ? 999 : TOP_LEAGUES.indexOf(b.name);
       if (ra !== rb) return ra - rb;
