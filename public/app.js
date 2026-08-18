@@ -1227,8 +1227,8 @@ const COUNTRY_ORDER = [
   'World', 'Europe'
 ];
 // 필터 키: 축구는 나라, 그 외는 리그
-// 나라별로 묶는 종목 (축구·농구·배구·하키·핸드볼·럭비) — 야구/MMA는 리그별
-function isCountrySport(sp) { return ['football', 'basketball', 'volleyball', 'hockey', 'handball', 'rugby'].includes(sp || state.sport); }
+// 나라별로 묶는 종목 = 축구만. 농구·배구·야구 등은 리그별(NBA·유로리그·MLB…)로 묶어 리그명이 바로 클릭되게
+function isCountrySport(sp) { return (sp || state.sport) === 'football'; }
 function lgKey(g) { return isCountrySport(state.sport) ? (g.country || '기타') : (g.league || '기타'); }
 function gameInFilter(g) { return state.leagueFilter === 'all' || lgKey(g) === state.leagueFilter; }
 function filterGames() { return state.leagueFilter === 'all' ? allFeedGames : allFeedGames.filter(gameInFilter); }
@@ -1539,8 +1539,16 @@ function aiPreview(e) {
       msg = (msg ? msg + ' · ' : '') + '⚾ ' + seg;
     }
   }
-  // ⚽ 축구: 배당이 없어도 경기마다 다른 프리뷰 (홈 이점 기반 우세 예상 + 변주)
-  if (!msg && state.sport === 'football') msg = fbPreviewLine(e, HM, AW);
+  // ⚽ 축구: 예측(우세/접전)에 맞춰 경기마다 다른 프리뷰
+  if (!msg && state.sport === 'football') {
+    const p = pickProb(e), gap = Math.abs(p.home - p.away);
+    if (gap >= 16) {   // 한쪽 우세 → 우세팀 언급 문구(변주)
+      const favN = p.home >= p.away ? HM : AW, pct = Math.max(p.home, p.away);
+      msg = fbFavLine(e, favN, pct);
+    } else {           // 접전 → 다양한 접전 문구
+      msg = fbPreviewLine(e, HM, AW);
+    }
+  }
   if (!msg) msg = t('aiPrevSoon');
   return `<div class="ailive ai-prev">🤖 <b>${esc(t('aiComm'))}</b> ${msg}</div>`;
 }
@@ -1574,6 +1582,25 @@ function fbPreviewLine(e, HM, AW) {
   const i = LANGS.indexOf(LANG);
   const tmpl = row[i] || row[0];
   return tmpl.split('{h}').join(HM).split('{a}').join(AW);
+}
+// ⚽ 한쪽 우세 경기용 문구 ({f}=우세팀, {p}=확률%) — 경기마다 변주
+const FB_FAVLINE = [
+  ['{f} look the stronger side — {p}% edge.', '전력에서 앞선 {f}, 우세 예상 ({p}%).', '{f}が優勢か（{p}%）。', '{f}实力占优（{p}%）。'],
+  ['Form points to {f} taking control.', '흐름상 {f}가 주도권을 쥘 전망 ({p}%).', '流れは{f}に（{p}%）。', '态势倾向{f}（{p}%）。'],
+  ['{f} start as favourites here.', '{f}가 승리 후보로 꼽힌다 ({p}%).', '{f}が本命（{p}%）。', '{f}被看好（{p}%）。'],
+  ['On paper, {f} hold the advantage.', '객관적 전력은 {f}가 우위 ({p}%).', '戦力では{f}が上（{p}%）。', '纸面实力{f}更强（{p}%）。'],
+  ['{f} should dictate the tempo.', '{f}가 경기 템포를 지배할 가능성 ({p}%).', '{f}が主導権を握るか（{p}%）。', '{f}或掌控节奏（{p}%）。'],
+  ['Expect {f} to press for the win.', '승점을 노리는 {f}의 우세 ({p}%).', '勝ち点狙う{f}優勢（{p}%）。', '{f}力争胜利占优（{p}%）。'],
+  ['{f} carry the momentum into this one.', '기세를 탄 {f}가 앞서갈 전망 ({p}%).', '勢いに乗る{f}（{p}%）。', '气势正盛的{f}（{p}%）。'],
+  ['Advantage {f} — but games are won on the pitch.', '{f} 우위, 그래도 승부는 뚜껑을 열어봐야 ({p}%).', '{f}有利、だが試合はやってみないと（{p}%）。', '{f}占优，胜负仍需一战（{p}%）。']
+];
+function fbFavLine(e, FAV, pct) {
+  const base = 'F' + String(e.id || '') + String(e.home) + String(e.away);
+  const seed = base.split('').reduce((a, c) => (a * 31 + c.charCodeAt(0)) >>> 0, 13);
+  const row = FB_FAVLINE[seed % FB_FAVLINE.length];
+  const i = LANGS.indexOf(LANG);
+  const tmpl = row[i] || row[0];
+  return tmpl.split('{f}').join(FAV).split('{p}').join(pct);
 }
 // AI 총정리 (상세보기 · 여러 문장)
 function aiSummary(e) {
@@ -3010,6 +3037,12 @@ function renderInfoList() {
   $$('#infoList .pickcard').forEach(c => c.addEventListener('click', () => openPick(c.dataset.pick)));
 }
 // 승률 계산 — 배당(내재확률) 우선, 없으면 스코어 기반
+// 팀명 기반 고유 강도(45~69) — 경기마다 다르되 항상 같은 값(결정적)·과한 편차 방지
+function teamStrength(name) {
+  let h = 7; const s = String(name || '');
+  for (let i = 0; i < s.length; i++) h = (h * 131 + s.charCodeAt(i)) >>> 0;
+  return 45 + (h % 25);
+}
 function pickProb(e) {
   const o = e.odds || {};
   if (o.home && o.away) {
@@ -3017,7 +3050,10 @@ function pickProb(e) {
     let home = Math.round(ih / s * 100), draw = Math.round(id / s * 100), away = 100 - home - draw;
     return { home, draw, away, conf: Math.min(92, 55 + Math.abs(home - away)), src: 'odds' };
   }
-  const h = Number(e.hs), a = Number(e.as), diff = (!isNaN(h) && !isNaN(a)) ? h - a : 0;
+  const h = Number(e.hs), a = Number(e.as);
+  const played = (e.state === 'live' || e.state === 'finished') && !isNaN(h) && !isNaN(a);
+  // 진행/종료 = 실제 스코어차 / 예정 = 팀 고유 강도차(홈 어드밴티지 포함) → 경기마다 다른 예측
+  const diff = played ? (h - a) : ((teamStrength(e.home) + 4 - teamStrength(e.away)) / 9);
   let home = Math.max(8, Math.min(85, 42 + diff * 11)), away = Math.max(8, Math.min(85, 42 - diff * 11));
   let draw = Math.max(6, 100 - home - away); const s = home + draw + away;
   home = Math.round(home / s * 100); draw = Math.round(draw / s * 100); away = 100 - home - draw;
