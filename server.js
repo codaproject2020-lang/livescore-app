@@ -720,6 +720,93 @@ function tokShare(a, b) {
 // 경기별 배당 영구 저장소(팀쌍 키). 경기 시작 후 The Odds API에서 사라져도 마지막 배당을 계속 보여줌.
 const oddsStore = new Map();   // key -> { home, away, draw, t }
 const ODDS_STORE_TTL = 8 * 3600 * 1000;   // 8시간 유지
+
+// ============================================================
+//  ⚽ Sportmonks Premium Odds Feed (축구 배당 · TXODDS) — 2200+ 리그, 120+ 북메이커
+//  · 환경변수 SPORTMONKS_TOKEN 설정 시 축구 배당은 Sportmonks에서 가져옴(없으면 The Odds API)
+//  · 배당만 사용: 경기/라인업/순위는 그대로 API-Football. 팀명+날짜로 매칭(기존 로직 재사용)
+// ============================================================
+const SPORTMONKS_TOKEN = (process.env.SPORTMONKS_TOKEN || process.env.SPORTMONKS_KEY || '').trim();
+const SM_ON = !!SPORTMONKS_TOKEN;
+async function smFetch(path) {
+  const sep = path.includes('?') ? '&' : '?';
+  const url = `https://api.sportmonks.com/v3/football${path}${sep}api_token=${SPORTMONKS_TOKEN}`;
+  const r = await fetch(url);
+  if (!r.ok) throw new Error('sportmonks ' + r.status);
+  return r.json();
+}
+// 1X2(정규시간 승무패) 라벨 판별
+function smSide(o) {
+  const lab = String(o.label || o.name || '').toLowerCase().trim();
+  if (['home', '1', 'w1', 'ftresulthome'].includes(lab) || lab.includes('home')) return 'home';
+  if (['draw', 'x', 'tie'].includes(lab) || lab.includes('draw')) return 'draw';
+  if (['away', '2', 'w2'].includes(lab) || lab.includes('away')) return 'away';
+  return null;
+}
+// 정규시간 승무패 마켓만 필터 (market_id 1 또는 설명에 result/winner/1x2/3-way)
+function smIsFT(o) {
+  if (o.market_id === 1) return true;
+  const d = String(o.market_description || o.market || '').toLowerCase();
+  return /fulltime result|full time result|match winner|3\s*-?\s*way|1x2|match result/.test(d) && !/half|corner|card|asian|handicap/.test(d);
+}
+// 하루치 축구 1X2 컨센서스 배당 → {map, list} (attachOdds 호환)
+async function sportmonksOdds(date) {
+  if (!SM_ON) return null;
+  const ck = 'SM:' + date, now = Date.now(), hit = cache.get(ck);
+  if (hit && now - hit.t < 600000) return hit.v;
+  const map = {}, list = [];
+  try {
+    let page = 1, more = true, guard = 0;
+    while (more && guard++ < 12) {
+      const j = await smFetch(`/fixtures/date/${date}?include=participants;premiumOdds&per_page=50&page=${page}`);
+      const fixtures = j.data || [];
+      for (const f of fixtures) {
+        const parts = f.participants || [];
+        const home = parts.find(p => p.meta && (p.meta.location === 'home')) || parts[0];
+        const away = parts.find(p => p.meta && (p.meta.location === 'away')) || parts[1];
+        if (!home || !away) continue;
+        const odds = f.premiumOdds || f.premiumodds || f.premium_odds || f.odds || [];
+        const acc = { home: [], away: [], draw: [] };
+        for (const o of odds) {
+          if (!smIsFT(o)) continue;
+          const side = smSide(o); if (!side) continue;
+          const v = parseFloat(o.value != null ? o.value : o.dp3); if (!v || v < 1.01) continue;
+          acc[side].push(v);
+        }
+        const avg = a => a.length ? Math.round((a.reduce((s, x) => s + x, 0) / a.length) * 100) / 100 : null;
+        const val = { home: avg(acc.home), away: avg(acc.away), draw: avg(acc.draw) };
+        if (val.home || val.away) {
+          const key = normTeam(home.name) + '|' + normTeam(away.name);
+          map[key] = val;
+          list.push({ ht: teamTokens(home.name), at: teamTokens(away.name), val });
+          oddsStore.set(key, { ...val, t: now });
+        }
+      }
+      const pag = j.pagination || {};
+      more = !!(pag.has_more) && fixtures.length > 0;
+      page++;
+    }
+  } catch (e) { /* 실패 시 부분결과라도 반환 */ }
+  const out = { map, list };
+  cache.set(ck, { t: now, v: out });
+  return out;
+}
+// 🔎 진단: Sportmonks 응답/파싱 확인
+app.get('/api/sportmonks/probe', async (req, res) => {
+  if (!SM_ON) return res.json({ enabled: false, hint: 'SPORTMONKS_TOKEN 환경변수를 설정하세요' });
+  const date = req.query.date || new Date().toISOString().slice(0, 10);
+  try {
+    const j = await smFetch(`/fixtures/date/${date}?include=participants;premiumOdds&per_page=5&page=1`);
+    const f = (j.data || [])[0] || null;
+    const parsed = await sportmonksOdds(date);
+    res.json({
+      enabled: true, date, fixtures: (j.data || []).length,
+      matchedGames: parsed ? parsed.list.length : 0,
+      sample: f ? { name: f.name, participants: (f.participants || []).map(p => ({ name: p.name, loc: p.meta && p.meta.location })), oddsKeys: Object.keys(f).filter(k => /odd/i.test(k)), oddsCount: ((f.premiumOdds || f.premiumodds || f.odds) || []).length, firstOdd: ((f.premiumOdds || f.premiumodds || f.odds) || [])[0] || null } : null,
+      pagination: j.pagination || null, subscription: j.subscription || null
+    });
+  } catch (e) { res.status(502).json({ enabled: true, error: String(e.message || e) }); }
+});
 async function oddsLookup(oddsSport) {
   if (!ODDS_KEY) return null;
   // au(호주) 지역 추가 → KBO/NPB 등 아시아 야구 배당은 호주 북메이커가 많이 취급함
@@ -1466,28 +1553,35 @@ app.get('/api/asports/games', async (req, res) => {
     //   - 축구: 리그가 너무 많아 LEAGUE_TO_ODDS 매핑으로 필요한 리그만 조회
     //   - 그 외(야구/농구/하키/럭비): The Odds API 그룹 안의 활성 리그 전부 조회해 팀명으로 매칭
     //     → MLB·KBO·NPB·MiLB, NBA·WNBA·유로리그, NHL·SHL 등 자동 커버
-    let needed;
-    if (sport === 'football') {
-      // 1) 하드코딩 매핑 우선, 2) 없으면 The Odds API 축구 키 목록에서 자동 매칭 → 그날 있는 리그 전부 커버
-      const present = [...new Set(games.map(g => g.league).filter(Boolean))];
-      const keys = new Set();
-      await Promise.all(present.map(async lg => {
-        let k = LEAGUE_TO_ODDS[lg];
-        if (!k) { const g0 = games.find(x => x.league === lg); k = await soccerKeyForLeague(lg, g0 && g0.country).catch(() => null); }
-        if (k) keys.add(k);
-      }));
-      needed = [...keys];
-    } else {
-      needed = await oddsSportKeys(ODDS_GROUP[sport]);
-    }
     const merged = { map: {}, list: [] };
-    await Promise.all(needed.map(async os => {
-      let r = null;
-      const hit = cache.get('OL:' + os);
-      if (hit && Date.now() - hit.t < 600000) r = hit.v;
-      else r = await Promise.race([oddsLookup(os), new Promise(res => setTimeout(() => res(null), 3500))]);
-      if (r && r.map) { Object.assign(merged.map, r.map); merged.list.push(...r.list); }
-    }));
+    if (sport === 'football' && SM_ON) {
+      // ⚽ Sportmonks Premium Odds (2200+ 리그) — 당일 + 다음날(UTC 경계) 조회
+      const nextD = mlbAddDays(date, 1);
+      const parts = await Promise.all([sportmonksOdds(date), sportmonksOdds(nextD)]);
+      parts.forEach(r => { if (r && r.map) { Object.assign(merged.map, r.map); merged.list.push(...r.list); } });
+    } else {
+      let needed;
+      if (sport === 'football') {
+        // 1) 하드코딩 매핑 우선, 2) 없으면 The Odds API 축구 키 목록에서 자동 매칭 → 그날 있는 리그 전부 커버
+        const present = [...new Set(games.map(g => g.league).filter(Boolean))];
+        const keys = new Set();
+        await Promise.all(present.map(async lg => {
+          let k = LEAGUE_TO_ODDS[lg];
+          if (!k) { const g0 = games.find(x => x.league === lg); k = await soccerKeyForLeague(lg, g0 && g0.country).catch(() => null); }
+          if (k) keys.add(k);
+        }));
+        needed = [...keys];
+      } else {
+        needed = await oddsSportKeys(ODDS_GROUP[sport]);
+      }
+      await Promise.all(needed.map(async os => {
+        let r = null;
+        const hit = cache.get('OL:' + os);
+        if (hit && Date.now() - hit.t < 600000) r = hit.v;
+        else r = await Promise.race([oddsLookup(os), new Promise(res => setTimeout(() => res(null), 3500))]);
+        if (r && r.map) { Object.assign(merged.map, r.map); merged.list.push(...r.list); }
+      }));
+    }
     // 토큰 DF 계산 (여러 팀에 흔한 토큰 판별 → 오매칭 방지)
     const df = {};
     for (const e of merged.list) { new Set([...e.ht, ...e.at]).forEach(t => df[t] = (df[t] || 0) + 1); }
