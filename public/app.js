@@ -1665,12 +1665,9 @@ function estOdds(e) {
   return { home: f(p.home), away: f(p.away), draw: state.sport === 'football' ? f(p.draw) : null };
 }
 function oddsLine(e) {
-  if (e.odds && (e.odds.home || e.odds.away)) return `<div class="odds3-card">${oddsWidget(e.odds, '')}</div>`;
-  if (state.sport === 'baseball') return '';   // ⚾ 야구는 실제 배당만 (예상 배당 표시 안 함)
-  // 그 외(축구 등)는 시장 배당 없으면 LIVE UP 예상 배당으로 채움 (라벨 없이 숫자만)
-  const est = estOdds(e);
-  if (!est.home && !est.away) return '';
-  return `<div class="odds3-card est">${oddsWidget(est, '')}</div>`;
+  // 실제 시장 배당만 표시 (예상 배당 없음)
+  if (!e.odds || (!e.odds.home && !e.odds.away)) return '';
+  return `<div class="odds3-card">${oddsWidget(e.odds, '')}</div>`;
 }
 function predictBanner(e) {
   const h = Number(e.hs), a = Number(e.as);
@@ -2613,7 +2610,7 @@ function renderDetail(e, pr) {
   const when = dd ? `${dd.getMonth() + 1}/${dd.getDate()} ${hhmm(e.date)}` : '';
   const odds = (e.odds && (e.odds.home || e.odds.away))
     ? `<div class="odsec">💰 ${esc(t('odds'))}</div>${oddsWidget(e.odds, '')}`
-    : (state.sport === 'baseball' ? '' : (() => { const est = estOdds(e); return (est.home || est.away) ? `<div class="odsec">💰 ${esc(t('odds'))}</div>${oddsWidget(est, '')}` : ''; })());
+    : '';   // 실제 배당만
   // 점수판은 별도 영역(#mScore)에 — 그 바로 밑에 하이라이트(#mYtWrap)가 오도록
   const sc = $('#mScore');
   // 팀 이름 바로 아래 AI 해설 (라이브=생동감 한 줄 / 그 외=요약 첫 줄)
@@ -3089,12 +3086,9 @@ async function openPick(id) {
   const recoLbl = recoSide === 'home' ? t('recoHome') : recoSide === 'away' ? t('recoAway') : t('recoDraw');
   const stars = Math.max(1, Math.min(5, Math.round(p.conf / 20)));
   const od = e.odds || {};
-  const estp = state.sport === 'baseball' ? {} : estOdds(e);
   const oddsRow = (od.home || od.away)
     ? `${oddsWidget(od, '')}<div class="pi-note">${esc(t('oddsNote'))}</div>`
-    : ((estp.home || estp.away)
-      ? `${oddsWidget(estp, '')}<div class="pi-note">${esc(t('oddsNote'))}</div>`
-      : `<div class="lu-note">${esc(t('oddsSoon'))}</div>`);
+    : `<div class="lu-note">${esc(t('oddsSoon'))}</div>`;   // 실제 배당만
   $('#mBody').innerHTML = `
     <div class="pick-hero">
       <div class="ph-team"><div class="ph-logo">${badge(e.homeLogo, '🏟')}</div><div class="ph-nm">${esc(TN(e.home, e.league))}</div></div>
