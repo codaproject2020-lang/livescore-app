@@ -1279,6 +1279,7 @@ function markUserScroll() { _lastUserScroll = Date.now(); }
 // 자동 갱신 직후, 비동기로 내용이 채워지는 동안 스크롤 위치를 잠시 재고정.
 // 사용자가 실제로 스크롤을 시작하면 즉시 중단(사용자 조작 우선).
 let _holdRaf = 0;
+let _lastFeedSig = '';   // 자동 갱신 튕김 방지: 직전 렌더한 목록 시그니처
 function holdScroll(pageY, modalEl, modalY) {
   if (_holdRaf) cancelAnimationFrame(_holdRaf);
   const modalOn = modalEl && modalEl.classList.contains('on');
@@ -1312,6 +1313,20 @@ async function loadEvents(silent) {
     // (알림 감지는 서버 웹푸시가 담당 — 앱이 꺼져 있어도 동작)
     // 현재 리그 필터가 이번 데이터에 없으면 전체로 리셋
     if (state.leagueFilter !== 'all' && !games.some(gameInFilter)) state.leagueFilter = 'all';
+    // ▼▼ 모바일 튕김 근본 해결: 목록 내용이 실제로 바뀌지 않았으면(점수·상태·구성 동일)
+    //    자동 갱신 시 목록 DOM을 아예 다시 그리지 않는다 → 스크롤이 절대 튀지 않음.
+    //    (라이브 '분'은 시그니처에서 제외 → 점수 변화 없을 땐 재렌더 0회)
+    const sig = state.sport + '|' + state.date + '|' + state.leagueFilter + '|' +
+      games.map(g => g.id + ':' + g.state + ':' + (g.hs ?? '') + '/' + (g.as ?? '')).join(',');
+    if (silent && sig === _lastFeedSig) {
+      // 목록은 그대로 두고, 열려 있는 상세 모달만 실시간 갱신
+      if (modalEventId && feedGames[modalEventId] && modalPredict) {
+        logChanges(modalEventId, feedGames[modalEventId]);
+        renderDetail(feedGames[modalEventId], modalPredict);
+      }
+      return;
+    }
+    _lastFeedSig = sig;
     // ▼ 화면이 위로 튀지 않도록: 재렌더 전 스크롤 위치 저장 → 후(레이아웃 반영까지) 복원
     const sy = window.pageYOffset || document.documentElement.scrollTop || document.body.scrollTop || 0;
     const modalEl = $('#modal'); const moy = modalEl ? modalEl.scrollTop : 0;
@@ -1748,7 +1763,7 @@ function fbStatsRow(e) {
 }
 function matchCard(e) {
   return `<div class="match" data-ev="${esc(e.id)}">
-    <span class="cardlead"><span class="bell favbell${isMatchFav(e) ? ' on' : ''}" data-favmatch="${esc(e.id)}" title="${esc(t('favTeams'))}">${isMatchFav(e) ? '🔔' : '🔕'}</span>${heatHtml(e)}</span>
+    <span class="cardlead"><span class="bell favbell${isMatchFav(e) ? ' on' : ''}" data-favmatch="${esc(e.id)}" title="${esc(t('favTeams'))}">${isMatchFav(e) ? '🔔' : '🔕'}</span>${heatHtml(e)}<span class="pick" data-pickbtn="${esc(e.id)}" title="${esc(t('pickHub'))}">${esc(t('pick'))}</span></span>
     <div class="mrow">
       <div class="side">${HA_HOME}<div class="ph">${badge(e.homeLogo, '🏟')}</div><div class="team">${esc(TN(e.home, e.league))}</div>${teamSP(e, 'home')}${teamCards(e, 'home')}</div>
       ${scoreBlock(e)}
@@ -1760,7 +1775,6 @@ function matchCard(e) {
     ${bsoMini(e)}
     ${rheRow(e)}
     ${oddsLine(e)}
-    <span class="pick" data-pickbtn="${esc(e.id)}" title="${esc(t('pickHub'))}">${esc(t('pick'))}</span>
   </div>`;
 }
 function renderFeed(games) {

@@ -87,7 +87,7 @@ html,body{overflow-x:hidden;max-width:100%}
   100%{transform:scale(1) rotate(-5deg) translateY(0);filter:brightness(1) saturate(1)}
 }
 @media (prefers-reduced-motion: reduce){.heat .fl{animation:none}}
-.match .pick{background:var(--pick);color:#fff;font-size:11px;font-weight:800;padding:4px 6px;border-radius:5px;align-self:start;justify-self:end;cursor:pointer;transition:transform .1s}
+.match .pick{background:#16a34a;color:#fff;font-size:10px;font-weight:800;padding:3px 6px;border-radius:5px;cursor:pointer;transition:transform .1s;margin-top:1px}
 .match .pick:active{transform:scale(.92)}
 .modds{grid-column:2;text-align:center;font-size:10px;color:var(--sub);margin-top:7px;padding-top:6px;border-top:1px dashed var(--line2)}
 .modds b{color:var(--navy);font-weight:800}
@@ -627,7 +627,7 @@ table.boxsc .r{font-weight:900;color:var(--red);background:#fbfaf4}
 .mid .badge-state.live{animation:livePulse 1.5s ease-in-out infinite}
 @keyframes livePulse{0%,100%{opacity:1}50%{opacity:.6}}
 .match{transition:background .15s,box-shadow .15s}
-.pick{box-shadow:0 2px 6px rgba(226,59,47,.28)}
+.match .pick{box-shadow:0 2px 6px rgba(22,163,74,.30)}
 .datenav .refresh{transition:transform .1s}.datenav .refresh:active{transform:scale(.94)}
 /* 라이브 외 화면에선 뉴스/대화방/종목 바만 숨김 (날짜바는 모든 화면에서 표시) */
 .center.notlive .ticker,.center.notlive .chatban,.center.notlive .sportrow{display:none}
