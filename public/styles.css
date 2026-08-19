@@ -205,10 +205,10 @@ html,body{overflow-x:hidden;max-width:100%}
 .bsomini .cdm{width:9px;height:9px;border-radius:50%;background:#cdd3db;display:inline-block}
 .bsomini .cdm.on{background:var(--red)}
 .bsomini .cdm.b.on{background:#16a34a}
-.bsomini .cdm.s.on{background:#ea580c}
+.bsomini .cdm.s.on{background:#f59e0b}
 .bsomini .cdm.o.on{background:var(--red)}
 .bsomini .bl.b{color:#16a34a}
-.bsomini .bl.s{color:#ea580c}
+.bsomini .bl.s{color:#f59e0b}
 .bsomini .bso-dia{margin-left:6px;line-height:0}
 .bsomini .bso-dia svg{width:26px;height:28px}
 /* YouTube 하이라이트 링크 */
@@ -900,10 +900,10 @@ table.pllog td:first-child{color:var(--dim)}
 .cd{width:11px;height:11px;border-radius:50%;background:rgba(255,255,255,.22);display:inline-block}
 .cd.on{background:#ffd23f;box-shadow:0 0 5px rgba(255,210,63,.8)}
 .bso .cd.b.on{background:#22c55e;box-shadow:0 0 5px rgba(34,197,94,.8)}
-.bso .cd.s.on{background:#f97316;box-shadow:0 0 5px rgba(234,88,12,.85)}
+.bso .cd.s.on{background:#fbbf24;box-shadow:0 0 5px rgba(245,158,11,.8)}
 .bso .cd.o.on{background:#ff6b6b;box-shadow:0 0 5px rgba(255,107,107,.8)}
 .bso-l.b{color:#4ade80}
-.bso-l.s{color:#fb923c}
+.bso-l.s{color:#fcd34d}
 .diamond{flex:0 0 auto}
 .ms-players{display:flex;justify-content:space-between;gap:10px;padding:10px 13px;font-size:12.5px;color:#374151;border-bottom:1px solid var(--line2);flex-wrap:wrap}
 .ms-players b{color:var(--navy)}
