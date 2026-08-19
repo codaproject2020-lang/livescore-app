@@ -2047,12 +2047,12 @@ async function updateEvents(e) {
 // ⚾ 실시간 문자중계 상단: 현재 이닝·공격팀·B-S-O·주자 (매 갱신마다 새로고침)
 function bsoSituation(e) {
   if (e.state !== 'live' || !e.bso) return '';
-  const b = e.bso, dot = (n, max) => { let s = ''; for (let i = 0; i < max; i++) s += `<span class="cdm${i < (n || 0) ? ' on' : ''}"></span>`; return s; };
+  const b = e.bso, dot = (n, max, g) => { let s = ''; for (let i = 0; i < max; i++) s += `<span class="cdm ${g}${i < (n || 0) ? ' on' : ''}"></span>`; return s; };
   const bat = e.batting === 'home' ? TN(e.home, e.league) : e.batting === 'away' ? TN(e.away, e.league) : '';
   const inn = e.curInning ? inningLabel(e.curInning, e.inningHalf) : '';
   return `<div class="ev-situ">
     <div class="es-top"><span class="es-inn">🔴 ${esc(inn)}</span>${bat ? `<span class="es-bat">🏏 ${esc(bat)} ${esc(t('battingNow'))}</span>` : ''}</div>
-    <div class="es-line"><span class="bsomini"><span class="bl">B</span>${dot(b.balls, 3)}<span class="bl">S</span>${dot(b.strikes, 2)}<span class="bl o">O</span>${dot(b.outs, 2)}<span class="bso-dia">${basesSvg(b.bases)}</span></span></div>
+    <div class="es-line"><span class="bsomini"><span class="bl b">B</span>${dot(b.balls, 3, 'b')}<span class="bl s">S</span>${dot(b.strikes, 2, 's')}<span class="bl o">O</span>${dot(b.outs, 2, 'o')}<span class="bso-dia">${basesSvg(b.bases)}</span></span></div>
   </div>`;
 }
 // ===== 선발 라인업 (축구=포메이션 배치도 / MLB=타순·선수 최근경기) =====
@@ -2172,8 +2172,8 @@ function batLine(e) {
 }
 function bsoMini(e) {
   if (state.sport !== 'baseball' || e.state !== 'live' || !e.bso) return batLine(e);
-  const b = e.bso, dot = (n, max) => { let s = ''; for (let i = 0; i < max; i++) s += `<span class="cdm${i < (n || 0) ? ' on' : ''}"></span>`; return s; };
-  return `${batLine(e)}<div class="bsomini"><span class="bl">B</span>${dot(b.balls, 3)}<span class="bl">S</span>${dot(b.strikes, 2)}<span class="bl o">O</span>${dot(b.outs, 2)}<span class="bso-dia">${basesSvg(b.bases)}</span></div>`;
+  const b = e.bso, dot = (n, max, g) => { let s = ''; for (let i = 0; i < max; i++) s += `<span class="cdm ${g}${i < (n || 0) ? ' on' : ''}"></span>`; return s; };
+  return `${batLine(e)}<div class="bsomini"><span class="bl b">B</span>${dot(b.balls, 3, 'b')}<span class="bl s">S</span>${dot(b.strikes, 2, 's')}<span class="bl o">O</span>${dot(b.outs, 2, 'o')}<span class="bso-dia">${basesSvg(b.bases)}</span></div>`;
 }
 async function updateMlbLive(e) {
   const box = $('#mMlbLive'); if (!box) return;
@@ -2182,14 +2182,14 @@ async function updateMlbLive(e) {
     if (!d.found || (d.inning == null && d.balls == null && d.outs == null)) { box.innerHTML = ''; return; }
     const halfEn = d.half === 'Top' ? 'top' : d.half === 'Bottom' ? 'bottom' : '';
     const innTxt = d.inning != null ? inningLabel(d.inning, halfEn) : '-';
-    const dot = (n, max) => { let s = ''; for (let i = 0; i < max; i++) s += `<span class="cd${i < (n || 0) ? ' on' : ''}"></span>`; return s; };
+    const dot = (n, max, g) => { let s = ''; for (let i = 0; i < max; i++) s += `<span class="cd ${g || ''}${i < (n || 0) ? ' on' : ''}"></span>`; return s; };
     const bh = d.box.home || {}, ba = d.box.away || {};
     box.innerHTML = `
       <div class="odsec">⚾ ${esc(t('liveSit'))} <span class="rhe">${esc(t('freeReal'))}</span></div>
       <div class="mlbstate">
         <div class="ms-top">
           <span class="ms-inn">${esc(innTxt)}</span>
-          <div class="bso"><span class="bso-l">B</span>${dot(d.balls, 3)}<span class="bso-l">S</span>${dot(d.strikes, 2)}<span class="bso-l o">O</span>${dot(d.outs, 2)}</div>
+          <div class="bso"><span class="bso-l b">B</span>${dot(d.balls, 3, 'b')}<span class="bso-l s">S</span>${dot(d.strikes, 2, 's')}<span class="bso-l o">O</span>${dot(d.outs, 2, 'o')}</div>
           ${basesSvg(d.bases)}
         </div>
         <div class="ms-players">
@@ -3364,7 +3364,8 @@ function addMsg(m) {
   });
 }
 function clearMsgs() { chatUIs.forEach(ui => ui.msgs.innerHTML = ''); seenMsgs.clear(); }
-function setOnline(total) { ['#onlineAll', '#onlineR', '#onlineD', '#onlineM'].forEach(s => { const el = $(s); if (el) el.textContent = total; }); }
+const ONLINE_BASE = 1759;   // 표시용 기준 접속자 수 (실시간 실제 접속자가 이 위에 가감됨)
+function setOnline(total) { const shown = (Number(total) || 0) + ONLINE_BASE; ['#onlineAll', '#onlineR', '#onlineD', '#onlineM'].forEach(s => { const el = $(s); if (el) el.textContent = shown.toLocaleString(); }); }
 
 function joinRoom(room, label) {
   if (!ws || ws.readyState !== 1) return;
