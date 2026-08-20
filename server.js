@@ -12,6 +12,7 @@ import fs from 'fs';
 import { fileURLToPath } from 'url';
 import webpush from 'web-push';
 import nodemailer from 'nodemailer';
+import { MongoClient } from 'mongodb';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
@@ -40,6 +41,32 @@ app.use(express.static(path.join(__dirname, 'public')));
 // ============================================================
 const GOOGLE_CLIENT_ID = (process.env.GOOGLE_CLIENT_ID || '').trim();
 const USERS = new Map(); // sub -> {id,email,name,picture,first,last}
+
+// ============================================================
+//  🗄️ MongoDB (선택) — 회원 영구 저장. MONGODB_URI 없으면 메모리 모드로 동작.
+//     Render 환경변수: MONGODB_URI = mongodb+srv://... (MongoDB Atlas 무료 M0)
+// ============================================================
+const MONGODB_URI = (process.env.MONGODB_URI || process.env.DATABASE_URL || '').trim();
+let usersCol = null;   // 연결되면 회원 컬렉션, 아니면 null(메모리 모드)
+async function initDB() {
+  if (!MONGODB_URI) { console.log('[DB] MONGODB_URI 미설정 — 메모리 모드(재시작 시 회원 초기화)'); return; }
+  try {
+    const client = new MongoClient(MONGODB_URI, { serverSelectionTimeoutMS: 8000 });
+    await client.connect();
+    const db = client.db(process.env.MONGODB_DB || 'liveup');
+    usersCol = db.collection('users');
+    await usersCol.createIndex({ id: 1 }, { unique: true });
+    const all = await usersCol.find({}).toArray();   // 기존 회원 메모리에 로드
+    for (const u of all) USERS.set(u.id, { id: u.id, email: u.email, name: u.name, picture: u.picture, verified: u.verified, first: u.first, last: u.last });
+    console.log(`[DB] MongoDB 연결됨 · 회원 ${all.length}명 로드`);
+  } catch (e) { console.error('[DB] 연결 실패 → 메모리 모드로 진행:', e.message); usersCol = null; }
+}
+initDB();
+// 회원 1명 저장(업서트) — DB 있으면 영구 저장, 없으면 메모리만
+function persistUser(rec) {
+  if (!usersCol || !rec || !rec.id) return;
+  usersCol.updateOne({ id: rec.id }, { $set: rec }, { upsert: true }).catch(e => console.error('[DB] upsert 실패:', e.message));
+}
 // ✉️ 회원가입 안내 메일 발송 (Google Workspace SMTP · @liveup.fans)
 //   Render 환경변수: SMTP_USER=noreply@liveup.fans, SMTP_PASS=<Workspace 앱 비밀번호>
 const SMTP_USER = (process.env.SMTP_USER || '').trim();
@@ -88,12 +115,55 @@ app.post('/api/auth/google', async (req, res) => {
     const now = Date.now();
     const prev = USERS.get(info.sub);
     const user = { id: info.sub, email: info.email || '', name: info.name || (info.email || 'user').split('@')[0], picture: info.picture || '', verified: String(info.email_verified) === 'true' };
-    USERS.set(info.sub, Object.assign({ first: prev ? prev.first : now }, user, { last: now }));
+    const rec = Object.assign({ first: prev ? prev.first : now }, user, { last: now });
+    USERS.set(info.sub, rec);
+    persistUser(rec);   // 🗄️ DB에 영구 저장(있을 때)
     if (!prev) sendWelcomeMail(user.email, user.name);   // 첫 가입 시 환영 메일
     res.json({ ok: true, user, isNew: !prev });
   } catch (e) { res.json({ ok: false, error: String(e.message || e) }); }
 });
 app.get('/api/auth/count', (req, res) => res.json({ users: USERS.size }));
+
+// ============================================================
+//  👑 관리자 (비밀번호 인증) — Render 환경변수 ADMIN_KEY 설정
+//     /admin 페이지에서 비밀번호 입력 → 회원 목록·통계 확인
+// ============================================================
+const ADMIN_KEY = (process.env.ADMIN_KEY || '').trim();
+function adminOK(req) {
+  const k = req.get('x-admin-key') || (req.query && req.query.key) || (req.body && req.body.key) || '';
+  return !!ADMIN_KEY && String(k) === ADMIN_KEY;
+}
+// 관리자 로그인 확인(비밀번호 검증만)
+app.post('/api/admin/login', (req, res) => {
+  if (!ADMIN_KEY) return res.json({ ok: false, error: '서버에 ADMIN_KEY 환경변수가 설정되지 않았습니다' });
+  res.json({ ok: !!(req.body && String(req.body.key) === ADMIN_KEY) });
+});
+// 회원 통계
+app.get('/api/admin/stats', (req, res) => {
+  if (!adminOK(req)) return res.status(401).json({ ok: false, error: 'unauthorized' });
+  const now = Date.now();
+  const t0 = new Date(); t0.setHours(0, 0, 0, 0);
+  const todayStart = t0.getTime(), weekAgo = now - 7 * 86400000;
+  const arr = [...USERS.values()];
+  res.json({
+    ok: true,
+    total: arr.length,
+    todayNew: arr.filter(u => (u.first || 0) >= todayStart).length,
+    weekNew: arr.filter(u => (u.first || 0) >= weekAgo).length,
+    online: (typeof totalOnline === 'function') ? totalOnline() : 0,
+    persist: !!usersCol
+  });
+});
+// 회원 목록(최신 가입순)
+app.get('/api/admin/users', (req, res) => {
+  if (!adminOK(req)) return res.status(401).json({ ok: false, error: 'unauthorized' });
+  const list = [...USERS.values()]
+    .sort((a, b) => (b.first || 0) - (a.first || 0))
+    .map(u => ({ name: u.name, email: u.email, picture: u.picture, verified: u.verified, first: u.first, last: u.last }));
+  res.json({ ok: true, count: list.length, persist: !!usersCol, users: list });
+});
+// 관리자 페이지
+app.get('/admin', (req, res) => res.sendFile(path.join(__dirname, 'public', 'admin.html')));
 
 // ---------- 간단 캐시 (레이트리밋 보호) ----------
 const cache = new Map();
