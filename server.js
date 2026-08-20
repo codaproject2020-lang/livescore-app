@@ -819,19 +819,16 @@ function smIsFT(o) {
   const d = String(o.market_description || o.market || '').toLowerCase();
   return /fulltime result|full time result|match winner|3\s*-?\s*way|1x2|match result/.test(d) && !/half|corner|card|asian|handicap/.test(d);
 }
-// 하루치 축구 1X2 컨센서스 배당 → {map, list} (attachOdds 호환)
-async function sportmonksOdds(date) {
-  if (!SM_ON) return null;
-  const ck = 'SM:' + date, now = Date.now(), hit = cache.get(ck);
-  if (hit && now - hit.t < 900000) return hit.v;   // 15분 캐시(API 호출 절약)
-  const map = {}, list = [];
+// 하루치 축구 1X2 컨센서스 배당 실제 조회(느릴 수 있음) → {map,list} 만들고 캐시에 저장
+async function _sportmonksFetch(date) {
+  const map = {}, list = [], now = Date.now();
   try {
     let page = 1, more = true, guard = 0;
-    while (more && guard++ < 20) {   // per_page 작게 → 페이지당 메모리 상한(OOM 방지)
-      // ⚡ 배당은 1X2(market_id 1)만 요청해 응답/메모리 99% 절감. 필터 미지원 시 필터 없이 재시도.
+    while (more && guard++ < 12) {   // per_page 100 → 페이지 수 대폭 감소(120리그도 2~4페이지)
+      // ⚡ 1X2(market_id 1)만 요청 → 응답/메모리 99%↓. 필터 미지원 시 per_page 작게 재시도(메모리 보호).
       let j;
-      try { j = await smFetch(`/fixtures/date/${date}?include=participants;odds&filters=markets:1&per_page=25&page=${page}`); }
-      catch (e) { j = await smFetch(`/fixtures/date/${date}?include=participants;odds&per_page=25&page=${page}`); }
+      try { j = await smFetch(`/fixtures/date/${date}?include=participants;odds&filters=markets:1&per_page=100&page=${page}`); }
+      catch (e) { j = await smFetch(`/fixtures/date/${date}?include=participants;odds&per_page=20&page=${page}`); }
       const fixtures = j.data || [];
       for (const f of fixtures) {
         const parts = f.participants || [];
@@ -859,10 +856,23 @@ async function sportmonksOdds(date) {
       more = !!(pag.has_more) && fixtures.length > 0;
       page++;
     }
-  } catch (e) { /* 실패 시 부분결과라도 반환 */ }
+  } catch (e) { /* 실패 시 부분결과라도 저장 */ }
   const out = { map, list };
-  cache.set(ck, { t: now, v: out });
+  cache.set('SM:' + date, { t: Date.now(), v: out });
   return out;
+}
+const _smInflight = {};   // date -> 백그라운드 조회 진행중 플래그
+// 논블로킹: 신선한 캐시 있으면 그걸 즉시 반환. 없거나 오래됐으면 백그라운드로 갱신하고,
+// 있던 값(오래돼도)을 즉시 반환 → 경기 목록이 배당 조회를 기다리지 않음(느려도 다음 갱신에 반영).
+function sportmonksOdds(date) {
+  if (!SM_ON) return null;
+  const ck = 'SM:' + date, now = Date.now(), hit = cache.get(ck);
+  const fresh = hit && (now - hit.t < 900000);
+  if (!fresh && !_smInflight[date]) {
+    _smInflight[date] = true;
+    _sportmonksFetch(date).catch(() => {}).finally(() => { _smInflight[date] = false; });
+  }
+  return hit ? hit.v : null;
 }
 // 🔎 진단: 현재 Sportmonks 구독에 포함된 리그 목록 (여기서 우리 30개가 맞는지 확인)
 app.get('/api/sportmonks/leagues', async (req, res) => {
@@ -883,14 +893,30 @@ app.get('/api/sportmonks/probe', async (req, res) => {
   if (!SM_ON) return res.json({ enabled: false, hint: 'SPORTMONKS_TOKEN 환경변수를 설정하세요' });
   const date = req.query.date || new Date().toISOString().slice(0, 10);
   try {
-    const j = await smFetch(`/fixtures/date/${date}?include=participants;odds&per_page=5&page=1`);
-    const f = (j.data || [])[0] || null;
-    const parsed = await sportmonksOdds(date);
+    // 강제로 실제 배당 조회(진단용) → Sportmonks가 몇 경기에 1X2를 주는지
+    const parsed = await _sportmonksFetch(date);
+    const nextD = mlbAddDays(date, 1);
+    const parsed2 = await _sportmonksFetch(nextD);
+    const smTotal = (parsed ? parsed.list.length : 0) + (parsed2 ? parsed2.list.length : 0);
+    // 실제 우리 앱 축구 경기에 배당이 몇 개 붙었는지(팀명 매칭 성공률)
+    let appGames = 0, appOdds = 0, noOddsSample = [];
+    try {
+      const g = await buildGamesCore('football', date, 'Asia/Seoul');
+      const games = (g && g.games) || [];
+      appGames = games.length;
+      for (const x of games) {
+        if (x.odds && (x.odds.home || x.odds.away)) appOdds++;
+        else if (noOddsSample.length < 8) noOddsSample.push(`${x.home} vs ${x.away} [${x.country}·${x.league}]`);
+      }
+    } catch (e) { noOddsSample.push('games err: ' + e.message); }
     res.json({
-      enabled: true, date, fixtures: (j.data || []).length,
-      matchedGames: parsed ? parsed.list.length : 0,
-      sample: f ? { name: f.name, participants: (f.participants || []).map(p => ({ name: p.name, loc: p.meta && p.meta.location })), oddsKeys: Object.keys(f).filter(k => /odd/i.test(k)), oddsCount: ((f.odds || f.premiumOdds || f.premiumodds) || []).length, firstOdd: ((f.odds || f.premiumOdds || f.premiumodds) || [])[0] || null } : null,
-      pagination: j.pagination || null, subscription: j.subscription || null
+      enabled: true, date,
+      smMatchedToday: parsed ? parsed.list.length : 0,
+      smMatchedTwoDays: smTotal,
+      appFootballGames: appGames,
+      appGamesWithOdds: appOdds,
+      attachRate: appGames ? Math.round(appOdds / appGames * 100) + '%' : '0%',
+      noOddsSample
     });
   } catch (e) { res.status(502).json({ enabled: true, error: String(e.message || e) }); }
 });
