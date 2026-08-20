@@ -903,6 +903,27 @@ app.get('/api/sportmonks/leagues', async (req, res) => {
     res.json({ enabled: true, count: out.length, leagues: out });
   } catch (e) { res.status(502).json({ error: String(e.message || e) }); }
 });
+// 🔎 진단: Sportmonks 원본 HTTP 응답 확인 (상태코드/에러메시지 그대로)
+app.get('/api/sportmonks/raw', async (req, res) => {
+  if (!SM_ON) return res.json({ enabled: false });
+  const date = req.query.date || new Date().toISOString().slice(0, 10);
+  const tries = [
+    ['plain', `/fixtures/date/${date}?per_page=3`],
+    ['withOdds', `/fixtures/date/${date}?include=participants;odds&per_page=2`],
+    ['withFilter', `/fixtures/date/${date}?include=participants;odds&filters=markets:1&per_page=2`],
+    ['leagues', `/leagues?per_page=3`]
+  ];
+  const out = {};
+  for (const [name, p] of tries) {
+    try {
+      const url = `https://api.sportmonks.com/v3/football${p}${p.includes('?') ? '&' : '?'}api_token=${SPORTMONKS_TOKEN}`;
+      const r = await fetch(url);
+      const txt = await r.text();
+      out[name] = { status: r.status, ok: r.ok, body: txt.slice(0, 500) };
+    } catch (e) { out[name] = { error: String(e.message || e) }; }
+  }
+  res.json(out);
+});
 // 🔎 진단: Sportmonks 응답/파싱 확인
 app.get('/api/sportmonks/probe', async (req, res) => {
   if (!SM_ON) return res.json({ enabled: false, hint: 'SPORTMONKS_TOKEN 환경변수를 설정하세요' });
