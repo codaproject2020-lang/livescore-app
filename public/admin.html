@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="robots" content="noindex,nofollow">
+<title>LIVE UP · 관리자</title>
+<style>
+  :root{--navy:#16243d;--gold:#e0a92e;--line:#e6e9ef;--dim:#8b93a0;--bg:#f4f6fa}
+  *{box-sizing:border-box}
+  body{margin:0;font-family:'Apple SD Gothic Neo',-apple-system,BlinkMacSystemFont,Arial,sans-serif;background:var(--bg);color:var(--navy)}
+  a{color:inherit}
+  /* 로그인 */
+  .gate{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px}
+  .gate-card{background:#fff;border:1px solid var(--line);border-radius:18px;padding:34px 28px;max-width:360px;width:100%;box-shadow:0 12px 40px rgba(20,36,61,.12);text-align:center}
+  .logo{font-size:26px;font-weight:900;font-style:italic;color:var(--gold);margin-bottom:2px}
+  .logo b{color:#3d7ecc}
+  .sub{color:var(--dim);font-size:12px;letter-spacing:.5px;margin-bottom:22px}
+  .gate h1{font-size:17px;margin:0 0 16px}
+  .gate input{width:100%;padding:13px 14px;border:1px solid var(--line);border-radius:11px;font-size:15px;margin-bottom:12px;outline:none}
+  .gate input:focus{border-color:var(--gold)}
+  .gate button{width:100%;padding:13px;border:none;border-radius:11px;background:linear-gradient(135deg,#f6d67a,#e0a92e);color:#2a1e05;font-weight:800;font-size:15px;cursor:pointer}
+  .gate .err{color:#e2231a;font-size:12.5px;min-height:16px;margin-top:8px}
+  /* 대시보드 */
+  .wrap{max-width:1040px;margin:0 auto;padding:18px 16px 60px;display:none}
+  .top{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:18px;flex-wrap:wrap}
+  .top .brand{font-size:20px;font-weight:900;font-style:italic;color:var(--navy)}
+  .top .brand span{color:var(--gold)}
+  .top .tools{display:flex;gap:8px;align-items:center}
+  .btn{padding:9px 14px;border:1px solid var(--line);border-radius:10px;background:#fff;font-weight:700;font-size:13px;cursor:pointer;color:var(--navy)}
+  .btn.g{background:var(--navy);color:#fff;border-color:var(--navy)}
+  .persist{font-size:12px;padding:6px 11px;border-radius:20px;font-weight:700}
+  .persist.on{background:#e7f7ee;color:#12854a}
+  .persist.off{background:#fdeceb;color:#c0392b}
+  .cards{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:20px}
+  .card{background:#fff;border:1px solid var(--line);border-radius:14px;padding:16px 16px 15px}
+  .card .k{font-size:12px;color:var(--dim);font-weight:700;margin-bottom:6px}
+  .card .v{font-size:28px;font-weight:900;letter-spacing:-.5px}
+  .card .v small{font-size:13px;color:var(--dim);font-weight:700;margin-left:3px}
+  .card.hl{background:linear-gradient(135deg,#1a2740,#0b0f16);border-color:#0b0f16;color:#fff}
+  .card.hl .k{color:#aab4c4}
+  .card.hl .v{color:#fff}
+  .panel{background:#fff;border:1px solid var(--line);border-radius:14px;overflow:hidden}
+  .panel .hd{padding:13px 16px;border-bottom:1px solid var(--line);font-weight:800;font-size:14px;display:flex;justify-content:space-between;align-items:center}
+  .panel .hd .cnt{color:var(--dim);font-weight:700;font-size:12.5px}
+  .tbl{width:100%;border-collapse:collapse;font-size:13.5px}
+  .tbl th{text-align:left;padding:10px 14px;background:#fafbfc;color:var(--dim);font-weight:700;font-size:12px;border-bottom:1px solid var(--line);white-space:nowrap}
+  .tbl td{padding:11px 14px;border-bottom:1px solid #f0f2f6;vertical-align:middle}
+  .tbl tr:last-child td{border-bottom:none}
+  .u{display:flex;align-items:center;gap:9px}
+  .u img{width:30px;height:30px;border-radius:50%;object-fit:cover;background:#e6e9ef}
+  .u .ph{width:30px;height:30px;border-radius:50%;background:var(--navy);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:13px}
+  .mail{color:#3d6fbf}
+  .badge-v{font-size:11px;color:#12854a;font-weight:800}
+  .badge-nv{font-size:11px;color:var(--dim)}
+  .muted{color:var(--dim)}
+  .empty{padding:40px 16px;text-align:center;color:var(--dim)}
+  @media(max-width:640px){.cards{grid-template-columns:repeat(2,1fr)}.hide-m{display:none}}
+</style>
+</head>
+<body>
+
+<!-- 로그인 게이트 -->
+<div class="gate" id="gate">
+  <div class="gate-card">
+    <div class="logo">LIVE<b>UP</b></div>
+    <div class="sub">ADMIN CONSOLE</div>
+    <h1>🔐 관리자 로그인</h1>
+    <input type="password" id="pw" placeholder="관리자 비밀번호" autocomplete="current-password">
+    <button id="loginBtn">로그인</button>
+    <div class="err" id="err"></div>
+  </div>
+</div>
+
+<!-- 대시보드 -->
+<div class="wrap" id="wrap">
+  <div class="top">
+    <div class="brand">LIVE<span>UP</span> · 관리자</div>
+    <div class="tools">
+      <span class="persist" id="persist"></span>
+      <button class="btn" id="refresh">↻ 새로고침</button>
+      <button class="btn g" id="logout">로그아웃</button>
+    </div>
+  </div>
+
+  <div class="cards">
+    <div class="card"><div class="k">총 회원</div><div class="v" id="cTotal">–</div></div>
+    <div class="card"><div class="k">오늘 신규</div><div class="v" id="cToday">–</div></div>
+    <div class="card"><div class="k">이번 주 신규</div><div class="v" id="cWeek">–</div></div>
+    <div class="card hl"><div class="k">현재 접속</div><div class="v" id="cOnline">–</div></div>
+  </div>
+
+  <div class="panel">
+    <div class="hd"><span>👥 회원 목록 <span class="muted" style="font-weight:600">(최신 가입순)</span></span><span class="cnt" id="uCnt"></span></div>
+    <div style="overflow-x:auto">
+      <table class="tbl">
+        <thead><tr><th>회원</th><th>이메일</th><th>가입일</th><th class="hide-m">최근 접속</th><th>인증</th></tr></thead>
+        <tbody id="rows"></tbody>
+      </table>
+    </div>
+    <div class="empty" id="empty" style="display:none">아직 가입한 회원이 없습니다.</div>
+  </div>
+</div>
+
+<script>
+  const $ = s => document.querySelector(s);
+  let KEY = sessionStorage.getItem('liveup_admin_key') || '';
+
+  function fmt(ts){
+    if(!ts) return '<span class="muted">–</span>';
+    const d = new Date(ts);
+    const p = n => String(n).padStart(2,'0');
+    return `${d.getFullYear()}.${p(d.getMonth()+1)}.${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
+  }
+  function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+  function initial(name){ const n=(name||'?').trim(); return n ? n[0].toUpperCase() : '?'; }
+
+  async function api(path){
+    const r = await fetch(path, { headers: { 'x-admin-key': KEY } });
+    if(r.status===401){ throw new Error('unauthorized'); }
+    return r.json();
+  }
+
+  async function load(){
+    try{
+      const [st, us] = await Promise.all([ api('/api/admin/stats'), api('/api/admin/users') ]);
+      $('#cTotal').textContent = (st.total||0).toLocaleString();
+      $('#cToday').innerHTML = (st.todayNew||0).toLocaleString() + '<small>명</small>';
+      $('#cWeek').innerHTML = (st.weekNew||0).toLocaleString() + '<small>명</small>';
+      $('#cOnline').innerHTML = (st.online||0).toLocaleString() + '<small>명</small>';
+      const pe = $('#persist');
+      if(st.persist){ pe.className='persist on'; pe.textContent='🟢 DB 연결됨 (영구 저장)'; }
+      else { pe.className='persist off'; pe.textContent='⚠️ 메모리 모드 (재시작 시 초기화)'; }
+
+      const users = us.users||[];
+      $('#uCnt').textContent = users.length + '명';
+      const rows = $('#rows'); rows.innerHTML='';
+      $('#empty').style.display = users.length ? 'none' : 'block';
+      users.forEach(u=>{
+        const tr = document.createElement('tr');
+        const pic = u.picture ? `<img src="${esc(u.picture)}" onerror="this.replaceWith(Object.assign(document.createElement('div'),{className:'ph',textContent:'${esc(initial(u.name))}'}))">` : `<div class="ph">${esc(initial(u.name))}</div>`;
+        tr.innerHTML = `
+          <td><div class="u">${pic}<b>${esc(u.name||'이름없음')}</b></div></td>
+          <td class="mail">${esc(u.email||'')||'<span class=muted>–</span>'}</td>
+          <td>${fmt(u.first)}</td>
+          <td class="hide-m muted">${fmt(u.last)}</td>
+          <td>${u.verified?'<span class="badge-v">✓ 인증</span>':'<span class="badge-nv">미인증</span>'}</td>`;
+        rows.appendChild(tr);
+      });
+    }catch(e){
+      if(String(e.message)==='unauthorized'){ logout(); }
+    }
+  }
+
+  function showDash(){ $('#gate').style.display='none'; $('#wrap').style.display='block'; load(); }
+  function logout(){ sessionStorage.removeItem('liveup_admin_key'); KEY=''; $('#wrap').style.display='none'; $('#gate').style.display='flex'; $('#pw').value=''; }
+
+  async function login(){
+    const pw = $('#pw').value.trim();
+    $('#err').textContent='';
+    if(!pw){ $('#err').textContent='비밀번호를 입력하세요.'; return; }
+    try{
+      const r = await fetch('/api/admin/login',{ method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ key: pw }) });
+      const j = await r.json();
+      if(j.ok){ KEY=pw; sessionStorage.setItem('liveup_admin_key',pw); showDash(); }
+      else { $('#err').textContent = j.error || '비밀번호가 올바르지 않습니다.'; }
+    }catch(e){ $('#err').textContent='서버 연결 실패. 잠시 후 다시 시도하세요.'; }
+  }
+
+  $('#loginBtn').addEventListener('click', login);
+  $('#pw').addEventListener('keydown', e=>{ if(e.key==='Enter') login(); });
+  $('#refresh').addEventListener('click', load);
+  $('#logout').addEventListener('click', logout);
+
+  // 저장된 키가 있으면 자동 검증 후 대시보드
+  if(KEY){ api('/api/admin/stats').then(j=>{ if(j&&j.ok) showDash(); else logout(); }).catch(()=>logout()); }
+  // 30초마다 자동 새로고침
+  setInterval(()=>{ if($('#wrap').style.display==='block') load(); }, 30000);
+</script>
+</body>
+</html>
