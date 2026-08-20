@@ -819,45 +819,60 @@ function smIsFT(o) {
   const d = String(o.market_description || o.market || '').toLowerCase();
   return /fulltime result|full time result|match winner|3\s*-?\s*way|1x2|match result/.test(d) && !/half|corner|card|asian|handicap/.test(d);
 }
-// 하루치 축구 1X2 컨센서스 배당 실제 조회(느릴 수 있음) → {map,list} 만들고 캐시에 저장
-async function _sportmonksFetch(date) {
+// 한 번의 조회 패스(필터 사용 여부/페이지 크기 지정) → {map, list, fixtures, rawOdds}
+async function _fetchPass(date, useFilter, per, maxPages) {
   const map = {}, list = [], now = Date.now();
-  try {
-    let page = 1, more = true, guard = 0;
-    while (more && guard++ < 12) {   // per_page 100 → 페이지 수 대폭 감소(120리그도 2~4페이지)
-      // ⚡ 1X2(market_id 1)만 요청 → 응답/메모리 99%↓. 필터 미지원 시 per_page 작게 재시도(메모리 보호).
-      let j;
-      try { j = await smFetch(`/fixtures/date/${date}?include=participants;odds&filters=markets:1&per_page=100&page=${page}`); }
-      catch (e) { j = await smFetch(`/fixtures/date/${date}?include=participants;odds&per_page=20&page=${page}`); }
-      const fixtures = j.data || [];
-      for (const f of fixtures) {
-        const parts = f.participants || [];
-        const home = parts.find(p => p.meta && (p.meta.location === 'home')) || parts[0];
-        const away = parts.find(p => p.meta && (p.meta.location === 'away')) || parts[1];
-        if (!home || !away) continue;
-        const odds = f.odds || f.premiumOdds || f.premiumodds || f.premium_odds || [];
-        const acc = { home: [], away: [], draw: [] };
-        for (const o of odds) {
-          if (!smIsFT(o)) continue;
-          const side = smSide(o); if (!side) continue;
-          const v = parseFloat(o.value != null ? o.value : o.dp3); if (!v || v < 1.01) continue;
-          acc[side].push(v);
-        }
-        const avg = a => a.length ? Math.round((a.reduce((s, x) => s + x, 0) / a.length) * 100) / 100 : null;
-        const val = { home: avg(acc.home), away: avg(acc.away), draw: avg(acc.draw) };
-        if (val.home || val.away) {
-          const key = normTeam(home.name) + '|' + normTeam(away.name);
-          map[key] = val;
-          list.push({ ht: teamTokens(home.name), at: teamTokens(away.name), val });
-          oddsStore.set(key, { ...val, t: now });
-        }
+  let fixturesSeen = 0, rawOdds = 0, ftOdds = 0;
+  let page = 1, more = true, guard = 0;
+  while (more && guard++ < maxPages) {
+    const flt = useFilter ? '&filters=markets:1' : '';
+    const j = await smFetch(`/fixtures/date/${date}?include=participants;odds${flt}&per_page=${per}&page=${page}`);
+    const fixtures = j.data || [];
+    fixturesSeen += fixtures.length;
+    for (const f of fixtures) {
+      const parts = f.participants || [];
+      const home = parts.find(p => p.meta && (p.meta.location === 'home')) || parts[0];
+      const away = parts.find(p => p.meta && (p.meta.location === 'away')) || parts[1];
+      if (!home || !away) continue;
+      const odds = f.odds || f.premiumOdds || f.premiumodds || f.premium_odds || [];
+      rawOdds += odds.length;
+      const acc = { home: [], away: [], draw: [] };
+      for (const o of odds) {
+        if (!smIsFT(o)) continue;
+        ftOdds++;
+        const side = smSide(o); if (!side) continue;
+        const v = parseFloat(o.value != null ? o.value : o.dp3); if (!v || v < 1.01) continue;
+        acc[side].push(v);
       }
-      const pag = j.pagination || {};
-      more = !!(pag.has_more) && fixtures.length > 0;
-      page++;
+      const avg = a => a.length ? Math.round((a.reduce((s, x) => s + x, 0) / a.length) * 100) / 100 : null;
+      const val = { home: avg(acc.home), away: avg(acc.away), draw: avg(acc.draw) };
+      if (val.home || val.away) {
+        const key = normTeam(home.name) + '|' + normTeam(away.name);
+        map[key] = val;
+        list.push({ ht: teamTokens(home.name), at: teamTokens(away.name), val });
+        oddsStore.set(key, { ...val, t: now });
+      }
     }
-  } catch (e) { /* 실패 시 부분결과라도 저장 */ }
-  const out = { map, list };
+    const pag = j.pagination || {};
+    more = !!(pag.has_more) && fixtures.length > 0;
+    page++;
+  }
+  return { map, list, fixturesSeen, rawOdds, ftOdds };
+}
+// 하루치 축구 1X2 배당 조회 → 캐시 저장. 1X2 필터가 배당을 비우면 자동으로 필터 없이 재시도.
+async function _sportmonksFetch(date) {
+  let res, pass = 'filter';
+  try {
+    res = await _fetchPass(date, true, 100, 15);          // 1) 1X2 필터(빠름/가벼움)
+    if (!res.list.length && res.fixturesSeen) {           // 필터가 배당을 다 걸러냄 → 폴백
+      pass = 'nofilter';
+      res = await _fetchPass(date, false, 15, 40);        // 2) 전체 배당(느리지만 확실). 메모리 위해 per_page 작게
+    }
+  } catch (e) {
+    try { pass = 'nofilter-err'; res = await _fetchPass(date, false, 15, 40); }
+    catch (e2) { res = { map: {}, list: [], fixturesSeen: 0, rawOdds: 0, ftOdds: 0 }; }
+  }
+  const out = { map: res.map, list: res.list, _pass: pass, _diag: { fixtures: res.fixturesSeen, rawOdds: res.rawOdds, ftOdds: res.ftOdds } };
   cache.set('SM:' + date, { t: Date.now(), v: out });
   return out;
 }
@@ -898,6 +913,7 @@ app.get('/api/sportmonks/probe', async (req, res) => {
     const nextD = mlbAddDays(date, 1);
     const parsed2 = await _sportmonksFetch(nextD);
     const smTotal = (parsed ? parsed.list.length : 0) + (parsed2 ? parsed2.list.length : 0);
+    const smDiag = { pass: parsed && parsed._pass, today: parsed && parsed._diag, next: parsed2 && parsed2._diag };
     // 실제 우리 앱 축구 경기에 배당이 몇 개 붙었는지(팀명 매칭 성공률)
     let appGames = 0, appOdds = 0, noOddsSample = [];
     try {
@@ -913,6 +929,7 @@ app.get('/api/sportmonks/probe', async (req, res) => {
       enabled: true, date,
       smMatchedToday: parsed ? parsed.list.length : 0,
       smMatchedTwoDays: smTotal,
+      smDiag,
       appFootballGames: appGames,
       appGamesWithOdds: appOdds,
       attachRate: appGames ? Math.round(appOdds / appGames * 100) + '%' : '0%',
