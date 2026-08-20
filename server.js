@@ -935,8 +935,11 @@ app.get('/api/sportmonks/probe', async (req, res) => {
     const parsed2 = await _sportmonksFetch(nextD);
     const smTotal = (parsed ? parsed.list.length : 0) + (parsed2 ? parsed2.list.length : 0);
     const smDiag = { pass: parsed && parsed._pass, today: parsed && parsed._diag, next: parsed2 && parsed2._diag };
+    // 병합 맵(양일치) — attachOdds와 동일 키
+    const mergedMap = Object.assign({}, parsed && parsed.map, parsed2 && parsed2.map);
+    const smKeys = Object.keys(mergedMap);
     // 실제 우리 앱 축구 경기에 배당이 몇 개 붙었는지(팀명 매칭 성공률)
-    let appGames = 0, appOdds = 0, noOddsSample = [];
+    let appGames = 0, appOdds = 0, noOddsSample = [], appKeySample = [];
     try {
       const g = await buildGamesCore('football', date, 'Asia/Seoul');
       const games = (g && g.games) || [];
@@ -945,6 +948,8 @@ app.get('/api/sportmonks/probe', async (req, res) => {
         if (x.odds && (x.odds.home || x.odds.away)) appOdds++;
         else if (noOddsSample.length < 8) noOddsSample.push(`${x.home} vs ${x.away} [${x.country}·${x.league}]`);
       }
+      // 앱 경기의 정규화 키 샘플(앞 10개) — SM 키와 비교용
+      for (const x of games.slice(0, 10)) appKeySample.push(`${normTeam(x.home)}|${normTeam(x.away)}  (${x.league})`);
     } catch (e) { noOddsSample.push('games err: ' + e.message); }
     res.json({
       enabled: true, date,
@@ -954,6 +959,8 @@ app.get('/api/sportmonks/probe', async (req, res) => {
       appFootballGames: appGames,
       appGamesWithOdds: appOdds,
       attachRate: appGames ? Math.round(appOdds / appGames * 100) + '%' : '0%',
+      smKeySample: smKeys.slice(0, 12),      // Sportmonks 쪽 정규화 키
+      appKeySample,                          // 앱 쪽 정규화 키
       noOddsSample
     });
   } catch (e) { res.status(502).json({ enabled: true, error: String(e.message || e) }); }
