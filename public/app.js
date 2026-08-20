@@ -640,7 +640,37 @@ const SPORTS = [
 // 주요 리그 우선 정렬 (이 리그들을 상단에)
 const TOP_LEAGUES = ['KBO', 'MLB', 'NPB', 'K League 1', 'K League 2', 'J1 League', 'J League', 'J2 League', 'WK-League', 'AFC Champions League', 'AFC Champions League Elite', 'Korea Cup', "Emperor's Cup", 'Premier League', 'La Liga', 'Serie A', 'Bundesliga', 'Ligue 1', 'NBA', 'WNBA', 'KBL', 'CPBL', 'NHL', 'UEFA Champions League', 'UEFA Europa League'];
 // 배당(Sportmonks) 커버되는 축구 리그 — 이 순서대로 피드 최상단에 노출 (리그명 기준 매칭)
-const FB_ODDS_ORDER = ['Premier League', 'La Liga', 'Bundesliga', 'Serie A', 'Ligue 1', 'Eredivisie', 'Primeira Liga', 'Liga Portugal', 'Championship', 'La Liga 2', 'Segunda División', 'Serie B', '2. Bundesliga', 'Ligue 2', 'K League 1', 'K League 2', 'J1 League', 'J League', 'J2 League', 'Major League Soccer', 'MLS', 'Liga MX', 'Serie A - Brazil', 'Brasileirão', 'Brazil Serie A', 'Liga Profesional Argentina', 'Süper Lig', 'Super Lig', 'Saudi Pro League', 'Pro League', 'Jupiler Pro League', 'Scottish Premiership', 'Premiership', 'Eliteserien', 'Allsvenskan', 'Superligaen', 'Superliga', 'Coppa Italia', 'FA Cup', 'DFB Pokal', 'UEFA Europa League', 'UEFA Champions League'];
+const FB_ODDS_ORDER = [
+  // 유럽 빅5 1부
+  'Premier League', 'La Liga', 'Bundesliga', 'Serie A', 'Ligue 1',
+  // 유럽 주요 1부
+  'Eredivisie', 'Primeira Liga', 'Liga Portugal', 'Süper Lig', 'Super Lig', 'Scottish Premiership', 'Premiership',
+  'Jupiler Pro League', 'Pro League', 'Super League', 'Super Liga', 'Superliga', 'Superligaen',
+  'Ekstraklasa', 'First League', 'Niké Liga', '1. HNL', 'HNL', 'Admiral Bundesliga', 'Challenge League',
+  'Eliteserien', 'Allsvenskan', 'A Lyga', '2. Liga', '1. Liga',
+  // 유럽 2·3부
+  'Championship', 'La Liga 2', 'Segunda División', 'Serie B', '2. Bundesliga', 'Ligue 2',
+  'League One', 'League Two', 'Eerste Divisie', 'Liga Portugal 2', 'Challenger Pro League', 'Primera B',
+  // 아시아
+  'K League 1', 'K League 2', 'J1 League', 'J League', 'J2 League', 'J2-League',
+  'Saudi Pro League', 'Stars League', 'UAE Pro League', 'Indian Super League', 'Thai Premier League', 'V-League',
+  'Super League', 'AFC Champions League Elite', 'AFC Champions League',
+  // 아메리카
+  'Major League Soccer', 'MLS', 'USL Championship', 'Liga MX', 'Copa MX',
+  'Serie A - Brazil', 'Brasileirão', 'Brazil Serie A', 'Liga Profesional de Fútbol', 'Liga Profesional Argentina',
+  'Primera Division', 'Primera A', 'Liga De Futbol Prof', 'Liga 1', 'A-League Men', 'A-League',
+  'Copa Libertadores', 'Copa Sudamericana', 'Recopa Sudamericana',
+  // 컵·플레이오프
+  'Coppa Italia', 'FA Cup', 'DFB Pokal', 'Coupe de France', 'Coupe de la Ligue', 'Carabao Cup', 'League Cup',
+  'Copa del Rey', 'KNVB Beker', 'Taça de Portugal', 'Taça De Portugal', 'Taça da Liga', 'Turkish Cup', 'Russian Cup',
+  'Scottish Cup', 'Greek Cup', 'Belgian Cup', 'Copa Argentina', 'Copa do Brasil', 'Copa do Nordeste',
+  'Community Shield', 'Super Cup', 'Supercopa do Brasil', 'Copa de la Superliga',
+  // 대륙·국제
+  'UEFA Europa League', 'UEFA Europa League Play-offs', 'UEFA Champions League', 'UEFA Conference League',
+  'FIFA Club World Cup', 'FIFA Intercontinental Cup',
+  // 하부·플레이오프
+  'Championship Play-Offs', 'Premiership Play-Offs', 'Ligue 1 Play-offs', 'National League', 'Enterprise National League'
+];
 const fbOddsRank = lg => { const i = FB_ODDS_ORDER.indexOf(lg || ''); return i < 0 ? 999 : i; };
 // MLB StatsAPI(무료)로 라인업·투수/타자·최근경기까지 되는 야구 리그
 const STATS_LEAGUES = ['MLB', 'LMB', 'IL', 'PCL'];
@@ -1805,13 +1835,15 @@ function renderFeed(games) {
     const groupTier = items => items.some(x => x.state === 'live') ? 0 : items.some(x => x.state === 'scheduled') ? 1 : 2;
     return Object.values(gr).sort((a, b) => {
       if (fb) {
-        // 축구: 배당 커버 리그(우리 30개)를 라이브 여부와 무관하게 최상단으로,
-        // 우리가 정한 순서(EPL→라리가→…→K리그→J리그) 그대로 노출
+        // 축구 정렬 우선순위:
+        //  1) 실제 배당이 붙은 리그를 최상단으로 (리그명 매칭 불일치와 무관하게 자동 반영)
+        //  2) 우리가 정한 주요 리그 순서(EPL→라리가→…→K리그→J리그)
+        //  3) 진행→예정→종료
+        const hasOdds = items => items.some(x => x.odds && (x.odds.home || x.odds.away)) ? 0 : 1;
+        const ha = hasOdds(a.items), hb = hasOdds(b.items);
+        if (ha !== hb) return ha - hb;             // 배당 있는 리그 먼저
         const oa = fbOddsRank(a.league && a.league.league), ob = fbOddsRank(b.league && b.league.league);
-        const ca = oa < 999 ? 0 : 1, cb = ob < 999 ? 0 : 1;
-        if (ca !== cb) return ca - cb;            // 커버 리그 먼저
-        if (ca === 0 && oa !== ob) return oa - ob; // 커버 리그끼리는 우리 순서대로
-        // 그 다음은 진행→예정→종료 순
+        if (oa !== ob) return oa - ob;             // 주요 리그 순서
         const ta2 = groupTier(a.items), tb2 = groupTier(b.items);
         if (ta2 !== tb2) return ta2 - tb2;
         return b.items.length - a.items.length;
