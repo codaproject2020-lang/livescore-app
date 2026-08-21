@@ -48,10 +48,12 @@ const USERS = new Map(); // sub -> {id,email,name,picture,first,last}
 // ============================================================
 const MONGODB_URI = (process.env.MONGODB_URI || process.env.DATABASE_URL || '').trim();
 let usersCol = null;   // 연결되면 회원 컬렉션, 아니면 null(메모리 모드)
+let _dbTries = 0;
 async function initDB() {
   if (!MONGODB_URI) { console.log('[DB] MONGODB_URI 미설정 — 메모리 모드(재시작 시 회원 초기화)'); return; }
+  if (usersCol) return;   // 이미 연결됨
   try {
-    const client = new MongoClient(MONGODB_URI, { serverSelectionTimeoutMS: 8000 });
+    const client = new MongoClient(MONGODB_URI, { serverSelectionTimeoutMS: 10000 });
     await client.connect();
     const db = client.db(process.env.MONGODB_DB || 'liveup');
     usersCol = db.collection('users');
@@ -59,7 +61,11 @@ async function initDB() {
     const all = await usersCol.find({}).toArray();   // 기존 회원 메모리에 로드
     for (const u of all) USERS.set(u.id, { id: u.id, email: u.email, name: u.name, picture: u.picture, verified: u.verified, first: u.first, last: u.last });
     console.log(`[DB] MongoDB 연결됨 · 회원 ${all.length}명 로드`);
-  } catch (e) { console.error('[DB] 연결 실패 → 메모리 모드로 진행:', e.message); usersCol = null; }
+  } catch (e) {
+    usersCol = null; _dbTries++;
+    console.error(`[DB] 연결 실패(#${_dbTries}) → 60초 후 자동 재시도:`, e.message);
+    setTimeout(initDB, 60000);   // IP 화이트리스트 추가 등으로 나중에 열리면 자동 연결
+  }
 }
 initDB();
 // 회원 1명 저장(업서트) — DB 있으면 영구 저장, 없으면 메모리만
