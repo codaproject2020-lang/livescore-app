@@ -1356,6 +1356,15 @@ async function loadEvents(silent) {
       }
       return;
     }
+    // ▼ 튕김 방지 2: 사용자가 방금 스크롤/터치 중이면(1.6초 내) 이번 자동 갱신은 목록을 다시 그리지 않고
+    //   다음 주기로 미룬다. (_lastFeedSig를 갱신하지 않아 스크롤이 멈추면 곧바로 반영됨)
+    if (silent && (Date.now() - _lastUserScroll < 1600)) {
+      if (modalEventId && feedGames[modalEventId] && modalPredict) {
+        logChanges(modalEventId, feedGames[modalEventId]);
+        renderDetail(feedGames[modalEventId], modalPredict);
+      }
+      return;
+    }
     _lastFeedSig = sig;
     // ▼ 화면이 위로 튀지 않도록: 재렌더 전 스크롤 위치 저장 → 후(레이아웃 반영까지) 복원
     const sy = window.pageYOffset || document.documentElement.scrollTop || document.body.scrollTop || 0;
