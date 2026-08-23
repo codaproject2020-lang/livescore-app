@@ -646,6 +646,39 @@ const SPORTS = [
   { key: 'handball', ko: '핸드볼', em: '🤾' },
   { key: 'rugby', ko: '럭비', em: '🏉' }
 ];
+// ===== 3D 이모지 (Microsoft Fluent Emoji 3D · MIT) — 고급스러운 입체 아이콘. 실패 시 기본 이모지로 폴백 =====
+const E3D_BASE = 'https://cdn.jsdelivr.net/gh/microsoft/fluentui-emoji@main/assets/';
+const EMOJI3D = {
+  '⚽': 'Soccer ball/3D/soccer_ball_3d.png',
+  '⚾': 'Baseball/3D/baseball_3d.png',
+  '🏀': 'Basketball/3D/basketball_3d.png',
+  '🏐': 'Volleyball/3D/volleyball_3d.png',
+  '🏒': 'Ice hockey/3D/ice_hockey_3d.png',
+  '🤾': 'Person bouncing ball/Default/3D/person_bouncing_ball_3d_default.png',
+  '🏉': 'Rugby football/3D/rugby_football_3d.png',
+  '🏈': 'American football/3D/american_football_3d.png',
+  '⚡': 'High voltage/3D/high_voltage_3d.png',
+  '🏠': 'House/3D/house_3d.png',
+  '📊': 'Bar chart/3D/bar_chart_3d.png',
+  '🎯': 'Direct hit/3D/direct_hit_3d.png',
+  '📋': 'Clipboard/3D/clipboard_3d.png',
+  '👤': 'Bust in silhouette/3D/bust_in_silhouette_3d.png'
+};
+function e3d(ch, cls) {
+  const p = EMOJI3D[ch];
+  const c = cls || '';
+  if (!p) return `<span class="${c}">${ch}</span>`;
+  const url = E3D_BASE + p.split('/').map(encodeURIComponent).join('/');
+  return `<img class="e3d ${c}" src="${url}" alt="${ch}" draggable="false" onerror="this.replaceWith(Object.assign(document.createElement('span'),{className:'${c}',textContent:'${ch}'}))">`;
+}
+// 페이지의 .tt-ic(상단탭 아이콘)를 3D 이모지로 교체
+function apply3dNav() {
+  document.querySelectorAll('.tt-ic').forEach(el => {
+    if (el.querySelector('img')) return;             // 이미 교체됨
+    const ch = (el.textContent || '').trim();
+    if (EMOJI3D[ch]) el.innerHTML = e3d(ch);
+  });
+}
 // 주요 리그 우선 정렬 (이 리그들을 상단에)
 const TOP_LEAGUES = ['KBO', 'MLB', 'NPB', 'K League 1', 'K League 2', 'J1 League', 'J League', 'J2 League', 'WK-League', 'AFC Champions League', 'AFC Champions League Elite', 'Korea Cup', "Emperor's Cup", 'Premier League', 'La Liga', 'Serie A', 'Bundesliga', 'Ligue 1', 'NBA', 'WNBA', 'KBL', 'CPBL', 'NHL', 'UEFA Champions League', 'UEFA Europa League'];
 // 배당(Sportmonks) 커버되는 축구 리그 — 이 순서대로 피드 최상단에 노출 (리그명 기준 매칭)
@@ -847,6 +880,7 @@ async function renderHome() {
   } finally { homeBusy = false; }
 }
 $('#igLogin')?.addEventListener('click', openLogin);
+apply3dNav();   // 상단 탭 아이콘 3D 이모지로 교체
 $$('.topbar .tt[data-tab]').forEach(b => b.addEventListener('click', () => setTab(b.dataset.tab)));
 $$('.topnav a[data-tab]').forEach(b => b.addEventListener('click', () => setTab(b.dataset.tab)));
 $$('.dmenu a[data-tab]').forEach(b => b.addEventListener('click', () => { setTab(b.dataset.tab); closeDrawer(); }));
@@ -1113,7 +1147,7 @@ function renderAuthUI() {
   if (btn) btn.innerHTML = loggedIn ? `${pic} ${nm} · ${esc(t('logout'))}` : `🔑 <span data-i18n="login">${esc(t('login'))}</span>`;
   const du = $('#drawerLogin');
   if (du) du.innerHTML = loggedIn ? `<span class="em">🚪</span><span>${esc(t('logout'))}</span>` : `<span class="em">🔑</span><span data-i18n="login">${esc(t('login'))}</span>`;
-  const bu = $('#btnUserIc') || $('#btnUser'); if (bu) bu.innerHTML = loggedIn ? pic : '👤';   // 아이콘만 교체(MY 라벨 유지)
+  const bu = $('#btnUserIc') || $('#btnUser'); if (bu) bu.innerHTML = loggedIn ? pic : e3d('👤');   // 아이콘만 교체(MY 라벨 유지)
   const dn = $('#drawerName'); if (dn) dn.textContent = loggedIn && myUser ? myUser.name : '손님';
 }
 function logoutUser() {
@@ -1190,9 +1224,9 @@ $('#wSubmit')?.addEventListener('click', async () => {
 //  종목 / 리그 네비 구성
 // ============================================================
 function buildSportNav() {
-  const row = SPORTS.map(s => `<div class="sp ${s.key === state.sport ? 'on' : ''}" data-sport="${s.key}" title="${s.ko}">${s.em}</div>`).join('');
+  const row = SPORTS.map(s => `<div class="sp ${s.key === state.sport ? 'on' : ''}" data-sport="${s.key}" title="${s.ko}">${e3d(s.em, 'sp-ic')}</div>`).join('');
   $('#sportRow').innerHTML = row;
-  const list = SPORTS.map(s => `<a data-sport="${s.key}" class="${s.key === state.sport ? 'on' : ''}"><span class="em">${s.em}</span>${esc(t(s.key))}</a>`).join('');
+  const list = SPORTS.map(s => `<a data-sport="${s.key}" class="${s.key === state.sport ? 'on' : ''}"><span class="em">${e3d(s.em, 'nav-ic')}</span>${esc(t(s.key))}</a>`).join('');
   $('#sportNav').innerHTML = list;
   $('#sportNavD').innerHTML = list;
   $$('[data-sport]').forEach(el => el.addEventListener('click', () => {
