@@ -1377,7 +1377,8 @@ async function loadEvents(silent) {
     // ▼▼ 튕김 완전 차단: 경기 구성(ID·순서)이 그대로면 목록 전체를 다시 그리지 않고,
     //    점수/배당/상황이 바뀐 카드만 그 자리에서 교체 → 스크롤을 전혀 건드리지 않음.
     const _filtered = filterGames();
-    const idSig = state.sport + '|' + state.date + '|' + state.leagueFilter + '|' + _filtered.map(g => g.id).join(',');
+    // 순서 무관: 같은 경기 '집합'이면(정렬만 바뀐 경우 포함) 전체 재렌더 없이 카드만 교체 → 튕김 0
+    const idSig = state.sport + '|' + state.date + '|' + state.leagueFilter + '|' + _filtered.map(g => g.id).slice().sort().join(',');
     if (silent && idSig === _lastIdSig) {
       _filtered.forEach(g => {
         const ns = cardSig(g);
