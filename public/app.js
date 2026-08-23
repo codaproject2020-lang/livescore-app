@@ -2782,6 +2782,7 @@ function renderDetail(e, pr, keepScroll) {
   // 🔒 스크롤 튐 방지: 비동기로 채워지는 영역(#mEvents·#mMlbLive)의 기존 내용을 유지 → 재렌더 시 높이가 확 줄지 않게
   const _pEv = document.getElementById('mEvents'), _pMlb = document.getElementById('mMlbLive');
   const prevEv = _pEv ? _pEv.innerHTML : '', prevMlb = _pMlb ? _pMlb.innerHTML : '';
+  const _evScrollPrev = _pEv ? _pEv.scrollTop : 0;   // 이벤트 목록 내부 스크롤(#mEvents)도 보존
   el.innerHTML = `
     <div id="mMlbLive">${prevMlb}</div>
     ${lineScoreTable(e)}
@@ -2802,6 +2803,8 @@ function renderDetail(e, pr, keepScroll) {
       <div><span class="k">${esc(t('dt'))}</span> ${esc(when)}</div>
       <div><span class="k">${esc(t('status'))}</span> ${esc(koStatus(e))}</div>
     </div>`;
+  // 이벤트 목록(#mEvents) 내부 스크롤 복원 — renderDetail이 이 요소를 새로 만들면서 0으로 리셋되는 것 방지
+  if (_evScrollPrev) { const _evNew = document.getElementById('mEvents'); if (_evNew) _evNew.scrollTop = _evScrollPrev; }
   // 앵커(채팅 블록) 기준으로 스크롤 보정 → #mScore·#mDetail 높이가 변해도 아래 내용 고정
   if (_anc) {
     const fix = () => { try { const dy = _anc.getBoundingClientRect().top - _ancTop; if (dy) _mod.scrollTop += dy; } catch (er) { } };
