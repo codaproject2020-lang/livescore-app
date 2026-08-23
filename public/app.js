@@ -2274,14 +2274,22 @@ function bsoMini(e) {
 }
 async function updateMlbLive(e) {
   const box = $('#mMlbLive'); if (!box) return;
+  // 🔒 이 박스(모달 최상단)의 높이가 바뀌면 아래 내용이 밀려 스크롤이 튐 →
+  //    바뀐 높이만큼 모달 스크롤을 보정해서 보던 위치를 그대로 유지.
+  const _mod = document.getElementById('modal');
+  const setBox = (html) => {
+    const oldH = box.offsetHeight, sy = _mod ? _mod.scrollTop : 0;
+    box.innerHTML = html;
+    if (_mod && sy > 0) { const dH = box.offsetHeight - oldH; if (dH) _mod.scrollTop = sy + dH; }
+  };
   try {
     const d = await fetchJSON(`/api/mlb/live?home=${encodeURIComponent(e.home)}&away=${encodeURIComponent(e.away)}&date=${state.date}`, { tries: 1 });
-    if (!d.found || (d.inning == null && d.balls == null && d.outs == null)) { box.innerHTML = ''; return; }
+    if (!d.found || (d.inning == null && d.balls == null && d.outs == null)) { setBox(''); return; }
     const halfEn = d.half === 'Top' ? 'top' : d.half === 'Bottom' ? 'bottom' : '';
     const innTxt = d.inning != null ? inningLabel(d.inning, halfEn) : '-';
     const dot = (n, max, g) => { let s = ''; for (let i = 0; i < max; i++) s += `<span class="cd ${g || ''}${i < (n || 0) ? ' on' : ''}"></span>`; return s; };
     const bh = d.box.home || {}, ba = d.box.away || {};
-    box.innerHTML = `
+    setBox(`
       <div class="odsec">⚾ ${esc(t('liveSit'))} <span class="rhe">${esc(t('freeReal'))}</span></div>
       <div class="mlbstate">
         <div class="ms-top">
@@ -2297,8 +2305,8 @@ async function updateMlbLive(e) {
           <tr><td class="tn">${esc(TN(e.away, e.league))}</td><td>${esc(ba.r ?? 0)}</td><td>${esc(ba.h ?? 0)}</td><td>${esc(ba.e ?? 0)}</td><td>${esc(ba.bb ?? '-')}</td></tr>
           <tr><td class="tn">${esc(TN(e.home, e.league))}</td><td>${esc(bh.r ?? 0)}</td><td>${esc(bh.h ?? 0)}</td><td>${esc(bh.e ?? 0)}</td><td>${esc(bh.bb ?? '-')}</td></tr>
         </tbody></table>
-      </div>`;
-  } catch { box.innerHTML = ''; }
+      </div>`);
+  } catch { setBox(''); }
 }
 // ⚾ KBO/NPB/CPBL 여부 (TheSports 박스스코어 대상)
 function tsLeague(l) { return /KBO|NPB|CPBL|Korea|Nippon|Japan|일본|한국|대만|Taiwan|Chinese Professional/i.test(l || ''); }
