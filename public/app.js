@@ -1369,6 +1369,14 @@ async function loadEvents(silent) {
     // ▼ 화면이 위로 튀지 않도록: 재렌더 전 스크롤 위치 저장 → 후(레이아웃 반영까지) 복원
     const sy = window.pageYOffset || document.documentElement.scrollTop || document.body.scrollTop || 0;
     const modalEl = $('#modal'); const moy = modalEl ? modalEl.scrollTop : 0;
+    // ▼ 스크롤 앵커: 자동 갱신 시 화면 상단에 보이는 첫 카드와 그 위치를 기억해 두었다가,
+    //   다시 그린 뒤 같은 카드를 같은 위치로 맞춘다(위쪽 높이가 변해도 튀지 않음).
+    let _anchorId = null, _anchorTop = 0;
+    const _modalOn = modalEl && modalEl.classList.contains('on');
+    if (silent && !_modalOn) {
+      const cards = document.querySelectorAll('#feed .match');
+      for (const c of cards) { const r = c.getBoundingClientRect(); if (r.bottom > 64) { _anchorId = c.dataset.ev; _anchorTop = r.top; break; } }
+    }
     buildLeagueRow(games);
     renderFeed(filterGames());
     // 상세 모달이 열려 있으면 해당 경기 상세도 실시간 갱신 (채팅·스크롤 유지)
@@ -1376,11 +1384,19 @@ async function loadEvents(silent) {
       logChanges(modalEventId, feedGames[modalEventId]);   // 변화 감지 → 이벤트 로그 적립
       renderDetail(feedGames[modalEventId], modalPredict);
     }
+    // ▼ 앵커 카드가 있으면 그 카드를 원래 화면 위치로 되돌림(튕김 방지 핵심)
+    if (silent && _anchorId && !_modalOn) {
+      let sel;
+      try { sel = '#feed .match[data-ev="' + (window.CSS && CSS.escape ? CSS.escape(_anchorId) : _anchorId) + '"]'; } catch (e) { sel = null; }
+      const el = sel && document.querySelector(sel);
+      if (el) { const dy = el.getBoundingClientRect().top - _anchorTop; if (dy) window.scrollBy(0, dy); }
+    }
     if (silent) {
       // ▼ 튐 방지: 비동기(updateEvents·updateMlbLive)로 내용이 나중에 채워질 때도
-      //   스크롤이 맨위로 튀지 않도록, 잠깐 동안(≈900ms) 저장 위치를 계속 재고정.
+      //   스크롤이 튀지 않도록, 잠깐 동안(≈900ms) '앵커 보정 후의 현재 위치'를 재고정.
       //   단, 사용자가 실제로 스크롤 중이면 즉시 손을 뗌.
-      holdScroll(sy, modalEl, moy);
+      const cur = window.pageYOffset || document.documentElement.scrollTop || document.body.scrollTop || sy;
+      holdScroll(cur, modalEl, moy);
     }
   } catch (e) {
     if (!silent) feed.innerHTML = `<div class="loading">${esc(t('loading'))}<br><button onclick="loadEvents()" style="margin-top:10px;padding:9px 18px;border:none;border-radius:8px;background:#24568f;color:#fff;font-weight:800;cursor:pointer">${esc(t('retry'))}</button></div>`;
