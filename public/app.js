@@ -1310,6 +1310,15 @@ function markUserScroll() { _lastUserScroll = Date.now(); }
 // 사용자가 실제로 스크롤을 시작하면 즉시 중단(사용자 조작 우선).
 let _holdRaf = 0;
 let _lastFeedSig = '';   // 자동 갱신 튕김 방지: 직전 렌더한 목록 시그니처
+let _lastIdSig = '';     // 직전 렌더의 경기 구성(ID 순서). 같으면 카드만 교체(전체 재렌더 X)
+let _cardSigs = {};      // 경기별 카드 시그니처 (바뀐 카드만 교체 판단용)
+// 카드에 실제로 보이는 동적 값들만 모아 시그니처 — 이게 바뀔 때만 카드 교체
+function cardSig(e) {
+  const o = e.odds || {}; const b = e.bso || {}; const lp = e.livePts || {};
+  return [e.state, e.hs, e.as, e.elapsed, e.minute, o.home, o.away, o.draw,
+    b.balls, b.strikes, b.outs, b.bases && JSON.stringify(b.bases), e.inningHalf, e.curInning, e.batting,
+    lp.home, lp.away, isMatchFav(e) ? 1 : 0].join('|');
+}
 function holdScroll(pageY, modalEl, modalY) {
   if (_holdRaf) cancelAnimationFrame(_holdRaf);
   const modalOn = modalEl && modalEl.classList.contains('on');
@@ -1365,6 +1374,26 @@ async function loadEvents(silent) {
       }
       return;
     }
+    // ▼▼ 튕김 완전 차단: 경기 구성(ID·순서)이 그대로면 목록 전체를 다시 그리지 않고,
+    //    점수/배당/상황이 바뀐 카드만 그 자리에서 교체 → 스크롤을 전혀 건드리지 않음.
+    const _filtered = filterGames();
+    const idSig = state.sport + '|' + state.date + '|' + state.leagueFilter + '|' + _filtered.map(g => g.id).join(',');
+    if (silent && idSig === _lastIdSig) {
+      _filtered.forEach(g => {
+        const ns = cardSig(g);
+        if (_cardSigs[g.id] === ns) return;   // 안 바뀐 카드는 건너뜀
+        _cardSigs[g.id] = ns;
+        let sel; try { sel = '#feed .match[data-ev="' + (window.CSS && CSS.escape ? CSS.escape(g.id) : g.id) + '"]'; } catch (e) { sel = null; }
+        const el = sel && document.querySelector(sel);
+        if (el) { const disp = el.style.display; el.outerHTML = matchCard(g); if (disp === 'none') { const n = document.querySelector(sel); if (n) n.style.display = 'none'; } }
+      });
+      _lastFeedSig = sig;
+      if (modalEventId && feedGames[modalEventId] && modalPredict) {
+        logChanges(modalEventId, feedGames[modalEventId]);
+        renderDetail(feedGames[modalEventId], modalPredict);
+      }
+      return;   // 전체 재렌더 없음 → 스크롤 위치 그대로
+    }
     _lastFeedSig = sig;
     // ▼ 화면이 위로 튀지 않도록: 재렌더 전 스크롤 위치 저장 → 후(레이아웃 반영까지) 복원
     const sy = window.pageYOffset || document.documentElement.scrollTop || document.body.scrollTop || 0;
@@ -1378,7 +1407,10 @@ async function loadEvents(silent) {
       for (const c of cards) { const r = c.getBoundingClientRect(); if (r.bottom > 64) { _anchorId = c.dataset.ev; _anchorTop = r.top; break; } }
     }
     buildLeagueRow(games);
-    renderFeed(filterGames());
+    renderFeed(_filtered);
+    // 다음 자동 갱신에서 '카드만 교체' 판단에 쓸 구성/시그니처 갱신
+    _lastIdSig = idSig;
+    _cardSigs = {}; _filtered.forEach(g => { _cardSigs[g.id] = cardSig(g); });
     // 상세 모달이 열려 있으면 해당 경기 상세도 실시간 갱신 (채팅·스크롤 유지)
     if (modalEventId && feedGames[modalEventId] && modalPredict) {
       logChanges(modalEventId, feedGames[modalEventId]);   // 변화 감지 → 이벤트 로그 적립
@@ -1898,17 +1930,24 @@ function renderFeed(games) {
   }
   html += allG.map(groupHtml).join('');
   feed.innerHTML = html;
-  $$('#feed .lghd').forEach(h => h.addEventListener('click', () => {
-    let el = h.nextElementSibling; const arr = h.querySelector('.up'); const col = arr.textContent === '∨';
-    while (el && !el.classList.contains('lghd')) { el.style.display = col ? '' : 'none'; el = el.nextElementSibling; }
-    arr.textContent = col ? '∧' : '∨';
-  }));
-  $$('#feed [data-ev]').forEach(el => el.addEventListener('click', () => openEvent(el.dataset.ev)));
-  // 🔴 "픽" 배지 클릭 → 전체 상세가 아니라 픽제공 상세(그 경기의 PICK) 열기
-  $$('#feed .pick[data-pickbtn]').forEach(el => el.addEventListener('click', (ev) => {
-    ev.stopPropagation();
-    if (typeof openPick === 'function') openPick(el.dataset.pickbtn); else openEvent(el.dataset.pickbtn);
-  }));
+  // 클릭은 #feed에 델리게이션으로 1회만 연결 → 카드를 그 자리에서 교체해도 클릭 유지됨
+  if (!feed._wired) {
+    feed._wired = true;
+    feed.addEventListener('click', (ev) => {
+      const pick = ev.target.closest && ev.target.closest('.pick[data-pickbtn]');
+      if (pick && feed.contains(pick)) { ev.stopPropagation(); if (typeof openPick === 'function') openPick(pick.dataset.pickbtn); else openEvent(pick.dataset.pickbtn); return; }
+      const head = ev.target.closest && ev.target.closest('.lghd');
+      if (head && feed.contains(head)) {
+        const arr = head.querySelector('.up'); const col = arr && arr.textContent === '∨';
+        let el = head.nextElementSibling;
+        while (el && !el.classList.contains('lghd')) { el.style.display = col ? '' : 'none'; el = el.nextElementSibling; }
+        if (arr) arr.textContent = col ? '∧' : '∨';
+        return;
+      }
+      const card = ev.target.closest && ev.target.closest('[data-ev]');
+      if (card && feed.contains(card)) { openEvent(card.dataset.ev); return; }
+    });
+  }
 }
 
 // ============================================================
