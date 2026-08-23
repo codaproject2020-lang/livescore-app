@@ -801,6 +801,7 @@ table.boxsc .he{color:var(--sub);background:#fafbfc;font-weight:800}
 .ab-item{padding:8px 11px;border-bottom:1px solid var(--line2)}
 .ab-item:last-child{border-bottom:none}
 .ab-hd{display:flex;align-items:center;gap:6px;flex-wrap:wrap;font-size:12.5px;line-height:1.35}
+.ab-num{display:inline-flex;align-items:center;justify-content:center;min-width:20px;height:18px;padding:0 5px;border-radius:5px;background:var(--navy);color:#fff;font-size:11px;font-weight:800}
 .ab-res{color:var(--navy);font-weight:800}
 .ab-rbi{color:#e23b34;font-weight:800;font-size:11px}
 .ab-np{margin-left:auto;font-size:10.5px;color:var(--dim);font-weight:700;white-space:nowrap}

@@ -2048,7 +2048,8 @@ function pitchBadge(p) {
 function mlbAbRow(ab) {
   const rbi = ab.rbi > 0 ? ` <span class="ab-rbi">+${ab.rbi}</span>` : '';
   const seq = (ab.pitches || []).map(pitchBadge).join('');
-  return `<div class="ab-item"><div class="ab-hd"><b>${esc(ab.batter)}</b> <span class="ab-res">${esc(mlbEvName(ab.event))}</span>${rbi}<span class="ab-np">${ab.np || 0}${t('pitchU')}</span></div>${seq ? `<div class="ab-seq">${seq}</div>` : ''}</div>`;
+  const num = ab.num ? `<span class="ab-num">${esc(ab.num)}</span>` : '';
+  return `<div class="ab-item"><div class="ab-hd">${num}<b>${esc(ab.batter)}</b> <span class="ab-res">${esc(mlbEvName(ab.event))}</span>${rbi}<span class="ab-np">${ab.np || 0}${t('pitchU')}</span></div>${seq ? `<div class="ab-seq">${seq}</div>` : ''}</div>`;
 }
 const pbpCache = {};   // id -> { ts, innings }
 async function fetchPbp(e) {
