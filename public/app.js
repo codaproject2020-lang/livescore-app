@@ -22,6 +22,12 @@ const STR = {
   overUnder: ['O/U', '오버/언더', 'O/U', '大小', 'O/U', 'O/U', 'Tài/Xỉu', 'สูง/ต่ำ', 'Тотал', 'O/U', 'O/U', 'O/U'],
   over: ['Over', '오버', 'オーバー', '大', 'Más', 'ओवर', 'Tài', 'สูง', 'Больше', 'Über', 'Plus', 'Over'],
   under: ['Under', '언더', 'アンダー', '小', 'Menos', 'अंडर', 'Xỉu', 'ต่ำ', 'Меньше', 'Unter', 'Moins', 'Under'],
+  navMenu: ['Menu', '메뉴', 'メニュー', '菜单', 'Menú', 'मेन्यू', 'Menu', 'เมนู', 'Меню', 'Menü', 'Menu', 'Menu'],
+  navHome: ['Home', '홈', 'ホーム', '主页', 'Inicio', 'होम', 'Trang chủ', 'หน้าแรก', 'Главная', 'Start', 'Accueil', 'Home'],
+  navInfo: ['Info', '정보방', '情報', '资讯', 'Info', 'जानकारी', 'Thông tin', 'ข้อมูล', 'Инфо', 'Info', 'Infos', 'Info'],
+  navPick: ['Pick', '픽', 'ピック', '精选', 'Pick', 'पिक', 'Pick', 'พิก', 'Пик', 'Pick', 'Pick', 'Pick'],
+  navComm: ['Chat', '커뮤니티', 'コミュ', '社区', 'Chat', 'चैट', 'Cộng đồng', 'ชุมชน', 'Чат', 'Chat', 'Chat', 'Chat'],
+  navMy: ['MY', 'MY', 'MY', '我的', 'MI', 'MY', 'MY', 'MY', 'MY', 'MY', 'MY', 'MY'],
   intlOdds: ['Intl', '해외', '海外', '海外', 'Intl', 'विदेशी', 'Quốc tế', 'ต่างประเทศ', 'Межд.', 'Intl', 'Intl', 'Intl'],
   estOdds: ['Est.', '예상배당', '予想', '预测', 'Est.', 'अनुमान', 'Dự kiến', 'ประมาณ', 'Прогноз', 'Est.', 'Est.', 'Est.'],
   community: ['Community', '커뮤니티', 'コミュニティ', '社区', 'Comunidad', 'समुदाय', 'Cộng đồng', 'ชุมชน', 'Сообщество', 'Community', 'Communauté', 'Community'],
@@ -1107,7 +1113,7 @@ function renderAuthUI() {
   if (btn) btn.innerHTML = loggedIn ? `${pic} ${nm} · ${esc(t('logout'))}` : `🔑 <span data-i18n="login">${esc(t('login'))}</span>`;
   const du = $('#drawerLogin');
   if (du) du.innerHTML = loggedIn ? `<span class="em">🚪</span><span>${esc(t('logout'))}</span>` : `<span class="em">🔑</span><span data-i18n="login">${esc(t('login'))}</span>`;
-  const bu = $('#btnUser'); if (bu) bu.innerHTML = loggedIn ? pic : '👤';
+  const bu = $('#btnUserIc') || $('#btnUser'); if (bu) bu.innerHTML = loggedIn ? pic : '👤';   // 아이콘만 교체(MY 라벨 유지)
   const dn = $('#drawerName'); if (dn) dn.textContent = loggedIn && myUser ? myUser.name : '손님';
 }
 function logoutUser() {
