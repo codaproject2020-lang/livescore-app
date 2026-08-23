@@ -2011,14 +2011,18 @@ function numOrNull(v) { const n = Number(v); return (v == null || v === '' || is
 function wireEvTabs(box, id, tabs, curKey, renderBody) {
   if (evTab[id] == null || !evTabPin[id]) evTab[id] = curKey;
   if (!tabs.some(tb => tb.key === evTab[id])) evTab[id] = curKey;
+  // 활성 탭을 '탭 바 안에서 가로로만' 중앙 정렬 (scrollIntoView는 세로 페이지 스크롤까지 건드려 튕김 유발 → 사용 안 함)
+  const centerTab = () => {
+    const barEl = $('#evTabs', box), on = $('#evTabs .ev-tab.on', box);
+    if (barEl && on) barEl.scrollLeft = Math.max(0, on.offsetLeft - (barEl.clientWidth - on.offsetWidth) / 2);
+  };
   const draw = () => {
     const bar = tabs.map(tb => `<button class="ev-tab${tb.key === evTab[id] ? ' on' : ''}" data-tk="${esc(String(tb.key))}">${esc(tb.label)}</button>`).join('');
     box.innerHTML = `<div class="ev-tabs" id="evTabs">${bar}</div><div class="ev-body">${renderBody(evTab[id])}</div>`;
     $$('#evTabs .ev-tab', box).forEach(btn => btn.addEventListener('click', () => {
       evTab[id] = btn.dataset.tk; evTabPin[id] = true; draw();
-      const cur = $('#evTabs .ev-tab.on', box); if (cur) cur.scrollIntoView({ inline: 'center', block: 'nearest' });
     }));
-    const on = $('#evTabs .ev-tab.on', box); if (on) on.scrollIntoView({ inline: 'center', block: 'nearest' });
+    centerTab();
   };
   draw();
 }
