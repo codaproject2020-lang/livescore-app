@@ -19,6 +19,9 @@ const STR = {
   info: ['Match Info', '경기 정보방', '試合情報', '比赛信息', 'Partidos', 'मैच जानकारी', 'Thông tin', 'ข้อมูลแมตช์', 'Матчи', 'Spielinfo', 'Infos match', 'Info partite'],
   rank: ['Standings', '순위', '順位', '排名', 'Clasificación', 'रैंकिंग', 'BXH', 'อันดับ', 'Таблица', 'Tabelle', 'Classement', 'Classifica'],
   odds: ['Odds', '배당', 'オッズ', '赔率', 'Cuotas', 'ऑड्स', 'Tỷ lệ', 'อัตราต่อรอง', 'Ставки', 'Quoten', 'Cotes', 'Quote'],
+  overUnder: ['O/U', '오버/언더', 'O/U', '大小', 'O/U', 'O/U', 'Tài/Xỉu', 'สูง/ต่ำ', 'Тотал', 'O/U', 'O/U', 'O/U'],
+  over: ['Over', '오버', 'オーバー', '大', 'Más', 'ओवर', 'Tài', 'สูง', 'Больше', 'Über', 'Plus', 'Over'],
+  under: ['Under', '언더', 'アンダー', '小', 'Menos', 'अंडर', 'Xỉu', 'ต่ำ', 'Меньше', 'Unter', 'Moins', 'Under'],
   intlOdds: ['Intl', '해외', '海外', '海外', 'Intl', 'विदेशी', 'Quốc tế', 'ต่างประเทศ', 'Межд.', 'Intl', 'Intl', 'Intl'],
   estOdds: ['Est.', '예상배당', '予想', '预测', 'Est.', 'अनुमान', 'Dự kiến', 'ประมาณ', 'Прогноз', 'Est.', 'Est.', 'Est.'],
   community: ['Community', '커뮤니티', 'コミュニティ', '社区', 'Comunidad', 'समुदाय', 'Cộng đồng', 'ชุมชน', 'Сообщество', 'Community', 'Communauté', 'Community'],
@@ -2741,6 +2744,18 @@ function oddsWidget(od, label) {
     </div>
   </div>`;
 }
+// 오버/언더(총점) 배당 위젯
+function ouWidget(ou) {
+  if (!ou || !(ou.over && ou.under)) return '';
+  const f = v => v ? Number(v).toFixed(2) : '-';
+  return `<div class="odds3 ou3">
+    <span class="odds3-lbl">${esc(t('overUnder'))} ${esc(ou.line)}</span>
+    <div class="odds3-cells">
+      <div class="o3"><span class="ou-t up">${esc(t('over'))}</span><b>${f(ou.over)}</b></div>
+      <div class="o3"><span class="ou-t dn">${esc(t('under'))}</span><b>${f(ou.under)}</b></div>
+    </div>
+  </div>`;
+}
 // 🔒 모달이 열려 있을 때 DOM을 바꿔도 보던 위치가 안 움직이게: 화면에 고정된 기준(채팅 블록)을
 //    잡아 두고, 변경 후 그 기준이 이동한 만큼 스크롤을 보정 → 위쪽 어떤 영역이 변해도 튐 0.
 function keepModalScroll(mutate) {
@@ -2767,8 +2782,8 @@ function renderDetail(e, pr, keepScroll) {
   const dd = e.date ? new Date(e.date) : null;
   const when = dd ? `${dd.getMonth() + 1}/${dd.getDate()} ${hhmm(e.date)}` : '';
   const odds = (e.odds && (e.odds.home || e.odds.away))
-    ? `<div class="odsec">💰 ${esc(t('odds'))}</div>${oddsWidget(e.odds, '')}`
-    : '';   // 실제 배당만
+    ? `<div class="odsec">💰 ${esc(t('odds'))}</div>${oddsWidget(e.odds, '')}${(e.odds.ou ? ouWidget(e.odds.ou) : '')}`
+    : '';   // 실제 배당만 (1X2 + 오버/언더)
   // 점수판은 별도 영역(#mScore)에 — 그 바로 밑에 하이라이트(#mYtWrap)가 오도록
   const sc = $('#mScore');
   // 팀 이름 바로 아래 AI 해설 (라이브=생동감 한 줄 / 그 외=요약 첫 줄)
@@ -3253,8 +3268,8 @@ async function openPick(id) {
   const stars = Math.max(1, Math.min(5, Math.round(p.conf / 20)));
   const od = e.odds || {};
   const oddsRow = (od.home || od.away)
-    ? `${oddsWidget(od, '')}<div class="pi-note">${esc(t('oddsNote'))}</div>`
-    : `<div class="lu-note">${esc(t('oddsSoon'))}</div>`;   // 실제 배당만
+    ? `${oddsWidget(od, '')}${(od.ou ? ouWidget(od.ou) : '')}<div class="pi-note">${esc(t('oddsNote'))}</div>`
+    : `<div class="lu-note">${esc(t('oddsSoon'))}</div>`;   // 실제 배당만 (1X2 + 오버/언더)
   $('#mBody').innerHTML = `
     <div class="pick-hero">
       <div class="ph-team"><div class="ph-logo">${badge(e.homeLogo, '🏟')}</div><div class="ph-nm">${esc(TN(e.home, e.league))}</div></div>

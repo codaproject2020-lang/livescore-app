@@ -658,6 +658,10 @@ table.boxsc .r{font-weight:900;color:var(--red);background:#fbfaf4}
 .odds3-cells{flex:1;display:flex;border:1px solid var(--line);border-radius:8px;overflow:hidden}
 .odds3-cells .o3{flex:1;display:flex;align-items:center;justify-content:center;gap:6px;padding:11px 6px;font-size:15px;font-weight:800;color:var(--navy);border-left:1px solid var(--line);background:#fff}
 .odds3-cells .o3:first-child{border-left:0}
+.ou3 .ou-t{font-size:12px;font-weight:800}
+.ou3 .ou-t.up{color:#e2231a}
+.ou3 .ou-t.dn{color:#2f6fed}
+.odds3-card .ou3{margin-top:4px}
 .o3 .tri{font-size:12px;line-height:1}
 .o3 .tri.up{color:#12b34a}
 .o3 .tri.dn{color:#e2231a}
@@ -801,7 +805,7 @@ table.boxsc .he{color:var(--sub);background:#fafbfc;font-weight:800}
 .ab-item{padding:8px 11px;border-bottom:1px solid var(--line2)}
 .ab-item:last-child{border-bottom:none}
 .ab-hd{display:flex;align-items:center;gap:6px;flex-wrap:wrap;font-size:12.5px;line-height:1.35}
-.ab-num{display:inline-flex;align-items:center;justify-content:center;min-width:20px;height:18px;padding:0 5px;border-radius:5px;background:var(--navy);color:#fff;font-size:11px;font-weight:800}
+.ab-num{display:inline-flex;align-items:center;justify-content:center;min-width:20px;height:18px;padding:0 5px;border-radius:5px;background:#f6c945;color:#3a2c00;font-size:11px;font-weight:800}
 .ab-res{color:var(--navy);font-weight:800}
 .ab-rbi{color:#e23b34;font-weight:800;font-size:11px}
 .ab-np{margin-left:auto;font-size:10.5px;color:var(--dim);font-weight:700;white-space:nowrap}
