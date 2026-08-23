@@ -2091,10 +2091,12 @@ async function updateEvents(e) {
     const present = order.filter(k => evs.some(ev => half(ev) === k));
     const tabs = present.map(k => ({ key: k, label: lbl[k] }));
     const curKey = half(evs[evs.length - 1]) || present[present.length - 1] || '1H';
+    keepModalScroll(() => {
     box.innerHTML = cardBar + '<div id="fbEvWrap"></div>';
     wireEvTabs($('#fbEvWrap', box), e.id, tabs, curKey, key => {
       const list = evs.filter(ev => half(ev) === key).slice().reverse();
       return list.length ? list.map(fmt).map(evRow).join('') : eventEmpty();
+    });
     });
     return;
   }
@@ -2102,7 +2104,7 @@ async function updateEvents(e) {
   const situ = (state.sport === 'baseball') ? bsoSituation(e) : '';
   const log = eventLogs[e.id] || [];
   if (state.sport !== 'baseball') {
-    box.innerHTML = situ + (log.length ? log.slice().reverse().map(evRow).join('') : eventEmpty());
+    keepModalScroll(() => { box.innerHTML = situ + (log.length ? log.slice().reverse().map(evRow).join('') : eventEmpty()); });
     return;
   }
   // MLB/LMB 등 StatsAPI 리그면 투구 단위 플레이별 데이터 시도
@@ -2138,8 +2140,10 @@ async function updateEvents(e) {
     if (i < cur || (i === cur && e.inningHalf === 'bottom') || hr != null) rows.push(line('bottom', HM, hr));
     return rows.length ? rows.map(evRow).join('') : `<div class="ev-empty">🤖 ${esc(t('recWait'))}</div>`;
   };
-  box.innerHTML = situ + '<div id="evTabWrap"></div>';
-  wireEvTabs($('#evTabWrap', box), e.id, tabs, curKey, bodyFor);
+  keepModalScroll(() => {
+    box.innerHTML = situ + '<div id="evTabWrap"></div>';
+    wireEvTabs($('#evTabWrap', box), e.id, tabs, curKey, bodyFor);
+  });
 }
 // ⚾ 실시간 문자중계 상단: 현재 이닝·공격팀·B-S-O·주자 (매 갱신마다 새로고침)
 function bsoSituation(e) {
@@ -2274,14 +2278,8 @@ function bsoMini(e) {
 }
 async function updateMlbLive(e) {
   const box = $('#mMlbLive'); if (!box) return;
-  // 🔒 이 박스(모달 최상단)의 높이가 바뀌면 아래 내용이 밀려 스크롤이 튐 →
-  //    바뀐 높이만큼 모달 스크롤을 보정해서 보던 위치를 그대로 유지.
-  const _mod = document.getElementById('modal');
-  const setBox = (html) => {
-    const oldH = box.offsetHeight, sy = _mod ? _mod.scrollTop : 0;
-    box.innerHTML = html;
-    if (_mod && sy > 0) { const dH = box.offsetHeight - oldH; if (dH) _mod.scrollTop = sy + dH; }
-  };
+  // 🔒 이 박스가 갱신되며 높이가 바뀌어도 보던 위치가 안 움직이게 앵커 보정
+  const setBox = (html) => keepModalScroll(() => { box.innerHTML = html; });
   try {
     const d = await fetchJSON(`/api/mlb/live?home=${encodeURIComponent(e.home)}&away=${encodeURIComponent(e.away)}&date=${state.date}`, { tries: 1 });
     if (!d.found || (d.inning == null && d.balls == null && d.outs == null)) { setBox(''); return; }
@@ -2734,11 +2732,25 @@ function oddsWidget(od, label) {
     </div>
   </div>`;
 }
+// 🔒 모달이 열려 있을 때 DOM을 바꿔도 보던 위치가 안 움직이게: 화면에 고정된 기준(채팅 블록)을
+//    잡아 두고, 변경 후 그 기준이 이동한 만큼 스크롤을 보정 → 위쪽 어떤 영역이 변해도 튐 0.
+function keepModalScroll(mutate) {
+  const mod = document.getElementById('modal');
+  const on = mod && mod.classList.contains('on');
+  const anc = on ? (mod.querySelector('.mchat-embed') || document.getElementById('mLineupWrap') || document.getElementById('mBoxWrap')) : null;
+  const top = anc ? anc.getBoundingClientRect().top : 0;
+  mutate();
+  if (anc && mod) {
+    const fix = () => { try { const dy = anc.getBoundingClientRect().top - top; if (dy) mod.scrollTop += dy; } catch (er) { } };
+    fix(); requestAnimationFrame(fix);
+  }
+}
 function renderDetail(e, pr, keepScroll) {
   const el = $('#mDetail'); if (!el) return;
-  // 🔒 자동 갱신 시 모달 스크롤 위치 유지(내용 다시 그려도 맨 위로 안 튐)
+  // 🔒 자동 갱신 시 모달 스크롤 위치 유지(내용 다시 그려도 안 튐) — 채팅 블록 기준 앵커
   const _mod = document.getElementById('modal');
-  const _keepY = (keepScroll && _mod) ? _mod.scrollTop : null;
+  const _anc = (keepScroll && _mod && _mod.classList.contains('on')) ? (_mod.querySelector('.mchat-embed') || document.getElementById('mLineupWrap')) : null;
+  const _ancTop = _anc ? _anc.getBoundingClientRect().top : 0;
   const st = e.state === 'live' ? ('● ' + koStatus(e)) : (e.state === 'finished' ? t('finished') : hhmm(e.date));
   const scoreTxt = (e.state === 'scheduled' || (e.hs == null && e.as == null)) ? 'VS' : `${esc(e.hs ?? 0)} : ${esc(e.as ?? 0)}`;
   const setSports = (state.sport === 'volleyball' || state.sport === 'hockey');
@@ -2782,8 +2794,11 @@ function renderDetail(e, pr, keepScroll) {
       <div><span class="k">${esc(t('dt'))}</span> ${esc(when)}</div>
       <div><span class="k">${esc(t('status'))}</span> ${esc(koStatus(e))}</div>
     </div>`;
-  // 모달 스크롤 위치 복원(비동기 채움 대비 rAF에서 한 번 더)
-  if (_keepY != null) { _mod.scrollTop = _keepY; requestAnimationFrame(() => { try { if (_mod.scrollTop !== _keepY) _mod.scrollTop = _keepY; } catch (er) { } }); }
+  // 앵커(채팅 블록) 기준으로 스크롤 보정 → #mScore·#mDetail 높이가 변해도 아래 내용 고정
+  if (_anc) {
+    const fix = () => { try { const dy = _anc.getBoundingClientRect().top - _ancTop; if (dy) _mod.scrollTop += dy; } catch (er) { } };
+    fix(); requestAnimationFrame(fix);
+  }
   updateEvents(e);   // 실시간 이벤트 피드 채우기 (축구=API / 그외=변화감지 로그)
   if (statsLeague(e.league)) updateMlbLive(e);   // MLB·LMB·IL·PCL 실시간 볼카운트·주자·타자/투수 (10초 갱신)
 }
