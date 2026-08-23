@@ -831,7 +831,7 @@ async function _fetchPass(date, useFilter, per, maxPages) {
   let fixturesSeen = 0, rawOdds = 0, ftOdds = 0;
   let page = 1, more = true, guard = 0;
   while (more && guard++ < maxPages) {
-    const flt = useFilter ? '&filters=markets:1' : '';
+    const flt = useFilter ? '&filters=markets:1,80' : '';   // 1=1X2, 80=Goals Over/Under
     const j = await smFetch(`/fixtures/date/${date}?include=participants;odds${flt}&per_page=${per}&page=${page}`);
     const fixtures = j.data || [];
     fixturesSeen += fixtures.length;
@@ -843,15 +843,26 @@ async function _fetchPass(date, useFilter, per, maxPages) {
       const odds = f.odds || f.premiumOdds || f.premiumodds || f.premium_odds || [];
       rawOdds += odds.length;
       const acc = { home: [], away: [], draw: [] };
+      const ouAcc = { over: [], under: [] };   // 오버/언더 2.5 라인
       for (const o of odds) {
-        if (!smIsFT(o)) continue;
-        ftOdds++;
-        const side = smSide(o); if (!side) continue;
-        const v = parseFloat(o.value != null ? o.value : o.dp3); if (!v || v < 1.01) continue;
-        acc[side].push(v);
+        const vv = parseFloat(o.value != null ? o.value : o.dp3);
+        if (smIsFT(o)) {
+          ftOdds++;
+          const side = smSide(o); if (!side) continue;
+          if (!vv || vv < 1.01) continue;
+          acc[side].push(vv);
+        } else if (o.market_id === 80) {   // Goals Over/Under
+          const tot = parseFloat(o.total != null ? o.total : o.handicap);
+          if (!(Math.abs(tot - 2.5) < 0.01)) continue;   // 표준 2.5 라인만
+          if (!vv || vv < 1.01) continue;
+          const lab = String(o.label || o.name || '').toLowerCase();
+          if (lab.includes('over')) ouAcc.over.push(vv);
+          else if (lab.includes('under')) ouAcc.under.push(vv);
+        }
       }
       const avg = a => a.length ? Math.round((a.reduce((s, x) => s + x, 0) / a.length) * 100) / 100 : null;
-      const val = { home: avg(acc.home), away: avg(acc.away), draw: avg(acc.draw) };
+      const ou = (ouAcc.over.length && ouAcc.under.length) ? { line: 2.5, over: avg(ouAcc.over), under: avg(ouAcc.under) } : null;
+      const val = { home: avg(acc.home), away: avg(acc.away), draw: avg(acc.draw), ou };
       if (val.home || val.away) {
         const key = normTeam(home.name) + '|' + normTeam(away.name);
         map[key] = val;
@@ -974,7 +985,7 @@ app.get('/api/sportmonks/probe', async (req, res) => {
 async function oddsLookup(oddsSport) {
   if (!ODDS_KEY) return null;
   // au(호주) 지역 추가 → KBO/NPB 등 아시아 야구 배당은 호주 북메이커가 많이 취급함
-  const url = `https://api.the-odds-api.com/v4/sports/${oddsSport}/odds/?apiKey=${ODDS_KEY}&regions=us,uk,eu,au&markets=h2h&oddsFormat=decimal`;
+  const url = `https://api.the-odds-api.com/v4/sports/${oddsSport}/odds/?apiKey=${ODDS_KEY}&regions=us,uk,eu,au&markets=h2h,totals&oddsFormat=decimal`;
   const ck = 'OL:' + oddsSport, now = Date.now(), hit = cache.get(ck);
   if (hit && now - hit.t < 600000) return hit.v;   // 15분 캐시(무료 쿼터 절약)
   try {
@@ -984,17 +995,29 @@ async function oddsLookup(oddsSport) {
     (Array.isArray(arr) ? arr : []).forEach(g => {
       // 여러 북메이커의 h2h 배당을 결과별 평균(시장 컨센서스)으로 → 승·무·패가 일관된 배당(합산 확률 >100%)
       const acc = { home: [], away: [], draw: [] };
+      const ouByPt = {};   // 라인(point) → {over:[],under:[]} — 컨센서스 라인 선택용
       (g.bookmakers || []).forEach(bk => {
-        const m = (bk.markets || []).find(x => x.key === 'h2h'); if (!m) return;
-        (m.outcomes || []).forEach(o => {
+        const m = (bk.markets || []).find(x => x.key === 'h2h');
+        if (m) (m.outcomes || []).forEach(o => {
           if (o.name === g.home_team) acc.home.push(o.price);
           else if (o.name === g.away_team) acc.away.push(o.price);
           else if (o.name === 'Draw') acc.draw.push(o.price);
         });
+        const tm = (bk.markets || []).find(x => x.key === 'totals');
+        if (tm) (tm.outcomes || []).forEach(o => {
+          if (o.point == null) return;
+          const slot = ouByPt[o.point] = ouByPt[o.point] || { over: [], under: [] };
+          if (/over/i.test(o.name)) slot.over.push(o.price);
+          else if (/under/i.test(o.name)) slot.under.push(o.price);
+        });
       });
       const avg = a => a.length ? Math.round((a.reduce((s, x) => s + x, 0) / a.length) * 100) / 100 : null;
+      // 오버·언더 둘 다 있는 라인 중 가장 많이 잡힌 라인을 컨센서스로 채택
+      let bestPt = null, bestN = 0;
+      for (const pt in ouByPt) { const s = ouByPt[pt], n = Math.min(s.over.length, s.under.length); if (n > bestN) { bestN = n; bestPt = pt; } }
+      const ou = (bestPt != null && bestN > 0) ? { line: Number(bestPt), over: avg(ouByPt[bestPt].over), under: avg(ouByPt[bestPt].under) } : null;
       const key = normTeam(g.home_team) + '|' + normTeam(g.away_team);
-      const val = { home: avg(acc.home), away: avg(acc.away), draw: avg(acc.draw) };
+      const val = { home: avg(acc.home), away: avg(acc.away), draw: avg(acc.draw), ou };
       map[key] = val;
       list.push({ ht: teamTokens(g.home_team), at: teamTokens(g.away_team), val });   // 토큰 매칭용
       if (val.home || val.away) oddsStore.set(key, { ...val, t: now });   // 영구 저장소에도 적립
@@ -2256,15 +2279,18 @@ app.get('/api/mlb/pbp', async (req, res) => {
     if (!f) return res.json({ found: false });
     const pbp = await mlbFetch(`/api/v1/game/${f.gamePk}/playByPlay`, 10000);
     const plays = pbp.allPlays || [];
-    // 선수 등번호 맵(id → 등번호) — boxscore에서 (at-bat에 번호 표시용)
+    // 선수 타순 맵(id → 타순 1~9) — boxscore battingOrder에서 (at-bat에 타순 표시용)
     const numById = {};
     try {
       const bx = await mlbFetch(`/api/v1/game/${f.gamePk}/boxscore`, 60000);
       for (const side of ['home', 'away']) {
         const players = (bx.teams && bx.teams[side] && bx.teams[side].players) || {};
-        for (const k in players) { const p = players[k]; if (p && p.person && p.jerseyNumber) numById[p.person.id] = p.jerseyNumber; }
+        for (const k in players) {
+          const p = players[k];
+          if (p && p.person && p.battingOrder) { const bo = parseInt(p.battingOrder, 10); if (bo) numById[p.person.id] = Math.floor(bo / 100) || Math.round(bo / 100); }
+        }
       }
-    } catch (e) { /* 등번호 없어도 진행 */ }
+    } catch (e) { /* 타순 없어도 진행 */ }
     const innMap = {};
     for (const p of plays) {
       const ab = p.about || {};
@@ -2280,7 +2306,7 @@ app.get('/api/mlb/pbp', async (req, res) => {
       const r = p.result || {}, mu = p.matchup || {};
       (innMap[key] = innMap[key] || []).push({
         batter: mu.batter ? mu.batter.fullName : '', pitcher: mu.pitcher ? mu.pitcher.fullName : '',
-        num: (mu.batter && numById[mu.batter.id]) ? numById[mu.batter.id] : '',   // 타자 등번호
+        num: (mu.batter && numById[mu.batter.id]) ? numById[mu.batter.id] : '',   // 타자 타순(1~9)
         event: r.event || '', desc: r.description || '', rbi: r.rbi || 0,
         np: pitches.length, pitches, complete: ab.isComplete !== false
       });
