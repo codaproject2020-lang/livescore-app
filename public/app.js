@@ -2096,11 +2096,13 @@ async function updateEvents(e) {
     const tabs = present.map(k => ({ key: k, label: lbl[k] }));
     const curKey = half(evs[evs.length - 1]) || present[present.length - 1] || '1H';
     keepModalScroll(() => {
+    const _es = box.scrollTop;   // 이벤트 목록 내부 스크롤 유지
     box.innerHTML = cardBar + '<div id="fbEvWrap"></div>';
     wireEvTabs($('#fbEvWrap', box), e.id, tabs, curKey, key => {
       const list = evs.filter(ev => half(ev) === key).slice().reverse();
       return list.length ? list.map(fmt).map(evRow).join('') : eventEmpty();
     });
+    box.scrollTop = _es;
     });
     return;
   }
@@ -2108,7 +2110,7 @@ async function updateEvents(e) {
   const situ = (state.sport === 'baseball') ? bsoSituation(e) : '';
   const log = eventLogs[e.id] || [];
   if (state.sport !== 'baseball') {
-    keepModalScroll(() => { box.innerHTML = situ + (log.length ? log.slice().reverse().map(evRow).join('') : eventEmpty()); });
+    keepModalScroll(() => { const _es = box.scrollTop; box.innerHTML = situ + (log.length ? log.slice().reverse().map(evRow).join('') : eventEmpty()); box.scrollTop = _es; });
     return;
   }
   // MLB/LMB 등 StatsAPI 리그면 투구 단위 플레이별 데이터 시도
@@ -2145,8 +2147,10 @@ async function updateEvents(e) {
     return rows.length ? rows.map(evRow).join('') : `<div class="ev-empty">🤖 ${esc(t('recWait'))}</div>`;
   };
   keepModalScroll(() => {
+    const _es = box.scrollTop;   // 이벤트 목록 내부 스크롤 유지
     box.innerHTML = situ + '<div id="evTabWrap"></div>';
     wireEvTabs($('#evTabWrap', box), e.id, tabs, curKey, bodyFor);
+    box.scrollTop = _es;
   });
 }
 // ⚾ 실시간 문자중계 상단: 현재 이닝·공격팀·B-S-O·주자 (매 갱신마다 새로고침)
