@@ -1361,7 +1361,7 @@ async function loadEvents(silent) {
       // 목록은 그대로 두고, 열려 있는 상세 모달만 실시간 갱신
       if (modalEventId && feedGames[modalEventId] && modalPredict) {
         logChanges(modalEventId, feedGames[modalEventId]);
-        renderDetail(feedGames[modalEventId], modalPredict);
+        renderDetail(feedGames[modalEventId], modalPredict, true);
       }
       return;
     }
@@ -1370,7 +1370,7 @@ async function loadEvents(silent) {
     if (silent && (Date.now() - _lastUserScroll < 1600)) {
       if (modalEventId && feedGames[modalEventId] && modalPredict) {
         logChanges(modalEventId, feedGames[modalEventId]);
-        renderDetail(feedGames[modalEventId], modalPredict);
+        renderDetail(feedGames[modalEventId], modalPredict, true);
       }
       return;
     }
@@ -1391,7 +1391,7 @@ async function loadEvents(silent) {
       _lastFeedSig = sig;
       if (modalEventId && feedGames[modalEventId] && modalPredict) {
         logChanges(modalEventId, feedGames[modalEventId]);
-        renderDetail(feedGames[modalEventId], modalPredict);
+        renderDetail(feedGames[modalEventId], modalPredict, true);
       }
       return;   // 전체 재렌더 없음 → 스크롤 위치 그대로
     }
@@ -1415,7 +1415,7 @@ async function loadEvents(silent) {
     // 상세 모달이 열려 있으면 해당 경기 상세도 실시간 갱신 (채팅·스크롤 유지)
     if (modalEventId && feedGames[modalEventId] && modalPredict) {
       logChanges(modalEventId, feedGames[modalEventId]);   // 변화 감지 → 이벤트 로그 적립
-      renderDetail(feedGames[modalEventId], modalPredict);
+      renderDetail(feedGames[modalEventId], modalPredict, true);
     }
     // ▼ 앵커 카드가 있으면 그 카드를 원래 화면 위치로 되돌림(튕김 방지 핵심)
     if (silent && _anchorId && !_modalOn) {
@@ -2726,8 +2726,11 @@ function oddsWidget(od, label) {
     </div>
   </div>`;
 }
-function renderDetail(e, pr) {
+function renderDetail(e, pr, keepScroll) {
   const el = $('#mDetail'); if (!el) return;
+  // 🔒 자동 갱신 시 모달 스크롤 위치 유지(내용 다시 그려도 맨 위로 안 튐)
+  const _mod = document.getElementById('modal');
+  const _keepY = (keepScroll && _mod) ? _mod.scrollTop : null;
   const st = e.state === 'live' ? ('● ' + koStatus(e)) : (e.state === 'finished' ? t('finished') : hhmm(e.date));
   const scoreTxt = (e.state === 'scheduled' || (e.hs == null && e.as == null)) ? 'VS' : `${esc(e.hs ?? 0)} : ${esc(e.as ?? 0)}`;
   const setSports = (state.sport === 'volleyball' || state.sport === 'hockey');
@@ -2771,6 +2774,8 @@ function renderDetail(e, pr) {
       <div><span class="k">${esc(t('dt'))}</span> ${esc(when)}</div>
       <div><span class="k">${esc(t('status'))}</span> ${esc(koStatus(e))}</div>
     </div>`;
+  // 모달 스크롤 위치 복원(비동기 채움 대비 rAF에서 한 번 더)
+  if (_keepY != null) { _mod.scrollTop = _keepY; requestAnimationFrame(() => { try { if (_mod.scrollTop !== _keepY) _mod.scrollTop = _keepY; } catch (er) { } }); }
   updateEvents(e);   // 실시간 이벤트 피드 채우기 (축구=API / 그외=변화감지 로그)
   if (statsLeague(e.league)) updateMlbLive(e);   // MLB·LMB·IL·PCL 실시간 볼카운트·주자·타자/투수 (10초 갱신)
 }
