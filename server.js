@@ -2256,6 +2256,15 @@ app.get('/api/mlb/pbp', async (req, res) => {
     if (!f) return res.json({ found: false });
     const pbp = await mlbFetch(`/api/v1/game/${f.gamePk}/playByPlay`, 10000);
     const plays = pbp.allPlays || [];
+    // 선수 등번호 맵(id → 등번호) — boxscore에서 (at-bat에 번호 표시용)
+    const numById = {};
+    try {
+      const bx = await mlbFetch(`/api/v1/game/${f.gamePk}/boxscore`, 60000);
+      for (const side of ['home', 'away']) {
+        const players = (bx.teams && bx.teams[side] && bx.teams[side].players) || {};
+        for (const k in players) { const p = players[k]; if (p && p.person && p.jerseyNumber) numById[p.person.id] = p.jerseyNumber; }
+      }
+    } catch (e) { /* 등번호 없어도 진행 */ }
     const innMap = {};
     for (const p of plays) {
       const ab = p.about || {};
@@ -2271,6 +2280,7 @@ app.get('/api/mlb/pbp', async (req, res) => {
       const r = p.result || {}, mu = p.matchup || {};
       (innMap[key] = innMap[key] || []).push({
         batter: mu.batter ? mu.batter.fullName : '', pitcher: mu.pitcher ? mu.pitcher.fullName : '',
+        num: (mu.batter && numById[mu.batter.id]) ? numById[mu.batter.id] : '',   // 타자 등번호
         event: r.event || '', desc: r.description || '', rbi: r.rbi || 0,
         np: pitches.length, pitches, complete: ab.isComplete !== false
       });
