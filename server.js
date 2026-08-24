@@ -598,7 +598,7 @@ function normAS(sport, g) {
     const short = (g.status && g.status.short) || '';
     const long = (g.status && g.status.long) || '';
     // 현재 세트/피리어드 실시간 점수 (배구 등): periods에서 마지막 진행 세트 추출
-    let livePts = null;
+    let livePts = null, setScores = null;
     const pr = g.periods;
     if (pr && typeof pr === 'object') {
       const order = ['fifth', 'fourth', 'third', 'second', 'first'];
@@ -606,6 +606,11 @@ function normAS(sport, g) {
         const p = pr[k];
         if (p && typeof p === 'object' && (p.home != null || p.away != null)) { livePts = { home: p.home, away: p.away }; break; }
       }
+      // 세트/쿼터별 점수 전체 (배구=세트, 농구=쿼터)
+      const seq = ['first', 'second', 'third', 'fourth', 'fifth', 'sixth', 'seventh', 'eighth', 'overtime', 'extratime'];
+      const arr = [];
+      seq.forEach(k => { const p = pr[k]; if (p && typeof p === 'object' && (p.home != null || p.away != null)) arr.push({ home: p.home, away: p.away }); });
+      if (arr.length) setScores = arr;
     }
     // 야구: 라인스코어(이닝별 득점)·안타(H)·실책(E) + 초/말 추론
     let box = null, curInning = null, inningHalf = null;
@@ -635,7 +640,7 @@ function normAS(sport, g) {
       home: t.home.name, homeLogo: t.home.logo, away: t.away.name, awayLogo: t.away.logo,
       hs, as, status: short || long, statusLong: long,
       period: g.period || g.inning || curInning || null, timer: g.timer || (g.status && g.status.timer) || null,
-      livePts, box, curInning, inningHalf,
+      livePts, setScores, box, curInning, inningHalf,
       // ⏱️ 절대시각(UTC)로 저장 — 유닉스 timestamp 우선(타임존 문자열은 애매해서 최후순위). 표시/그룹은 기기 타임존으로 변환
       date: (g.timestamp ? new Date(g.timestamp * 1000).toISOString() : (g.date || g.time || null)),
       state: asState(short || long, hs)
