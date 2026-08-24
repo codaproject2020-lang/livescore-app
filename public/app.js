@@ -2232,9 +2232,9 @@ function bsoSituation(e) {
 function shortName(n) { const p = String(n || '').trim().split(' '); return p.length > 1 ? p[p.length - 1] : n; }
 function teamShort(n) { return shortName(n); }
 // 포메이션 좌표(grid)가 없을 때: 선발 명단을 사진+이름 리스트로 표시 (좌표 미제공 리그/시점 대응)
-function renderLineupList(t) {
-  const all = t.startXI || [];
-  const hd = `<div class="pitch-hd">${esc(t.team)}${t.formation ? ` · <b>${esc(t.formation)}</b>` : ''}${t.coach ? ` · ${esc(t('coach'))} ${esc(t.coach)}` : ''}</div>`;
+function renderLineupList(tm) {
+  const all = tm.startXI || [];
+  const hd = `<div class="pitch-hd">${esc(tm.team)}${tm.formation ? ` · <b>${esc(tm.formation)}</b>` : ''}${tm.coach ? ` · ${esc(t('coach'))} ${esc(tm.coach)}` : ''}</div>`;
   if (!all.length) return `<div class="pitch">${hd}<div class="lu-note">-</div></div>`;
   const rows = all.map(p => {
     const face = p.photo || footFace(p.id), num = esc(p.number == null ? '' : String(p.number));
@@ -2243,7 +2243,7 @@ function renderLineupList(t) {
       : `<span class="lulist-av">${num || '·'}</span>`;
     return `<div class="lulist-row lu-dot" data-pid="${esc(p.id)}" data-name="${esc(p.name)}" data-pos="${esc(p.pos || '')}" data-num="${num}">${av}<span class="lulist-num">${num}</span><span class="lulist-nm">${esc(fbPN(p.name))}</span>${p.pos ? `<span class="lulist-pos">${esc(p.pos)}</span>` : ''}</div>`;
   }).join('');
-  const subs = (t.subs || []).length ? `<div class="lulist-sub-hd">${esc(t('subs') || '교체')}</div>` + (t.subs || []).map(p => `<div class="lulist-row lu-dot sub" data-pid="${esc(p.id)}" data-name="${esc(p.name)}" data-pos="${esc(p.pos || '')}" data-num="${esc(p.number == null ? '' : String(p.number))}"><span class="lulist-av sm">${esc(p.number == null ? '' : String(p.number))}</span><span class="lulist-nm">${esc(fbPN(p.name))}</span></div>`).join('') : '';
+  const subs = (tm.subs || []).length ? `<div class="lulist-sub-hd">${esc(t('subs') || '교체')}</div>` + (tm.subs || []).map(p => `<div class="lulist-row lu-dot sub" data-pid="${esc(p.id)}" data-name="${esc(p.name)}" data-pos="${esc(p.pos || '')}" data-num="${esc(p.number == null ? '' : String(p.number))}"><span class="lulist-av sm">${esc(p.number == null ? '' : String(p.number))}</span><span class="lulist-nm">${esc(fbPN(p.name))}</span></div>`).join('') : '';
   return `<div class="pitch">${hd}<div class="lulist">${rows}${subs}</div></div>`;
 }
 function renderPitch(t) {
