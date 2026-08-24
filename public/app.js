@@ -747,6 +747,27 @@ function badge(url, fallback) {
     ? `<img src="${esc(url)}" onerror="this.replaceWith(document.createTextNode('${fallback}'))" alt="">`
     : fallback;
 }
+// 국가명(영어) → ISO2 (국가대표팀 로고 대신 국기 표시용)
+const COUNTRY_ISO = {
+  'south korea': 'kr', 'korea republic': 'kr', 'korea': 'kr', 'japan': 'jp', 'china': 'cn', 'chinese taipei': 'tw', 'taiwan': 'tw', 'hong kong': 'hk', 'thailand': 'th', 'vietnam': 'vn', 'indonesia': 'id', 'india': 'in', 'iran': 'ir', 'iraq': 'iq', 'saudi arabia': 'sa', 'qatar': 'qa', 'uae': 'ae', 'united arab emirates': 'ae', 'kazakhstan': 'kz', 'pakistan': 'pk', 'philippines': 'ph', 'australia': 'au', 'new zealand': 'nz',
+  'usa': 'us', 'united states': 'us', 'canada': 'ca', 'mexico': 'mx', 'brazil': 'br', 'argentina': 'ar', 'chile': 'cl', 'colombia': 'co', 'peru': 'pe', 'uruguay': 'uy', 'venezuela': 've', 'ecuador': 'ec', 'paraguay': 'py', 'bolivia': 'bo', 'cuba': 'cu', 'dominican republic': 'do', 'puerto rico': 'pr', 'costa rica': 'cr',
+  'france': 'fr', 'germany': 'de', 'italy': 'it', 'spain': 'es', 'portugal': 'pt', 'netherlands': 'nl', 'belgium': 'be', 'england': 'gb-eng', 'scotland': 'gb-sct', 'wales': 'gb-wls', 'united kingdom': 'gb', 'ireland': 'ie', 'poland': 'pl', 'serbia': 'rs', 'croatia': 'hr', 'slovenia': 'si', 'slovakia': 'sk', 'czech republic': 'cz', 'czechia': 'cz', 'austria': 'at', 'switzerland': 'ch', 'sweden': 'se', 'norway': 'no', 'denmark': 'dk', 'finland': 'fi', 'iceland': 'is', 'ukraine': 'ua', 'russia': 'ru', 'turkey': 'tr', 'greece': 'gr', 'romania': 'ro', 'bulgaria': 'bg', 'hungary': 'hu', 'latvia': 'lv', 'lithuania': 'lt', 'estonia': 'ee', 'kosovo': 'xk', 'north macedonia': 'mk', 'macedonia': 'mk', 'azerbaijan': 'az', 'georgia': 'ge', 'belarus': 'by', 'montenegro': 'me', 'bosnia and herzegovina': 'ba', 'albania': 'al', 'moldova': 'md',
+  'egypt': 'eg', 'tunisia': 'tn', 'algeria': 'dz', 'morocco': 'ma', 'nigeria': 'ng', 'cameroon': 'cm', 'senegal': 'sn', 'ghana': 'gh', 'south africa': 'za', 'kenya': 'ke', 'israel': 'il'
+};
+// 팀명이 국가대표면 국기 URL, 아니면 null
+function natFlagUrl(name) {
+  if (!name) return null;
+  let n = String(name).toLowerCase().replace(/\s*\b(u1[5-9]|u2[0-3]|u17|w|women|men|olympic|a'?)\b\s*$/gi, '').trim();
+  n = n.replace(/\s+w$/,'').trim();
+  const iso = COUNTRY_ISO[n];
+  return iso ? `https://flagcdn.com/w80/${iso}.png` : null;
+}
+// 팀 로고: 국가대표면 국기 우선(로고 불안정), 아니면 클럽 로고 → 실패 시 이모지
+function teamPic(name, logo, fb) {
+  const flag = natFlagUrl(name);
+  if (flag) return `<img class="natflag" src="${esc(flag)}" onerror="this.replaceWith(document.createTextNode('${fb || '🏳️'}'))" alt="">`;
+  return badge(logo, fb || '🏟');
+}
 
 // ============================================================
 //  탭 전환
@@ -1895,9 +1916,9 @@ function matchCard(e) {
   return `<div class="match" data-ev="${esc(e.id)}">
     <span class="cardlead"><span class="bell favbell${isMatchFav(e) ? ' on' : ''}" data-favmatch="${esc(e.id)}" title="${esc(t('favTeams'))}">${isMatchFav(e) ? '🔔' : '🔕'}</span>${heatHtml(e)}<span class="pick" data-pickbtn="${esc(e.id)}" title="${esc(t('pickHub'))}">${esc(t('pick'))}</span></span>
     <div class="mrow">
-      <div class="side">${HA_HOME}<div class="ph">${badge(e.homeLogo, '🏟')}</div><div class="team">${esc(TN(e.home, e.league))}</div>${teamSP(e, 'home')}${teamCards(e, 'home')}</div>
+      <div class="side">${HA_HOME}<div class="ph">${teamPic(e.home, e.homeLogo, '🏟')}</div><div class="team">${esc(TN(e.home, e.league))}</div>${teamSP(e, 'home')}${teamCards(e, 'home')}</div>
       ${scoreBlock(e)}
-      <div class="side">${HA_AWAY}<div class="ph">${badge(e.awayLogo, '🏟')}</div><div class="team">${esc(TN(e.away, e.league))}</div>${teamSP(e, 'away')}${teamCards(e, 'away')}</div>
+      <div class="side">${HA_AWAY}<div class="ph">${teamPic(e.away, e.awayLogo, '🏟')}</div><div class="team">${esc(TN(e.away, e.league))}</div>${teamSP(e, 'away')}${teamCards(e, 'away')}</div>
     </div>
     ${aiLive(e)}
     ${aiPreview(e)}
@@ -2749,6 +2770,23 @@ async function showMini(gp) {
   } catch { box.innerHTML = `<div class="minigame"><div class="lu-note">불러오기 실패</div></div>`; }
 }
 // 야구 이닝별 라인스코어(R·H·E) 표
+// 배구 세트별 / 농구 쿼터별 점수표 (상세)
+function setScoreTable(e) {
+  if (!e.setScores || !e.setScores.length) return '';
+  if (!['volleyball', 'basketball', 'hockey'].includes(state.sport)) return '';
+  const isVb = state.sport === 'volleyball';
+  const hd = isVb ? ('🏐 ' + esc(t('setWord'))) : (state.sport === 'basketball' ? '🏀 Q' : '🏒 P');
+  const cols = e.setScores.map((s, i) => `<th>${i + 1}</th>`).join('');
+  const homeRow = e.setScores.map(s => `<td>${esc(s.home ?? '-')}</td>`).join('');
+  const awayRow = e.setScores.map(s => `<td>${esc(s.away ?? '-')}</td>`).join('');
+  const totLbl = isVb ? esc(t('setWord')) : 'T';
+  return `<div class="odsec">${hd}</div>
+    <table class="setscore"><thead><tr><th></th>${cols}<th class="tot">${totLbl}</th></tr></thead>
+    <tbody>
+      <tr><td class="tn">${esc(TN(e.home, e.league))}</td>${homeRow}<td class="tot">${esc(e.hs ?? 0)}</td></tr>
+      <tr><td class="tn">${esc(TN(e.away, e.league))}</td>${awayRow}<td class="tot">${esc(e.as ?? 0)}</td></tr>
+    </tbody></table>`;
+}
 function lineScoreTable(e) {
   if (state.sport !== 'baseball' || !e.box) return '';
   const bh = e.box.home, ba = e.box.away;
@@ -2829,9 +2867,9 @@ function renderDetail(e, pr, keepScroll) {
   const topAI = e.state === 'live' ? aiLive(e) : `<div class="ailive">🤖 <b>${esc(t('aiComm'))}</b> ${aiSummary(e)[0] || ''}</div>`;
   if (sc) sc.innerHTML = `
     <div class="mteams">
-      <div class="mt">${HA_HOME}<div class="ph">${badge(e.homeLogo, '🏟')}</div><div class="nm">${esc(TN(e.home, e.league))}</div></div>
+      <div class="mt">${HA_HOME}<div class="ph">${teamPic(e.home, e.homeLogo, '🏟')}</div><div class="nm">${esc(TN(e.home, e.league))}</div></div>
       <div class="msc"><div class="n">${scoreTxt}</div><div class="st" style="color:${e.state === 'live' ? '#e2231a' : '#8b93a0'}">${esc(st)}</div>${setpts}</div>
-      <div class="mt">${HA_AWAY}<div class="ph">${badge(e.awayLogo, '🏟')}</div><div class="nm">${esc(TN(e.away, e.league))}</div></div>
+      <div class="mt">${HA_AWAY}<div class="ph">${teamPic(e.away, e.awayLogo, '🏟')}</div><div class="nm">${esc(TN(e.away, e.league))}</div></div>
     </div>
     ${topAI}`;
   // 🔒 스크롤 튐 방지: 비동기로 채워지는 영역(#mEvents·#mMlbLive)의 기존 내용을 유지 → 재렌더 시 높이가 확 줄지 않게
@@ -2841,6 +2879,7 @@ function renderDetail(e, pr, keepScroll) {
   el.innerHTML = `
     <div id="mMlbLive">${prevMlb}</div>
     ${lineScoreTable(e)}
+    ${setScoreTable(e)}
     ${odds}
     <div class="aisum">
       <div class="aisum-hd">🤖 ${esc(t('aiSum'))} ${e.state === 'live' ? '<span class="aisum-live">● LIVE</span>' : ''}</div>
@@ -3053,9 +3092,9 @@ function pickCard(e) {
   return `<div class="pickcard phub" data-pick="${esc(e.id)}">
     <div class="pk-top"><span class="pk-lg">${esc(e.league)}</span><span class="pk-t">${stx}</span></div>
     <div class="pk-mid">
-      <div class="pk-team"><div class="pk-ph">${badge(e.homeLogo, '🏟')}</div><div class="pk-nm">${esc(TN(e.home, e.league))}</div></div>
+      <div class="pk-team"><div class="pk-ph">${teamPic(e.home, e.homeLogo, '🏟')}</div><div class="pk-nm">${esc(TN(e.home, e.league))}</div></div>
       <div class="pk-vs">VS</div>
-      <div class="pk-team"><div class="pk-ph">${badge(e.awayLogo, '🏟')}</div><div class="pk-nm">${esc(TN(e.away, e.league))}</div></div>
+      <div class="pk-team"><div class="pk-ph">${teamPic(e.away, e.awayLogo, '🏟')}</div><div class="pk-nm">${esc(TN(e.away, e.league))}</div></div>
     </div>
     <div class="phub-bars">
       ${m ? `<div class="phb-row"><span class="phb-l">${esc(t('marketCons'))}</span>${phbBar(m.home, m.away)}<span class="phb-v">${m.home}·${m.away}</span></div>` : ''}
@@ -3311,9 +3350,9 @@ async function openPick(id) {
     : `<div class="lu-note">${esc(t('oddsSoon'))}</div>`;   // 실제 배당만 (1X2 + 오버/언더)
   $('#mBody').innerHTML = `
     <div class="pick-hero">
-      <div class="ph-team"><div class="ph-logo">${badge(e.homeLogo, '🏟')}</div><div class="ph-nm">${esc(TN(e.home, e.league))}</div></div>
+      <div class="ph-team"><div class="ph-logo">${teamPic(e.home, e.homeLogo, '🏟')}</div><div class="ph-nm">${esc(TN(e.home, e.league))}</div></div>
       <div class="ph-vs"><div class="ph-vst">VS</div><div class="ph-time">${e.state === 'live' ? '● ' + esc(koStatus(e)) : e.date ? hhmm(e.date) : ''}</div></div>
-      <div class="ph-team"><div class="ph-logo">${badge(e.awayLogo, '🏟')}</div><div class="ph-nm">${esc(TN(e.away, e.league))}</div></div>
+      <div class="ph-team"><div class="ph-logo">${teamPic(e.away, e.awayLogo, '🏟')}</div><div class="ph-nm">${esc(TN(e.away, e.league))}</div></div>
     </div>
     <div class="pick-sec pick-summary" id="pickSummary">${pickSummaryHtml(e)}</div>
     <div class="pick-sec">
