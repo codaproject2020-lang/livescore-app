@@ -288,7 +288,7 @@ const MLB_TEAMS = {
   'diamondbacks': { ko: '애리조나', ja: 'アリゾナ', zh: '亚利桑那' },
   'braves': { ko: '애틀랜타', ja: 'アトランタ', zh: '亚特兰大' },
   'orioles': { ko: '볼티모어', ja: 'ボルチモア', zh: '巴尔的摩' },
-  'red sox': { ko: '보스턴', ja: 'ボストン', zh: '波士顿红袜' },
+  'red sox': { ko: '보스턴 레드삭스', ja: 'レッドソックス', zh: '波士顿红袜' },
   'cubs': { ko: '시카고 컵스', ja: 'カブス', zh: '芝加哥小熊' },
   'white sox': { ko: '시카고 화이트삭스', ja: 'ホワイトソックス', zh: '芝加哥白袜' },
   'reds': { ko: '신시내티', ja: 'シンシナティ', zh: '辛辛那提' },
@@ -564,9 +564,8 @@ function fbTeamName(name) {
   const key = fbNorm(name);
   let e = FB_TEAMS[key];
   if (!e) { const k2 = key.replace(/^(fc|afc|sc|cf|ac)/, '').replace(/(fc|afc|sc|cf)$/, ''); e = FB_TEAMS[k2]; }
-  if (e && e[LANG]) return e[LANG];                 // 주요 클럽: 정확한 수동 번역
-  if (LANG === 'ko' && name) return enToKo(name);   // 그 외: 한글 자동 음역
-  return name;
+  if (e && e[LANG]) return e[LANG];   // 주요 클럽: 정확한 수동 번역만 사용
+  return name;                         // 사전에 없으면 원문(영어) 유지 — 억지 음역 안 함
 }
 // 축구 선수명: 한국어일 때 자동 음역(예: Messi→메시), 그 외 언어는 원문
 function fbPN(name) { return (LANG === 'ko' && name) ? enToKo(name) : name; }
@@ -574,8 +573,8 @@ function fbPN(name) { return (LANG === 'ko' && name) ? enToKo(name) : name; }
 function TN(name, league) {
   if (!name || (LANG !== 'ko' && LANG !== 'ja' && LANG !== 'zh')) return name;
   if (state.sport === 'football') return fbTeamName(name);
-  // 농구·배구·하키 등: 한국어일 때 자동 음역(그 외 언어는 원문)
-  if (['basketball', 'volleyball', 'hockey', 'handball', 'rugby'].includes(state.sport)) return LANG === 'ko' ? enToKo(name) : name;
+  // 농구·배구·하키 등: 사전이 없으면 원문 유지 (억지 음역 안 함)
+  if (['basketball', 'volleyball', 'hockey', 'handball', 'rugby'].includes(state.sport)) return name;
   const d = leagueDict(league);
   const nick = tmNick(name);
   let e = d[nick] || d[String(name).toLowerCase()];
@@ -1880,7 +1879,7 @@ function teamCards(e, side) {
 }
 // ⚽ 축구 라이브 통계 (점유율·슈팅·유효슈팅) — 카드에서 상세 안 열어도 바로 표시
 function fbStatsRow(e) {
-  if (state.sport !== 'football' || e.state !== 'live' || !e.stats) return '';
+  if (state.sport !== 'football' || !(e.state === 'live' || e.state === 'finished') || !e.stats) return '';
   const h = e.stats.home || {}, a = e.stats.away || {};
   const num = v => { const n = parseInt(v, 10); return isNaN(n) ? null : n; };
   const hp = num(h.poss), ap = num(a.poss);
