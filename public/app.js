@@ -2555,10 +2555,16 @@ async function updateLineup(e) {
         }
       }
       if (teams.length < 2 || !(teams[0].startXI || []).length) { box.innerHTML = `<div class="odsec">📋 ${esc(t('lineup'))}</div><div class="lu-note">-</div><div id="mFbStats"></div>`; loadFbStats(e); return; }
+      // 두 팀 모두 좌표(grid)가 있으면 포메이션 배치도, 하나라도 없으면 양팀 2열 리스트로 통일(깨짐 방지)
+      const bothGrid = (teams[0].startXI || []).some(p => p.grid) && (teams[1].startXI || []).some(p => p.grid);
+      const fmt = bothGrid ? `<span class="rhe">${esc(teams[0].formation)} · ${esc(teams[1].formation)}</span>` : '';
       const luTitle = predicted
-        ? `<div class="odsec">🔮 ${esc(t('predLineup'))} <span class="rhe">${esc(teams[0].formation)} · ${esc(teams[1].formation)}</span></div><div class="pred-note">${esc(t('predNote'))}</div>`
-        : `<div class="odsec">📋 ${esc(t('lineup'))} <span class="badge-conf">${esc(t('confLineup'))}</span> <span class="rhe">${esc(teams[0].formation)} · ${esc(teams[1].formation)}</span></div>`;
-      box.innerHTML = `${luTitle}${teams.map(renderPitch).join('')}<div id="mPlayer"></div><div id="mFbStats"></div>`;
+        ? `<div class="odsec">🔮 ${esc(t('predLineup'))} ${fmt}</div><div class="pred-note">${esc(t('predNote'))}</div>`
+        : `<div class="odsec">📋 ${esc(t('lineup'))} <span class="badge-conf">${esc(t('confLineup'))}</span> ${fmt}</div>`;
+      const luBody = bothGrid
+        ? teams.map(renderPitch).join('')
+        : `<div class="plu-2">${luColHtml(TN(e.home, e.league), teams[0].startXI, true)}${luColHtml(TN(e.away, e.league), teams[1].startXI, true)}</div>`;
+      box.innerHTML = `${luTitle}${luBody}<div id="mPlayer"></div><div id="mFbStats"></div>`;
       wirePlayerClicks('football');
       loadFbStats(e);
     } catch { box.innerHTML = `<div class="odsec">📋 ${esc(t('lineup'))}</div><div class="lu-note">-</div>`; }
