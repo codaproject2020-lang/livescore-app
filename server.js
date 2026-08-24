@@ -1677,8 +1677,9 @@ async function buildGamesCore(sport, date, tz) {
   if (sport === 'football') {
     const liveG = games.filter(g => g.state === 'live');
     const finG = games.filter(g => g.state === 'finished');
-    const targets = liveG.concat(finG).slice(0, 40);   // 라이브 우선 + 종료, 최대 40경기
-    await Promise.all(targets.map(async g => {
+    const targets = liveG.concat(finG).slice(0, 150);   // 라이브 우선 + 종료, 최대 150경기(사실상 전 경기)
+    // 캐시 히트는 즉시 처리, 미스만 API 호출 — 미스는 배치(20개씩)로 나눠 rate-limit 버스트 방지
+    const fetchOne = async g => {
       try {
         const ck = 'FBS:' + g.id, hit = cache.get(ck);
         const ttl = g.state === 'finished' ? 3600000 : 30000;   // 종료=1시간(안 변함), 라이브=30초
@@ -1711,7 +1712,11 @@ async function buildGamesCore(sport, date, tz) {
           if (hy || hr || ay || ar) g.cards = { home: { y: hy, r: hr }, away: { y: ay, r: ar } };
         }
       } catch {}
-    }));
+    };
+    // 캐시된 것 먼저 즉시 반영, 미완료(API 호출 필요)만 20개씩 배치로 순차 처리
+    for (let i = 0; i < targets.length; i += 20) {
+      await Promise.all(targets.slice(i, i + 20).map(fetchOne));
+    }
   }
   return { games, j };
 }
