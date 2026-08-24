@@ -1668,14 +1668,17 @@ async function buildGamesCore(sport, date, tz) {
       }); });
     }
   }
-  // ⚽ 라이브 축구: 팀별 통계(점유율·슈팅·유효슈팅·카드) — 라이브 경기만, 경기당 30초 캐시. statistics 한 번으로 카드까지 커버
+  // ⚽ 축구 팀별 통계(점유율·슈팅·유효슈팅·카드) — 라이브 + 종료 경기(최종 카드 표시). 종료는 길게 캐시.
   if (sport === 'football') {
-    const liveG = games.filter(g => g.state === 'live').slice(0, 40);
-    await Promise.all(liveG.map(async g => {
+    const liveG = games.filter(g => g.state === 'live');
+    const finG = games.filter(g => g.state === 'finished');
+    const targets = liveG.concat(finG).slice(0, 40);   // 라이브 우선 + 종료, 최대 40경기
+    await Promise.all(targets.map(async g => {
       try {
         const ck = 'FBS:' + g.id, hit = cache.get(ck);
+        const ttl = g.state === 'finished' ? 3600000 : 30000;   // 종료=1시간(안 변함), 라이브=30초
         let stats;
-        if (hit && Date.now() - hit.t < 30000) stats = hit.v;
+        if (hit && Date.now() - hit.t < ttl) stats = hit.v;
         else {
           const st = await asRaw('football', `/fixtures/statistics?fixture=${g.id}`, 9000);
           const val = (arr, type) => { const it = (arr || []).find(x => x.type === type); return it ? it.value : null; };
