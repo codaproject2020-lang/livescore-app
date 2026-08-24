@@ -58,7 +58,7 @@ html,body{overflow-x:hidden;max-width:100%}
 .datenav .arw:active{transform:scale(.9)}
 .datepick{border:1px solid var(--line);border-radius:6px;padding:5px 8px;font-size:13px;font-family:inherit;color:var(--txt)}
 .datenav .today{font-weight:800;color:var(--blue);cursor:pointer}
-.datenav .refresh{margin-left:auto;background:var(--blueDark);color:#fff;font-weight:800;font-size:12px;padding:6px 12px;border-radius:16px;cursor:pointer}
+.datenav .refresh{margin-left:auto;background:var(--blueDark);color:#fff;font-weight:800;font-size:11px;padding:6px 11px;border-radius:16px;cursor:pointer;white-space:nowrap;flex:0 0 auto}
 
 /* ===== TICKER / CHATBAN ===== */
 .ticker{display:flex;align-items:center;gap:8px;padding:9px 12px;border-bottom:1px solid var(--line);background:#fafbfc}
