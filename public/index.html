@@ -8,7 +8,7 @@
 <link rel="manifest" href="/manifest.json">
 <link rel="apple-touch-icon" href="/icon-512.png?v=2">
 <link rel="icon" href="/icon-192.png?v=2">
-<link rel="stylesheet" href="styles.css?v=238">
+<link rel="stylesheet" href="styles.css?v=239">
 </head>
 <body>
 <div class="shell">
@@ -145,15 +145,15 @@
     <!-- ===== 커뮤니티 게시판 뷰 ===== -->
     <section class="view hidden" id="view-board">
       <div class="boardtabs">
-        <div class="bt on" data-board="free">📝 자유게시판</div>
-        <div class="bt" data-board="profit">💰 수익인증</div>
-        <div class="bt" data-board="loss">📉 손실인증</div>
+        <div class="bt on" data-board="free">📝 <span data-i18n="boardFree">자유게시판</span></div>
+        <div class="bt" data-board="profit">💰 <span data-i18n="boardProfit">수익인증</span></div>
+        <div class="bt" data-board="loss">📉 <span data-i18n="boardLoss">손실인증</span></div>
       </div>
       <div class="writebar">
-        <span id="boardDesc">자유롭게 이야기를 나눠보세요</span>
-        <button id="btnWrite">✏️ 글쓰기</button>
+        <span id="boardDesc" data-i18n="descFree">자유롭게 이야기를 나눠보세요</span>
+        <button id="btnWrite">✏️ <span data-i18n="writeTitle">글쓰기</span></button>
       </div>
-      <div id="postList" class="postlist"><div class="loading">불러오는 중…</div></div>
+      <div id="postList" class="postlist"><div class="loading" data-i18n="loading">불러오는 중…</div></div>
     </section>
 
     <p class="foot">스코어·엠블럼·순위는 실제 API 데이터입니다. 배당·AI 예측은 참고용 계산값입니다.<br>
@@ -186,20 +186,20 @@
     <text x="23" y="25" text-anchor="middle" font-family="Arial Black,Arial" font-weight="900" font-style="italic" font-size="12.5" fill="url(#lg)">LIVE</text>
     <text x="23" y="34" text-anchor="middle" font-family="Arial" font-weight="800" font-size="6" letter-spacing="1.5" fill="url(#lg)">SCORE</text>
   </svg>
-  <div class="lm-title">로그인</div>
-  <div class="lm-sub">간편하게 로그인하고 채팅·픽·커뮤니티에 참여하세요</div>
+  <div class="lm-title" data-i18n="login">로그인</div>
+  <div class="lm-sub" data-i18n="loginSub">간편하게 로그인하고 채팅·픽·커뮤니티에 참여하세요</div>
   <div id="gSignIn" class="gsi-wrap"></div>
-  <div class="lm-note" id="lmNote">구글 계정으로 안전하게 로그인 · 채팅·픽·커뮤니티 참여</div>
+  <div class="lm-note" id="lmNote" data-i18n="loginNote">구글 계정으로 안전하게 로그인 · 채팅·픽·커뮤니티 참여</div>
 </div>
 
 <!-- ===== 글쓰기 모달 ===== -->
 <div class="scrim" id="scrimW"></div>
 <div class="modal" id="writeModal">
-  <div class="mhd"><span id="wmTitle">글쓰기</span><span class="x" id="wmClose">✕</span></div>
+  <div class="mhd"><span id="wmTitle" data-i18n="writeTitle">글쓰기</span><span class="x" id="wmClose">✕</span></div>
   <div class="mbody">
-    <input type="text" id="wPostTitle" class="winput" placeholder="제목" maxlength="80">
-    <textarea id="wPostText" class="winput wtext" placeholder="내용을 입력하세요" maxlength="1000"></textarea>
-    <button id="wSubmit" class="wsubmit">등록하기</button>
+    <input type="text" id="wPostTitle" class="winput" placeholder="제목" data-i18n-ph="titlePh" maxlength="80">
+    <textarea id="wPostText" class="winput wtext" placeholder="내용을 입력하세요" data-i18n-ph="contentPh" maxlength="1000"></textarea>
+    <button id="wSubmit" class="wsubmit" data-i18n="submitPost">등록하기</button>
   </div>
 </div>
 
@@ -252,6 +252,6 @@
     window.addEventListener('load', () => navigator.serviceWorker.register('/sw.js').catch(() => {}));
   }
 </script>
-<script src="app.js?v=238"></script>
+<script src="app.js?v=239"></script>
 </body>
 </html>

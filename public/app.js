@@ -53,6 +53,23 @@ const STR = {
   refresh: ['Refresh', '새로고침', '更新', '刷新', 'Actualizar', 'रिफ्रेश', 'Làm mới', 'รีเฟรช', 'Обновить', 'Aktualisieren', 'Actualiser', 'Aggiorna'],
   allRoom: ['All-Games Chat', '전경기 대화방', '全試合チャット', '全场聊天', 'Chat general', 'सभी मैच चैट', 'Chat tất cả', 'แชทรวม', 'Общий чат', 'Alle-Spiele-Chat', 'Chat général', 'Chat generale'],
   liveChat: ['All-Games Live Chat', '전경기 실시간 채팅', '全試合ライブチャット', '全场实时聊天', 'Chat en vivo', 'लाइव चैट', 'Chat trực tiếp', 'แชทสด', 'Живой чат', 'Live-Chat', 'Chat en direct', 'Chat dal vivo'],
+  room: ['Chat Room', '대화방', 'チャットルーム', '聊天室', 'Sala', 'चैट रूम', 'Phòng chat', 'ห้องแชท', 'Комната', 'Chatraum', 'Salon', 'Sala'],
+  watchChat: ['Watch & Chat', '보면서 채팅', '観ながらチャット', '边看边聊', 'Ver y chatear', 'देखें और चैट', 'Vừa xem vừa chat', 'ดูไปแชทไป', 'Смотреть и общаться', 'Sehen & Chatten', 'Regarder & discuter', 'Guarda & Chatta'],
+  enterRoom: ['Joined', '입장', '入室', '进入', 'Entraste', 'प्रवेश', 'Đã vào', 'เข้าห้อง', 'Вход', 'Beigetreten', 'Entré', 'Entrato'],
+  chatConnected: ['Connected to live chat', '실시간 채팅에 연결되었습니다', 'ライブチャットに接続しました', '已连接实时聊天', 'Conectado al chat en vivo', 'लाइव चैट से जुड़ गए', 'Đã kết nối chat trực tiếp', 'เชื่อมต่อแชทสดแล้ว', 'Подключено к чату', 'Mit Live-Chat verbunden', 'Connecté au chat', 'Connesso alla chat'],
+  loginSub: ['Sign in to join chat, picks & community', '간편하게 로그인하고 채팅·픽·커뮤니티에 참여하세요', 'ログインしてチャット・ピック・コミュニティに参加', '登录参与聊天·预测·社区', 'Inicia sesión para chat, picks y comunidad', 'चैट, पिक्स और समुदाय के लिए साइन इन करें', 'Đăng nhập để tham gia chat, kèo & cộng đồng', 'ลงชื่อเข้าใช้เพื่อร่วมแชท พิค และคอมมูนิตี้', 'Войдите в чат, прогнозы и сообщество', 'Anmelden für Chat, Picks & Community', 'Connectez-vous au chat, pronostics & communauté', 'Accedi a chat, pick e community'],
+  loginNote: ['Secure sign-in with Google · join chat, picks & community', '구글 계정으로 안전하게 로그인 · 채팅·픽·커뮤니티 참여', 'Googleで安全にログイン・チャット/ピック/コミュニティ参加', '用谷歌账号安全登录·参与聊天/预测/社区', 'Acceso seguro con Google · chat, picks y comunidad', 'Google से सुरक्षित साइन-इन', 'Đăng nhập an toàn bằng Google', 'เข้าสู่ระบบด้วย Google อย่างปลอดภัย', 'Безопасный вход через Google', 'Sichere Anmeldung mit Google', 'Connexion sécurisée avec Google', 'Accesso sicuro con Google'],
+  writeTitle: ['Write a post', '글쓰기', '投稿', '发帖', 'Escribir', 'पोस्ट लिखें', 'Viết bài', 'เขียนโพสต์', 'Написать', 'Beitrag schreiben', 'Écrire', 'Scrivi'],
+  submitPost: ['Submit', '등록하기', '登録', '提交', 'Publicar', 'सबमिट', 'Đăng', 'ส่ง', 'Отправить', 'Senden', 'Publier', 'Invia'],
+  reconnecting: ['Disconnected. Reconnecting…', '연결이 끊겼습니다. 재접속 중…', '切断されました。再接続中…', '连接已断开，正在重连…', 'Desconectado. Reconectando…', 'कनेक्शन टूटा। पुनः जुड़ रहे…', 'Mất kết nối. Đang kết nối lại…', 'ตัดการเชื่อมต่อ กำลังเชื่อมต่อใหม่…', 'Соединение потеряно. Переподключение…', 'Getrennt. Neuverbindung…', 'Déconnecté. Reconnexion…', 'Disconnesso. Riconnessione…'],
+  titlePh: ['Title', '제목', 'タイトル', '标题', 'Título', 'शीर्षक', 'Tiêu đề', 'หัวข้อ', 'Заголовок', 'Titel', 'Titre', 'Titolo'],
+  contentPh: ['Write your message…', '내용을 입력하세요', '内容を入力', '输入内容', 'Escribe tu mensaje…', 'सामग्री लिखें', 'Nhập nội dung', 'กรอกเนื้อหา', 'Введите текст', 'Inhalt eingeben', 'Votre message…', 'Scrivi il contenuto…'],
+  boardFree: ['Free Board', '자유게시판', '自由掲示板', '自由板块', 'Foro libre', 'फ्री बोर्ड', 'Diễn đàn', 'กระดานทั่วไป', 'Форум', 'Forum', 'Forum libre', 'Bacheca'],
+  boardProfit: ['Wins', '수익인증', '収益報告', '收益晒单', 'Ganancias', 'मुनाफ़ा', 'Lãi', 'อวดกำไร', 'Прибыль', 'Gewinne', 'Gains', 'Profitti'],
+  boardLoss: ['Losses', '손실인증', '損失報告', '亏损晒单', 'Pérdidas', 'नुकसान', 'Lỗ', 'อวดขาดทุน', 'Убытки', 'Verluste', 'Pertes', 'Perdite'],
+  descFree: ['Chat freely with everyone', '자유롭게 이야기를 나눠보세요', '自由に話しましょう', '自由交流吧', 'Habla libremente', 'खुलकर बात करें', 'Trò chuyện thoải mái', 'พูดคุยได้ตามสบาย', 'Общайтесь свободно', 'Frei plaudern', 'Discutez librement', 'Parla liberamente'],
+  descProfit: ['Share your winning bets 💰', '수익 인증글을 공유해요 💰', '収益を共有 💰', '分享你的盈利 💰', 'Comparte tus ganancias 💰', 'अपनी जीत साझा करें 💰', 'Chia sẻ chiến thắng 💰', 'แชร์กำไรของคุณ 💰', 'Поделитесь прибылью 💰', 'Teile deine Gewinne 💰', 'Partagez vos gains 💰', 'Condividi le vincite 💰'],
+  descLoss: ['Share and review your losses 📉', '손실 경험을 나누고 복기해요 📉', '損失を振り返る 📉', '分享并复盘亏损 📉', 'Comparte y analiza pérdidas 📉', 'नुकसान साझा करें 📉', 'Chia sẻ và rút kinh nghiệm 📉', 'แชร์และทบทวนการขาดทุน 📉', 'Разберите убытки 📉', 'Verluste besprechen 📉', 'Analysez vos pertes 📉', 'Analizza le perdite 📉'],
   online: ['online', '접속', '接続', '在线', 'en línea', 'ऑनलाइन', 'trực tuyến', 'ออนไลน์', 'онлайн', 'online', 'en ligne', 'online'],
   chatPh: ['Type a message…', '메시지 입력…', 'メッセージ入力…', '输入消息…', 'Escribe…', 'संदेश लिखें…', 'Nhập tin nhắn…', 'พิมพ์ข้อความ…', 'Сообщение…', 'Nachricht…', 'Message…', 'Messaggio…'],
   send: ['Send', '전송', '送信', '发送', 'Enviar', 'भेजें', 'Gửi', 'ส่ง', 'Отпр.', 'Senden', 'Envoyer', 'Invia'],
@@ -1187,7 +1204,7 @@ $('#gFallback')?.addEventListener('click', () => {
 // ============================================================
 //  커뮤니티 게시판
 // ============================================================
-const BOARD_DESC = { free: '자유롭게 이야기를 나눠보세요', profit: '수익 인증글을 공유해요 💰', loss: '손실 경험을 나누고 복기해요 📉' };
+const BOARD_DESC = { free: 'descFree', profit: 'descProfit', loss: 'descLoss' };
 let curBoard = 'free';
 function timeAgo(ts) {
   const s = (Date.now() - ts) / 1000;
@@ -1197,7 +1214,7 @@ function timeAgo(ts) {
 async function loadPosts() {
   const list = $('#postList'); if (!list) return;
   list.innerHTML = `<div class="loading">불러오는 중…</div>`;
-  $('#boardDesc') && ($('#boardDesc').textContent = BOARD_DESC[curBoard]);
+  $('#boardDesc') && ($('#boardDesc').textContent = t(BOARD_DESC[curBoard]));
   try {
     const d = await fetchJSON(`/api/posts?board=${curBoard}`, { tries: 12, delay: 3500, onWait: n => { list.innerHTML = `<div class="loading">⏳ 서버 깨우는 중… (${n})</div>`; } });
     const ps = d.posts || [];
@@ -1223,7 +1240,7 @@ $$('.boardtabs .bt').forEach(b => b.addEventListener('click', () => {
 }));
 // 글쓰기
 function openWrite() {
-  $('#wmTitle').textContent = { free: '자유게시판', profit: '수익인증', loss: '손실인증' }[curBoard] + ' 글쓰기';
+  $('#wmTitle').textContent = t({ free: 'boardFree', profit: 'boardProfit', loss: 'boardLoss' }[curBoard]) + ' · ' + t('writeTitle');
   $('#wPostTitle').value = ''; $('#wPostText').value = '';
   $('#scrimW').classList.add('on'); $('#writeModal').classList.add('on');
 }
@@ -2221,7 +2238,8 @@ async function updateEvents(e) {
 function bsoSituation(e) {
   if (e.state !== 'live' || !e.bso) return '';
   const b = e.bso, dot = (n, max, g) => { let s = ''; for (let i = 0; i < max; i++) s += `<span class="cdm ${g}${i < (n || 0) ? ' on' : ''}"></span>`; return s; };
-  const bat = e.batting === 'home' ? TN(e.home, e.league) : e.batting === 'away' ? TN(e.away, e.league) : '';
+  const bs = batSideOf(e);
+  const bat = bs === 'home' ? TN(e.home, e.league) : bs === 'away' ? TN(e.away, e.league) : '';
   const inn = e.curInning ? inningLabel(e.curInning, e.inningHalf) : '';
   return `<div class="ev-situ">
     <div class="es-top"><span class="es-inn">🔴 ${esc(inn)}</span>${bat ? `<span class="es-bat">🏏 ${esc(bat)} ${esc(t('battingNow'))}</span>` : ''}</div>
@@ -2231,6 +2249,16 @@ function bsoSituation(e) {
 // ===== 선발 라인업 (축구=포메이션 배치도 / MLB=타순·선수 최근경기) =====
 function shortName(n) { const p = String(n || '').trim().split(' '); return p.length > 1 ? p[p.length - 1] : n; }
 function teamShort(n) { return shortName(n); }
+// 목록 안에서 축약명이 겹치면(예: Boston Red Sox / Chicago White Sox → 둘 다 "Sox") 구분되도록 앞 단어까지 포함
+function disambNames(names) {
+  const arr = (names || []).map(n => String(n || ''));
+  const sh = arr.map(shortName);
+  const cnt = {}; sh.forEach(s => { cnt[s] = (cnt[s] || 0) + 1; });
+  return arr.map((n, i) => {
+    if (cnt[sh[i]] > 1) { const p = n.trim().split(' '); return p.slice(-2).join(' '); }   // Red Sox / White Sox
+    return sh[i];
+  });
+}
 // 포메이션 좌표(grid)가 없을 때: 선발 명단을 사진+이름 리스트로 표시 (좌표 미제공 리그/시점 대응)
 function renderLineupList(tm) {
   const all = tm.startXI || [];
@@ -2335,10 +2363,12 @@ function basesSvg(b) {
   </svg>`;
 }
 // 카드용 B/S/O + 주자 다이아몬드 (라이브 MLB만)
+// ⚾ 공격팀 = 이닝 반에서 도출(초=원정공격, 말=홈공격). 데이터 불일치 방지
+function batSideOf(e) { return e.inningHalf === 'top' ? 'away' : e.inningHalf === 'bottom' ? 'home' : (e.batting || null); }
 // ⚾ 공격팀 표시 (초=원정공격 ▲ / 말=홈공격 ▼)
 function batLine(e) {
-  if (state.sport !== 'baseball' || e.state !== 'live' || !e.batting || !e.inningHalf) return '';
-  const nm = e.batting === 'home' ? TN(e.home, e.league) : TN(e.away, e.league);
+  if (state.sport !== 'baseball' || e.state !== 'live' || !e.inningHalf) return '';
+  const nm = batSideOf(e) === 'home' ? TN(e.home, e.league) : TN(e.away, e.league);
   const arrow = e.inningHalf === 'top' ? '▲' : '▼';
   const half = e.inningHalf === 'top' ? t('topShort') : t('botShort');
   return `<div class="batline"><span class="bat-ar ${e.inningHalf}">${arrow} ${esc(half)}</span> 🏏 <b>${esc(nm)}</b> ${esc(t('batNow'))}</div>`;
@@ -2678,7 +2708,8 @@ function mlbInfoBlocks(e, d) {
   }
   const st = d.standings || [];
   if (st.length) {
-    html += `<div class="odsec">🏆 ${esc(t('standings'))}</div><table class="stt stdtbl"><thead><tr><th>#</th><th>${sl('team')}</th><th>${sl('w')}</th><th>${sl('l')}</th><th>${sl('pct')}</th><th>${sl('rs')}</th><th>${sl('ra')}</th><th>${sl('streak')}</th></tr></thead><tbody>${st.map(r => `<tr class="${r.hl ? 'hl' : ''}"><td>${esc(r.rank)}</td><td class="nm">${esc(teamShort(r.name))}</td><td>${esc(r.w)}</td><td>${esc(r.l)}</td><td>${esc(String(r.pct).replace(/^0/, ''))}</td><td>${esc(r.rs)}</td><td>${esc(r.ra)}</td><td>${esc(r.streak)}</td></tr>`).join('')}</tbody></table>`;
+    const stNm = disambNames(st.map(r => r.name));
+    html += `<div class="odsec">🏆 ${esc(t('standings'))}</div><table class="stt stdtbl"><thead><tr><th>#</th><th>${sl('team')}</th><th>${sl('w')}</th><th>${sl('l')}</th><th>${sl('pct')}</th><th>${sl('rs')}</th><th>${sl('ra')}</th><th>${sl('streak')}</th></tr></thead><tbody>${st.map((r, i) => `<tr class="${r.hl ? 'hl' : ''}"><td>${esc(r.rank)}</td><td class="nm">${esc(stNm[i])}</td><td>${esc(r.w)}</td><td>${esc(r.l)}</td><td>${esc(String(r.pct).replace(/^0/, ''))}</td><td>${esc(r.rs)}</td><td>${esc(r.ra)}</td><td>${esc(r.streak)}</td></tr>`).join('')}</tbody></table>`;
   }
   html += `<div id="mMini"></div>`;
   return html;
@@ -2927,7 +2958,7 @@ async function openEvent(id) {
     <div id="mInfoWrap"></div>
     <div id="mLineupWrap"></div>
     <div class="mchat-embed">
-      <div class="mce-hd">💬 <b>${esc(TN(e.home, e.league))} vs ${esc(TN(e.away, e.league))}</b> 대화방 <span class="mce-tag">보면서 채팅</span> <span class="mce-on">🟢 <b id="onlineM">0</b></span></div>
+      <div class="mce-hd">💬 <b>${esc(TN(e.home, e.league))} vs ${esc(TN(e.away, e.league))}</b> ${esc(t('room'))} <span class="mce-tag">${esc(t('watchChat'))}</span> <span class="mce-on">🟢 <b id="onlineM">0</b></span></div>
       <div id="mChatPane" class="chatpane embed"></div>
     </div>`;
   // 상세를 보면서 채팅 — 별도 입장 없이 이 경기 방에 바로 연결
@@ -2964,7 +2995,7 @@ function closeModal() {
   $('#scrim').classList.remove('on'); $('#modal').classList.remove('on');
   if (modalChatUI) {
     const i = chatUIs.indexOf(modalChatUI); if (i >= 0) chatUIs.splice(i, 1);
-    modalChatUI = null; joinRoom('all', '전경기 대화방');
+    modalChatUI = null; joinRoom('all', t('allRoom'));
   }
   modalEventId = null; modalPredict = null;
 }
@@ -3537,7 +3568,7 @@ function openInfoDetail(i) {
 // ============================================================
 //  WebSocket · 채팅 + 접속인원
 // ============================================================
-let ws, myName = '손님', curRoom = 'all', curRoomLabel = '전경기 대화방';
+let ws, myName = '손님', curRoom = 'all', curRoomLabel = t('allRoom');
 const chatUIs = [];
 
 function buildChatUI(container) {
@@ -3608,7 +3639,7 @@ function joinRoom(room, label) {
   curRoom = room; curRoomLabel = label || room;
   ws.send(JSON.stringify({ type: 'join', room }));
   clearMsgs();
-  addMsg({ type: 'sys', text: `『${curRoomLabel}』 입장` });
+  addMsg({ type: 'sys', text: `『${curRoomLabel}』 ${t('enterRoom')}` });
 }
 
 function connectWS() {
@@ -3618,13 +3649,13 @@ function connectWS() {
   ws = new WebSocket(`${proto}://${location.host}/ws`);
   ws.onmessage = ev => {
     const m = JSON.parse(ev.data);
-    if (m.type === 'welcome') { myName = m.name; $('#drawerName').textContent = m.name; clearMsgs(); (m.history || []).forEach(addMsg); addMsg({ type: 'sys', text: `『${curRoomLabel}』 실시간 채팅에 연결되었습니다 · ${m.name}` }); }
+    if (m.type === 'welcome') { myName = m.name; $('#drawerName').textContent = m.name; clearMsgs(); (m.history || []).forEach(addMsg); addMsg({ type: 'sys', text: `『${curRoomLabel}』 ${t('chatConnected')} · ${m.name}` }); }
     else if (m.type === 'joined') { clearMsgs(); (m.history || []).forEach(addMsg); }
     else if (m.type === 'chat') addMsg(m);
     else if (m.type === 'bot') addMsg(m);
     else if (m.type === 'presence') setOnline(m.total);
   };
-  ws.onclose = () => { addMsg({ type: 'sys', text: '연결이 끊겼습니다. 재접속 중…' }); setTimeout(connectWS, 2500); };
+  ws.onclose = () => { addMsg({ type: 'sys', text: t('reconnecting') }); setTimeout(connectWS, 2500); };
 }
 
 // ============================================================
