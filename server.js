@@ -2502,10 +2502,7 @@ app.get('/api/youtube', async (req, res) => {
 const BOARDS = ['free', 'profit', 'loss'];
 const posts = { free: [], profit: [], loss: [] };
 let postSeq = 1;
-// 시작 시 예시 글 몇 개
-posts.free.push({ id: postSeq++, name: '운영자', title: '커뮤니티가 열렸습니다 🎉', text: '자유롭게 이야기 나눠주세요. 서로 존중하는 매너 채팅 부탁드립니다.', ts: Date.now(), up: 3 });
-posts.profit.push({ id: postSeq++, name: '고수픽', title: '오늘 야구 3연승 인증', text: 'AI 답픽 그대로 따라가서 수익 봤습니다. 다들 성투하세요!', ts: Date.now(), up: 12 });
-posts.loss.push({ id: postSeq++, name: '초보', title: '막판 역전패 손실…', text: '다 이긴 경기였는데 9회에 뒤집혔네요. 다음엔 언더로 갑니다.', ts: Date.now(), up: 5 });
+// 샘플 시드 글 없음 — 언어 혼선 방지(각 언어 UI에서 하드코딩 한국어가 보이지 않도록). 첫 글은 사용자가 작성.
 
 app.get('/api/posts', (req, res) => {
   const b = BOARDS.includes(req.query.board) ? req.query.board : 'free';
