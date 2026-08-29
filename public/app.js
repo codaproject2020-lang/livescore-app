@@ -297,6 +297,21 @@ const STR = {
   retryAuto: ['auto-retry', '자동 재시도', '自動再試行', '自动重试', 'reintento', 'ऑटो-रिट्राई', 'tự thử lại', 'ลองใหม่อัตโนมัติ', 'авто-повтор', 'Auto-Wiederholung', 'nouvelle tentative', 'ritento auto'],
   noData: ['No data.', '데이터가 없습니다.', 'データがありません。', '暂无数据。', 'Sin datos.', 'कोई डेटा नहीं।', 'Không có dữ liệu.', 'ไม่มีข้อมูล', 'Нет данных.', 'Keine Daten.', 'Aucune donnée.', 'Nessun dato.'],
   loginFail: ['Login failed', '로그인 실패', 'ログイン失敗', '登录失败', 'Error de acceso', 'लॉगिन विफल', 'Đăng nhập thất bại', 'เข้าสู่ระบบล้มเหลว', 'Ошибка входа', 'Anmeldung fehlgeschlagen', 'Échec de connexion', 'Accesso fallito'],
+  welcomeSignup: ['Welcome! Signed up 🎉', '가입 완료! 환영해요 🎉', '登録完了！ようこそ🎉', '注册成功！欢迎🎉', '¡Registrado! Bienvenido 🎉', 'साइन अप हो गया 🎉', 'Đăng ký xong! 🎉', 'สมัครสำเร็จ! 🎉', 'Регистрация! 🎉', 'Registriert! 🎉', 'Inscrit ! 🎉', 'Registrato! 🎉'],
+  loginDone: ['Logged in ✓', '로그인 완료 ✓', 'ログイン完了 ✓', '登录成功 ✓', 'Sesión iniciada ✓', 'लॉग इन ✓', 'Đã đăng nhập ✓', 'เข้าสู่ระบบแล้ว ✓', 'Вход выполнен ✓', 'Angemeldet ✓', 'Connecté ✓', 'Accesso ✓'],
+  myBox: ['My Prizes', '내 상품함', 'マイ賞品', '我的奖品', 'Mis premios', 'मेरे इनाम', 'Quà của tôi', 'ของรางวัลของฉัน', 'Мои призы', 'Meine Preise', 'Mes prix', 'I miei premi'],
+  noPrizes: ['No prizes yet', '아직 받은 상품이 없어요', 'まだ賞品がありません', '还没有奖品', 'Sin premios aún', 'अभी कोई इनाम नहीं', 'Chưa có quà', 'ยังไม่มีของรางวัล', 'Пока нет призов', 'Noch keine Preise', 'Aucun prix', 'Nessun premio'],
+  rouletteTitle: ['🎉 Signup Roulette', '🎉 가입 축하 룰렛', '🎉 登録ルーレット', '🎉 注册轮盘', '🎉 Ruleta de registro', '🎉 साइनअप रूलेट', '🎉 Vòng quay đăng ký', '🎉 วงล้อสมัคร', '🎉 Рулетка', '🎉 Anmelde-Roulette', '🎉 Roulette', '🎉 Roulette iscrizione'],
+  rouletteDesc: ['Spin for a chance to win a gift card!', '돌리면 상품권 당첨 기회가!', '回して賞品券チャンス！', '转动赢取礼券！', '¡Gira para ganar!', 'घुमाएँ और जीतें!', 'Quay để trúng thưởng!', 'หมุนเพื่อลุ้นรางวัล!', 'Крутите и выигрывайте!', 'Drehen und gewinnen!', 'Tournez pour gagner !', 'Gira e vinci!'],
+  spinBtn: ['SPIN', '돌리기', '回す', '开始', 'GIRAR', 'घुमाएँ', 'QUAY', 'หมุน', 'КРУТИТЬ', 'DREHEN', 'TOURNER', 'GIRA'],
+  spinning: ['Spinning…', '돌리는 중…', '回転中…', '转动中…', 'Girando…', 'घूम रहा…', 'Đang quay…', 'กำลังหมุน…', 'Крутится…', 'Dreht…', 'En cours…', 'Gira…'],
+  wonTitle: ['🎊 You won!', '🎊 당첨!', '🎊 当選！', '🎊 中奖！', '🎊 ¡Ganaste!', '🎊 आप जीते!', '🎊 Trúng thưởng!', '🎊 ถูกรางวัล!', '🎊 Выигрыш!', '🎊 Gewonnen!', '🎊 Gagné !', '🎊 Vinto!'],
+  missTitle: ['So close! Better luck next time', '아쉽지만 꽝입니다', '残念、はずれ', '很遗憾未中奖', '¡Casi! Suerte la próxima', 'अगली बार शुभकामनाएँ', 'Chúc may mắn lần sau', 'เสียใจด้วย ไว้ลองใหม่', 'Не повезло, в другой раз', 'Leider daneben', 'Dommage, la prochaine fois', 'Peccato, ritenta'],
+  barcodeLbl: ['Barcode', '바코드', 'バーコード', '条形码', 'Código', 'बारकोड', 'Mã vạch', 'บาร์โค้ด', 'Штрихкод', 'Barcode', 'Code-barres', 'Codice'],
+  copyCode: ['Copy', '복사', 'コピー', '复制', 'Copiar', 'कॉपी', 'Sao chép', 'คัดลอก', 'Копировать', 'Kopieren', 'Copier', 'Copia'],
+  copied: ['Copied ✓', '복사됨 ✓', 'コピー✓', '已复制✓', 'Copiado ✓', 'कॉपी ✓', 'Đã sao chép ✓', 'คัดลอกแล้ว ✓', 'Скопировано ✓', 'Kopiert ✓', 'Copié ✓', 'Copiato ✓'],
+  srcSignup: ['Signup reward', '가입 축하', '登録特典', '注册奖励', 'Registro', 'साइनअप', 'Đăng ký', 'สมัคร', 'Регистрация', 'Anmeldung', 'Inscription', 'Iscrizione'],
+  srcAdmin: ['Event reward', '이벤트 지급', 'イベント', '活动奖励', 'Evento', 'इवेंट', 'Sự kiện', 'อีเวนต์', 'Событие', 'Event', 'Événement', 'Evento'],
   // 종목명 (키 = SPORTS.key)
   football: ['Soccer', '축구', 'サッカー', '足球', 'Fútbol', 'फुटबॉल', 'Bóng đá', 'ฟุตบอล', 'Футбол', 'Fußball', 'Football', 'Calcio'],
   baseball: ['Baseball', '야구', '野球', '棒球', 'Béisbol', 'बेसबॉल', 'Bóng chày', 'เบสบอล', 'Бейсбол', 'Baseball', 'Baseball', 'Baseball'],
@@ -1170,6 +1185,7 @@ $('#chatbanBtn')?.addEventListener('click', () => { if (window.innerWidth < 960)
 //  로그인 (구글 / 네이버 / 카카오) — 테스트 단계: 대화명 설정
 // ============================================================
 let loggedIn = false, myUser = null, GOOGLE_CID = '';
+let USER_TOKEN = ''; try { USER_TOKEN = localStorage.getItem('liveup_token') || ''; } catch { }
 function openLogin() {
   if (loggedIn) { if (confirm(t('logoutConfirm').replace('{name}', myName))) logoutUser(); return; }
   $('#scrimL').classList.add('on'); $('#loginModal').classList.add('on');
@@ -1202,9 +1218,12 @@ async function onGoogleCred(resp) {
   try {
     const d = await fetch('/api/auth/google', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ credential: resp.credential }) }).then(r => r.json());
     if (!d.ok) { toast(t('loginFail') + (d.error ? ': ' + d.error : '')); return; }
+    if (d.token) { USER_TOKEN = d.token; try { localStorage.setItem('liveup_token', d.token); } catch { } }
     applyUser(d.user); try { localStorage.setItem('liveup_user', JSON.stringify(d.user)); } catch { }
-    toast(d.isNew ? '가입 완료! 환영해요 🎉' : '로그인 완료 ✓');
+    toast(d.isNew ? t('welcomeSignup') : t('loginDone'));
     closeLogin();
+    // 가입 즉시지급 룰렛: 신규 회원이면 상품함(룰렛) 자동 오픈
+    if (d.isNew) setTimeout(() => { try { openMyPage(); } catch { } }, 600);
   } catch { toast(t('loginFail')); }
 }
 function applyUser(u) {
@@ -1224,9 +1243,105 @@ function renderAuthUI() {
   const bu = $('#btnUserIc') || $('#btnUser'); if (bu) bu.innerHTML = loggedIn ? pic : e3d('👤');   // 아이콘만 교체(MY 라벨 유지)
   const dn = $('#drawerName'); if (dn) dn.textContent = loggedIn && myUser ? myUser.name : t('guest');
 }
+// ============================================================
+//  🎁 MY 페이지 / 상품함 + 회원가입 즉시지급 룰렛
+// ============================================================
+async function openMyPage() {
+  if (!loggedIn) { openLogin(); return; }
+  $('#scrim').classList.add('on'); $('#modal').classList.add('on');
+  $('#mTitle').textContent = t('myBox');
+  $('#mBody').innerHTML = `<div class="loading">${esc(t('loading'))}</div>`;
+  try {
+    const d = await fetch('/api/prize/mine', { headers: { 'x-user-token': USER_TOKEN } }).then(r => r.json());
+    if (!d.ok) { $('#mBody').innerHTML = `<div class="loading">${esc(t('loadFail'))}</div>`; return; }
+    renderMyPage(d);
+  } catch { $('#mBody').innerHTML = `<div class="loading">${esc(t('loadFail'))}</div>`; }
+}
+function renderMyPage(d) {
+  const rl = d.spinAvailable ? rouletteCard() : '';
+  const prizes = d.prizes || [];
+  const list = prizes.length ? prizes.map(prizeRow).join('') : `<div class="rec-empty" style="padding:22px;text-align:center">${esc(t('noPrizes'))}</div>`;
+  $('#mBody').innerHTML = `
+    <div class="myhead">
+      <div class="myav">${myUser && myUser.picture ? `<img src="${esc(myUser.picture)}" referrerpolicy="no-referrer">` : '👤'}</div>
+      <div class="myname">${esc(myUser ? myUser.name : '')}</div>
+    </div>
+    ${rl}
+    <div class="odsec">🎁 ${esc(t('myBox'))}</div>
+    <div class="prizelist">${list}</div>`;
+  wireRoulette();
+}
+function rouletteCard() {
+  return `<div class="roul" id="roulCard">
+    <div class="roul-t">${esc(t('rouletteTitle'))}</div>
+    <div class="roul-d">${esc(t('rouletteDesc'))}</div>
+    <div class="roul-wheel" id="roulWheel"><div class="roul-gift">🎁</div></div>
+    <button class="roul-btn" id="roulSpin">${esc(t('spinBtn'))}</button>
+    <div class="roul-result" id="roulResult"></div>
+  </div>`;
+}
+function prizeRow(p) {
+  const dd = new Date(p.ts), dt = `${dd.getMonth() + 1}/${dd.getDate()}`;
+  const src = p.source === 'admin' ? t('srcAdmin') : t('srcSignup');
+  if (p.status === 'won' && p.code) {
+    return `<div class="prize won">
+      <div class="prize-ic">🎟️</div>
+      <div class="prize-mid"><div class="prize-nm">${esc(p.name)}</div><div class="prize-sub">${esc(src)} · ${dt}</div>
+        <div class="prize-code"><span class="pc-lbl">${esc(t('barcodeLbl'))}</span><b>${esc(p.code)}</b><button class="pc-copy" data-code="${esc(p.code)}">${esc(t('copyCode'))}</button></div>
+      </div></div>`;
+  }
+  return `<div class="prize miss">
+    <div class="prize-ic">🎫</div>
+    <div class="prize-mid"><div class="prize-nm">${esc(p.name)}</div><div class="prize-sub">${esc(src)} · ${dt}</div>
+      <div class="prize-miss">${esc(t('missTitle'))}</div></div></div>`;
+}
+function wireRoulette() {
+  const btn = $('#roulSpin'); if (btn) btn.addEventListener('click', doSpin);
+  $$('#mBody .pc-copy').forEach(el => el.addEventListener('click', () => {
+    try { navigator.clipboard.writeText(el.dataset.code); } catch { }
+    el.textContent = t('copied'); setTimeout(() => { el.textContent = t('copyCode'); }, 1500);
+  }));
+}
+let _spinning = false;
+async function doSpin() {
+  if (_spinning) return; _spinning = true;
+  const wheel = $('#roulWheel'), btn = $('#roulSpin'), res = $('#roulResult');
+  if (btn) { btn.disabled = true; btn.textContent = t('spinning'); }
+  if (wheel) wheel.classList.add('spin');
+  try {
+    const [d] = await Promise.all([
+      fetch('/api/prize/spin', { method: 'POST', headers: { 'x-user-token': USER_TOKEN, 'Content-Type': 'application/json' }, body: '{}' }).then(r => r.json()),
+      new Promise(r => setTimeout(r, 2300))   // 최소 2.3초 연출
+    ]);
+    if (wheel) wheel.classList.remove('spin');
+    if (!d || !d.ok) { if (btn) { btn.disabled = false; btn.textContent = t('spinBtn'); } _spinning = false; toast(t('loadFail')); return; }
+    const gift = wheel && wheel.querySelector('.roul-gift');
+    if (d.result === 'won') {
+      if (gift) gift.textContent = '🎉';
+      if (res) res.innerHTML = `<div class="roul-won">${esc(t('wonTitle'))}<div class="roul-prize">${esc(d.prize.name)}</div><div class="roul-code"><b>${esc(d.prize.code)}</b></div></div>`;
+      burstConfetti();
+    } else {
+      if (gift) gift.textContent = '😢';
+      if (res) res.innerHTML = `<div class="roul-miss">${esc(t('missTitle'))}</div>`;
+    }
+    setTimeout(() => { if ($('#modal').classList.contains('on')) openMyPage(); }, 2800);   // 상품함 새로고침
+  } catch { if (btn) { btn.disabled = false; btn.textContent = t('spinBtn'); } }
+  _spinning = false;
+}
+function burstConfetti() {
+  const box = $('#roulCard') || $('#mBody'); if (!box) return;
+  const wrap = document.createElement('div'); wrap.className = 'confetti-wrap';
+  const em = ['🎉', '🎊', '✨', '💛', '🎁'];
+  for (let i = 0; i < 26; i++) {
+    const s = document.createElement('span'); s.className = 'confetti'; s.textContent = em[i % em.length];
+    s.style.left = (Math.random() * 100) + '%'; s.style.animationDelay = (Math.random() * 0.3) + 's';
+    s.style.fontSize = (12 + Math.random() * 14) + 'px'; wrap.appendChild(s);
+  }
+  box.appendChild(wrap); setTimeout(() => wrap.remove(), 2600);
+}
 function logoutUser() {
-  myUser = null; loggedIn = false; myName = null;
-  try { localStorage.removeItem('liveup_user'); } catch { }
+  myUser = null; loggedIn = false; myName = null; USER_TOKEN = '';
+  try { localStorage.removeItem('liveup_user'); localStorage.removeItem('liveup_token'); } catch { }
   try { if (window.google && google.accounts) google.accounts.id.disableAutoSelect(); } catch { }
   renderAuthUI();
   if (typeof updateInfoGate === 'function') updateInfoGate();   // 로그아웃 시 다시 잠금
@@ -3724,7 +3839,7 @@ $('#dateNext').addEventListener('click', () => shiftDate(1));
 $('#dateToday').addEventListener('click', () => { state.date = localYMD(); state.dateAuto = true; $('#datePick').value = state.date; refreshDateLabel(); reloadActiveView(); });
 $('#datePick').addEventListener('change', e => { state.date = e.target.value; state.dateAuto = (state.date === localYMD()); refreshDateLabel(); reloadActiveView(); });
 $('#btnRefresh').addEventListener('click', () => loadEvents());
-$('#btnUser')?.addEventListener('click', openLogin);
+$('#btnUser')?.addEventListener('click', () => { if (loggedIn) openMyPage(); else openLogin(); });
 $('#btnMenu').addEventListener('click', openDrawer);
 function openDrawer() { $('#drawer').classList.add('on'); $('#scrimD').classList.add('on'); }
 function closeDrawer() { $('#drawer').classList.remove('on'); $('#scrimD').classList.remove('on'); }

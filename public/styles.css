@@ -1006,3 +1006,41 @@ table.rhe-tbl .tn{text-align:left;padding-left:10px;font-weight:700;white-space:
 .lghd.favhd{background:linear-gradient(90deg,#fff5db,#fdf7e8)}
 .lghd.favhd .nm{color:var(--navy)}
 .lghd.favhd .flag{font-size:16px}
+
+/* ===== MY 페이지 / 상품함 / 룰렛 ===== */
+.myhead{display:flex;align-items:center;gap:12px;padding:6px 2px 14px}
+.myhead .myav{width:52px;height:52px;border-radius:50%;overflow:hidden;background:#eef1f5;display:grid;place-items:center;font-size:26px;flex:0 0 auto}
+.myhead .myav img{width:100%;height:100%;object-fit:cover}
+.myhead .myname{font-weight:900;font-size:18px;color:var(--navy)}
+.roul{position:relative;overflow:hidden;background:linear-gradient(160deg,#1a2740,#0b0f16);border:1.5px solid var(--gold);border-radius:16px;padding:18px 16px 20px;text-align:center;margin-bottom:16px;box-shadow:0 6px 22px rgba(11,15,22,.3)}
+.roul-t{color:#f6d67a;font-weight:900;font-size:17px}
+.roul-d{color:#cdd5e0;font-size:12.5px;margin-top:4px}
+.roul-wheel{width:120px;height:120px;margin:14px auto 4px;border-radius:50%;background:conic-gradient(#f6d67a 0 25%,#2f6fed 0 50%,#e23b34 0 75%,#3fbf6b 0 100%);display:grid;place-items:center;box-shadow:0 0 0 6px rgba(255,255,255,.08),0 6px 18px rgba(0,0,0,.4);position:relative}
+.roul-wheel::after{content:'';position:absolute;width:44px;height:44px;border-radius:50%;background:#0b0f16}
+.roul-gift{position:relative;z-index:1;font-size:26px}
+.roul-wheel.spin{animation:roulspin 2.3s cubic-bezier(.15,.9,.2,1) forwards}
+@keyframes roulspin{from{transform:rotate(0)}to{transform:rotate(1980deg)}}
+.roul-btn{margin-top:12px;padding:11px 34px;border:none;border-radius:12px;background:linear-gradient(135deg,#f6d67a,#e0a92e);color:#2a1e05;font-weight:900;font-size:15px;letter-spacing:1px;cursor:pointer;box-shadow:0 4px 14px rgba(224,169,46,.4)}
+.roul-btn:disabled{opacity:.7;cursor:default}
+.roul-result{margin-top:10px;min-height:4px}
+.roul-won{color:#fff;font-weight:900;font-size:16px}
+.roul-prize{color:#f6d67a;font-size:15px;margin-top:4px}
+.roul-code{margin-top:6px}
+.roul-code b{display:inline-block;background:#fff;color:#111;padding:6px 14px;border-radius:8px;font-size:15px;letter-spacing:1px}
+.roul-miss{color:#cdd5e0;font-weight:800;font-size:15px}
+.prizelist{display:flex;flex-direction:column;gap:9px}
+.prize{display:flex;gap:11px;align-items:center;border:1px solid var(--line);border-radius:12px;padding:11px 12px;background:#fff}
+.prize.won{border-color:#e0b93e;background:linear-gradient(180deg,#fffdf5,#fff)}
+.prize.miss{opacity:.72}
+.prize-ic{font-size:24px;flex:0 0 auto}
+.prize-mid{flex:1;min-width:0}
+.prize-nm{font-weight:800;color:var(--navy);font-size:14px}
+.prize-sub{color:#8b93a0;font-size:11px;margin-top:1px}
+.prize-code{display:flex;align-items:center;gap:7px;margin-top:6px;flex-wrap:wrap}
+.prize-code .pc-lbl{font-size:10.5px;color:#8b93a0;font-weight:700}
+.prize-code b{font-size:14px;letter-spacing:1px;color:#111;background:#f4f6f9;padding:4px 10px;border-radius:7px}
+.pc-copy{border:none;background:#2f6fed;color:#fff;font-weight:800;font-size:11px;padding:4px 10px;border-radius:7px;cursor:pointer}
+.prize-miss{margin-top:5px;font-size:12px;color:#b04a44;font-weight:700}
+.confetti-wrap{position:absolute;inset:0;overflow:hidden;pointer-events:none;border-radius:16px}
+.confetti{position:absolute;top:-10%;animation:conffall 2.3s ease-in forwards}
+@keyframes conffall{to{transform:translateY(340px) rotate(360deg);opacity:0}}

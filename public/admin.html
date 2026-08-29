@@ -55,6 +55,25 @@
   .badge-nv{font-size:11px;color:var(--dim)}
   .muted{color:var(--dim)}
   .empty{padding:40px 16px;text-align:center;color:var(--dim)}
+  /* 이벤트/상품 패널 */
+  .pbody{padding:16px}
+  .row{display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end;margin-bottom:14px}
+  .fld{display:flex;flex-direction:column;gap:5px}
+  .fld label{font-size:12px;color:var(--dim);font-weight:700}
+  .fld input,.fld textarea{padding:10px 12px;border:1px solid var(--line);border-radius:10px;font-size:14px;outline:none;font-family:inherit}
+  .fld input:focus,.fld textarea:focus{border-color:var(--gold)}
+  .fld textarea{width:100%;min-height:96px;resize:vertical}
+  .sw{display:inline-flex;align-items:center;gap:9px;font-weight:800;font-size:14px}
+  .sw input{width:0;height:0;opacity:0;position:absolute}
+  .sw .track{width:46px;height:26px;border-radius:20px;background:#cfd6e0;position:relative;transition:.2s;cursor:pointer;flex:0 0 auto}
+  .sw .track::after{content:'';position:absolute;top:3px;left:3px;width:20px;height:20px;border-radius:50%;background:#fff;transition:.2s;box-shadow:0 1px 3px rgba(0,0,0,.3)}
+  .sw input:checked + .track{background:#12854a}
+  .sw input:checked + .track::after{left:23px}
+  .poolstat{display:flex;gap:18px;margin:6px 0 14px;font-size:13px}
+  .poolstat b{font-size:20px;display:block}
+  .poolstat .left b{color:#12854a}
+  .msg{font-size:12.5px;min-height:16px;margin-top:6px}
+  .msg.ok{color:#12854a}.msg.no{color:#c0392b}
   @media(max-width:640px){.cards{grid-template-columns:repeat(2,1fr)}.hide-m{display:none}}
 </style>
 </head>
@@ -90,11 +109,44 @@
     <div class="card hl"><div class="k">현재 접속</div><div class="v" id="cOnline">–</div></div>
   </div>
 
+  <!-- 🎁 이벤트 / 상품 (회원가입 즉시지급 룰렛) -->
+  <div class="panel" style="margin-bottom:20px">
+    <div class="hd"><span>🎁 회원가입 즉시지급 룰렛</span>
+      <label class="sw"><input type="checkbox" id="rlEnabled"><span class="track"></span><span id="rlEnLbl">OFF</span></label>
+    </div>
+    <div class="pbody">
+      <div class="row">
+        <div class="fld"><label>당첨 확률 (%)</label><input type="number" id="rlRate" min="0" max="100" step="1" style="width:110px"></div>
+        <div class="fld"><label>상품명</label><input type="text" id="rlName" style="width:200px" placeholder="5,000원 상품권"></div>
+        <button class="btn g" id="rlSave" style="height:40px">설정 저장</button>
+      </div>
+      <div class="poolstat">
+        <div>등록 바코드<b id="poolTotal">0</b></div>
+        <div>지급됨<b id="poolUsed">0</b></div>
+        <div class="left">잔여<b id="poolLeft">0</b></div>
+      </div>
+      <div class="fld" style="margin-bottom:8px">
+        <label>바코드 등록 (한 줄에 하나씩, 5,000원권 100개 붙여넣기)</label>
+        <textarea id="rlCodes" placeholder="ABC-1234-5678&#10;DEF-2345-6789&#10;..."></textarea>
+      </div>
+      <button class="btn g" id="rlAddCodes">바코드 추가</button>
+      <span class="msg" id="rlMsg"></span>
+      <div style="height:1px;background:var(--line);margin:18px 0"></div>
+      <div style="font-weight:800;font-size:13.5px;margin-bottom:10px">🎯 특정 회원에게 상품 지급</div>
+      <div class="row">
+        <div class="fld"><label>회원 이메일</label><input type="email" id="grEmail" style="width:240px" placeholder="user@gmail.com"></div>
+        <div class="fld"><label>바코드 (비우면 '꽝'으로 지급)</label><input type="text" id="grCode" style="width:200px" placeholder="ABC-1234-5678"></div>
+        <button class="btn g" id="grBtn" style="height:40px">지급하기</button>
+      </div>
+      <span class="msg" id="grMsg"></span>
+    </div>
+  </div>
+
   <div class="panel">
     <div class="hd"><span>👥 회원 목록 <span class="muted" style="font-weight:600">(최신 가입순)</span></span><span class="cnt" id="uCnt"></span></div>
     <div style="overflow-x:auto">
       <table class="tbl">
-        <thead><tr><th>회원</th><th>이메일</th><th>가입일</th><th class="hide-m">최근 접속</th><th>인증</th></tr></thead>
+        <thead><tr><th>회원</th><th>이메일</th><th>가입일</th><th class="hide-m">최근 접속</th><th>인증</th><th>상품(당첨/총)</th></tr></thead>
         <tbody id="rows"></tbody>
       </table>
     </div>
@@ -120,6 +172,54 @@
     if(r.status===401){ throw new Error('unauthorized'); }
     return r.json();
   }
+  async function apiPost(path, body){
+    const r = await fetch(path, { method:'POST', headers: { 'x-admin-key': KEY, 'Content-Type':'application/json' }, body: JSON.stringify(body||{}) });
+    if(r.status===401){ throw new Error('unauthorized'); }
+    return r.json();
+  }
+
+  // 🎁 룰렛/상품 현황 로드 + 반영
+  async function loadRoulette(){
+    try{
+      const d = await api('/api/admin/roulette');
+      if(!d || !d.ok) return;
+      $('#rlEnabled').checked = !!d.cfg.enabled;
+      $('#rlEnLbl').textContent = d.cfg.enabled ? 'ON' : 'OFF';
+      $('#rlRate').value = Math.round((d.cfg.winRate||0)*100);
+      $('#rlName').value = d.cfg.prizeName||'';
+      $('#poolTotal').textContent = d.pool.total;
+      $('#poolUsed').textContent = d.pool.used;
+      $('#poolLeft').textContent = d.pool.left;
+    }catch(e){ if(String(e.message)==='unauthorized') logout(); }
+  }
+  async function saveRlConfig(){
+    const enabled = $('#rlEnabled').checked;
+    const winRate = Number($('#rlRate').value)||0;
+    const prizeName = $('#rlName').value.trim();
+    const m = $('#rlMsg'); m.className='msg';
+    try{ const d = await apiPost('/api/admin/roulette/config', { enabled, winRate, prizeName });
+      if(d.ok){ m.className='msg ok'; m.textContent='저장됨 ✓ (당첨확률 '+Math.round(d.cfg.winRate*100)+'%)'; $('#rlEnLbl').textContent = d.cfg.enabled?'ON':'OFF'; }
+      else { m.className='msg no'; m.textContent = d.error||'저장 실패'; }
+    }catch(e){ m.className='msg no'; m.textContent='실패'; }
+  }
+  async function addCodes(){
+    const codes = $('#rlCodes').value;
+    const m = $('#rlMsg'); m.className='msg';
+    if(!codes.trim()){ m.className='msg no'; m.textContent='바코드를 입력하세요.'; return; }
+    try{ const d = await apiPost('/api/admin/roulette/barcodes', { codes });
+      if(d.ok){ m.className='msg ok'; m.textContent=`${d.added}개 추가됨 · 총 ${d.total}개 · 잔여 ${d.left}개`; $('#rlCodes').value=''; loadRoulette(); }
+      else { m.className='msg no'; m.textContent=d.error||'실패'; }
+    }catch(e){ m.className='msg no'; m.textContent='실패'; }
+  }
+  async function grant(){
+    const email = $('#grEmail').value.trim(); const code = $('#grCode').value.trim();
+    const m = $('#grMsg'); m.className='msg';
+    if(!email){ m.className='msg no'; m.textContent='이메일을 입력하세요.'; return; }
+    try{ const d = await apiPost('/api/admin/grant', { email, code });
+      if(d.ok){ m.className='msg ok'; m.textContent=`${d.to.name} 님에게 지급 완료 (${code?'바코드':'꽝'})`; $('#grEmail').value=''; $('#grCode').value=''; load(); }
+      else { m.className='msg no'; m.textContent = d.error==='user-not-found'?'해당 이메일 회원을 찾을 수 없어요.':(d.error||'실패'); }
+    }catch(e){ m.className='msg no'; m.textContent='실패'; }
+  }
 
   async function load(){
     try{
@@ -144,12 +244,14 @@
           <td class="mail">${esc(u.email||'')||'<span class=muted>–</span>'}</td>
           <td>${fmt(u.first)}</td>
           <td class="hide-m muted">${fmt(u.last)}</td>
-          <td>${u.verified?'<span class="badge-v">✓ 인증</span>':'<span class="badge-nv">미인증</span>'}</td>`;
+          <td>${u.verified?'<span class="badge-v">✓ 인증</span>':'<span class="badge-nv">미인증</span>'}</td>
+          <td><b style="color:#12854a">${u.won||0}</b> <span class="muted">/ ${u.prizes||0}</span></td>`;
         rows.appendChild(tr);
       });
     }catch(e){
       if(String(e.message)==='unauthorized'){ logout(); }
     }
+    loadRoulette();
   }
 
   function showDash(){ $('#gate').style.display='none'; $('#wrap').style.display='block'; load(); }
@@ -171,6 +273,11 @@
   $('#pw').addEventListener('keydown', e=>{ if(e.key==='Enter') login(); });
   $('#refresh').addEventListener('click', load);
   $('#logout').addEventListener('click', logout);
+  // 🎁 룰렛/상품 이벤트
+  $('#rlEnabled').addEventListener('change', ()=>{ $('#rlEnLbl').textContent = $('#rlEnabled').checked?'ON':'OFF'; });
+  $('#rlSave').addEventListener('click', saveRlConfig);
+  $('#rlAddCodes').addEventListener('click', addCodes);
+  $('#grBtn').addEventListener('click', grant);
 
   // 저장된 키가 있으면 자동 검증 후 대시보드
   if(KEY){ api('/api/admin/stats').then(j=>{ if(j&&j.ok) showDash(); else logout(); }).catch(()=>logout()); }
