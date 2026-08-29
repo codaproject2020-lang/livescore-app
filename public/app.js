@@ -70,6 +70,30 @@ const STR = {
   descFree: ['Chat freely with everyone', '자유롭게 이야기를 나눠보세요', '自由に話しましょう', '自由交流吧', 'Habla libremente', 'खुलकर बात करें', 'Trò chuyện thoải mái', 'พูดคุยได้ตามสบาย', 'Общайтесь свободно', 'Frei plaudern', 'Discutez librement', 'Parla liberamente'],
   descProfit: ['Share your winning bets 💰', '수익 인증글을 공유해요 💰', '収益を共有 💰', '分享你的盈利 💰', 'Comparte tus ganancias 💰', 'अपनी जीत साझा करें 💰', 'Chia sẻ chiến thắng 💰', 'แชร์กำไรของคุณ 💰', 'Поделитесь прибылью 💰', 'Teile deine Gewinne 💰', 'Partagez vos gains 💰', 'Condividi le vincite 💰'],
   descLoss: ['Share and review your losses 📉', '손실 경험을 나누고 복기해요 📉', '損失を振り返る 📉', '分享并复盘亏损 📉', 'Comparte y analiza pérdidas 📉', 'नुकसान साझा करें 📉', 'Chia sẻ và rút kinh nghiệm 📉', 'แชร์และทบทวนการขาดทุน 📉', 'Разберите убытки 📉', 'Verluste besprechen 📉', 'Analysez vos pertes 📉', 'Analizza le perdite 📉'],
+  dataNote: ['Data: API-Sports · live', '데이터: API-Sports · 실시간 연동', 'データ: API-Sports · ライブ', '数据: API-Sports · 实时', 'Datos: API-Sports · en vivo', 'डेटा: API-Sports · लाइव', 'Dữ liệu: API-Sports · trực tiếp', 'ข้อมูล: API-Sports · สด', 'Данные: API-Sports · live', 'Daten: API-Sports · live', 'Données : API-Sports · live', 'Dati: API-Sports · live'],
+  leaguesAppear: ['Leagues appear once games load', '경기를 불러오면 리그가 표시됩니다', '試合を読み込むとリーグが表示', '加载比赛后显示联赛', 'Las ligas aparecen al cargar', 'मैच लोड होने पर लीग दिखेंगी', 'Giải đấu hiện khi tải trận', 'ลีกจะแสดงเมื่อโหลดแมตช์', 'Лиги появятся после загрузки', 'Ligen erscheinen nach dem Laden', 'Les ligues apparaissent au chargement', 'Le leghe appaiono al caricamento'],
+  pickInfoTitle: ['PICK · Match Info', 'PICK · 경기 정보방', 'PICK · 試合情報', 'PICK · 比赛信息', 'PICK · Info del partido', 'PICK · मैच जानकारी', 'PICK · Thông tin trận', 'PICK · ข้อมูลแมตช์', 'PICK · Инфо матча', 'PICK · Spielinfo', 'PICK · Infos match', 'PICK · Info partita'],
+  infoNote: ['Tap a match for win probability · odds · recent form · H2H · AI comment. Use the buttons below to switch sport.', '경기를 누르면 종합 지표(승률)·배당·최근 전적·상대전적·AI 코멘트가 한눈에 나와요. 아래 종목 버튼으로 종목을 바꿀 수 있어요.', '試合をタップで勝率・オッズ・最近成績・対戦成績・AIコメント。下のボタンで種目切替。', '点击比赛查看胜率·赔率·近期战绩·交锋·AI点评。下方按钮切换项目。', 'Toca un partido para probabilidad, cuotas, forma, H2H y comentario IA.', 'मैच पर टैप करें: जीत संभावना, ऑड्स, फॉर्म, H2H, AI कमेंट।', 'Chạm trận để xem tỉ lệ thắng, kèo, phong độ, đối đầu, AI.', 'แตะแมตช์เพื่อดูโอกาสชนะ ราคา ฟอร์ม H2H และ AI', 'Нажмите матч: вероятность, коэффициенты, форма, H2H, AI.', 'Tippe ein Spiel für Siegchance, Quoten, Form, H2H, KI-Kommentar.', 'Touchez un match pour probabilité, cotes, forme, H2H, IA.', 'Tocca una partita per probabilità, quote, forma, H2H, AI.'],
+  footNote: ['Scores, emblems & standings are real API data. Odds & AI predictions are reference calculations.', '스코어·엠블럼·순위는 실제 API 데이터입니다. 배당·AI 예측은 참고용 계산값입니다.', 'スコア・エンブレム・順位は実データ。オッズ・AI予想は参考値。', '比分·队徽·排名为真实API数据。赔率·AI预测为参考值。', 'Marcadores, escudos y clasificación son datos reales. Cuotas y IA son referencia.', 'स्कोर, प्रतीक और रैंकिंग असली API डेटा हैं। ऑड्स/AI संदर्भ हैं।', 'Tỉ số, logo, BXH là dữ liệu API thật. Kèo & AI chỉ tham khảo.', 'สกอร์ ตราสโมสร อันดับเป็นข้อมูลจริง ราคา/AI เป็นค่าอ้างอิง', 'Счёт, эмблемы и таблица — реальные данные. Коэффициенты и AI — справочно.', 'Ergebnisse, Embleme & Tabelle sind echte API-Daten. Quoten & KI sind Richtwerte.', 'Scores, emblèmes et classement sont réels. Cotes & IA sont indicatifs.', 'Punteggi, stemmi e classifica sono dati reali. Quote & AI indicativi.'],
+  supportLbl: ['Support', '고객지원 서비스', 'サポート', '客服支持', 'Soporte', 'सहायता', 'Hỗ trợ', 'ฝ่ายสนับสนุน', 'Поддержка', 'Support', 'Assistance', 'Supporto'],
+  query: ['Load', '조회', '検索', '查询', 'Cargar', 'लोड', 'Xem', 'ค้นหา', 'Показать', 'Laden', 'Charger', 'Carica'],
+  seasonPh: ['Season (e.g. 2026 / 2025-2026)', '시즌 (예: 2026 / 2025-2026)', 'シーズン (例: 2026)', '赛季 (如 2026)', 'Temporada (ej. 2026)', 'सीज़न (जैसे 2026)', 'Mùa (vd 2026)', 'ฤดูกาล (เช่น 2026)', 'Сезон (напр. 2026)', 'Saison (z.B. 2026)', 'Saison (ex. 2026)', 'Stagione (es. 2026)'],
+  selectLeague: ['Select a league.', '리그를 선택하세요.', 'リーグを選択。', '请选择联赛。', 'Elige una liga.', 'लीग चुनें।', 'Chọn giải đấu.', 'เลือกลีก', 'Выберите лигу.', 'Liga wählen.', 'Choisissez une ligue.', 'Scegli una lega.'],
+  rankSoon: ["This league's standings are coming soon.", '이 리그 순위는 준비 중입니다.', 'このリーグの順位は準備中。', '该联赛排名筹备中。', 'Clasificación próximamente.', 'इस लीग की रैंकिंग जल्द।', 'BXH giải này sắp có.', 'อันดับลีกนี้กำลังจัดเตรียม', 'Таблица этой лиги скоро.', 'Tabelle bald verfügbar.', 'Classement bientôt.', 'Classifica in arrivo.'],
+  noSeasonData: ['No standings for this season.', '해당 시즌 순위 데이터가 없습니다.', 'このシーズンの順位データなし。', '暂无该赛季排名。', 'Sin clasificación esta temporada.', 'इस सीज़न की रैंकिंग नहीं।', 'Chưa có BXH mùa này.', 'ไม่มีอันดับฤดูกาลนี้', 'Нет таблицы за сезон.', 'Keine Tabelle für die Saison.', 'Pas de classement cette saison.', 'Nessuna classifica per la stagione.'],
+  guest: ['Guest', '손님', 'ゲスト', '访客', 'Invitado', 'अतिथि', 'Khách', 'ผู้เยี่ยมชม', 'Гость', 'Gast', 'Invité', 'Ospite'],
+  installing: ['Installing LIVE UP…', 'LIVE UP 설치 중…', 'LIVE UP インストール中…', '正在安装 LIVE UP…', 'Instalando LIVE UP…', 'LIVE UP इंस्टॉल हो रहा…', 'Đang cài LIVE UP…', 'กำลังติดตั้ง LIVE UP…', 'Установка LIVE UP…', 'LIVE UP wird installiert…', 'Installation de LIVE UP…', 'Installazione LIVE UP…'],
+  dlPrep: ['Preparing download…', '다운로드 준비 중…', 'ダウンロード準備中…', '准备下载…', 'Preparando descarga…', 'डाउनलोड तैयार हो रहा…', 'Đang chuẩn bị tải…', 'กำลังเตรียมดาวน์โหลด…', 'Подготовка загрузки…', 'Download wird vorbereitet…', 'Préparation du téléchargement…', 'Preparazione download…'],
+  dl0: ['Connecting to server…', '서버 연결 중…', 'サーバー接続中…', '连接服务器…', 'Conectando…', 'सर्वर से जुड़ रहे…', 'Đang kết nối…', 'กำลังเชื่อมต่อ…', 'Подключение…', 'Verbinde…', 'Connexion…', 'Connessione…'],
+  dl1: ['Fetching app resources…', '앱 리소스 받는 중…', 'アプリ取得中…', '获取资源…', 'Obteniendo recursos…', 'रिसोर्स ला रहे…', 'Đang tải tài nguyên…', 'กำลังโหลดทรัพยากร…', 'Загрузка ресурсов…', 'Lade Ressourcen…', 'Récupération…', 'Recupero risorse…'],
+  dl2: ['Syncing live data…', '실시간 데이터 동기화…', 'ライブ同期中…', '同步实时数据…', 'Sincronizando…', 'लाइव सिंक…', 'Đồng bộ dữ liệu…', 'กำลังซิงค์…', 'Синхронизация…', 'Synchronisiere…', 'Synchronisation…', 'Sincronizzazione…'],
+  dl3: ['Configuring install…', '설치 구성 중…', 'インストール構成中…', '配置安装…', 'Configurando…', 'सेटअप हो रहा…', 'Đang cấu hình…', 'กำลังตั้งค่า…', 'Настройка…', 'Konfiguriere…', 'Configuration…', 'Configurazione…'],
+  dl4: ['Almost done!', '거의 다 됐어요!', 'もうすぐ完了！', '即将完成！', '¡Casi listo!', 'लगभग हो गया!', 'Sắp xong!', 'ใกล้เสร็จแล้ว!', 'Почти готово!', 'Fast fertig!', 'Presque fini !', 'Quasi fatto!'],
+  logoutConfirm: ['{name} · Log out?', '{name} 님 · 로그아웃 할까요?', '{name} · ログアウトしますか？', '{name} · 退出登录？', '{name} · ¿Cerrar sesión?', '{name} · लॉग आउट करें?', '{name} · Đăng xuất?', '{name} · ออกจากระบบ?', '{name} · Выйти?', '{name} · Abmelden?', '{name} · Se déconnecter ?', '{name} · Disconnettersi?'],
+  tAgoNow: ['just now', '방금', 'たった今', '刚刚', 'ahora', 'अभी', 'vừa xong', 'เมื่อกี้', 'только что', 'gerade', "à l'instant", 'ora'],
+  tAgoMin: ['{n}m ago', '{n}분 전', '{n}分前', '{n}分钟前', 'hace {n}m', '{n}मि पहले', '{n} phút trước', '{n} นาทีที่แล้ว', '{n} мин назад', 'vor {n} Min', 'il y a {n} min', '{n} min fa'],
+  tAgoHour: ['{n}h ago', '{n}시간 전', '{n}時間前', '{n}小时前', 'hace {n}h', '{n}घं पहले', '{n} giờ trước', '{n} ชม.ที่แล้ว', '{n} ч назад', 'vor {n} Std', 'il y a {n} h', '{n} h fa'],
+  tAgoDay: ['{n}d ago', '{n}일 전', '{n}日前', '{n}天前', 'hace {n}d', '{n}दि पहले', '{n} ngày trước', '{n} วันที่แล้ว', '{n} дн назад', 'vor {n} T', 'il y a {n} j', '{n} g fa'],
   online: ['online', '접속', '接続', '在线', 'en línea', 'ऑनलाइन', 'trực tuyến', 'ออนไลน์', 'онлайн', 'online', 'en ligne', 'online'],
   chatPh: ['Type a message…', '메시지 입력…', 'メッセージ入力…', '输入消息…', 'Escribe…', 'संदेश लिखें…', 'Nhập tin nhắn…', 'พิมพ์ข้อความ…', 'Сообщение…', 'Nachricht…', 'Message…', 'Messaggio…'],
   send: ['Send', '전송', '送信', '发送', 'Enviar', 'भेजें', 'Gửi', 'ส่ง', 'Отпр.', 'Senden', 'Envoyer', 'Invia'],
@@ -261,6 +285,18 @@ const STR = {
   evtFinish: ['Full time', '경기 종료', '試合終了', '比赛结束', 'Final', 'समाप्त', 'Kết thúc', 'จบเกม', 'Матч окончен', 'Spielende', 'Fin du match', 'Fine partita'],
   notifClosedNote: ['Alerts work while the app is open. Push when fully closed needs a paid server setup.', '알림은 앱이 열려 있을 때 동작해요. 완전히 닫힌 상태의 푸시는 별도 서버 작업이 필요해요.', 'アプリ起動中に動作します。完全終了時のプッシュは別途サーバーが必要。', '应用打开时有效。完全关闭的推送需服务器配置。', 'Funcionan con la app abierta. Push cerrada requiere servidor.', 'ऐप खुली होने पर काम करता है।', 'Hoạt động khi mở app. Push khi đóng cần máy chủ.', 'ทำงานเมื่อเปิดแอป', 'Работает при открытом приложении.', 'Funktioniert bei geöffneter App.', 'Fonctionne app ouverte.', 'Funziona ad app aperta.'],
   save: ['Save', '저장', '保存', '保存', 'Guardar', 'सहेजें', 'Lưu', 'บันทึก', 'Сохранить', 'Speichern', 'Enregistrer', 'Salva'],
+  close: ['Close', '닫기', '閉じる', '关闭', 'Cerrar', 'बंद करें', 'Đóng', 'ปิด', 'Закрыть', 'Schließen', 'Fermer', 'Chiudi'],
+  oddsDetail: ['Odds Detail', '배당 상세', 'オッズ詳細', '赔率详情', 'Detalle de cuotas', 'ऑड्स विवरण', 'Chi tiết kèo', 'รายละเอียดราคา', 'Детали ставок', 'Quoten-Details', 'Détail des cotes', 'Dettaglio quote'],
+  matchInfoLbl: ['Match Info', '경기 정보', '試合情報', '比赛信息', 'Info del partido', 'मैच जानकारी', 'Thông tin trận', 'ข้อมูลแมตช์', 'Инфо матча', 'Spielinfo', 'Infos match', 'Info partita'],
+  loadFail: ['Failed to load.', '불러오지 못했습니다.', '読み込み失敗。', '加载失败。', 'Error al cargar.', 'लोड विफल।', 'Tải thất bại.', 'โหลดไม่สำเร็จ', 'Не удалось загрузить.', 'Laden fehlgeschlagen.', 'Échec du chargement.', 'Caricamento fallito.'],
+  noPosts: ['No posts yet. Be the first!', '아직 글이 없어요. 첫 글을 남겨보세요!', 'まだ投稿がありません。', '还没有帖子。', 'Aún no hay publicaciones.', 'अभी कोई पोस्ट नहीं।', 'Chưa có bài viết.', 'ยังไม่มีโพสต์', 'Пока нет постов.', 'Noch keine Beiträge.', 'Aucun post.', 'Nessun post.'],
+  needInput: ['Enter a title or text.', '제목이나 내용을 입력하세요', 'タイトルか内容を入力。', '请输入标题或内容。', 'Escribe título o texto.', 'शीर्षक या टेक्स्ट लिखें।', 'Nhập tiêu đề hoặc nội dung.', 'กรอกหัวข้อหรือเนื้อหา', 'Введите заголовок или текст.', 'Titel oder Text eingeben.', 'Saisissez un titre ou texte.', 'Inserisci titolo o testo.'],
+  postFailed: ['Failed to post. Try again shortly.', '등록에 실패했어요. 잠시 후 다시 시도해주세요.', '投稿失敗。少し後で再試行。', '发布失败，请稍后再试。', 'Error al publicar.', 'पोस्ट विफल।', 'Đăng thất bại.', 'โพสต์ไม่สำเร็จ', 'Не удалось опубликовать.', 'Posten fehlgeschlagen.', 'Échec de publication.', 'Pubblicazione fallita.'],
+  wakeServer: ['⏳ Waking server…', '⏳ 서버 깨우는 중…', '⏳ サーバー起動中…', '⏳ 唤醒服务器…', '⏳ Activando servidor…', '⏳ सर्वर जगा रहे…', '⏳ Đang đánh thức máy chủ…', '⏳ กำลังปลุกเซิร์ฟเวอร์…', '⏳ Пробуждение сервера…', '⏳ Server wird geweckt…', '⏳ Réveil du serveur…', '⏳ Riattivazione server…'],
+  wakeServerLong: ['⏳ Waking the free server… first load can take up to a minute.', '⏳ 무료 서버를 깨우는 중이에요… 최초 접속은 최대 1분 정도 걸릴 수 있어요.', '⏳ 無料サーバー起動中…初回は最大1分。', '⏳ 唤醒免费服务器…首次最多1分钟。', '⏳ Activando el servidor gratis… puede tardar 1 min.', '⏳ फ्री सर्वर जग रहा… पहली बार 1 मिनट लग सकता।', '⏳ Đang đánh thức máy chủ… lần đầu có thể mất 1 phút.', '⏳ กำลังปลุกเซิร์ฟเวอร์ฟรี… ครั้งแรกอาจนาน 1 นาที', '⏳ Пробуждение сервера… первая загрузка до минуты.', '⏳ Kostenloser Server startet… erster Ladevorgang bis 1 Min.', '⏳ Réveil du serveur gratuit… jusqu\'à 1 min.', '⏳ Riattivazione server… fino a 1 min.'],
+  retryAuto: ['auto-retry', '자동 재시도', '自動再試行', '自动重试', 'reintento', 'ऑटो-रिट्राई', 'tự thử lại', 'ลองใหม่อัตโนมัติ', 'авто-повтор', 'Auto-Wiederholung', 'nouvelle tentative', 'ritento auto'],
+  noData: ['No data.', '데이터가 없습니다.', 'データがありません。', '暂无数据。', 'Sin datos.', 'कोई डेटा नहीं।', 'Không có dữ liệu.', 'ไม่มีข้อมูล', 'Нет данных.', 'Keine Daten.', 'Aucune donnée.', 'Nessun dato.'],
+  loginFail: ['Login failed', '로그인 실패', 'ログイン失敗', '登录失败', 'Error de acceso', 'लॉगिन विफल', 'Đăng nhập thất bại', 'เข้าสู่ระบบล้มเหลว', 'Ошибка входа', 'Anmeldung fehlgeschlagen', 'Échec de connexion', 'Accesso fallito'],
   // 종목명 (키 = SPORTS.key)
   football: ['Soccer', '축구', 'サッカー', '足球', 'Fútbol', 'फुटबॉल', 'Bóng đá', 'ฟุตบอล', 'Футбол', 'Fußball', 'Football', 'Calcio'],
   baseball: ['Baseball', '야구', '野球', '棒球', 'Béisbol', 'बेसबॉल', 'Bóng chày', 'เบสบอล', 'Бейсбол', 'Baseball', 'Baseball', 'Baseball'],
@@ -278,6 +314,7 @@ function applyI18n() {
   document.documentElement.lang = LANG;
   $$('[data-i18n]').forEach(el => { el.textContent = t(el.dataset.i18n); });
   $$('[data-i18n-ph]').forEach(el => { el.placeholder = t(el.dataset.i18nPh); });
+  $$('[data-i18n-title]').forEach(el => { el.title = t(el.dataset.i18nTitle); });
 }
 function setLang(l) {
   LANG = l; try { localStorage.setItem('liveup_lang', l); } catch (e) {}
@@ -946,8 +983,8 @@ window.openInChrome = function () {
 function runProgress(done) {
   const fill = $('#dlFill'), pct = $('#dlPct'), msg = $('#dlMsg'), guide = $('#dlGuide'), close = $('#dlClose');
   guide.style.display = 'none'; close.style.display = 'none';
-  $('#dlTitle').textContent = 'LIVE UP 설치 중…';
-  const labels = [[0, '서버 연결 중…'], [25, '앱 리소스 받는 중…'], [55, '실시간 데이터 동기화…'], [80, '설치 구성 중…'], [97, '거의 다 됐어요!']];
+  $('#dlTitle').textContent = t('installing');
+  const labels = [[0, t('dl0')], [25, t('dl1')], [55, t('dl2')], [80, t('dl3')], [97, t('dl4')]];
   let p = 0; fill.style.width = '0%'; pct.textContent = '0%';
   const t = setInterval(() => {
     p += Math.random() * 7 + 3; if (p >= 100) p = 100;
@@ -1134,7 +1171,7 @@ $('#chatbanBtn')?.addEventListener('click', () => { if (window.innerWidth < 960)
 // ============================================================
 let loggedIn = false, myUser = null, GOOGLE_CID = '';
 function openLogin() {
-  if (loggedIn) { if (confirm(`${myName} 님 · 로그아웃 할까요?`)) logoutUser(); return; }
+  if (loggedIn) { if (confirm(t('logoutConfirm').replace('{name}', myName))) logoutUser(); return; }
   $('#scrimL').classList.add('on'); $('#loginModal').classList.add('on');
 }
 function closeLogin() { $('#scrimL').classList.remove('on'); $('#loginModal').classList.remove('on'); }
@@ -1164,11 +1201,11 @@ async function onGoogleCred(resp) {
   if (!resp || !resp.credential) return;
   try {
     const d = await fetch('/api/auth/google', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ credential: resp.credential }) }).then(r => r.json());
-    if (!d.ok) { toast('로그인 실패: ' + (d.error || '')); return; }
+    if (!d.ok) { toast(t('loginFail') + (d.error ? ': ' + d.error : '')); return; }
     applyUser(d.user); try { localStorage.setItem('liveup_user', JSON.stringify(d.user)); } catch { }
     toast(d.isNew ? '가입 완료! 환영해요 🎉' : '로그인 완료 ✓');
     closeLogin();
-  } catch { toast('로그인 실패'); }
+  } catch { toast(t('loginFail')); }
 }
 function applyUser(u) {
   myUser = u; myName = u.name; loggedIn = true;
@@ -1185,7 +1222,7 @@ function renderAuthUI() {
   const du = $('#drawerLogin');
   if (du) du.innerHTML = loggedIn ? `<span class="em">🚪</span><span>${esc(t('logout'))}</span>` : `<span class="em">🔑</span><span data-i18n="login">${esc(t('login'))}</span>`;
   const bu = $('#btnUserIc') || $('#btnUser'); if (bu) bu.innerHTML = loggedIn ? pic : e3d('👤');   // 아이콘만 교체(MY 라벨 유지)
-  const dn = $('#drawerName'); if (dn) dn.textContent = loggedIn && myUser ? myUser.name : '손님';
+  const dn = $('#drawerName'); if (dn) dn.textContent = loggedIn && myUser ? myUser.name : t('guest');
 }
 function logoutUser() {
   myUser = null; loggedIn = false; myName = null;
@@ -1208,17 +1245,19 @@ const BOARD_DESC = { free: 'descFree', profit: 'descProfit', loss: 'descLoss' };
 let curBoard = 'free';
 function timeAgo(ts) {
   const s = (Date.now() - ts) / 1000;
-  if (s < 60) return '방금'; if (s < 3600) return Math.floor(s / 60) + '분 전';
-  if (s < 86400) return Math.floor(s / 3600) + '시간 전'; return Math.floor(s / 86400) + '일 전';
+  if (s < 60) return t('tAgoNow');
+  if (s < 3600) return t('tAgoMin').replace('{n}', Math.floor(s / 60));
+  if (s < 86400) return t('tAgoHour').replace('{n}', Math.floor(s / 3600));
+  return t('tAgoDay').replace('{n}', Math.floor(s / 86400));
 }
 async function loadPosts() {
   const list = $('#postList'); if (!list) return;
-  list.innerHTML = `<div class="loading">불러오는 중…</div>`;
+  list.innerHTML = `<div class="loading">${esc(t('loading'))}</div>`;
   $('#boardDesc') && ($('#boardDesc').textContent = t(BOARD_DESC[curBoard]));
   try {
-    const d = await fetchJSON(`/api/posts?board=${curBoard}`, { tries: 12, delay: 3500, onWait: n => { list.innerHTML = `<div class="loading">⏳ 서버 깨우는 중… (${n})</div>`; } });
+    const d = await fetchJSON(`/api/posts?board=${curBoard}`, { tries: 12, delay: 3500, onWait: n => { list.innerHTML = `<div class="loading">${esc(t('wakeServer'))} (${n})</div>`; } });
     const ps = d.posts || [];
-    if (!ps.length) { list.innerHTML = `<div class="loading">아직 글이 없어요. 첫 글을 남겨보세요!</div>`; return; }
+    if (!ps.length) { list.innerHTML = `<div class="loading">${esc(t('noPosts'))}</div>`; return; }
     list.innerHTML = ps.map(p => `<div class="post">
       <div class="post-hd"><span class="pu">${esc(p.name)}</span><span class="pt">${timeAgo(p.ts)}</span></div>
       <div class="post-title">${esc(p.title)}</div>
@@ -1231,7 +1270,7 @@ async function loadPosts() {
       if (r && r.ok) el.querySelector('b').textContent = r.up;
     }));
   } catch (e) {
-    list.innerHTML = `<div class="loading">불러오지 못했습니다.<br><button onclick="loadPosts()" style="margin-top:10px;padding:9px 18px;border:none;border-radius:8px;background:#2f6fed;color:#fff;font-weight:800">다시 시도</button></div>`;
+    list.innerHTML = `<div class="loading">${esc(t('loadFail'))}<br><button onclick="loadPosts()" style="margin-top:10px;padding:9px 18px;border:none;border-radius:8px;background:#2f6fed;color:#fff;font-weight:800">${esc(t('retry'))}</button></div>`;
   }
 }
 $$('.boardtabs .bt').forEach(b => b.addEventListener('click', () => {
@@ -1250,11 +1289,11 @@ $('#wmClose')?.addEventListener('click', closeWrite);
 $('#scrimW')?.addEventListener('click', closeWrite);
 $('#wSubmit')?.addEventListener('click', async () => {
   const title = $('#wPostTitle').value.trim(), text = $('#wPostText').value.trim();
-  if (!title && !text) { alert('제목이나 내용을 입력하세요'); return; }
+  if (!title && !text) { alert(t('needInput')); return; }
   try {
     await fetch('/api/posts', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ board: curBoard, name: myName, title, text }) });
     closeWrite(); loadPosts();
-  } catch { alert('등록에 실패했어요. 잠시 후 다시 시도해주세요.'); }
+  } catch { alert(t('postFailed')); }
 });
 
 // ============================================================
@@ -1275,7 +1314,7 @@ function buildSportNav() {
 }
 function buildLeagueNav() {
   // API-Sports는 종목 단위로 조회 → 리그 네비는 현재 종목의 리그로 동적 표시(렌더 후 갱신)
-  $('#leagueNav').innerHTML = '<div class="side-note" style="padding:8px 16px">경기를 불러오면 리그가 표시됩니다</div>';
+  $('#leagueNav').innerHTML = `<div class="side-note" style="padding:8px 16px">${esc(t('leaguesAppear'))}</div>`;
   $('#leagueNavD').innerHTML = '';
 }
 
@@ -1423,9 +1462,9 @@ async function loadEvents(silent) {
   if (!silent) feed.innerHTML = `<div class="loading">${esc(t('loadingGames'))}</div>`;
   try {
     const d = await fetchJSON(`/api/asports/games?sport=${encodeURIComponent(state.sport)}&date=${state.date}&tz=${encodeURIComponent(USER_TZ)}`, {
-      onWait: silent ? undefined : (n) => { feed.innerHTML = `<div class="loading">⏳ 무료 서버를 깨우는 중이에요…<br>최초 접속은 최대 1분 정도 걸릴 수 있어요.<br><span style="color:#aeb6c0">(자동 재시도 ${n})</span></div>`; }
+      onWait: silent ? undefined : (n) => { feed.innerHTML = `<div class="loading">${esc(t('wakeServerLong'))}<br><span style="color:#aeb6c0">(${esc(t('retryAuto'))} ${n})</span></div>`; }
     });
-    if (d.needKey) { if (!silent) feed.innerHTML = `<div class="loading">경기 데이터 API 키가 설정되지 않았어요.</div>`; return; }
+    if (d.needKey) { if (!silent) feed.innerHTML = `<div class="loading">${esc(t('noData'))}</div>`; return; }
     const games = d.games || [];
     allFeedGames = games;
     feedGames = {}; games.forEach(g => feedGames[g.id] = g);
@@ -2274,9 +2313,9 @@ function renderLineupList(tm) {
   const subs = (tm.subs || []).length ? `<div class="lulist-sub-hd">${esc(t('subs') || '교체')}</div>` + (tm.subs || []).map(p => `<div class="lulist-row lu-dot sub" data-pid="${esc(p.id)}" data-name="${esc(p.name)}" data-pos="${esc(p.pos || '')}" data-num="${esc(p.number == null ? '' : String(p.number))}"><span class="lulist-av sm">${esc(p.number == null ? '' : String(p.number))}</span><span class="lulist-nm">${esc(fbPN(p.name))}</span></div>`).join('') : '';
   return `<div class="pitch">${hd}<div class="lulist">${rows}${subs}</div></div>`;
 }
-function renderPitch(t) {
-  const xi = (t.startXI || []).filter(p => p.grid);
-  if (!xi.length) return renderLineupList(t);   // 좌표 없으면 명단 리스트로 폴백
+function renderPitch(tm) {
+  const xi = (tm.startXI || []).filter(p => p.grid);
+  if (!xi.length) return renderLineupList(tm);   // 좌표 없으면 명단 리스트로 폴백
   const rows = {};
   xi.forEach(p => { const g = String(p.grid).split(':'); const r = +g[0], c = +g[1]; (rows[r] = rows[r] || []).push({ ...p, c }); });
   const rk = Object.keys(rows).map(Number).sort((a, b) => a - b);
@@ -2293,7 +2332,7 @@ function renderPitch(t) {
       dots.push(`<div class="lu-dot" data-pid="${esc(p.id)}" data-name="${esc(p.name)}" data-pos="${esc(p.pos || '')}" data-num="${esc(p.number || '')}" style="top:${top}%;left:${left}%">${av}<span class="lu-nm">${esc(fbPN(shortName(p.name)))}</span></div>`);
     });
   });
-  return `<div class="pitch"><div class="pitch-hd">${esc(t.team)} · <b>${esc(t.formation)}</b>${t.coach ? ` · 감독 ${esc(t.coach)}` : ''}</div><div class="pitch-field">${dots.join('')}</div></div>`;
+  return `<div class="pitch"><div class="pitch-hd">${esc(tm.team)} · <b>${esc(tm.formation)}</b>${tm.coach ? ` · ${esc(t('coach'))} ${esc(tm.coach)}` : ''}</div><div class="pitch-field">${dots.join('')}</div></div>`;
 }
 // 야구장 수비 배치도 (포지션별 좌표) — 얼굴 대신 포지션 캐릭터 원
 const BB_POS = { P: [50, 60], C: [50, 87], '1B': [72, 52], '2B': [61, 39], SS: [39, 39], '3B': [28, 52], LF: [21, 25], CF: [50, 13], RF: [79, 25] };
@@ -2949,7 +2988,7 @@ async function openEvent(id) {
   modalEventId = id;
   evTabPin[id] = false;   // 재입장 시 현재 이닝/전반후반 자동 선택
   $('#scrim').classList.add('on'); $('#modal').classList.add('on');
-  $('#mTitle').textContent = e.league || '경기 상세';
+  $('#mTitle').textContent = e.league || t('scoreDetail');
   $('#mBody').innerHTML = `
     <div id="mScore"></div>
     <div id="mYtWrap"></div>
@@ -3055,7 +3094,7 @@ async function loadTable() {
   try {
     const d = await fetchJSON(`/api/rank?sport=${encodeURIComponent(rankSport)}&league=${encodeURIComponent(league)}&season=${encodeURIComponent(season)}`, { tries: 2, delay: 2500 });
     const tb = d.table || [];
-    if (!tb.length) { wrap.innerHTML = `<div class="loading">${d.note === 'ts-todo' ? '이 리그 순위는 준비 중입니다.' : '해당 시즌 순위 데이터가 없습니다.'}</div>`; return; }
+    if (!tb.length) { wrap.innerHTML = `<div class="loading">${d.note === 'ts-todo' ? esc(t('rankSoon')) : esc(t('noSeasonData'))}</div>`; return; }
     if (d.season) { const si = $('#tblSeason'); if (si) si.value = String(d.season); }   // 실제 반환된 시즌 반영
     if (rankSport === 'baseball') {
       wrap.innerHTML = `<table class="rank"><thead><tr><th>#</th><th style="text-align:left">${sl('team')}</th><th>${sl('w')}</th><th>${sl('l')}</th><th>${sl('pct')}</th><th>GB</th><th>${sl('streak')}</th></tr></thead><tbody>${
@@ -3071,7 +3110,7 @@ async function loadTable() {
         }</tbody></table>`;
     }
   } catch (e) {
-    wrap.innerHTML = `<div class="loading">순위를 불러오지 못했습니다.</div>`;
+    wrap.innerHTML = `<div class="loading">${esc(t('loadFail'))}</div>`;
   }
 }
 
@@ -3181,12 +3220,12 @@ function pickSummaryHtml(e, fh, fa) {
 function won(n) { return Math.round(n).toLocaleString('ko-KR'); }
 async function openOddsDetail(id, home, away) {
   $('#scrim').classList.add('on'); $('#modal').classList.add('on');
-  $('#mTitle').textContent = '배당 상세';
-  $('#mBody').innerHTML = `<div class="loading">배당 불러오는 중…</div>`;
+  $('#mTitle').textContent = t('oddsDetail');
+  $('#mBody').innerHTML = `<div class="loading">${esc(t('loading'))}</div>`;
   try {
     const d = await fetchJSON(`/api/odds/event?id=${encodeURIComponent(id)}&sport=${encodeURIComponent(oddsSport)}`, { tries: 10, delay: 3500 });
-    if (d.needKey) { $('#mBody').innerHTML = `<div class="loading">배당 API 키가 필요합니다.</div>`; return; }
-    const ev = d.event; if (!ev) { $('#mBody').innerHTML = `<div class="loading">상세 배당이 없어요.</div>`; return; }
+    if (d.needKey) { $('#mBody').innerHTML = `<div class="loading">${esc(t('noData'))}</div>`; return; }
+    const ev = d.event; if (!ev) { $('#mBody').innerHTML = `<div class="loading">${esc(t('noData'))}</div>`; return; }
     const best = d.best || {}, books = d.books || [];
     const isSoccer = oddsSport.startsWith('soccer');
     const oh = best.home || 0, od = best.draw || 0, oa = best.away || 0;
@@ -3234,7 +3273,7 @@ async function openOddsDetail(id, home, away) {
     // 최근 경기 로드
     loadRecent('#recH', ev.home); loadRecent('#recA', ev.away);
   } catch (e) {
-    $('#mBody').innerHTML = `<div class="loading">상세를 불러오지 못했습니다.</div>`;
+    $('#mBody').innerHTML = `<div class="loading">${esc(t('loadFail'))}</div>`;
   }
 }
 async function loadRecent(sel, teamName) {
@@ -3312,7 +3351,7 @@ async function initInfo() {
     infoGames = games;
     buildLeagueRow(games);   // 정보방도 현재 종목 기준으로 리그칩 재구성
     renderInfoList();
-  } catch { list.innerHTML = `<div class="loading">불러오지 못했습니다.</div>`; }
+  } catch { list.innerHTML = `<div class="loading">${esc(t('loadFail'))}</div>`; }
 }
 // 정보방 목록 렌더 (상단 리그 칩 필터 적용) → 클릭 시 PICK 상세
 function renderInfoList() {
@@ -3519,7 +3558,7 @@ function recentRows(arr) {
 function openInfoDetail(i) {
   const m = INFO[i];
   $('#scrim').classList.add('on'); $('#modal').classList.add('on');
-  $('#mTitle').textContent = `경기 정보 · ${m.league}`;
+  $('#mTitle').textContent = `${t('matchInfoLbl')} · ${m.league}`;
   const innings = n => Array.from({ length: 9 }, (_, k) => `<td>${m.box[n][k] ?? ''}</td>`).join('');
   const sum = n => m.box[n].reduce((a, b) => a + b, 0);
   $('#mBody').innerHTML = `

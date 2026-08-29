@@ -8,7 +8,7 @@
 <link rel="manifest" href="/manifest.json">
 <link rel="apple-touch-icon" href="/icon-512.png?v=2">
 <link rel="icon" href="/icon-192.png?v=2">
-<link rel="stylesheet" href="styles.css?v=239">
+<link rel="stylesheet" href="styles.css?v=240">
 </head>
 <body>
 <div class="shell">
@@ -34,7 +34,7 @@
     <div id="sportNav" class="sidenav"></div>
     <div class="side-hd" data-i18n="interest">관심 리그</div>
     <div id="leagueNav" class="sidenav"></div>
-    <div class="side-note">데이터: API-Sports · 실시간 연동</div>
+    <div class="side-note" data-i18n="dataNote">데이터: API-Sports · 실시간 연동</div>
   </aside>
 
   <!-- ================= 중앙(경기 피드) ================= -->
@@ -93,12 +93,12 @@
 
     <!-- ===== 홈(추천) 뷰 ===== -->
     <section class="view hidden" id="view-home">
-      <div id="homeBody"><div class="loading">불러오는 중…</div></div>
+      <div id="homeBody"><div class="loading" data-i18n="loading">불러오는 중…</div></div>
     </section>
 
     <!-- ===== LIVE 뷰 ===== -->
     <section class="view hidden" id="view-live">
-      <div id="feed" class="feed"><div class="loading">경기 불러오는 중…</div></div>
+      <div id="feed" class="feed"><div class="loading" data-i18n="loadingGames">경기 불러오는 중…</div></div>
     </section>
 
     <!-- ===== 순위 뷰 ===== -->
@@ -106,10 +106,10 @@
       <div class="oddschips" id="tblSport"></div>
       <div class="tblhead">
         <select id="tblLeague"></select>
-        <input type="text" id="tblSeason" placeholder="시즌 (예: 2026 / 2025-2026)">
-        <button id="tblLoad">조회</button>
+        <input type="text" id="tblSeason" placeholder="시즌 (예: 2026 / 2025-2026)" data-i18n-ph="seasonPh">
+        <button id="tblLoad" data-i18n="query">조회</button>
       </div>
-      <div id="tableWrap" class="tablewrap"><div class="loading">리그를 선택하세요.</div></div>
+      <div id="tableWrap" class="tablewrap"><div class="loading" data-i18n="selectLeague">리그를 선택하세요.</div></div>
     </section>
 
     <!-- ===== 채팅 뷰 (모바일) ===== -->
@@ -121,13 +121,13 @@
     <section class="view hidden" id="view-odds">
       <div class="oddshd">🎯 <span data-i18n="pickHub">픽 제공</span> <span class="obk" data-i18n="pickHubSub">전 경기 승률 · 시장 컨센서스 · LIVE UP 분석</span></div>
       <div class="oddschips" id="oddsChips"></div>
-      <div id="oddsBoard" class="oddsboard"><div class="loading">불러오는 중…</div></div>
+      <div id="oddsBoard" class="oddsboard"><div class="loading" data-i18n="loading">불러오는 중…</div></div>
     </section>
 
     <!-- ===== 경기 정보방 뷰 ===== -->
     <section class="view hidden" id="view-info">
-      <div class="infohd">🎯 PICK · 경기 정보방</div>
-      <div class="infonote">경기를 누르면 <b>종합 지표(승률)·배당·최근 전적·상대전적·AI 코멘트</b>가 한눈에 나와요. 아래 종목 버튼으로 축구·야구·농구 등 종목을 바꿀 수 있어요.</div>
+      <div class="infohd">🎯 <span data-i18n="pickInfoTitle">PICK · 경기 정보방</span></div>
+      <div class="infonote" data-i18n="infoNote">경기를 누르면 <b>종합 지표(승률)·배당·최근 전적·상대전적·AI 코멘트</b>가 한눈에 나와요. 아래 종목 버튼으로 축구·야구·농구 등 종목을 바꿀 수 있어요.</div>
       <div class="oddschips" id="infoChips"></div>
       <div class="infowrap">
         <div id="infoList" class="infolist"></div>
@@ -156,8 +156,8 @@
       <div id="postList" class="postlist"><div class="loading" data-i18n="loading">불러오는 중…</div></div>
     </section>
 
-    <p class="foot">스코어·엠블럼·순위는 실제 API 데이터입니다. 배당·AI 예측은 참고용 계산값입니다.<br>
-      고객지원 서비스: <a href="mailto:support@liveup.fans">support@liveup.fans</a></p>
+    <p class="foot"><span data-i18n="footNote">스코어·엠블럼·순위는 실제 API 데이터입니다. 배당·AI 예측은 참고용 계산값입니다.</span><br>
+      <span data-i18n="supportLbl">고객지원 서비스</span>: <a href="mailto:support@liveup.fans">support@liveup.fans</a></p>
   </main>
 
   <!-- ================= 우측(채팅/상세, PC 전용) ================= -->
@@ -170,7 +170,7 @@
 <!-- ===== 경기 상세 모달 ===== -->
 <div class="scrim" id="scrim"></div>
 <div class="modal" id="modal">
-  <div class="mhd"><span id="mTitle">경기 상세</span><span class="mhd-r"><span class="mshare" id="mShare" title="공유">📤</span><span class="x" id="mClose">✕</span></span></div>
+  <div class="mhd"><span id="mTitle" data-i18n="scoreDetail">경기 상세</span><span class="mhd-r"><span class="mshare" id="mShare" data-i18n-title="share" title="공유">📤</span><span class="x" id="mClose">✕</span></span></div>
   <div class="mbody" id="mBody"></div>
 </div>
 
@@ -206,7 +206,7 @@
 <!-- ===== 드로어(모바일 메뉴) ===== -->
 <div class="scrim" id="scrimD"></div>
 <aside class="drawer" id="drawer">
-  <div class="dprof"><div class="av">👤</div><div><div class="who" id="drawerName">손님</div><div class="blog">실시간 접속 <b id="onlineD">0</b>명</div></div></div>
+  <div class="dprof"><div class="av">👤</div><div><div class="who" id="drawerName" data-i18n="guest">손님</div><div class="blog"><span data-i18n="online">접속</span> <b id="onlineD">0</b></div></div></div>
   <div class="sidenav dmenu">
     <a data-tab="live"><span class="em">⚡</span><span data-i18n="live">라이브</span></a>
     <a data-tab="home"><span class="em">🏠</span><span data-i18n="homeTab">홈</span></a>
@@ -238,11 +238,11 @@
   <div class="dlbox">
     <div class="dl-glow"></div>
     <img src="/logo-t.png" alt="LIVE UP" class="dllogo" onerror="this.style.display='none'">
-    <div class="dltitle" id="dlTitle">LIVE UP 설치 중…</div>
+    <div class="dltitle" id="dlTitle" data-i18n="installing">LIVE UP 설치 중…</div>
     <div class="dlbar"><div class="dlfill" id="dlFill"></div></div>
-    <div class="dlrow"><span class="dlpct" id="dlPct">0%</span><span class="dlmsg" id="dlMsg">다운로드 준비 중…</span></div>
+    <div class="dlrow"><span class="dlpct" id="dlPct">0%</span><span class="dlmsg" id="dlMsg" data-i18n="dlPrep">다운로드 준비 중…</span></div>
     <div class="dlguide" id="dlGuide"></div>
-    <button class="dlx" id="dlClose">닫기</button>
+    <button class="dlx" id="dlClose" data-i18n="close">닫기</button>
   </div>
 </div>
 
@@ -252,6 +252,6 @@
     window.addEventListener('load', () => navigator.serviceWorker.register('/sw.js').catch(() => {}));
   }
 </script>
-<script src="app.js?v=239"></script>
+<script src="app.js?v=240"></script>
 </body>
 </html>
