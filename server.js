@@ -2545,9 +2545,10 @@ function sendPresence(room) {
   broadcast(room, { type: 'presence', room, count: presence(room), total: totalOnline() });
 }
 
-const ADJ = ['축구', '야구', '농구', '열혈', '냉정', '분석', '고수', '초보', '행운', '전설'];
-const NOUN = ['팬', '유저', '관중', '분석가', '픽마', '중립러', '해설가', '서포터'];
-function guestName() { return ADJ[Math.random()*ADJ.length|0] + NOUN[Math.random()*NOUN.length|0] + (Math.random()*900+100|0); }
+// 게스트 닉네임: 영어 단어 + 숫자 (한글 랜덤 사용 안 함)
+const ADJ = ['Cool', 'Lucky', 'Sharp', 'Bold', 'Swift', 'Prime', 'Star', 'Ace', 'Mega', 'Epic', 'Pro', 'Neo'];
+const NOUN = ['Fan', 'Picker', 'Scout', 'Analyst', 'Watcher', 'Bettor', 'Player', 'Fanatic', 'Supporter', 'Guru'];
+function guestName() { return ADJ[Math.random()*ADJ.length|0] + NOUN[Math.random()*NOUN.length|0] + (Math.random()*9000+1000|0); }
 
 wss.on('connection', (ws) => {
   ws.room = 'all';
