@@ -1073,3 +1073,5 @@ table.rhe-tbl .tn{text-align:left;padding-left:10px;font-weight:700;white-space:
 .promoban .pb-coin{height:62px;width:62px;flex:0 0 auto;object-fit:contain;filter:drop-shadow(0 3px 8px rgba(0,0,0,.4));position:relative;z-index:1}
 .promoban:active{transform:scale(.99)}
 @media(min-width:960px){.promoban .pb-player{height:84px}.promoban .pb-coin{height:74px;width:74px}.promoban .pb-t{font-size:18px}}
+.bcrow .bcdel{margin-left:8px;flex:0 0 auto;background:#fff;border:1px solid #f0c9c5;color:#c0392b;width:24px;height:24px;border-radius:6px;font-weight:900;cursor:pointer;line-height:1}
+.bcrow .bcdel:hover{background:#fdeceb}

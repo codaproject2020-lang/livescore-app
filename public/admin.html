@@ -227,8 +227,16 @@
     box.innerHTML = rows.map(b=>{
       const stat = b.used ? '<span class="bcstat used">지급됨</span>' : '<span class="bcstat left">잔여</span>';
       const to = b.used ? `<span class="bcto">${esc((b.to&&b.to.name)||'')} ${esc((b.to&&b.to.email)||'')} · ${b.ts?fmt(b.ts):''}</span>` : '<span class="bcto"></span>';
-      return `<div class="bcrow"><span class="bccode">${esc(b.code)}</span>${stat}${to}</div>`;
+      const del = b.used ? '' : `<button class="bcdel" data-code="${esc(b.code)}" title="삭제">✕</button>`;
+      return `<div class="bcrow"><span class="bccode">${esc(b.code)}</span>${stat}${to}${del}</div>`;
     }).join('');
+    box.querySelectorAll('.bcdel').forEach(el=>el.addEventListener('click', async ()=>{
+      const code = el.dataset.code;
+      if(!confirm(`바코드 "${code}" 삭제할까요?`)) return;
+      try{ const d = await apiPost('/api/admin/roulette/delete-code', { code });
+        if(d.ok){ loadRoulette(); } else { alert(d.error==='already-used'?'이미 지급된 바코드는 삭제할 수 없어요.':'삭제 실패'); }
+      }catch(e){ alert('삭제 실패'); }
+    }));
   }
   async function saveRlConfig(){
     const enabled = $('#rlEnabled').checked;
