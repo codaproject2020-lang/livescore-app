@@ -4055,3 +4055,12 @@ async function init() {
   try { const ev = new URLSearchParams(location.search).get('ev'), sp = new URLSearchParams(location.search).get('sp'); if (ev) openEventWhenReady(ev, sp); } catch (e) {}
 }
 init();
+
+// ⬆️ 맨 위로 스크롤 버튼 — 스크롤 내렸을 때만 반투명 화살표 표시
+(function () {
+  const b = document.getElementById('scrollTopBtn'); if (!b) return;
+  const toggle = () => b.classList.toggle('show', (window.scrollY || document.documentElement.scrollTop || 0) > 400);
+  window.addEventListener('scroll', toggle, { passive: true });
+  b.addEventListener('click', () => window.scrollTo({ top: 0, behavior: 'smooth' }));
+  toggle();
+})();
