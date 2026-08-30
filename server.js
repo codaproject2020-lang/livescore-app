@@ -233,11 +233,25 @@ app.post('/api/prize/spin', (req, res) => {
   persistUser(u);
   res.json({ ok: true, result: prize.status, prize });
 });
-// [관리자] 룰렛/바코드 현황
+// [관리자] 룰렛/바코드 현황 (+ 개별 바코드 목록·상태)
 app.get('/api/admin/roulette', (req, res) => {
   if (!adminOK(req)) return res.status(401).json({ ok: false, error: 'unauthorized' });
   const used = barcodePool.filter(b => b.used).length;
-  res.json({ ok: true, cfg: rouletteCfg, pool: { total: barcodePool.length, used, left: barcodePool.length - used } });
+  // 지급된 바코드의 assignedTo(sub) → 이메일/이름으로 변환해서 표시
+  const list = barcodePool.map(b => {
+    let to = null;
+    if (b.assignedTo) { const u = USERS.get(b.assignedTo); to = u ? { email: u.email, name: u.name } : { email: '', name: '(탈퇴/미상)' }; }
+    return { code: b.code, used: !!b.used, to, ts: b.ts || null };
+  });
+  res.json({ ok: true, cfg: rouletteCfg, pool: { total: barcodePool.length, used, left: barcodePool.length - used }, list });
+});
+// [관리자] 미사용(잔여) 바코드 삭제 — 지급된 것은 이력 보존 위해 유지
+app.post('/api/admin/roulette/clear-unused', (req, res) => {
+  if (!adminOK(req)) return res.status(401).json({ ok: false, error: 'unauthorized' });
+  const before = barcodePool.length;
+  barcodePool = barcodePool.filter(b => b.used);
+  saveBarcodes();
+  res.json({ ok: true, removed: before - barcodePool.length, total: barcodePool.length });
 });
 // [관리자] 룰렛 on/off + 당첨확률
 app.post('/api/admin/roulette/config', (req, res) => {
