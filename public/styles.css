@@ -655,9 +655,10 @@ table.boxsc .r{font-weight:900;color:var(--red);background:#fbfaf4}
 .match .pick{box-shadow:0 2px 6px rgba(22,163,74,.30)}
 .datenav .refresh{transition:transform .1s}.datenav .refresh:active{transform:scale(.94)}
 /* 라이브 외 화면에선 뉴스/대화방/종목 바만 숨김 (날짜바는 모든 화면에서 표시) */
-.center.notlive .ticker,.center.notlive .chatban,.center.notlive .sportrow{display:none}
-/* 홈에서도 종목 탭은 보이게 (야구/축구/농구 … 전환용) */
+.center.notlive .ticker,.center.notlive .chatban,.center.notlive .sportrow,.center.notlive .promoban{display:none}
+/* 홈에서도 종목 탭 + 배너는 보이게 */
 .center.homeview .sportrow{display:flex}
+.center.homeview .promoban{display:flex}
 
 /* 카드 안 배당(작게·정중앙) */
 .odds3-card{grid-column:1/-1;margin-top:6px;display:flex;justify-content:center}
@@ -1060,3 +1061,15 @@ table.rhe-tbl .tn{text-align:left;padding-left:10px;font-weight:700;white-space:
 .cuv-code b{flex:1;min-width:0;font-size:15px;letter-spacing:1.5px;font-family:'Courier New',monospace;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .cuv-code .pc-copy{background:#a5cd39;color:#22350a;font-weight:900;font-size:11.5px;padding:5px 12px;border-radius:7px;border:none;cursor:pointer;flex:0 0 auto}
 .mybtn{background:linear-gradient(135deg,#6d3aa8,#8e44ad)!important;color:#fff!important;box-shadow:0 4px 12px rgba(110,58,168,.3)!important}
+
+/* ===== 라이브코인 에어드랍 배너 광고 ===== */
+.promoban{display:flex;align-items:center;gap:10px;margin:8px 10px 4px;padding:8px 12px 8px 8px;border-radius:16px;text-decoration:none;position:relative;overflow:hidden;background:linear-gradient(120deg,#12203b 0%,#1e335c 45%,#3a2a10 100%);box-shadow:0 6px 18px rgba(18,32,59,.28);border:1.5px solid rgba(246,214,122,.5)}
+.promoban::after{content:"";position:absolute;inset:0;background:radial-gradient(120% 140% at 88% 30%,rgba(246,214,122,.22),transparent 55%);pointer-events:none}
+.promoban .pb-player{height:70px;width:auto;flex:0 0 auto;border-radius:10px;object-fit:cover}
+.promoban .pb-mid{flex:1;min-width:0;position:relative;z-index:1}
+.promoban .pb-t{color:#f6d67a;font-weight:900;font-size:16px;letter-spacing:-.2px;text-shadow:0 1px 3px rgba(0,0,0,.35);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.promoban .pb-s{color:#dbe4f2;font-size:11.5px;font-weight:600;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.promoban .pb-go{display:inline-block;margin-top:7px;background:linear-gradient(135deg,#f6d67a,#e0a92e);color:#2a1e05;font-weight:900;font-size:12px;padding:4px 13px;border-radius:20px;letter-spacing:.5px}
+.promoban .pb-coin{height:62px;width:62px;flex:0 0 auto;object-fit:contain;filter:drop-shadow(0 3px 8px rgba(0,0,0,.4));position:relative;z-index:1}
+.promoban:active{transform:scale(.99)}
+@media(min-width:960px){.promoban .pb-player{height:84px}.promoban .pb-coin{height:74px;width:74px}.promoban .pb-t{font-size:18px}}

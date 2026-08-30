@@ -8,7 +8,7 @@
 <link rel="manifest" href="/manifest.json">
 <link rel="apple-touch-icon" href="/icon-512.png?v=2">
 <link rel="icon" href="/icon-192.png?v=2">
-<link rel="stylesheet" href="styles.css?v=244">
+<link rel="stylesheet" href="styles.css?v=245">
 </head>
 <body>
 <div class="shell">
@@ -64,6 +64,17 @@
 
     <!-- 종목 아이콘 줄 (모바일) -->
     <div class="sportrow" id="sportRow"></div>
+
+    <!-- 🪙 라이브코인 에어드랍 배너 광고 -->
+    <a class="promoban" href="https://rally.liveup.fans/#airdrop" target="_blank" rel="noopener">
+      <img class="pb-player" src="/promo-player.png" alt="" loading="lazy">
+      <div class="pb-mid">
+        <div class="pb-t" data-i18n="claimCoin">라이브코인 무료받기</div>
+        <div class="pb-s" data-i18n="claimCoinSub">지금 $LIVE 에어드랍 참여하기</div>
+        <span class="pb-go">$LIVE ›</span>
+      </div>
+      <img class="pb-coin" src="/promo-coin.png" alt="" loading="lazy">
+    </a>
 
     <!-- 리그 선택 바 (전체/KBO/MLB/… · 종목별) -->
     <div class="leaguerow" id="leagueRow" style="display:none"></div>
@@ -253,6 +264,6 @@
     window.addEventListener('load', () => navigator.serviceWorker.register('/sw.js').catch(() => {}));
   }
 </script>
-<script src="app.js?v=244"></script>
+<script src="app.js?v=245"></script>
 </body>
 </html>

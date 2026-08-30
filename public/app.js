@@ -312,6 +312,8 @@ const STR = {
   copied: ['Copied ✓', '복사됨 ✓', 'コピー✓', '已复制✓', 'Copiado ✓', 'कॉपी ✓', 'Đã sao chép ✓', 'คัดลอกแล้ว ✓', 'Скопировано ✓', 'Kopiert ✓', 'Copié ✓', 'Copiato ✓'],
   srcSignup: ['Signup reward', '가입 축하', '登録特典', '注册奖励', 'Registro', 'साइनअप', 'Đăng ký', 'สมัคร', 'Регистрация', 'Anmeldung', 'Inscription', 'Iscrizione'],
   srcAdmin: ['Event reward', '이벤트 지급', 'イベント', '活动奖励', 'Evento', 'इवेंट', 'Sự kiện', 'อีเวนต์', 'Событие', 'Event', 'Événement', 'Evento'],
+  claimCoin: ['Claim Free LiveCoin', '라이브코인 무료받기', 'ライブコイン無料GET', '免费领取 LiveCoin', 'Consigue LiveCoin gratis', 'मुफ़्त LiveCoin पाएं', 'LiveCoin 무료 nhận', 'รับ LiveCoin ฟรี', 'Получите LiveCoin бесплатно', 'Gratis LiveCoin sichern', 'LiveCoin gratuit', 'Ottieni LiveCoin gratis'],
+  claimCoinSub: ['Join the $LIVE airdrop now', '지금 $LIVE 에어드랍 참여하기', '今すぐ$LIVEエアドロップ参加', '立即参与 $LIVE 空投', 'Únete al airdrop $LIVE', 'अभी $LIVE एयरड्रॉप में शामिल हों', 'Tham gia airdrop $LIVE ngay', 'ร่วม $LIVE airdrop เลย', 'Участвуйте в airdrop $LIVE', 'Jetzt am $LIVE-Airdrop teilnehmen', 'Rejoignez l\'airdrop $LIVE', 'Partecipa all\'airdrop $LIVE'],
   // 종목명 (키 = SPORTS.key)
   football: ['Soccer', '축구', 'サッカー', '足球', 'Fútbol', 'फुटबॉल', 'Bóng đá', 'ฟุตบอล', 'Футбол', 'Fußball', 'Football', 'Calcio'],
   baseball: ['Baseball', '야구', '野球', '棒球', 'Béisbol', 'बेसबॉल', 'Bóng chày', 'เบสบอล', 'Бейсбол', 'Baseball', 'Baseball', 'Baseball'],
