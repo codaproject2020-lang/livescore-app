@@ -245,6 +245,17 @@ app.get('/api/admin/roulette', (req, res) => {
   });
   res.json({ ok: true, cfg: rouletteCfg, pool: { total: barcodePool.length, used, left: barcodePool.length - used }, list });
 });
+// [관리자] 바코드 1개 삭제 (미사용만 삭제 가능 · 지급된 건 이력 보존)
+app.post('/api/admin/roulette/delete-code', (req, res) => {
+  if (!adminOK(req)) return res.status(401).json({ ok: false, error: 'unauthorized' });
+  const code = String((req.body && req.body.code) || '').trim();
+  const i = barcodePool.findIndex(b => b.code === code);
+  if (i < 0) return res.json({ ok: false, error: 'not-found' });
+  if (barcodePool[i].used) return res.json({ ok: false, error: 'already-used' });
+  barcodePool.splice(i, 1); saveBarcodes();
+  const used = barcodePool.filter(b => b.used).length;
+  res.json({ ok: true, total: barcodePool.length, left: barcodePool.length - used });
+});
 // [관리자] 미사용(잔여) 바코드 삭제 — 지급된 것은 이력 보존 위해 유지
 app.post('/api/admin/roulette/clear-unused', (req, res) => {
   if (!adminOK(req)) return res.status(401).json({ ok: false, error: 'unauthorized' });
@@ -1807,14 +1818,15 @@ async function buildGamesCore(sport, date, tz) {
   if (sport === 'football') {
     const liveG = games.filter(g => g.state === 'live');
     const finG = games.filter(g => g.state === 'finished');
-    const targets = liveG.concat(finG).slice(0, 150);   // 라이브 우선 + 종료, 최대 150경기(사실상 전 경기)
+    const targets = liveG.concat(finG).slice(0, 200);   // 라이브 우선 + 종료, 최대 200경기(사실상 전 경기)
     // 캐시 히트는 즉시 처리, 미스만 API 호출 — 미스는 배치(20개씩)로 나눠 rate-limit 버스트 방지
     const fetchOne = async g => {
       try {
         const ck = 'FBS:' + g.id, hit = cache.get(ck);
         const ttl = g.state === 'finished' ? 3600000 : 30000;   // 종료=1시간(안 변함), 라이브=30초
         let stats;
-        if (hit && Date.now() - hit.t < ttl) stats = hit.v;
+        // 통계가 비어있으면(경기 직후 API 지연 등) 90초만 캐시 → 점유율 나올 때까지 재시도
+        if (hit && Date.now() - hit.t < (hit.v ? ttl : 90000)) stats = hit.v;
         else {
           const st = await asRaw('football', `/fixtures/statistics?fixture=${g.id}`, 9000);
           const val = (arr, type) => { const it = (arr || []).find(x => x.type === type); return it ? it.value : null; };
