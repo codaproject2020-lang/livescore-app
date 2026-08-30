@@ -693,6 +693,13 @@ async function asRaw(sport, path, ttl = 30000) {
   const r = await fetch(url, { headers: { 'x-apisports-key': APISPORTS_KEY } });
   if (!r.ok) throw new Error('upstream ' + r.status);
   const v = await r.json();
+  // ⚠️ 에러/한도초과 응답(errors 존재 + 결과 0)은 캐시하지 않음 → 한도 회복/복구 즉시 반영
+  const errObj = v && v.errors;
+  const hasErr = errObj && (Array.isArray(errObj) ? errObj.length > 0 : Object.keys(errObj).length > 0);
+  if (hasErr && (v.results === 0 || v.results == null)) {
+    if (hit) return hit.v;   // 이전 정상 캐시가 있으면 그걸 유지(빈 화면 방지)
+    return v;                 // 없으면 그대로 반환(캐시는 안 함)
+  }
   cache.set(url, { t: now, v });
   return v;
 }
