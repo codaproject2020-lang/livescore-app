@@ -1044,3 +1044,19 @@ table.rhe-tbl .tn{text-align:left;padding-left:10px;font-weight:700;white-space:
 .confetti-wrap{position:absolute;inset:0;overflow:hidden;pointer-events:none;border-radius:16px}
 .confetti{position:absolute;top:-10%;animation:conffall 2.3s ease-in forwards}
 @keyframes conffall{to{transform:translateY(340px) rotate(360deg);opacity:0}}
+
+/* ===== CU 편의점 상품권 카드 ===== */
+.cuv{position:relative;border-radius:16px;padding:16px 16px 14px;color:#fff;background:linear-gradient(135deg,#4b2a8e 0%,#6d3aa8 55%,#8e44ad 100%);box-shadow:0 8px 22px rgba(75,42,142,.32);overflow:hidden}
+.cuv::before{content:'';position:absolute;right:-30px;top:-30px;width:120px;height:120px;border-radius:50%;background:rgba(165,205,57,.25)}
+.cuv::after{content:'';position:absolute;left:12px;right:12px;bottom:52px;height:0;border-top:2px dashed rgba(255,255,255,.35)}
+.cuv-top{display:flex;align-items:center;gap:8px;position:relative;z-index:1}
+.cuv-badge{background:#fff;color:#4b2a8e;font-weight:900;font-size:15px;letter-spacing:.5px;padding:3px 9px;border-radius:7px;box-shadow:0 2px 6px rgba(0,0,0,.15)}
+.cuv-brand{font-size:12px;font-weight:800;color:#e6dcf5}
+.cuv-src{margin-left:auto;font-size:10.5px;color:#cbbce6}
+.cuv-name{position:relative;z-index:1;font-size:20px;font-weight:900;margin:12px 0 12px;text-shadow:0 1px 3px rgba(0,0,0,.2)}
+.cuv-bars{height:34px;border-radius:6px;background:#fff;background-image:repeating-linear-gradient(90deg,#111 0 2px,#fff 2px 4px,#111 4px 5px,#fff 5px 9px,#111 9px 12px,#fff 12px 14px);background-size:auto 100%;margin-bottom:10px;position:relative;z-index:1}
+.cuv-code{position:relative;z-index:1;display:flex;align-items:center;gap:8px;background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.25);border-radius:9px;padding:8px 10px}
+.cuv-clbl{font-size:10.5px;color:#d9cef0;font-weight:700}
+.cuv-code b{flex:1;min-width:0;font-size:15px;letter-spacing:1.5px;font-family:'Courier New',monospace;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cuv-code .pc-copy{background:#a5cd39;color:#22350a;font-weight:900;font-size:11.5px;padding:5px 12px;border-radius:7px;border:none;cursor:pointer;flex:0 0 auto}
+.mybtn{background:linear-gradient(135deg,#6d3aa8,#8e44ad)!important;color:#fff!important;box-shadow:0 4px 12px rgba(110,58,168,.3)!important}

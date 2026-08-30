@@ -1242,6 +1242,7 @@ function renderAuthUI() {
   if (du) du.innerHTML = loggedIn ? `<span class="em">🚪</span><span>${esc(t('logout'))}</span>` : `<span class="em">🔑</span><span data-i18n="login">${esc(t('login'))}</span>`;
   const bu = $('#btnUserIc') || $('#btnUser'); if (bu) bu.innerHTML = loggedIn ? pic : e3d('👤');   // 아이콘만 교체(MY 라벨 유지)
   const dn = $('#drawerName'); if (dn) dn.textContent = loggedIn && myUser ? myUser.name : t('guest');
+  const my = $('#btnMyPC'); if (my) my.style.display = loggedIn ? 'block' : 'none';   // PC 상품함 버튼(로그인 시만)
 }
 // ============================================================
 //  🎁 MY 페이지 / 상품함 + 회원가입 즉시지급 룰렛
@@ -1284,11 +1285,12 @@ function prizeRow(p) {
   const dd = new Date(p.ts), dt = `${dd.getMonth() + 1}/${dd.getDate()}`;
   const src = p.source === 'admin' ? t('srcAdmin') : t('srcSignup');
   if (p.status === 'won' && p.code) {
-    return `<div class="prize won">
-      <div class="prize-ic">🎟️</div>
-      <div class="prize-mid"><div class="prize-nm">${esc(p.name)}</div><div class="prize-sub">${esc(src)} · ${dt}</div>
-        <div class="prize-code"><span class="pc-lbl">${esc(t('barcodeLbl'))}</span><b>${esc(p.code)}</b><button class="pc-copy" data-code="${esc(p.code)}">${esc(t('copyCode'))}</button></div>
-      </div></div>`;
+    return `<div class="cuv">
+      <div class="cuv-top"><span class="cuv-badge">CU</span><span class="cuv-brand">편의점 모바일상품권</span><span class="cuv-src">${esc(src)} · ${dt}</span></div>
+      <div class="cuv-name">${esc(p.name)}</div>
+      <div class="cuv-bars"></div>
+      <div class="cuv-code"><span class="cuv-clbl">${esc(t('barcodeLbl'))}</span><b>${esc(p.code)}</b><button class="pc-copy" data-code="${esc(p.code)}">${esc(t('copyCode'))}</button></div>
+    </div>`;
   }
   return `<div class="prize miss">
     <div class="prize-ic">🎫</div>
@@ -3840,6 +3842,7 @@ $('#dateToday').addEventListener('click', () => { state.date = localYMD(); state
 $('#datePick').addEventListener('change', e => { state.date = e.target.value; state.dateAuto = (state.date === localYMD()); refreshDateLabel(); reloadActiveView(); });
 $('#btnRefresh').addEventListener('click', () => loadEvents());
 $('#btnUser')?.addEventListener('click', () => { if (loggedIn) openMyPage(); else openLogin(); });
+$('#btnMyPC')?.addEventListener('click', openMyPage);
 $('#btnMenu').addEventListener('click', openDrawer);
 function openDrawer() { $('#drawer').classList.add('on'); $('#scrimD').classList.add('on'); }
 function closeDrawer() { $('#drawer').classList.remove('on'); $('#scrimD').classList.remove('on'); }
