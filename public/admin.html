@@ -74,6 +74,15 @@
   .poolstat .left b{color:#12854a}
   .msg{font-size:12.5px;min-height:16px;margin-top:6px}
   .msg.ok{color:#12854a}.msg.no{color:#c0392b}
+  .bclist-hd{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:16px 0 8px}
+  .bclist{max-height:280px;overflow-y:auto;border:1px solid var(--line);border-radius:10px}
+  .bcrow{display:flex;align-items:center;gap:10px;padding:9px 12px;border-bottom:1px solid #f0f2f6;font-size:13px}
+  .bcrow:last-child{border-bottom:none}
+  .bcrow .bccode{font-weight:800;letter-spacing:.5px;flex:0 0 auto;min-width:130px}
+  .bcrow .bcstat{font-size:11px;font-weight:800;padding:2px 9px;border-radius:20px}
+  .bcrow .bcstat.left{background:#e7f7ee;color:#12854a}
+  .bcrow .bcstat.used{background:#fdece9;color:#c0392b}
+  .bcrow .bcto{color:var(--dim);font-size:12px;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   @media(max-width:640px){.cards{grid-template-columns:repeat(2,1fr)}.hide-m{display:none}}
 </style>
 </head>
@@ -125,6 +134,18 @@
         <div>지급됨<b id="poolUsed">0</b></div>
         <div class="left">잔여<b id="poolLeft">0</b></div>
       </div>
+      <!-- 바코드 개별 현황 -->
+      <div class="bclist-hd">
+        <span style="font-weight:800;font-size:13px">📋 바코드 현황</span>
+        <select id="bcFilter" style="padding:6px 10px;border:1px solid var(--line);border-radius:8px;font-size:12.5px">
+          <option value="left">잔여만</option>
+          <option value="all">전체</option>
+          <option value="used">지급됨만</option>
+        </select>
+        <button class="btn" id="bcCopyLeft">잔여 바코드 복사</button>
+        <button class="btn" id="bcClearUnused" style="color:#c0392b;border-color:#f0c9c5">잔여 삭제</button>
+      </div>
+      <div class="bclist" id="bcList"><div class="muted" style="padding:14px;font-size:12.5px">바코드를 등록하면 여기에 목록이 표시됩니다.</div></div>
       <div class="fld" style="margin-bottom:8px">
         <label>바코드 등록 (한 줄에 하나씩, 5,000원권 100개 붙여넣기)</label>
         <textarea id="rlCodes" placeholder="ABC-1234-5678&#10;DEF-2345-6789&#10;..."></textarea>
@@ -179,6 +200,7 @@
   }
 
   // 🎁 룰렛/상품 현황 로드 + 반영
+  let BARCODES = [];
   async function loadRoulette(){
     try{
       const d = await api('/api/admin/roulette');
@@ -190,7 +212,23 @@
       $('#poolTotal').textContent = d.pool.total;
       $('#poolUsed').textContent = d.pool.used;
       $('#poolLeft').textContent = d.pool.left;
+      BARCODES = d.list || [];
+      renderBarcodes();
     }catch(e){ if(String(e.message)==='unauthorized') logout(); }
+  }
+  function renderBarcodes(){
+    const f = $('#bcFilter').value;
+    let rows = BARCODES;
+    if(f==='left') rows = rows.filter(b=>!b.used);
+    else if(f==='used') rows = rows.filter(b=>b.used);
+    const box = $('#bcList');
+    if(!BARCODES.length){ box.innerHTML = '<div class="muted" style="padding:14px;font-size:12.5px">바코드를 등록하면 여기에 목록이 표시됩니다.</div>'; return; }
+    if(!rows.length){ box.innerHTML = '<div class="muted" style="padding:14px;font-size:12.5px">해당 조건의 바코드가 없습니다.</div>'; return; }
+    box.innerHTML = rows.map(b=>{
+      const stat = b.used ? '<span class="bcstat used">지급됨</span>' : '<span class="bcstat left">잔여</span>';
+      const to = b.used ? `<span class="bcto">${esc((b.to&&b.to.name)||'')} ${esc((b.to&&b.to.email)||'')} · ${b.ts?fmt(b.ts):''}</span>` : '<span class="bcto"></span>';
+      return `<div class="bcrow"><span class="bccode">${esc(b.code)}</span>${stat}${to}</div>`;
+    }).join('');
   }
   async function saveRlConfig(){
     const enabled = $('#rlEnabled').checked;
@@ -278,6 +316,23 @@
   $('#rlSave').addEventListener('click', saveRlConfig);
   $('#rlAddCodes').addEventListener('click', addCodes);
   $('#grBtn').addEventListener('click', grant);
+  $('#bcFilter').addEventListener('change', renderBarcodes);
+  $('#bcCopyLeft').addEventListener('click', ()=>{
+    const left = BARCODES.filter(b=>!b.used).map(b=>b.code);
+    const m = $('#rlMsg'); m.className='msg';
+    if(!left.length){ m.className='msg no'; m.textContent='잔여 바코드가 없습니다.'; return; }
+    try{ navigator.clipboard.writeText(left.join('\n')); m.className='msg ok'; m.textContent=`잔여 ${left.length}개 바코드 복사됨 ✓ (다른 이벤트에 재사용 가능)`; }
+    catch(e){ m.className='msg no'; m.textContent='복사 실패 — 브라우저 권한 확인'; }
+  });
+  $('#bcClearUnused').addEventListener('click', async ()=>{
+    const left = BARCODES.filter(b=>!b.used).length;
+    if(!left){ const m=$('#rlMsg'); m.className='msg no'; m.textContent='삭제할 잔여 바코드가 없습니다.'; return; }
+    if(!confirm(`미사용(잔여) 바코드 ${left}개를 목록에서 삭제할까요?\n(지급된 바코드 이력은 유지됩니다)`)) return;
+    try{ const d = await apiPost('/api/admin/roulette/clear-unused', {});
+      const m=$('#rlMsg'); if(d.ok){ m.className='msg ok'; m.textContent=`잔여 ${d.removed}개 삭제됨`; loadRoulette(); }
+      else { m.className='msg no'; m.textContent=d.error||'실패'; }
+    }catch(e){ const m=$('#rlMsg'); m.className='msg no'; m.textContent='실패'; }
+  });
 
   // 저장된 키가 있으면 자동 검증 후 대시보드
   if(KEY){ api('/api/admin/stats').then(j=>{ if(j&&j.ok) showDash(); else logout(); }).catch(()=>logout()); }
