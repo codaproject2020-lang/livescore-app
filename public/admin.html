@@ -163,6 +163,18 @@
     </div>
   </div>
 
+  <!-- 📤 공유 인증 승인 대기 -->
+  <div class="panel" style="margin-bottom:20px">
+    <div class="hd"><span>📤 공유 인증 승인 대기</span><span class="cnt" id="spCnt"></span></div>
+    <div style="overflow-x:auto">
+      <table class="tbl">
+        <thead><tr><th>회원</th><th>플랫폼</th><th>게시물 링크</th><th>제출시간</th><th>처리</th></tr></thead>
+        <tbody id="spRows"></tbody>
+      </table>
+    </div>
+    <div class="empty" id="spEmpty" style="display:none">대기 중인 공유 인증이 없습니다.</div>
+  </div>
+
   <div class="panel">
     <div class="hd"><span>👥 회원 목록 <span class="muted" style="font-weight:600">(최신 가입순)</span></span><span class="cnt" id="uCnt"></span></div>
     <div style="overflow-x:auto">
@@ -215,6 +227,38 @@
       BARCODES = d.list || [];
       renderBarcodes();
     }catch(e){ if(String(e.message)==='unauthorized') logout(); }
+  }
+  // 📤 공유 인증 승인 대기 로드
+  async function loadSharePending(){
+    try{
+      const d = await api('/api/admin/share-pending');
+      if(!d || !d.ok) return;
+      const rows = $('#spRows'); rows.innerHTML='';
+      $('#spCnt').textContent = (d.list||[]).length + '건';
+      $('#spEmpty').style.display = (d.list||[]).length ? 'none' : 'block';
+      (d.list||[]).forEach(s=>{
+        const tr = document.createElement('tr');
+        const plat = s.platform==='insta' ? '📸 Instagram' : '𝕏 X';
+        tr.innerHTML = `
+          <td><b>${esc(s.name||'')}</b><div class="mail" style="font-size:11px">${esc(s.email||'')}</div></td>
+          <td>${plat}</td>
+          <td><a href="${esc(s.url)}" target="_blank" rel="noopener" class="mail" style="word-break:break-all">${esc(s.url||'').slice(0,60)}</a></td>
+          <td class="muted">${fmt(s.ts)}</td>
+          <td style="white-space:nowrap">
+            <button class="btn g sp-ok" data-e="${esc(s.email)}" data-p="${s.platform}" style="padding:6px 10px">승인</button>
+            <button class="btn sp-no" data-e="${esc(s.email)}" data-p="${s.platform}" style="padding:6px 10px;color:#c0392b">거절</button>
+          </td>`;
+        rows.appendChild(tr);
+      });
+      rows.querySelectorAll('.sp-ok').forEach(el=>el.addEventListener('click', ()=>shareAct('approve', el.dataset.e, el.dataset.p)));
+      rows.querySelectorAll('.sp-no').forEach(el=>el.addEventListener('click', ()=>shareAct('reject', el.dataset.e, el.dataset.p)));
+    }catch(e){ if(String(e.message)==='unauthorized') logout(); }
+  }
+  async function shareAct(act, email, platform){
+    if(act==='reject' && !confirm('이 공유 인증을 거절할까요? (사용자는 다시 제출 가능)')) return;
+    try{ const d = await apiPost('/api/admin/share-'+act, { email, platform });
+      if(d.ok){ loadSharePending(); load(); } else { alert(d.error||'실패'); }
+    }catch(e){ alert('실패'); }
   }
   function renderBarcodes(){
     const f = $('#bcFilter').value;
@@ -298,6 +342,7 @@
       if(String(e.message)==='unauthorized'){ logout(); }
     }
     loadRoulette();
+    loadSharePending();
   }
 
   function showDash(){ $('#gate').style.display='none'; $('#wrap').style.display='block'; load(); }

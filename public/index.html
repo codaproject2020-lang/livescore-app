@@ -76,6 +76,12 @@
       <img class="pb-coin" src="/promo-coin.png" alt="" loading="lazy">
     </a>
 
+    <!-- 📣 SNS 공유하고 룰렛 1회 더 (홈/라이브) -->
+    <div class="homeshare" id="homeShare">
+      <button class="hs-btn insta" data-plat="insta">📸 <span class="hs-lb" data-i18n="shareInsta">인스타 공유하기</span></button>
+      <button class="hs-btn twitter" data-plat="twitter">𝕏 <span class="hs-lb" data-i18n="shareTwitter">X(트위터) 공유하기</span></button>
+    </div>
+
     <!-- 리그 선택 바 (전체/KBO/MLB/… · 종목별) -->
     <div class="leaguerow" id="leagueRow" style="display:none"></div>
 
@@ -202,6 +208,17 @@
   <div class="lm-sub" data-i18n="loginSub">간편하게 로그인하고 채팅·픽·커뮤니티에 참여하세요</div>
   <div id="gSignIn" class="gsi-wrap"></div>
   <div class="lm-note" id="lmNote" data-i18n="loginNote">구글 계정으로 안전하게 로그인 · 채팅·픽·커뮤니티 참여</div>
+</div>
+
+<!-- ===== 공유 링크 제출 모달 ===== -->
+<div class="scrim" id="scrimSS"></div>
+<div class="modal" id="shareSubmitModal">
+  <div class="mhd"><span data-i18n="shareSubmitTitle">게시물 링크 제출</span> · <span id="ssPlat"></span><span class="x" id="ssClose">✕</span></div>
+  <div class="mbody">
+    <div class="ss-hint" data-i18n="shareSubmitHint">본인 피드에 올린 뒤 게시물 링크를 붙여넣어 주세요. 관리자 승인 시 룰렛 1회 지급!</div>
+    <input type="url" id="ssInput" class="winput" placeholder="https://..." autocomplete="off">
+    <button id="ssSubmit" class="wsubmit" data-i18n="submitPost">제출하기</button>
+  </div>
 </div>
 
 <!-- ===== 글쓰기 모달 ===== -->
