@@ -71,7 +71,7 @@ async function initDB() {
     await usersCol.createIndex({ id: 1 }, { unique: true });
     const all = await usersCol.find({}).toArray();   // 기존 회원 메모리에 로드
     for (const u of all) {
-      USERS.set(u.id, { id: u.id, email: u.email, name: u.name, picture: u.picture, verified: u.verified, first: u.first, last: u.last, token: u.token, spinAvailable: u.spinAvailable, prizes: u.prizes || [] });
+      USERS.set(u.id, { id: u.id, email: u.email, name: u.name, picture: u.picture, verified: u.verified, first: u.first, last: u.last, token: u.token, spinsLeft: u.spinsLeft != null ? u.spinsLeft : (u.spinAvailable ? 1 : 0), shares: u.shares || { insta: false, twitter: false }, shareSubs: u.shareSubs || {}, prizes: u.prizes || [] });
       if (u.token) TOKENS.set(u.token, u.id);   // 로그인 토큰 복원
     }
     // 🎁 상품/룰렛 설정·바코드풀 로드
@@ -141,9 +141,13 @@ app.post('/api/auth/google', async (req, res) => {
     const user = { id: info.sub, email: info.email || '', name: info.name || (info.email || 'user').split('@')[0], picture: info.picture || '', verified: String(info.email_verified) === 'true' };
     const token = (prev && prev.token) || genToken();
     // 🎁 신규 회원은 룰렛 1회 기회 부여(가입 즉시지급 룰렛). 기존 회원 값 유지.
+    //    spinsLeft = 남은 룰렛 횟수(가입 1회 + 공유 보너스), shares = 공유 보너스 수령 여부
+    const prevLeft = prev ? (prev.spinsLeft != null ? prev.spinsLeft : (prev.spinAvailable ? 1 : 0)) : 1;
     const rec = Object.assign({ first: prev ? prev.first : now }, user, {
       last: now, token,
-      spinAvailable: prev ? prev.spinAvailable : true,
+      spinsLeft: prevLeft,
+      shares: prev ? (prev.shares || { insta: false, twitter: false }) : { insta: false, twitter: false },
+      shareSubs: prev ? (prev.shareSubs || {}) : {},
       prizes: prev ? (prev.prizes || []) : []
     });
     USERS.set(info.sub, rec);
@@ -201,10 +205,13 @@ app.get('/api/admin/users', (req, res) => {
 app.get('/api/prize/mine', (req, res) => {
   const u = userFromReq(req);
   if (!u) return res.status(401).json({ ok: false, error: 'login required' });
+  const left = u.spinsLeft != null ? u.spinsLeft : (u.spinAvailable ? 1 : 0);
   res.json({
     ok: true,
     prizes: (u.prizes || []).slice().sort((a, b) => b.ts - a.ts),
-    spinAvailable: !!u.spinAvailable && rouletteCfg.enabled,
+    spinAvailable: left > 0 && rouletteCfg.enabled,
+    spinsLeft: left,
+    shares: normShares(u.shares),
     roulette: { enabled: rouletteCfg.enabled, winRate: rouletteCfg.winRate, prizeName: rouletteCfg.prizeName, prizeAmount: rouletteCfg.prizeAmount }
   });
 });
@@ -213,8 +220,9 @@ app.post('/api/prize/spin', (req, res) => {
   const u = userFromReq(req);
   if (!u) return res.status(401).json({ ok: false, error: 'login required' });
   if (!rouletteCfg.enabled) return res.json({ ok: false, error: 'disabled' });
-  if (!u.spinAvailable) return res.json({ ok: false, error: 'no-spin' });
-  u.spinAvailable = false;
+  const left = u.spinsLeft != null ? u.spinsLeft : (u.spinAvailable ? 1 : 0);
+  if (left <= 0) return res.json({ ok: false, error: 'no-spin' });
+  u.spinsLeft = left - 1; u.spinAvailable = u.spinsLeft > 0;
   const win = Math.random() < rouletteCfg.winRate;
   let prize;
   if (win) {
@@ -231,7 +239,72 @@ app.post('/api/prize/spin', (req, res) => {
   }
   u.prizes = u.prizes || []; u.prizes.push(prize);
   persistUser(u);
-  res.json({ ok: true, result: prize.status, prize });
+  res.json({ ok: true, result: prize.status, prize, spinsLeft: u.spinsLeft });
+});
+// shares 상태 정규화: 레거시 false→'none', true→'approved'
+function normShares(s) {
+  const o = { insta: 'none', twitter: 'none' };
+  if (s) for (const p of ['insta', 'twitter']) { const v = s[p]; o[p] = v === true ? 'approved' : (v === 'pending' || v === 'approved' ? v : 'none'); }
+  return o;
+}
+// [사용자] SNS 공유 인증 제출 — 게시물 링크 제출 → 관리자 승인 대기(pending). 승인 시 룰렛 지급.
+app.post('/api/prize/share-submit', (req, res) => {
+  const u = userFromReq(req);
+  if (!u) return res.status(401).json({ ok: false, error: 'login required' });
+  if (!rouletteCfg.enabled) return res.json({ ok: false, error: 'disabled' });
+  const plat = String((req.body && req.body.platform) || '');
+  if (!['insta', 'twitter'].includes(plat)) return res.json({ ok: false, error: 'bad-platform' });
+  const url = String((req.body && req.body.url) || '').trim();
+  if (!/^https?:\/\/.+/i.test(url)) return res.json({ ok: false, error: 'bad-url' });
+  u.shares = normShares(u.shares);
+  if (u.shares[plat] === 'approved') return res.json({ ok: false, error: 'already', shares: u.shares });
+  if (u.shares[plat] === 'pending') return res.json({ ok: false, error: 'pending', shares: u.shares });
+  u.shares[plat] = 'pending';
+  u.shareSubs = u.shareSubs || {};
+  u.shareSubs[plat] = { url, ts: Date.now() };
+  persistUser(u);
+  res.json({ ok: true, shares: u.shares });
+});
+// [관리자] 공유 인증 승인 대기 목록
+app.get('/api/admin/share-pending', (req, res) => {
+  if (!adminOK(req)) return res.status(401).json({ ok: false, error: 'unauthorized' });
+  const list = [];
+  for (const u of USERS.values()) {
+    const s = normShares(u.shares), sub = u.shareSubs || {};
+    for (const p of ['insta', 'twitter']) if (s[p] === 'pending') list.push({ email: u.email, name: u.name, platform: p, url: (sub[p] && sub[p].url) || '', ts: (sub[p] && sub[p].ts) || null });
+  }
+  list.sort((a, b) => (a.ts || 0) - (b.ts || 0));
+  res.json({ ok: true, count: list.length, list });
+});
+// [관리자] 공유 인증 승인 → 룰렛 1회 지급
+app.post('/api/admin/share-approve', (req, res) => {
+  if (!adminOK(req)) return res.status(401).json({ ok: false, error: 'unauthorized' });
+  const email = String((req.body && req.body.email) || '').trim().toLowerCase();
+  const plat = String((req.body && req.body.platform) || '');
+  if (!['insta', 'twitter'].includes(plat)) return res.json({ ok: false, error: 'bad-platform' });
+  const u = [...USERS.values()].find(x => String(x.email || '').toLowerCase() === email);
+  if (!u) return res.json({ ok: false, error: 'user-not-found' });
+  u.shares = normShares(u.shares);
+  if (u.shares[plat] !== 'pending') return res.json({ ok: false, error: 'not-pending' });
+  u.shares[plat] = 'approved';
+  u.spinsLeft = (u.spinsLeft || 0) + 1;   // 보너스 룰렛 1회
+  u.spinAvailable = true;
+  persistUser(u);
+  res.json({ ok: true });
+});
+// [관리자] 공유 인증 거절 → 재제출 가능하도록 초기화
+app.post('/api/admin/share-reject', (req, res) => {
+  if (!adminOK(req)) return res.status(401).json({ ok: false, error: 'unauthorized' });
+  const email = String((req.body && req.body.email) || '').trim().toLowerCase();
+  const plat = String((req.body && req.body.platform) || '');
+  if (!['insta', 'twitter'].includes(plat)) return res.json({ ok: false, error: 'bad-platform' });
+  const u = [...USERS.values()].find(x => String(x.email || '').toLowerCase() === email);
+  if (!u) return res.json({ ok: false, error: 'user-not-found' });
+  u.shares = normShares(u.shares);
+  u.shares[plat] = 'none';
+  if (u.shareSubs) delete u.shareSubs[plat];
+  persistUser(u);
+  res.json({ ok: true });
 });
 // [관리자] 룰렛/바코드 현황 (+ 개별 바코드 목록·상태)
 app.get('/api/admin/roulette', (req, res) => {
