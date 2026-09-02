@@ -71,7 +71,7 @@ async function initDB() {
     await usersCol.createIndex({ id: 1 }, { unique: true });
     const all = await usersCol.find({}).toArray();   // 기존 회원 메모리에 로드
     for (const u of all) {
-      USERS.set(u.id, { id: u.id, email: u.email, name: u.name, picture: u.picture, verified: u.verified, first: u.first, last: u.last, token: u.token, spinsLeft: u.spinsLeft != null ? u.spinsLeft : (u.spinAvailable ? 1 : 0), shares: u.shares || { insta: false, twitter: false }, shareSubs: u.shareSubs || {}, prizes: u.prizes || [] });
+      USERS.set(u.id, { id: u.id, email: u.email, name: u.name, picture: u.picture, verified: u.verified, first: u.first, last: u.last, token: u.token, spinsLeft: u.spinsLeft != null ? u.spinsLeft : (u.spinAvailable ? 1 : 0), shares: u.shares || { insta: false, twitter: false }, shareSubs: u.shareSubs || {}, event13: u.event13 || {}, prizes: u.prizes || [] });
       if (u.token) TOKENS.set(u.token, u.id);   // 로그인 토큰 복원
     }
     // 🎁 상품/룰렛 설정·바코드풀 로드
@@ -148,6 +148,7 @@ app.post('/api/auth/google', async (req, res) => {
       spinsLeft: prevLeft,
       shares: prev ? (prev.shares || { insta: false, twitter: false }) : { insta: false, twitter: false },
       shareSubs: prev ? (prev.shareSubs || {}) : {},
+      event13: prev ? (prev.event13 || {}) : {},
       prizes: prev ? (prev.prizes || []) : []
     });
     USERS.set(info.sub, rec);
@@ -303,6 +304,70 @@ app.post('/api/admin/share-reject', (req, res) => {
   u.shares = normShares(u.shares);
   u.shares[plat] = 'none';
   if (u.shareSubs) delete u.shareSubs[plat];
+  persistUser(u);
+  res.json({ ok: true });
+});
+
+// ============================================================
+//  🎉 1+3 당첨 인증 이벤트 (X·인스타·페북 각 5,000원 상품권 · 100% 지급)
+//     - 사용자가 당첨 인증글 링크 제출 → 관리자 확인 후 수동 지급(지급완료 표시)
+// ============================================================
+const EV_PLATS = ['twitter', 'insta', 'facebook'];
+function evStates(ev) { const o = {}; for (const p of EV_PLATS) o[p] = (ev && ev[p] && ev[p].status) || 'none'; return o; }
+// [사용자] 이벤트 인증 링크 제출
+app.post('/api/event/submit', (req, res) => {
+  const u = userFromReq(req);
+  if (!u) return res.status(401).json({ ok: false, error: 'login required' });
+  const plat = String((req.body && req.body.platform) || '');
+  if (!EV_PLATS.includes(plat)) return res.json({ ok: false, error: 'bad-platform' });
+  const url = String((req.body && req.body.url) || '').trim();
+  if (!/^https?:\/\/.+/i.test(url)) return res.json({ ok: false, error: 'bad-url' });
+  u.event13 = u.event13 || {};
+  const cur = u.event13[plat] && u.event13[plat].status;
+  if (cur === 'approved') return res.json({ ok: false, error: 'already', states: evStates(u.event13) });
+  u.event13[plat] = { url, ts: Date.now(), status: 'pending' };
+  persistUser(u);
+  res.json({ ok: true, states: evStates(u.event13) });
+});
+// [사용자] 내 이벤트 인증 상태
+app.get('/api/event/mine', (req, res) => {
+  const u = userFromReq(req);
+  if (!u) return res.status(401).json({ ok: false, error: 'login required' });
+  res.json({ ok: true, states: evStates(u.event13) });
+});
+// [관리자] 이벤트 인증 제출 목록(대기/전체)
+app.get('/api/admin/event-subs', (req, res) => {
+  if (!adminOK(req)) return res.status(401).json({ ok: false, error: 'unauthorized' });
+  const list = [];
+  for (const u of USERS.values()) {
+    const ev = u.event13 || {};
+    for (const p of EV_PLATS) if (ev[p] && ev[p].status && ev[p].status !== 'none') list.push({ email: u.email, name: u.name, platform: p, url: ev[p].url || '', ts: ev[p].ts || null, status: ev[p].status });
+  }
+  list.sort((a, b) => (a.status === 'pending' ? 0 : 1) - (b.status === 'pending' ? 0 : 1) || (a.ts || 0) - (b.ts || 0));
+  res.json({ ok: true, count: list.length, pending: list.filter(x => x.status === 'pending').length, list });
+});
+// [관리자] 이벤트 인증 지급완료 처리
+app.post('/api/admin/event-approve', (req, res) => {
+  if (!adminOK(req)) return res.status(401).json({ ok: false, error: 'unauthorized' });
+  const email = String((req.body && req.body.email) || '').trim().toLowerCase();
+  const plat = String((req.body && req.body.platform) || '');
+  if (!EV_PLATS.includes(plat)) return res.json({ ok: false, error: 'bad-platform' });
+  const u = [...USERS.values()].find(x => String(x.email || '').toLowerCase() === email);
+  if (!u || !u.event13 || !u.event13[plat]) return res.json({ ok: false, error: 'not-found' });
+  u.event13[plat].status = 'approved';
+  u.event13[plat].paidAt = Date.now();
+  persistUser(u);
+  res.json({ ok: true });
+});
+// [관리자] 이벤트 인증 거절 → 재제출 가능
+app.post('/api/admin/event-reject', (req, res) => {
+  if (!adminOK(req)) return res.status(401).json({ ok: false, error: 'unauthorized' });
+  const email = String((req.body && req.body.email) || '').trim().toLowerCase();
+  const plat = String((req.body && req.body.platform) || '');
+  if (!EV_PLATS.includes(plat)) return res.json({ ok: false, error: 'bad-platform' });
+  const u = [...USERS.values()].find(x => String(x.email || '').toLowerCase() === email);
+  if (!u || !u.event13) return res.json({ ok: false, error: 'not-found' });
+  delete u.event13[plat];
   persistUser(u);
   res.json({ ok: true });
 });
