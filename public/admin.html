@@ -175,6 +175,20 @@
     <div class="empty" id="spEmpty" style="display:none">대기 중인 공유 인증이 없습니다.</div>
   </div>
 
+  <!-- 🧾 공유 인증 처리 내역 (룰렛 추가 지급 + 인증 링크) -->
+  <div class="panel" style="margin-bottom:20px">
+    <div class="hd"><span>🧾 공유 인증 처리 내역 <span class="muted" style="font-weight:600">(룰렛 추가 지급 · 인증 링크)</span></span><span class="cnt" id="slCnt"></span>
+      <button class="btn" style="margin-left:auto" onclick="loadShareLog()">새로고침</button>
+    </div>
+    <div style="overflow-x:auto">
+      <table class="tbl">
+        <thead><tr><th>결과</th><th>회원</th><th>플랫폼</th><th>인증 링크</th><th>제출시간</th><th>처리시간</th></tr></thead>
+        <tbody id="slRows"></tbody>
+      </table>
+    </div>
+    <div class="empty" id="slEmpty" style="display:none">처리한 인증 내역이 없습니다.</div>
+  </div>
+
   <!-- 🎉 1+3 당첨 인증 이벤트 -->
   <div class="panel" style="margin-bottom:20px">
     <div class="hd"><span>🎉 1+3 당첨 인증 이벤트 <span class="muted" style="font-weight:600">(플랫폼별 5,000원 상품권 · 수동 지급)</span></span><span class="cnt" id="evCnt"></span></div>
@@ -269,8 +283,34 @@
   async function shareAct(act, email, platform){
     if(act==='reject' && !confirm('이 공유 인증을 거절할까요? (사용자는 다시 제출 가능)')) return;
     try{ const d = await apiPost('/api/admin/share-'+act, { email, platform });
-      if(d.ok){ loadSharePending(); load(); } else { alert(d.error||'실패'); }
+      if(d.ok){ loadSharePending(); loadShareLog(); load(); } else { alert(d.error||'실패'); }
     }catch(e){ alert('실패'); }
+  }
+  // 🧾 공유 인증 처리 내역 로드 (승인=룰렛 지급 / 거절)
+  async function loadShareLog(){
+    try{
+      const d = await api('/api/admin/share-log');
+      if(!d || !d.ok) return;
+      const rows = $('#slRows'); rows.innerHTML='';
+      const list = d.list||[];
+      $('#slCnt').textContent = '지급 ' + (d.approved||0) + ' / 전체 ' + list.length;
+      $('#slEmpty').style.display = list.length ? 'none' : 'block';
+      const PN = { twitter:'𝕏 X', insta:'📸 Instagram', facebook:'📘 Facebook' };
+      list.forEach(s=>{
+        const tr = document.createElement('tr');
+        const res = s.action==='approved'
+          ? '<span class="badge-v">룰렛 지급 ✓</span>'
+          : '<span class="badge-nv" style="color:#c0392b">거절</span>';
+        tr.innerHTML = `
+          <td style="white-space:nowrap">${res}</td>
+          <td><b>${esc(s.name||'')}</b><div class="mail" style="font-size:11px">${esc(s.email||'')}</div></td>
+          <td>${PN[s.platform]||esc(s.platform||'')}</td>
+          <td>${s.url ? `<a href="${esc(s.url)}" target="_blank" rel="noopener" class="mail" style="word-break:break-all">${esc(s.url).slice(0,60)}</a>` : '<span class="muted">-</span>'}</td>
+          <td class="muted">${fmt(s.ts)}</td>
+          <td class="muted">${fmt(s.decidedTs)}</td>`;
+        rows.appendChild(tr);
+      });
+    }catch(e){ if(String(e.message)==='unauthorized') logout(); }
   }
   // 🎉 1+3 이벤트 인증 로드
   async function loadEventSubs(){
@@ -390,6 +430,7 @@
     }
     loadRoulette();
     loadSharePending();
+    loadShareLog();
     loadEventSubs();
   }
 
