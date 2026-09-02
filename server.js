@@ -48,9 +48,12 @@ const TOKENS = new Map(); // 로그인 토큰 -> sub (상품함 API 인증용)
 let metaCol = null;
 let rouletteCfg = { enabled: false, winRate: 0.10, prizeName: '5,000원 상품권', prizeAmount: 5000 };
 let barcodePool = []; // [{ code, used, assignedTo, ts }]
+let shareLog = []; // [{ email, name, platform, url, ts(제출), decidedTs(승인/거절), action:'approved'|'rejected' }]
 function genToken() { return crypto.randomBytes(24).toString('hex'); }
 function saveRoulette() { if (metaCol) metaCol.updateOne({ _id: 'roulette' }, { $set: { enabled: rouletteCfg.enabled, winRate: rouletteCfg.winRate, prizeName: rouletteCfg.prizeName, prizeAmount: rouletteCfg.prizeAmount } }, { upsert: true }).catch(() => {}); }
 function saveBarcodes() { if (metaCol) metaCol.updateOne({ _id: 'barcodes' }, { $set: { pool: barcodePool } }, { upsert: true }).catch(() => {}); }
+function saveShareLog() { if (metaCol) metaCol.updateOne({ _id: 'sharelog' }, { $set: { log: shareLog.slice(-800) } }, { upsert: true }).catch(() => {}); }
+function pushShareLog(e) { shareLog.push(e); if (shareLog.length > 800) shareLog = shareLog.slice(-800); saveShareLog(); }
 function userFromReq(req) { const tk = req.get('x-user-token') || (req.body && req.body.token) || ''; const sub = TOKENS.get(String(tk)); return sub ? USERS.get(sub) : null; }
 
 // ============================================================
@@ -78,7 +81,8 @@ async function initDB() {
     metaCol = db.collection('meta');
     const rc = await metaCol.findOne({ _id: 'roulette' }); if (rc) { rouletteCfg = { enabled: !!rc.enabled, winRate: rc.winRate != null ? rc.winRate : 0.10, prizeName: rc.prizeName || rouletteCfg.prizeName, prizeAmount: rc.prizeAmount || 5000 }; }
     const bp = await metaCol.findOne({ _id: 'barcodes' }); if (bp && Array.isArray(bp.pool)) barcodePool = bp.pool;
-    console.log(`[DB] MongoDB 연결됨 · 회원 ${all.length}명 로드 · 바코드 ${barcodePool.length}개`);
+    const sl = await metaCol.findOne({ _id: 'sharelog' }); if (sl && Array.isArray(sl.log)) shareLog = sl.log;
+    console.log(`[DB] MongoDB 연결됨 · 회원 ${all.length}명 로드 · 바코드 ${barcodePool.length}개 · 인증내역 ${shareLog.length}건`);
   } catch (e) {
     usersCol = null; _dbTries++;
     console.error(`[DB] 연결 실패(#${_dbTries}) → 60초 후 자동 재시도:`, e.message);
@@ -290,7 +294,10 @@ app.post('/api/admin/share-approve', (req, res) => {
   u.shares[plat] = 'approved';
   u.spinsLeft = (u.spinsLeft || 0) + 1;   // 보너스 룰렛 1회
   u.spinAvailable = true;
+  const sub = (u.shareSubs && u.shareSubs[plat]) || {};
+  if (u.shareSubs && u.shareSubs[plat]) u.shareSubs[plat].approvedTs = Date.now();   // 회원 기록에도 승인시각 남김
   persistUser(u);
+  pushShareLog({ email: u.email, name: u.name, platform: plat, url: sub.url || '', ts: sub.ts || null, decidedTs: Date.now(), action: 'approved' });
   res.json({ ok: true });
 });
 // [관리자] 공유 인증 거절 → 재제출 가능하도록 초기화
@@ -302,10 +309,19 @@ app.post('/api/admin/share-reject', (req, res) => {
   const u = [...USERS.values()].find(x => String(x.email || '').toLowerCase() === email);
   if (!u) return res.json({ ok: false, error: 'user-not-found' });
   u.shares = normShares(u.shares);
+  const sub = (u.shareSubs && u.shareSubs[plat]) || {};
+  pushShareLog({ email: u.email, name: u.name, platform: plat, url: sub.url || '', ts: sub.ts || null, decidedTs: Date.now(), action: 'rejected' });
   u.shares[plat] = 'none';
   if (u.shareSubs) delete u.shareSubs[plat];
   persistUser(u);
   res.json({ ok: true });
+});
+// [관리자] 공유 인증 처리 내역 (승인/거절한 링크 기록 — 최신순)
+app.get('/api/admin/share-log', (req, res) => {
+  if (!adminOK(req)) return res.status(401).json({ ok: false, error: 'unauthorized' });
+  const list = shareLog.slice().reverse();   // 최신순
+  const approved = shareLog.filter(x => x.action === 'approved').length;
+  res.json({ ok: true, count: list.length, approved, list });
 });
 
 // ============================================================
