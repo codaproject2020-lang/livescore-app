@@ -456,6 +456,36 @@ app.post('/api/admin/grant', (req, res) => {
   persistUser(u);
   res.json({ ok: true, prize, to: { name: u.name, email: u.email } });
 });
+// [관리자] 별도 상품권 지급 (금액 선택 · 여러 장 한번에)
+app.post('/api/admin/grant-multi', (req, res) => {
+  if (!adminOK(req)) return res.status(401).json({ ok: false, error: 'unauthorized' });
+  const email = String((req.body && req.body.email) || '').trim().toLowerCase();
+  const items = Array.isArray(req.body && req.body.items) ? req.body.items : [];
+  if (!email) return res.json({ ok: false, error: 'email required' });
+  const u = [...USERS.values()].find(x => String(x.email || '').toLowerCase() === email);
+  if (!u) return res.json({ ok: false, error: 'user-not-found' });
+  const ALLOWED = [5000, 10000, 20000, 30000];
+  const valid = items
+    .map(it => ({ amount: parseInt(it && it.amount, 10) || 0, code: String((it && it.code) || '').trim() }))
+    .filter(it => ALLOWED.includes(it.amount));
+  if (!valid.length) return res.json({ ok: false, error: 'no-items' });
+  u.prizes = u.prizes || [];
+  const added = [];
+  valid.forEach((it, i) => {
+    const prize = {
+      id: 'p' + Date.now() + i + (Math.random() * 1000 | 0),
+      status: 'won',
+      name: it.amount.toLocaleString('ko-KR') + '원 상품권',
+      amount: it.amount,
+      code: it.code || null,
+      ts: Date.now(),
+      source: 'admin'
+    };
+    u.prizes.push(prize); added.push(prize);
+  });
+  persistUser(u);
+  res.json({ ok: true, count: added.length, total: valid.reduce((a, b) => a + b.amount, 0), to: { name: u.name, email: u.email } });
+});
 // 관리자 페이지
 app.get('/admin', (req, res) => res.sendFile(path.join(__dirname, 'public', 'admin.html')));
 
