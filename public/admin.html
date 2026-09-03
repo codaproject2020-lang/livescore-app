@@ -163,6 +163,23 @@
     </div>
   </div>
 
+  <!-- 💳 별도 상품권 지급 (금액 선택) -->
+  <div class="panel" style="margin-bottom:20px">
+    <div class="hd"><span>💳 별도 상품권 지급 <span class="muted" style="font-weight:600">(금액 선택 · 여러 장 한번에)</span></span></div>
+    <div class="pbody">
+      <div class="row" style="margin-bottom:10px">
+        <div class="fld"><label>회원 이메일</label><input type="email" id="gmEmail" style="width:260px" placeholder="user@gmail.com"></div>
+      </div>
+      <div id="gmRows"></div>
+      <div style="display:flex;gap:10px;align-items:center;margin-top:6px">
+        <button class="btn" id="gmAdd" type="button">+ 줄 추가</button>
+        <button class="btn g" id="gmBtn" type="button" style="height:40px">지급하기</button>
+        <span class="muted" id="gmSum" style="font-size:12.5px"></span>
+      </div>
+      <span class="msg" id="gmMsg"></span>
+    </div>
+  </div>
+
   <!-- 📤 공유 인증 승인 대기 -->
   <div class="panel" style="margin-bottom:20px">
     <div class="hd"><span>📤 공유 인증 승인 대기</span><span class="cnt" id="spCnt"></span></div>
@@ -398,6 +415,45 @@
     }catch(e){ m.className='msg no'; m.textContent='실패'; }
   }
 
+  // 💳 별도 상품권 지급 (금액 선택 · 여러 줄)
+  const GM_DENOMS = [5000, 10000, 20000, 30000];
+  function gmRowHtml(){
+    const opts = GM_DENOMS.map(v=>`<option value="${v}">${v.toLocaleString()}원</option>`).join('');
+    return `<div class="gmrow" style="display:flex;gap:10px;align-items:center;margin-bottom:8px">
+      <select class="gm-amt" style="padding:9px 10px;border:1px solid var(--line);border-radius:8px;font-size:13px;min-width:120px">${opts}</select>
+      <input type="text" class="gm-code" style="flex:1;min-width:180px;padding:9px 10px;border:1px solid var(--line);border-radius:8px;font-size:13px" placeholder="바코드 (예: ABC-1234-5678)">
+      <button class="btn gm-del" type="button" style="color:#c0392b;border-color:#f0c9c5;padding:8px 12px">✕</button>
+    </div>`;
+  }
+  function gmSum(){
+    let t=0; document.querySelectorAll('#gmRows .gm-amt').forEach(el=>t+=Number(el.value)||0);
+    const n=document.querySelectorAll('#gmRows .gmrow').length;
+    $('#gmSum').textContent = n ? `${n}장 · 합계 ${t.toLocaleString()}원` : '';
+  }
+  function gmAddRow(){
+    const box=$('#gmRows'); const div=document.createElement('div'); div.innerHTML=gmRowHtml();
+    const row=div.firstElementChild; box.appendChild(row);
+    row.querySelector('.gm-del').addEventListener('click',()=>{ row.remove(); if(!$('#gmRows').children.length) gmAddRow(); gmSum(); });
+    row.querySelector('.gm-amt').addEventListener('change',gmSum);
+    gmSum();
+  }
+  async function gmGrant(){
+    const email=$('#gmEmail').value.trim(); const m=$('#gmMsg'); m.className='msg';
+    if(!email){ m.className='msg no'; m.textContent='이메일을 입력하세요.'; return; }
+    const items=[...document.querySelectorAll('#gmRows .gmrow')].map(r=>({
+      amount:Number(r.querySelector('.gm-amt').value)||0,
+      code:r.querySelector('.gm-code').value.trim()
+    })).filter(it=>it.amount>0);
+    if(!items.length){ m.className='msg no'; m.textContent='지급할 상품권을 한 줄 이상 추가하세요.'; return; }
+    const noCode=items.filter(it=>!it.code).length;
+    if(noCode && !confirm(`바코드 없이 지급되는 상품권이 ${noCode}장 있어요. 계속할까요?`)) return;
+    try{ const d=await apiPost('/api/admin/grant-multi',{ email, items });
+      if(d.ok){ m.className='msg ok'; m.textContent=`${d.to.name} 님에게 ${d.count}장 지급 완료 · 합계 ${(d.total||0).toLocaleString()}원 ✓`;
+        $('#gmEmail').value=''; $('#gmRows').innerHTML=''; gmAddRow(); load(); }
+      else { m.className='msg no'; m.textContent = d.error==='user-not-found'?'해당 이메일 회원을 찾을 수 없어요.':(d.error||'실패'); }
+    }catch(e){ m.className='msg no'; m.textContent='실패'; }
+  }
+
   async function load(){
     try{
       const [st, us] = await Promise.all([ api('/api/admin/stats'), api('/api/admin/users') ]);
@@ -458,6 +514,9 @@
   $('#rlSave').addEventListener('click', saveRlConfig);
   $('#rlAddCodes').addEventListener('click', addCodes);
   $('#grBtn').addEventListener('click', grant);
+  $('#gmAdd').addEventListener('click', gmAddRow);
+  $('#gmBtn').addEventListener('click', gmGrant);
+  gmAddRow();
   $('#bcFilter').addEventListener('change', renderBarcodes);
   $('#bcCopyLeft').addEventListener('click', ()=>{
     const left = BARCODES.filter(b=>!b.used).map(b=>b.code);
