@@ -74,7 +74,7 @@ async function initDB() {
     await usersCol.createIndex({ id: 1 }, { unique: true });
     const all = await usersCol.find({}).toArray();   // 기존 회원 메모리에 로드
     for (const u of all) {
-      USERS.set(u.id, { id: u.id, email: u.email, name: u.name, picture: u.picture, verified: u.verified, first: u.first, last: u.last, token: u.token, spinsLeft: u.spinsLeft != null ? u.spinsLeft : (u.spinAvailable ? 1 : 0), shares: u.shares || { insta: false, twitter: false }, shareSubs: u.shareSubs || {}, event13: u.event13 || {}, prizes: u.prizes || [] });
+      USERS.set(u.id, { id: u.id, email: u.email, name: u.name, picture: u.picture, verified: u.verified, first: u.first, last: u.last, token: u.token, spinsLeft: u.spinsLeft != null ? u.spinsLeft : (u.spinAvailable ? 1 : 0), shares: u.shares || { insta: false, twitter: false }, shareSubs: u.shareSubs || {}, event13: u.event13 || {}, prizes: u.prizes || [], signupSpun: !!u.signupSpun });
       if (u.token) TOKENS.set(u.token, u.id);   // 로그인 토큰 복원
     }
     // 🎁 상품/룰렛 설정·바코드풀 로드
@@ -153,7 +153,9 @@ app.post('/api/auth/google', async (req, res) => {
       shares: prev ? (prev.shares || { insta: false, twitter: false }) : { insta: false, twitter: false },
       shareSubs: prev ? (prev.shareSubs || {}) : {},
       event13: prev ? (prev.event13 || {}) : {},
-      prizes: prev ? (prev.prizes || []) : []
+      prizes: prev ? (prev.prizes || []) : [],
+      // 🎯 가입 룰렛은 계정당 1회만: 기존 회원은 재지급 금지(플래그 유지), 신규만 지급 표시
+      signupSpun: prev ? (prev.signupSpun !== undefined ? prev.signupSpun : true) : true
     });
     USERS.set(info.sub, rec);
     TOKENS.set(token, info.sub);
@@ -1506,7 +1508,7 @@ function tsDecodeBox(m) {
   return { team, players: { home: side(m.players && m.players.home), away: side(m.players && m.players.away) }, battingTeam: Array.isArray(m.score) ? m.score[2] : null };
 }
 // ⚡ 진행중 경기 실시간 박스(detail_live 에서 stats+players 추출)
-async function tsLiveBox(matchId, ttl = 4000) {
+async function tsLiveBox(matchId, ttl = 2500) {
   const lv = await tsFetch('/baseball/match/detail_live', {}, ttl).catch(() => null);
   const m = lv && (lv.results || []).find(x => (Array.isArray(x.score) && x.score[0] === matchId) || x.id === matchId);
   if (!m) return null;
@@ -1524,7 +1526,7 @@ async function tsBaseballGames(date) {
   // 실시간(진행 경기): score[3]=scores객체, extra=볼카운트/주자/아웃
   const live = {};
   try {
-    const lv = await tsFetch('/baseball/match/detail_live', {}, 6000);
+    const lv = await tsFetch('/baseball/match/detail_live', {}, 3000);
     (lv.results || []).forEach(m => { const s = m.score || []; live[(s[0]) || m.id] = { status: s[1], batTeam: s[2], sc: s[3] || {}, extra: m.extra || {}, stats: m.stats || [], players: m.players || {} }; });
   } catch (e) {}
   const now = Date.now();
@@ -1571,6 +1573,10 @@ async function tsBaseballGames(date) {
       if (lvm.batTeam === 1) g.batting = 'home';
       else if (lvm.batTeam === 2) g.batting = 'away';
       else if (g.inningHalf) g.batting = g.inningHalf === 'top' ? 'away' : 'home';
+      // ✅ 초/말 ↔ 공격팀 정합성 보정: 공격팀이 정해지면 초/말도 그에 맞춘다
+      //    (TheSports status 코드가 지연/누락돼도 헤더 초말과 '공격 중' 팀이 어긋나지 않도록)
+      if (g.batting === 'home') g.inningHalf = 'bottom';
+      else if (g.batting === 'away') g.inningHalf = 'top';
       const x = lvm.extra || {};
       if (x.base != null || x.out != null || x.good != null || x.bad != null) {
         const base = String(x.base || '000');
