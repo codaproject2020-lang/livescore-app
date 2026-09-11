@@ -2293,9 +2293,23 @@ async function tsFbPlayer(pid) {
   FB_PLAYER.set(pid, v); return v;
 }
 app.get('/api/football/lineup', async (req, res) => {
-  if (!TS_ON) return res.json({ teams: [] });
   const home = req.query.home, away = req.query.away, debug = req.query.debug;
   const date = req.query.date || new Date().toISOString().slice(0, 10);
+  const fixtureId = req.query.fixture;
+  // 1) ⭐ api-football 확정 라인업 우선 (fixture id 기준, Mega 플랜 커버) — 경기 시작~종료 시 확정 라인업 제공
+  if (fixtureId && APISPORTS_KEY) {
+    try {
+      const j = await asRaw('football', `/fixtures/lineups?fixture=${encodeURIComponent(fixtureId)}`, 20000);
+      const arr = j.response || [];
+      if (arr.length >= 2 && (arr[0].startXI || []).length) {
+        const mkP = x => ({ id: x.player && x.player.id, name: (x.player && x.player.name) || '', number: (x.player && x.player.number != null) ? x.player.number : '', pos: (x.player && x.player.pos) || '', grid: (x.player && x.player.grid) || '', photo: '' });
+        const mkT = a => ({ team: (a.team && a.team.name) || '', logo: (a.team && a.team.logo) || '', formation: a.formation || '', coach: (a.coach && a.coach.name) || '', startXI: (a.startXI || []).map(mkP), subs: (a.substitutes || []).map(mkP) });
+        return res.json({ teams: [mkT(arr[0]), mkT(arr[1])], src: 'apifootball' });
+      }
+    } catch (e) {}
+  }
+  // 2) TheSports 폴백 (구독 시)
+  if (!TS_ON) return res.json({ teams: [] });
   const norm = s => String(s || '').toLowerCase().replace(/[^a-z0-9]/g, '');
   const nh = norm(home), na = norm(away);
   const fit = (a, b) => a && b && (a.includes(b) || b.includes(a));
