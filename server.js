@@ -2050,6 +2050,20 @@ async function buildGamesCore(sport, date, tz) {
       await Promise.all(targets.slice(i, i + 20).map(fetchOne));
     }
   }
+  // ⚡ 지난 킥오프인데 아직 '예정'인 축구 경기는 fixture id 직접조회로 최신 상태 보정 (api-football 날짜목록이 NS로 안 바뀌는 문제 대응)
+  if (sport === 'football') {
+    try {
+      const now = Date.now();
+      const stale = games.filter(g => g.state === 'scheduled' && g.date && (now - Date.parse(g.date) > 6 * 60000)).slice(0, 40);
+      for (let bi = 0; bi < stale.length; bi += 20) {
+        const ids = stale.slice(bi, bi + 20).map(g => g.id).join('-');
+        const jj = await asRaw('football', `/fixtures?ids=${ids}&timezone=${encodeURIComponent(tz)}`, 3000).catch(() => ({ response: [] }));
+        const fresh = {};
+        (jj.response || []).forEach(x => { const n = normAS('football', x); if (n) fresh[n.id] = n; });
+        games = games.map(g => fresh[g.id] || g);
+      }
+    } catch (e) {}
+  }
   return { games, j };
 }
 
@@ -2076,7 +2090,7 @@ async function buildGamesCoreCached(sport, date, tz, ttl = 4000) {
 // 날짜별 경기 (정규화 + 해외배당 매칭)
 const fullGamesCache = new Map();
 async function buildFullGames(sport, date, tz) {
-  const { games, j } = await buildGamesCoreCached(sport, date, req.query.tz);
+  const { games, j } = await buildGamesCoreCached(sport, date, tz);
     // ⚡ 배당 매칭:
     //   - 축구: 리그가 너무 많아 LEAGUE_TO_ODDS 매핑으로 필요한 리그만 조회
     //   - 그 외(야구/농구/하키/럭비): The Odds API 그룹 안의 활성 리그 전부 조회해 팀명으로 매칭
