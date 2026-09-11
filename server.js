@@ -1931,7 +1931,7 @@ async function buildGamesCore(sport, date, tz) {
   const apiDates = (sport === 'baseball') ? [prevDate, date, nextDate] : [date];
   let j = {}; let games = []; const _seen = new Set();
   for (const dt of apiDates) {
-    const jj = await asRaw(sport, `${cfg.path}?date=${dt}&timezone=${encodeURIComponent(tz)}`, 6000).catch(() => ({ response: [] }));
+    const jj = await asRaw(sport, `${cfg.path}?date=${dt}&timezone=${encodeURIComponent(tz)}`, 4000).catch(() => ({ response: [] }));
     if (dt === date) j = jj;
     (jj.response || []).map(g => normAS(sport, g)).filter(Boolean).forEach(g => { if (!_seen.has(g.id)) { _seen.add(g.id); g._apiDate = dt; games.push(g); } });
   }
@@ -2055,7 +2055,7 @@ async function buildGamesCore(sport, date, tz) {
 
 // ⚡ 경기목록 전체 결과를 짧게 캐시 (피드 7초·중계봇 10초·픽제공·푸시가 공유 → 외부호출/CPU 절감)
 const gamesCoreCache = new Map();
-async function buildGamesCoreCached(sport, date, tz, ttl = 8000) {
+async function buildGamesCoreCached(sport, date, tz, ttl = 4000) {
   const k = sport + '|' + date + '|' + (tz || '');
   const hit = gamesCoreCache.get(k), now = Date.now();
   if (hit) {
@@ -2074,13 +2074,9 @@ async function buildGamesCoreCached(sport, date, tz, ttl = 8000) {
   return v;
 }
 // 날짜별 경기 (정규화 + 해외배당 매칭)
-app.get('/api/asports/games', async (req, res) => {
-  if (!APISPORTS_KEY) return res.json({ needKey: true, games: [] });
-  const sport = req.query.sport || 'football';
-  const date = req.query.date || new Date().toISOString().slice(0, 10);
-  const cfg = AS[sport]; if (!cfg) return res.status(400).json({ error: 'bad sport' });
-  try {
-    const { games, j } = await buildGamesCoreCached(sport, date, req.query.tz);
+const fullGamesCache = new Map();
+async function buildFullGames(sport, date, tz) {
+  const { games, j } = await buildGamesCoreCached(sport, date, req.query.tz);
     // ⚡ 배당 매칭:
     //   - 축구: 리그가 너무 많아 LEAGUE_TO_ODDS 매핑으로 필요한 리그만 조회
     //   - 그 외(야구/농구/하키/럭비): The Odds API 그룹 안의 활성 리그 전부 조회해 팀명으로 매칭
@@ -2123,13 +2119,34 @@ app.get('/api/asports/games', async (req, res) => {
     // 모든 경기에 팀명·토큰으로 매칭 시도 (merged에 없으면 attachOdds가 영구 저장소에서 보완)
     games.forEach(g => attachOdds(g, merged, df));
     games.sort((a, b) => (b.state === 'live') - (a.state === 'live'));
-    res.json({ sport, date, count: games.length, apiErrors: j.errors || null, results: j.results, games });
-  } catch (e) {
-    res.status(502).json({ error: String(e.message || e) });
+  return { sport, date, count: games.length, apiErrors: j.errors || null, results: j.results, games };
+}
+async function fullGamesCached(sport, date, tz, ttl = 4000) {
+  const k = sport + '|' + date + '|' + (tz || ''); const hit = fullGamesCache.get(k), now = Date.now();
+  if (hit) {
+    if (now - hit.t >= ttl && !hit.refreshing) { hit.refreshing = true; buildFullGames(sport, date, tz).then(v => fullGamesCache.set(k, { t: Date.now(), v })).catch(() => { hit.refreshing = false; }); }
+    return hit.v;
   }
-});
-
-// 축구 실시간 이벤트 (골·퇴장·경고·교체) — 선수 이름 포함 (API-Sports 축구만 제공)
+  const v = await buildFullGames(sport, date, tz); fullGamesCache.set(k, { t: Date.now(), v }); return v;
+}
+// 🔥 기본 피드 백그라운드 워머 (항상 캐시를 데워둬 첫 로드 즉시 응답)
+function warmFeeds() {
+  try {
+    if (!APISPORTS_KEY) return;
+    const tz = 'Asia/Seoul';
+    const d = (typeof ymdInTz === 'function') ? ymdInTz(new Date(), tz) : new Date().toISOString().slice(0, 10);
+    for (const sp of ['football', 'baseball', 'basketball']) fullGamesCached(sp, d, tz).catch(() => {});
+  } catch (e) {}
+}
+setTimeout(warmFeeds, 1200); setInterval(warmFeeds, 7000);
+app.get('/api/asports/games', async (req, res) => {
+  if (!APISPORTS_KEY) return res.json({ needKey: true, games: [] });
+  const sport = req.query.sport || 'football';
+  const date = req.query.date || new Date().toISOString().slice(0, 10);
+  const cfg = AS[sport]; if (!cfg) return res.status(400).json({ error: 'bad sport' });
+  try { res.json(await fullGamesCached(sport, date, req.query.tz)); }
+  catch (e) { res.status(502).json({ error: String(e.message || e) }); }
+});// 축구 실시간 이벤트 (골·퇴장·경고·교체) — 선수 이름 포함 (API-Sports 축구만 제공)
 app.get('/api/asports/events', async (req, res) => {
   if (!APISPORTS_KEY) return res.json({ needKey: true, events: [] });
   const fixture = req.query.fixture;
