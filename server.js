@@ -1931,7 +1931,7 @@ async function buildGamesCore(sport, date, tz) {
   const apiDates = (sport === 'baseball') ? [prevDate, date, nextDate] : [date];
   let j = {}; let games = []; const _seen = new Set();
   for (const dt of apiDates) {
-    const jj = await asRaw(sport, `${cfg.path}?date=${dt}&timezone=${encodeURIComponent(tz)}`, 12000).catch(() => ({ response: [] }));
+    const jj = await asRaw(sport, `${cfg.path}?date=${dt}&timezone=${encodeURIComponent(tz)}`, 4000).catch(() => ({ response: [] }));
     if (dt === date) j = jj;
     (jj.response || []).map(g => normAS(sport, g)).filter(Boolean).forEach(g => { if (!_seen.has(g.id)) { _seen.add(g.id); g._apiDate = dt; games.push(g); } });
   }
@@ -2054,7 +2054,7 @@ async function buildGamesCore(sport, date, tz) {
   if (sport === 'football') {
     try {
       const now = Date.now();
-      if (now - (globalThis._staleRefetchAt || 0) > 30000) {
+      if (now - (globalThis._staleRefetchAt || 0) > 12000) {
       globalThis._staleRefetchAt = now;
       const stale = games.filter(g => g.state === 'scheduled' && g.date && (now - Date.parse(g.date) > 6 * 60000)).slice(0, 20);
       for (let bi = 0; bi < stale.length; bi += 20) {
@@ -2071,8 +2071,10 @@ async function buildGamesCore(sport, date, tz) {
 }
 
 // ⚡ 경기목록 전체 결과를 짧게 캐시 (피드 7초·중계봇 10초·픽제공·푸시가 공유 → 외부호출/CPU 절감)
+// ⚡ 종목별 캐시/갱신 주기: 축구=Mega(15만/일) 빠르게, 야구=Ultra 중간, 그 외=보수적(Pro 한도 보호)
+function sportTtl(sport){ return sport==='football' ? 4000 : sport==='baseball' ? 8000 : 20000; }
 const gamesCoreCache = new Map();
-async function buildGamesCoreCached(sport, date, tz, ttl = 15000) {
+async function buildGamesCoreCached(sport, date, tz, ttl = sportTtl(sport)) {
   const k = sport + '|' + date + '|' + (tz || '');
   const hit = gamesCoreCache.get(k), now = Date.now();
   if (hit) {
@@ -2138,7 +2140,7 @@ async function buildFullGames(sport, date, tz) {
     games.sort((a, b) => (b.state === 'live') - (a.state === 'live'));
   return { sport, date, count: games.length, apiErrors: j.errors || null, results: j.results, games };
 }
-async function fullGamesCached(sport, date, tz, ttl = 15000) {
+async function fullGamesCached(sport, date, tz, ttl = sportTtl(sport)) {
   const k = sport + '|' + date + '|' + (tz || ''); const hit = fullGamesCache.get(k), now = Date.now();
   if (hit) {
     if (now - hit.t >= ttl && !hit.refreshing) { hit.refreshing = true; buildFullGames(sport, date, tz).then(v => { const cur = fullGamesCache.get(k); const keepPrev = v && v.apiErrors && (!v.games || v.games.length === 0) && cur && cur.v && cur.v.games && cur.v.games.length > 0; if (keepPrev) { cur.t = Date.now(); cur.refreshing = false; } else { fullGamesCache.set(k, { t: Date.now(), v }); } }).catch(() => { hit.refreshing = false; }); }
@@ -2147,15 +2149,18 @@ async function fullGamesCached(sport, date, tz, ttl = 15000) {
   const v = await buildFullGames(sport, date, tz); fullGamesCache.set(k, { t: Date.now(), v }); return v;
 }
 // 🔥 기본 피드 백그라운드 워머 (항상 캐시를 데워둬 첫 로드 즉시 응답)
+let _warmN = 0;
 function warmFeeds() {
   try {
     if (!APISPORTS_KEY) return;
     const tz = 'Asia/Seoul';
     const d = (typeof ymdInTz === 'function') ? ymdInTz(new Date(), tz) : new Date().toISOString().slice(0, 10);
-    for (const sp of ['football', 'baseball']) fullGamesCached(sp, d, tz).catch(() => {});
+    fullGamesCached('football', d, tz).catch(() => {});           // 축구는 매 사이클(10초) 워밍 → 항상 뜨겁게
+    if (_warmN % 3 === 0) fullGamesCached('baseball', d, tz).catch(() => {}); // 야구는 30초마다
+    _warmN++;
   } catch (e) {}
 }
-setTimeout(warmFeeds, 1500); setInterval(warmFeeds, 90000);
+setTimeout(warmFeeds, 1200); setInterval(warmFeeds, 10000);
 app.get('/api/asports/games', async (req, res) => {
   if (!APISPORTS_KEY) return res.json({ needKey: true, games: [] });
   const sport = req.query.sport || 'football';
