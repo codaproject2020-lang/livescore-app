@@ -888,7 +888,10 @@ async function asRaw(sport, path, ttl = 30000) {
   const hit = cache.get(url), now = Date.now();
   if (hit && now - hit.t < ttl) return hit.v;
   const r = await fetch(url, { headers: { 'x-apisports-key': APISPORTS_KEY } });
-  if (!r.ok) throw new Error('upstream ' + r.status);
+  if (!r.ok) {
+    if (hit) { hit.t = now; return hit.v; }   // ⚡ 429/5xx: 이전 정상 데이터 유지 + 백오프(빈 화면·예상라인업 방지)
+    throw new Error('upstream ' + r.status);
+  }
   const v = await r.json();
   // ⚠️ 에러/한도초과 응답(errors 존재 + 결과 0)은 캐시하지 않음 → 한도 회복/복구 즉시 반영
   const errObj = v && v.errors;
@@ -1931,7 +1934,7 @@ async function buildGamesCore(sport, date, tz) {
   const apiDates = (sport === 'baseball') ? [prevDate, date, nextDate] : [date];
   let j = {}; let games = []; const _seen = new Set();
   for (const dt of apiDates) {
-    const jj = await asRaw(sport, `${cfg.path}?date=${dt}&timezone=${encodeURIComponent(tz)}`, 4000).catch(() => ({ response: [] }));
+    const jj = await asRaw(sport, `${cfg.path}?date=${dt}&timezone=${encodeURIComponent(tz)}`, 8000).catch(() => ({ response: [] }));
     if (dt === date) j = jj;
     (jj.response || []).map(g => normAS(sport, g)).filter(Boolean).forEach(g => { if (!_seen.has(g.id)) { _seen.add(g.id); g._apiDate = dt; games.push(g); } });
   }
@@ -2054,7 +2057,7 @@ async function buildGamesCore(sport, date, tz) {
   if (sport === 'football') {
     try {
       const now = Date.now();
-      if (now - (globalThis._staleRefetchAt || 0) > 12000) {
+      if (now - (globalThis._staleRefetchAt || 0) > 40000) {
       globalThis._staleRefetchAt = now;
       const stale = games.filter(g => g.state === 'scheduled' && g.date && (now - Date.parse(g.date) > 6 * 60000)).slice(0, 20);
       for (let bi = 0; bi < stale.length; bi += 20) {
@@ -2072,7 +2075,7 @@ async function buildGamesCore(sport, date, tz) {
 
 // ⚡ 경기목록 전체 결과를 짧게 캐시 (피드 7초·중계봇 10초·픽제공·푸시가 공유 → 외부호출/CPU 절감)
 // ⚡ 종목별 캐시/갱신 주기: 축구=Mega(15만/일) 빠르게, 야구=Ultra 중간, 그 외=보수적(Pro 한도 보호)
-function sportTtl(sport){ return sport==='football' ? 4000 : sport==='baseball' ? 8000 : 20000; }
+function sportTtl(sport){ return sport==='football' ? 8000 : sport==='baseball' ? 12000 : 25000; }
 const gamesCoreCache = new Map();
 async function buildGamesCoreCached(sport, date, tz, ttl = sportTtl(sport)) {
   const k = sport + '|' + date + '|' + (tz || '');
@@ -2160,7 +2163,7 @@ function warmFeeds() {
     _warmN++;
   } catch (e) {}
 }
-setTimeout(warmFeeds, 1200); setInterval(warmFeeds, 10000);
+setTimeout(warmFeeds, 1500); setInterval(warmFeeds, 20000);
 app.get('/api/asports/games', async (req, res) => {
   if (!APISPORTS_KEY) return res.json({ needKey: true, games: [] });
   const sport = req.query.sport || 'football';
@@ -2299,7 +2302,7 @@ app.get('/api/football/lineup', async (req, res) => {
   // 1) ⭐ api-football 확정 라인업 우선 (fixture id 기준, Mega 플랜 커버) — 경기 시작~종료 시 확정 라인업 제공
   if (fixtureId && APISPORTS_KEY) {
     try {
-      const j = await asRaw('football', `/fixtures/lineups?fixture=${encodeURIComponent(fixtureId)}`, 20000);
+      const j = await asRaw('football', `/fixtures/lineups?fixture=${encodeURIComponent(fixtureId)}`, 600000);
       const arr = j.response || [];
       if (arr.length >= 2 && (arr[0].startXI || []).length) {
         const mkP = x => ({ id: x.player && x.player.id, name: (x.player && x.player.name) || '', number: (x.player && x.player.number != null) ? x.player.number : '', pos: (x.player && x.player.pos) || '', grid: (x.player && x.player.grid) || '', photo: '' });
