@@ -1924,6 +1924,7 @@ function ymdInTz(iso, tz) {
   try { return new Intl.DateTimeFormat('en-CA', { timeZone: tz || 'Asia/Seoul', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date(iso)); }
   catch { return String(iso || '').slice(0, 10); }
 }
+const _lastGoodBB = new Map();   // 야구 간헐적 사라짐 방지용 직전 정상빌드 캐시
 async function buildGamesCore(sport, date, tz) {
   const cfg = AS[sport]; if (!cfg) return { games: [], j: {} };
   tz = tz || 'Asia/Seoul';
@@ -1994,6 +1995,19 @@ async function buildGamesCore(sport, date, tz) {
   // 🗓️ 야구만 날짜 필터: 경기 시작(UTC)을 기기 타임존으로 변환한 날짜가 선택 날짜와 같은 경기만 (MLB KST 시차 정확 처리)
   //    그 외 종목은 API가 timezone 파라미터로 이미 그날 경기만 반환 → 추가 필터 없음(경기 누락 방지)
   if (sport === 'baseball') games = games.filter(g => !g.date || ymdInTz(g.date, tz) === date);
+  // 🛡️ MLB/야구 간헐적 사라짐 방지: 이번 빌드에 없는데 직전 정상빌드에 있던 같은-날짜 경기는 유지(업스트림 일시 빈응답 대응)
+  if (sport === 'baseball') {
+    try {
+      const kk = 'BB|' + date + '|' + (tz || '');
+      const prev = _lastGoodBB.get(kk);
+      if (prev && prev.list && prev.list.length) {
+        const ids = new Set(games.map(g => String(g.id)));
+        prev.list.forEach(pg => { if (!ids.has(String(pg.id))) games.push(pg); });
+      }
+      if (games.length) _lastGoodBB.set(kk, { t: Date.now(), list: games.slice() });
+      for (const [k, v] of _lastGoodBB) { if (Date.now() - v.t > 1800000) _lastGoodBB.delete(k); }
+    } catch {}
+  }
   // ⚾ 선발투수 시즌성적(ERA·승·패) 채우기 — 화면에 보이는 경기 투수만, 선수별 1시간 캐시로 호출 최소화
   if (sport === 'baseball') {
     const need = new Set();
@@ -2018,10 +2032,10 @@ async function buildGamesCore(sport, date, tz) {
         const ck = 'FBS:' + g.id, hit = cache.get(ck);
         const ttl = g.state === 'finished' ? 3600000 : 30000;   // 종료=1시간(안 변함), 라이브=30초
         let stats;
-        // 통계가 비어있으면(경기 직후 API 지연 등) 90초만 캐시 → 점유율 나올 때까지 재시도
-        if (hit && Date.now() - hit.t < (hit.v ? ttl : 90000)) stats = hit.v;
+        // 통계가 비어있으면(경기 직후 API 지연·일시 실패 등) 25초만 캐시 → 점유율 나올 때까지 빨리 재시도
+        if (hit && Date.now() - hit.t < (hit.v ? ttl : 25000)) stats = hit.v;
         else {
-          const st = await asRaw('football', `/fixtures/statistics?fixture=${g.id}`, 9000);
+          const st = await asRaw('football', `/fixtures/statistics?fixture=${g.id}`, 15000);
           const val = (arr, type) => { const it = (arr || []).find(x => x.type === type); return it ? it.value : null; };
           const s = {};
           (st.response || []).forEach(row => {
@@ -2048,9 +2062,10 @@ async function buildGamesCore(sport, date, tz) {
         }
       } catch {}
     };
-    // 캐시된 것 먼저 즉시 반영, 미완료(API 호출 필요)만 20개씩 배치로 순차 처리
-    for (let i = 0; i < targets.length; i += 20) {
-      await Promise.all(targets.slice(i, i + 20).map(fetchOne));
+    // 캐시된 것 먼저 즉시 반영, 미완료(API 호출 필요)만 6개씩 배치로 순차 처리(버스트 rate-limit 회피 → 누락 방지)
+    for (let i = 0; i < targets.length; i += 6) {
+      await Promise.all(targets.slice(i, i + 6).map(fetchOne));
+      if (i + 6 < targets.length) await new Promise(r => setTimeout(r, 150));
     }
   }
   // ⚡ 지난 킥오프인데 아직 '예정'인 축구 경기는 fixture id 직접조회로 최신 상태 보정 (api-football 날짜목록이 NS로 안 바뀌는 문제 대응)
@@ -2069,6 +2084,20 @@ async function buildGamesCore(sport, date, tz) {
       }
       }
     } catch (e) {}
+  }
+  // ⏱️ 종료됐는데 stale 상태(HT/1H/2H 등 live)로 남는 축구 경기 보정: 킥오프 후 170분 지나면 무조건 종료(FT) 처리
+  if (sport === 'football') {
+    const now2 = Date.now();
+    games.forEach(g => {
+      if (g.state === 'live' && g.date) {
+        const mins = (now2 - Date.parse(g.date)) / 60000;
+        if (mins > 170) {
+          g.state = 'finished';
+          const st = String(g.status || '').toUpperCase();
+          if (!st || ['HT', '1H', '2H', 'ET', 'BT', 'P', 'LIVE', 'INT', 'SUSP'].includes(st)) g.status = 'FT';
+        }
+      }
+    });
   }
   return { games, j };
 }
