@@ -8,7 +8,7 @@
 <link rel="manifest" href="/manifest.json">
 <link rel="apple-touch-icon" href="/icon-512.png?v=2">
 <link rel="icon" href="/icon-192.png?v=2">
-<link rel="stylesheet" href="styles.css?v=270">
+<link rel="stylesheet" href="styles.css?v=271">
 </head>
 <body>
 <div class="shell">
@@ -28,7 +28,7 @@
       <a data-tab="home"><span class="em">🏠</span><span data-i18n="homeTab">홈</span></a>
       <a data-tab="info"><span class="em">📊</span><span data-i18n="info">경기 정보방</span></a>
       <a data-tab="table"><span class="em">🏆</span><span data-i18n="rank">순위</span></a>
-      <a data-tab="odds"><span class="em">🎯</span><span data-i18n="pickHub">픽 제공</span></a>
+      <a data-tab="odds"><span class="em">🎯</span><span data-i18n="pickHub">Market analysis</span></a>
       <a data-tab="board"><span class="em">📋</span><span data-i18n="community">커뮤니티</span></a>
     </div>
     <div class="side-hd" data-i18n="sportsHd">종목</div>
@@ -57,7 +57,7 @@
       <div class="tt on" data-tab="live"><span class="tt-ic">⚡</span><span class="tt-lb" data-i18n="live">라이브</span></div>
       <div class="tt" data-tab="home"><span class="tt-ic">🏠</span><span class="tt-lb" data-i18n="navHome">홈</span></div>
       <div class="tt" data-tab="info"><span class="tt-ic">📊</span><span class="tt-lb" data-i18n="navInfo">정보방</span></div>
-      <div class="tt" data-tab="odds"><span class="tt-ic">🎯</span><span class="tt-lb" data-i18n="navPick">픽</span></div>
+      <div class="tt" data-tab="odds"><span class="tt-ic">🎯</span><span class="tt-lb" data-i18n="navPick">Market analysis</span></div>
       <div class="tt" data-tab="board"><span class="tt-ic">📋</span><span class="tt-lb" data-i18n="navComm">커뮤니티</span></div>
       <div class="tt" id="btnUser"><span class="tt-ic" id="btnUserIc">👤</span><span class="tt-lb" data-i18n="navMy">MY</span></div>
     </div>
@@ -101,7 +101,7 @@
     <div class="ticker">
       <span class="spk">🔊</span>
       <a class="txt" href="https://sports.daum.net/" target="_blank" rel="noopener"><span data-i18n="news">스포츠 최신 뉴스</span> <span data-i18n="newsMore">· 다음스포츠에서 보기</span></a>
-      <span class="pick" data-i18n="pick">픽</span>
+      <span class="pick" data-i18n="pick">Market analysis</span>
     </div>
 
     <!-- 전경기 대화방 -->
@@ -140,14 +140,14 @@
 
     <!-- ===== 배당 뷰 ===== -->
     <section class="view hidden" id="view-odds">
-      <div class="oddshd">🎯 <span data-i18n="pickHub">픽 제공</span> <span class="obk" data-i18n="pickHubSub">전 경기 승률 · 시장 컨센서스 · LIVE UP 분석</span></div>
+      <div class="oddshd">🎯 <span data-i18n="pickHub">Market analysis</span> <span class="obk" data-i18n="pickHubSub">전 경기 승률 · 시장 컨센서스 · LIVE UP 분석</span></div>
       <div class="oddschips" id="oddsChips"></div>
       <div id="oddsBoard" class="oddsboard"><div class="loading" data-i18n="loading">불러오는 중…</div></div>
     </section>
 
     <!-- ===== 경기 정보방 뷰 ===== -->
     <section class="view hidden" id="view-info">
-      <div class="infohd">🎯 <span data-i18n="pickInfoTitle">PICK · 경기 정보방</span></div>
+      <div class="infohd">🎯 <span data-i18n="pickInfoTitle">Market analysis</span></div>
       <div class="infonote" data-i18n="infoNote">경기를 누르면 <b>종합 지표(승률)·배당·최근 전적·상대전적·AI 코멘트</b>가 한눈에 나와요. 아래 종목 버튼으로 축구·야구·농구 등 종목을 바꿀 수 있어요.</div>
       <div class="oddschips" id="infoChips"></div>
       <div class="infowrap">
@@ -208,9 +208,9 @@
     <text x="23" y="34" text-anchor="middle" font-family="Arial" font-weight="800" font-size="6" letter-spacing="1.5" fill="url(#lg)">SCORE</text>
   </svg>
   <div class="lm-title" data-i18n="login">로그인</div>
-  <div class="lm-sub" data-i18n="loginSub">간편하게 로그인하고 채팅·픽·커뮤니티에 참여하세요</div>
+  <div class="lm-sub" data-i18n="loginSub">간편하게 로그인하고 채팅·Market analysis·커뮤니티에 참여하세요</div>
   <div id="gSignIn" class="gsi-wrap"></div>
-  <div class="lm-note" id="lmNote" data-i18n="loginNote">구글 계정으로 안전하게 로그인 · 채팅·픽·커뮤니티 참여</div>
+  <div class="lm-note" id="lmNote" data-i18n="loginNote">구글 계정으로 안전하게 로그인 · 채팅·Market analysis·커뮤니티 참여</div>
 </div>
 
 <!-- ===== 공유 링크 제출 모달 ===== -->
@@ -266,7 +266,7 @@
     <a data-tab="home"><span class="em">🏠</span><span data-i18n="homeTab">홈</span></a>
     <a data-tab="info"><span class="em">📊</span><span data-i18n="info">경기 정보방</span></a>
     <a data-tab="table"><span class="em">🏆</span><span data-i18n="rank">순위</span></a>
-    <a data-tab="odds"><span class="em">🎯</span><span data-i18n="pickHub">픽 제공</span></a>
+    <a data-tab="odds"><span class="em">🎯</span><span data-i18n="pickHub">Market analysis</span></a>
     <a data-tab="board"><span class="em">📋</span><span data-i18n="community">커뮤니티</span></a>
     <a id="drawerLogin"><span class="em">🔑</span><span data-i18n="login">로그인</span></a>
   </div>
@@ -307,6 +307,6 @@
   }
 </script>
 <button id="scrollTopBtn" class="scrolltop" aria-label="맨 위로">↑</button>
-<script src="app.js?v=270"></script>
+<script src="app.js?v=271"></script>
 </body>
 </html>
