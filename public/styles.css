@@ -35,3 +35,5 @@
 .ma-foot{display:flex;justify-content:space-between;align-items:center;margin-top:10px;padding-top:9px;border-top:1px solid var(--line2,#eff2f6)}
 .ma-fav{font-size:13px;font-weight:800;color:#16a34a;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .ma-badge{color:#fff;font-size:12px;font-weight:800;padding:3px 12px;border-radius:999px;flex:0 0 auto}
+/* 설치 로딩 - 회전하는 공 */
+.dlball{width:150px !important;height:150px;object-fit:contain;border-radius:50%;filter:drop-shadow(0 0 26px rgba(240,193,78,.5))}
