@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" width="200" height="200" role="img" aria-label="LIVEUP">
+  <defs>
+    <linearGradient id="mGold" x1=".1" y1="0" x2=".9" y2="1"><stop offset="0" stop-color="#FCE9A6"/><stop offset=".5" stop-color="#F0C14E"/><stop offset="1" stop-color="#C78A1E"/></linearGradient>
+    <linearGradient id="mBkb" x1=".16" y1="0" x2=".92" y2="1"><stop offset="0" stop-color="#FFC98F"/><stop offset=".46" stop-color="#E67F2E"/><stop offset="1" stop-color="#93430D"/></linearGradient>
+    <linearGradient id="mSoc" x1=".2" y1="0" x2=".8" y2="1"><stop offset="0" stop-color="#FFFFFF"/><stop offset=".5" stop-color="#ECF1ED"/><stop offset="1" stop-color="#A9B6AE"/></linearGradient>
+    <radialGradient id="mShade" cx="32%" cy="23%" r="86%"><stop offset="0" stop-color="#ffffff" stop-opacity=".16"/><stop offset=".55" stop-color="#000000" stop-opacity="0"/><stop offset="1" stop-color="#000000" stop-opacity=".33"/></radialGradient>
+    <radialGradient id="mSpec" cx="50%" cy="50%" r="50%"><stop offset="0" stop-color="#fff" stop-opacity=".92"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></radialGradient>
+    <clipPath id="clipBkb"><path d="M100 10A90 90 0 0 0 100 190C112 158 112 42 100 10Z"/></clipPath>
+    <clipPath id="clipSoc"><path d="M100 10A90 90 0 0 1 100 190C112 158 112 42 100 10Z"/></clipPath>
+  </defs>
+  <symbol id="ballTriMark" viewBox="0 0 200 200">
+      <circle cx="100" cy="100" r="90" fill="#0B1512"/>
+      <path d="M100 10A90 90 0 0 0 100 190C112 158 112 42 100 10Z" fill="url(#mBkb)"/>
+      <path d="M100 10A90 90 0 0 1 100 190C112 158 112 42 100 10Z" fill="url(#mSoc)"/>
+      <g clip-path="url(#clipBkb)" fill="none" stroke="#4A1F05" stroke-width="6" opacity=".82">
+        <path d="M8 100h108"/><path d="M52 4C32 44 32 156 52 196"/>
+      </g>
+      <g clip-path="url(#clipSoc)" fill="#121F19">
+        <path d="M148 72l32-14 22 22-12 32-34 1z"/><path d="M138 140l26-10 20 16-10 24-28 1z" opacity=".8"/>
+      </g>
+      <circle cx="100" cy="100" r="90" fill="url(#mShade)"/>
+      <ellipse cx="64" cy="48" rx="29" ry="17" fill="url(#mSpec)" opacity=".6" transform="rotate(-32 64 48)"/>
+      <path d="M100 10C112 42 112 158 100 190" fill="none" stroke="#0B1512" stroke-width="6" opacity=".5" stroke-linecap="round"/>
+      <path d="M100 10C112 42 112 158 100 190" fill="none" stroke="url(#mGold)" stroke-width="3.4" stroke-linecap="round"/>
+      <circle cx="100" cy="100" r="90" fill="none" stroke="#0B1512" stroke-width="5"/>
+      <circle cx="100" cy="100" r="88" fill="none" stroke="url(#mGold)" stroke-width="3"/>
+    </symbol>
+  <rect width="200" height="200" rx="44" fill="#E5271F"/>
+  <g transform="translate(100 100) scale(.78) translate(-100 -100)"><use href="#ballTriMark"/></g>
+</svg>

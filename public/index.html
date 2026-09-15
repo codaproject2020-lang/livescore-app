@@ -6,9 +6,10 @@
 <meta name="theme-color" content="#16243d">
 <title>LIVE UP · 실시간 스코어</title>
 <link rel="manifest" href="/manifest.json">
-<link rel="apple-touch-icon" href="/icon-512.png?v=280">
-<link rel="icon" href="/icon-192.png?v=280">
-<link rel="stylesheet" href="styles.css?v=280">
+<link rel="apple-touch-icon" href="/icon-512.png?v=281">
+<link rel="icon" type="image/svg+xml" href="/favicon.svg?v=281">
+<link rel="icon" href="/icon-192.png?v=281">
+<link rel="stylesheet" href="styles.css?v=281">
 </head>
 <body>
 <div class="shell">
@@ -26,6 +27,7 @@
       <a data-tab="live" class="on"><span class="em">⚡</span><span data-i18n="live">라이브</span></a>
       <a data-tab="home"><span class="em">🏠</span><span data-i18n="homeTab">홈</span></a>
       <a data-tab="info"><span class="em">📊</span><span data-i18n="info">경기 정보방</span></a>
+      <a data-tab="mkt2"><span class="em">📈</span><span>Market Analysis</span></a>
       <a data-tab="table"><span class="em">🏆</span><span data-i18n="rank">순위</span></a>
     </div>
     <div class="side-hd" data-i18n="sportsHd">종목</div>
@@ -54,6 +56,7 @@
       <div class="tt on" data-tab="live"><span class="tt-ic">⚡</span><span class="tt-lb" data-i18n="live">라이브</span></div>
       <div class="tt" data-tab="home"><span class="tt-ic">🏠</span><span class="tt-lb" data-i18n="navHome">홈</span></div>
       <div class="tt" data-tab="info"><span class="tt-ic">📊</span><span class="tt-lb" data-i18n="navInfo">정보방</span></div>
+      <div class="tt" data-tab="mkt2"><span class="tt-ic">📈</span><span class="tt-lb">Market</span></div>
       <div class="tt" id="btnUser"><span class="tt-ic" id="btnUserIc">👤</span><span class="tt-lb" data-i18n="navMy">MY</span></div>
     </div>
 
@@ -62,12 +65,12 @@
 
     <!-- 🤖 AI 스마트 정보 배너 -->
     <div class="aiban">
-      <img class="aiban-ic" src="/ai-icon.png?v=280" alt="" loading="lazy">
+      <img class="aiban-ic" src="/ai-icon.png?v=281" alt="" loading="lazy">
       <div class="aiban-mid">
         <div class="aiban-t" data-i18n="aiPromoT">AI 스마트 정보</div>
         <div class="aiban-s" data-i18n="aiPromoS">AI로 더 스마트한 정보를 제공합니다</div>
       </div>
-      <img class="aiban-char" src="/ai-char.png?v=280" alt="" loading="lazy">
+      <img class="aiban-char" src="/ai-char.png?v=281" alt="" loading="lazy">
     </div>
 
     <!-- 리그 선택 바 (전체/KBO/MLB/… · 종목별) -->
@@ -140,6 +143,13 @@
       </div>
     </section>
 
+    <!-- ===== Market Analysis 뷰 ===== -->
+    <section class="view hidden" id="view-mkt2">
+      <div class="infohd">📈 Market Analysis <span class="obk" id="mkt2Sub"></span></div>
+      <div class="filterchips" id="mkt2Chips"></div>
+      <div id="mkt2Board" class="malist"><div class="loading" data-i18n="loading">불러오는 중…</div></div>
+    </section>
+
     <p class="foot"><span data-i18n="footNote">스코어·엠블럼·순위는 실제 API 데이터입니다. AI 코멘트는 참고용입니다.</span><br>
       <span data-i18n="supportLbl">고객지원 서비스</span>: <a href="mailto:support@liveup.fans">support@liveup.fans</a></p>
   </main>
@@ -184,6 +194,7 @@
     <a data-tab="live"><span class="em">⚡</span><span data-i18n="live">라이브</span></a>
     <a data-tab="home"><span class="em">🏠</span><span data-i18n="homeTab">홈</span></a>
     <a data-tab="info"><span class="em">📊</span><span data-i18n="info">경기 정보방</span></a>
+    <a data-tab="mkt2"><span class="em">📈</span><span>Market Analysis</span></a>
     <a data-tab="table"><span class="em">🏆</span><span data-i18n="rank">순위</span></a>
     <a id="drawerLogin"><span class="em">🔑</span><span data-i18n="login">로그인</span></a>
   </div>
@@ -224,6 +235,6 @@
   }
 </script>
 <button id="scrollTopBtn" class="scrolltop" aria-label="맨 위로">↑</button>
-<script src="app.js?v=280"></script>
+<script src="app.js?v=281"></script>
 </body>
 </html>
