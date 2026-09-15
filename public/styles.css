@@ -43,3 +43,11 @@
 .bootball{width:132px;height:132px;object-fit:contain;border-radius:50%;filter:drop-shadow(0 0 26px rgba(240,193,78,.5))}
 .bootwm{font-weight:900;font-size:22px;letter-spacing:1px}
 .bootwm .mw-live{color:#fff}.bootwm .mw-up{color:#f0c14e}
+/* 라이브 애니 아이콘 */
+
+
+
+/* 라이브 아이콘 (투명 PNG + 반짝임) */
+.navic{width:20px!important;height:20px!important;object-fit:contain;display:inline-block;vertical-align:middle;flex:0 0 auto;animation:liveTwinkle 1.15s ease-in-out infinite}
+.tt-ic .navic{width:22px!important;height:22px!important}
+@keyframes liveTwinkle{0%,100%{opacity:1}50%{opacity:.5}}
