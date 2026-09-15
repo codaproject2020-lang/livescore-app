@@ -2,3 +2,11 @@
 
 /* v272: remove Community menu everywhere (PC sidebar + mobile tabbar + drawer) */
 [data-tab="board"] { display: none !important; }
+.aiban{display:flex;align-items:center;gap:12px;margin:10px 12px;padding:13px 15px;border-radius:16px;background:linear-gradient(120deg,#14204A 0%,#1e2f6e 55%,#E4262A 140%);box-shadow:0 6px 18px rgba(20,32,74,.28);position:relative;overflow:hidden}
+.aiban:before{content:"";position:absolute;inset:0;background:radial-gradient(120px 60px at 12% 20%,rgba(255,255,255,.18),transparent 70%);pointer-events:none}
+.aiban-ic{flex:0 0 auto;width:40px;height:40px;border-radius:12px;background:rgba(255,255,255,.14);display:flex;align-items:center;justify-content:center}
+.aiban-ic svg{width:24px;height:24px}
+.aiban-mid{min-width:0}
+.aiban-t{font-weight:800;font-size:14px;color:#fff;letter-spacing:.2px;display:flex;align-items:center;gap:6px}
+.aiban-t:after{content:"AI";font-size:10px;font-weight:800;background:#FFD54A;color:#14204A;padding:1px 6px;border-radius:999px}
+.aiban-s{font-size:12px;color:#cdd6f5;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
