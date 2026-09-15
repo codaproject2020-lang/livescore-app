@@ -41,19 +41,10 @@ app.use(express.static(path.join(__dirname, 'public')));
 //  · 클라이언트ID는 공개값이라 노출돼도 안전 (시크릿 아님)
 // ============================================================
 const GOOGLE_CLIENT_ID = (process.env.GOOGLE_CLIENT_ID || '').trim();
-const USERS = new Map(); // sub -> {id,email,name,picture,first,last,token,spinAvailable,prizes[]}
-const TOKENS = new Map(); // 로그인 토큰 -> sub (상품함 API 인증용)
+const USERS = new Map(); // sub -> {id,email,name,picture,first,last,token}
+const TOKENS = new Map(); // 로그인 토큰 -> sub (API 인증용)
 
-// 🎁 상품/룰렛 상태 (관리자 제어 · DB meta 컬렉션에 영속)
-let metaCol = null;
-let rouletteCfg = { enabled: false, winRate: 0.10, prizeName: '5,000원 상품권', prizeAmount: 5000 };
-let barcodePool = []; // [{ code, used, assignedTo, ts }]
-let shareLog = []; // [{ email, name, platform, url, ts(제출), decidedTs(승인/거절), action:'approved'|'rejected' }]
 function genToken() { return crypto.randomBytes(24).toString('hex'); }
-function saveRoulette() { if (metaCol) metaCol.updateOne({ _id: 'roulette' }, { $set: { enabled: rouletteCfg.enabled, winRate: rouletteCfg.winRate, prizeName: rouletteCfg.prizeName, prizeAmount: rouletteCfg.prizeAmount } }, { upsert: true }).catch(() => {}); }
-function saveBarcodes() { if (metaCol) metaCol.updateOne({ _id: 'barcodes' }, { $set: { pool: barcodePool } }, { upsert: true }).catch(() => {}); }
-function saveShareLog() { if (metaCol) metaCol.updateOne({ _id: 'sharelog' }, { $set: { log: shareLog.slice(-800) } }, { upsert: true }).catch(() => {}); }
-function pushShareLog(e) { shareLog.push(e); if (shareLog.length > 800) shareLog = shareLog.slice(-800); saveShareLog(); }
 function userFromReq(req) { const tk = req.get('x-user-token') || (req.body && req.body.token) || ''; const sub = TOKENS.get(String(tk)); return sub ? USERS.get(sub) : null; }
 
 // ============================================================
@@ -74,15 +65,10 @@ async function initDB() {
     await usersCol.createIndex({ id: 1 }, { unique: true });
     const all = await usersCol.find({}).toArray();   // 기존 회원 메모리에 로드
     for (const u of all) {
-      USERS.set(u.id, { id: u.id, email: u.email, name: u.name, picture: u.picture, verified: u.verified, first: u.first, last: u.last, token: u.token, spinsLeft: u.spinsLeft != null ? u.spinsLeft : (u.spinAvailable ? 1 : 0), shares: u.shares || { insta: false, twitter: false }, shareSubs: u.shareSubs || {}, event13: u.event13 || {}, prizes: u.prizes || [], signupSpun: !!u.signupSpun });
+      USERS.set(u.id, { id: u.id, email: u.email, name: u.name, picture: u.picture, verified: u.verified, first: u.first, last: u.last, token: u.token });
       if (u.token) TOKENS.set(u.token, u.id);   // 로그인 토큰 복원
     }
-    // 🎁 상품/룰렛 설정·바코드풀 로드
-    metaCol = db.collection('meta');
-    const rc = await metaCol.findOne({ _id: 'roulette' }); if (rc) { rouletteCfg = { enabled: !!rc.enabled, winRate: rc.winRate != null ? rc.winRate : 0.10, prizeName: rc.prizeName || rouletteCfg.prizeName, prizeAmount: rc.prizeAmount || 5000 }; }
-    const bp = await metaCol.findOne({ _id: 'barcodes' }); if (bp && Array.isArray(bp.pool)) barcodePool = bp.pool;
-    const sl = await metaCol.findOne({ _id: 'sharelog' }); if (sl && Array.isArray(sl.log)) shareLog = sl.log;
-    console.log(`[DB] MongoDB 연결됨 · 회원 ${all.length}명 로드 · 바코드 ${barcodePool.length}개 · 인증내역 ${shareLog.length}건`);
+    console.log(`[DB] MongoDB 연결됨 · 회원 ${all.length}명 로드`);
   } catch (e) {
     usersCol = null; _dbTries++;
     console.error(`[DB] 연결 실패(#${_dbTries}) → 60초 후 자동 재시도:`, e.message);
@@ -144,19 +130,7 @@ app.post('/api/auth/google', async (req, res) => {
     const prev = USERS.get(info.sub);
     const user = { id: info.sub, email: info.email || '', name: info.name || (info.email || 'user').split('@')[0], picture: info.picture || '', verified: String(info.email_verified) === 'true' };
     const token = (prev && prev.token) || genToken();
-    // 🎁 신규 회원은 룰렛 1회 기회 부여(가입 즉시지급 룰렛). 기존 회원 값 유지.
-    //    spinsLeft = 남은 룰렛 횟수(가입 1회 + 공유 보너스), shares = 공유 보너스 수령 여부
-    const prevLeft = prev ? (prev.spinsLeft != null ? prev.spinsLeft : (prev.spinAvailable ? 1 : 0)) : 1;
-    const rec = Object.assign({ first: prev ? prev.first : now }, user, {
-      last: now, token,
-      spinsLeft: prevLeft,
-      shares: prev ? (prev.shares || { insta: false, twitter: false }) : { insta: false, twitter: false },
-      shareSubs: prev ? (prev.shareSubs || {}) : {},
-      event13: prev ? (prev.event13 || {}) : {},
-      prizes: prev ? (prev.prizes || []) : [],
-      // 🎯 가입 룰렛은 계정당 1회만: 기존 회원은 재지급 금지(플래그 유지), 신규만 지급 표시
-      signupSpun: prev ? (prev.signupSpun !== undefined ? prev.signupSpun : true) : true
-    });
+    const rec = Object.assign({ first: prev ? prev.first : now }, user, { last: now, token });
     USERS.set(info.sub, rec);
     TOKENS.set(token, info.sub);
     persistUser(rec);   // 🗄️ DB에 영구 저장(있을 때)
@@ -201,293 +175,10 @@ app.get('/api/admin/users', (req, res) => {
   if (!adminOK(req)) return res.status(401).json({ ok: false, error: 'unauthorized' });
   const list = [...USERS.values()]
     .sort((a, b) => (b.first || 0) - (a.first || 0))
-    .map(u => ({ name: u.name, email: u.email, picture: u.picture, verified: u.verified, first: u.first, last: u.last, prizes: (u.prizes || []).length, won: (u.prizes || []).filter(p => p.status === 'won').length }));
+    .map(u => ({ name: u.name, email: u.email, picture: u.picture, verified: u.verified, first: u.first, last: u.last }));
   res.json({ ok: true, count: list.length, persist: !!usersCol, users: list });
 });
 
-// ============================================================
-//  🎁 상품함 / 회원가입 즉시지급 룰렛
-// ============================================================
-// [사용자] 내 상품함 조회 (로그인 토큰 필요)
-app.get('/api/prize/mine', (req, res) => {
-  const u = userFromReq(req);
-  if (!u) return res.status(401).json({ ok: false, error: 'login required' });
-  const left = u.spinsLeft != null ? u.spinsLeft : (u.spinAvailable ? 1 : 0);
-  res.json({
-    ok: true,
-    prizes: (u.prizes || []).slice().sort((a, b) => b.ts - a.ts),
-    spinAvailable: left > 0 && rouletteCfg.enabled,
-    spinsLeft: left,
-    shares: normShares(u.shares),
-    roulette: { enabled: rouletteCfg.enabled, winRate: rouletteCfg.winRate, prizeName: rouletteCfg.prizeName, prizeAmount: rouletteCfg.prizeAmount }
-  });
-});
-// [사용자] 룰렛 돌리기 (서버가 당첨/꽝 결정 · 바코드 재고 소진)
-app.post('/api/prize/spin', (req, res) => {
-  const u = userFromReq(req);
-  if (!u) return res.status(401).json({ ok: false, error: 'login required' });
-  if (!rouletteCfg.enabled) return res.json({ ok: false, error: 'disabled' });
-  const left = u.spinsLeft != null ? u.spinsLeft : (u.spinAvailable ? 1 : 0);
-  if (left <= 0) return res.json({ ok: false, error: 'no-spin' });
-  u.spinsLeft = left - 1; u.spinAvailable = u.spinsLeft > 0;
-  const win = Math.random() < rouletteCfg.winRate;
-  let prize;
-  if (win) {
-    const bc = barcodePool.find(b => !b.used);
-    if (bc) {
-      bc.used = true; bc.assignedTo = u.id; bc.ts = Date.now(); saveBarcodes();
-      prize = { id: 'p' + Date.now() + (Math.random() * 1000 | 0), status: 'won', name: rouletteCfg.prizeName, amount: rouletteCfg.prizeAmount, code: bc.code, ts: Date.now(), source: 'signup' };
-    } else {
-      // 당첨이지만 바코드 재고 없음 → 꽝 처리(재고 부족)
-      prize = { id: 'p' + Date.now() + (Math.random() * 1000 | 0), status: 'miss', name: rouletteCfg.prizeName, ts: Date.now(), source: 'signup', note: 'soldout' };
-    }
-  } else {
-    prize = { id: 'p' + Date.now() + (Math.random() * 1000 | 0), status: 'miss', name: rouletteCfg.prizeName, ts: Date.now(), source: 'signup' };
-  }
-  u.prizes = u.prizes || []; u.prizes.push(prize);
-  persistUser(u);
-  res.json({ ok: true, result: prize.status, prize, spinsLeft: u.spinsLeft });
-});
-// shares 상태 정규화: 레거시 false→'none', true→'approved'
-function normShares(s) {
-  const o = { insta: 'none', twitter: 'none' };
-  if (s) for (const p of ['insta', 'twitter']) { const v = s[p]; o[p] = v === true ? 'approved' : (v === 'pending' || v === 'approved' ? v : 'none'); }
-  return o;
-}
-// [사용자] SNS 공유 인증 제출 — 게시물 링크 제출 → 관리자 승인 대기(pending). 승인 시 룰렛 지급.
-app.post('/api/prize/share-submit', (req, res) => {
-  const u = userFromReq(req);
-  if (!u) return res.status(401).json({ ok: false, error: 'login required' });
-  if (!rouletteCfg.enabled) return res.json({ ok: false, error: 'disabled' });
-  const plat = String((req.body && req.body.platform) || '');
-  if (!['insta', 'twitter'].includes(plat)) return res.json({ ok: false, error: 'bad-platform' });
-  const url = String((req.body && req.body.url) || '').trim();
-  if (!/^https?:\/\/.+/i.test(url)) return res.json({ ok: false, error: 'bad-url' });
-  u.shares = normShares(u.shares);
-  if (u.shares[plat] === 'approved') return res.json({ ok: false, error: 'already', shares: u.shares });
-  if (u.shares[plat] === 'pending') return res.json({ ok: false, error: 'pending', shares: u.shares });
-  u.shares[plat] = 'pending';
-  u.shareSubs = u.shareSubs || {};
-  u.shareSubs[plat] = { url, ts: Date.now() };
-  persistUser(u);
-  res.json({ ok: true, shares: u.shares });
-});
-// [관리자] 공유 인증 승인 대기 목록
-app.get('/api/admin/share-pending', (req, res) => {
-  if (!adminOK(req)) return res.status(401).json({ ok: false, error: 'unauthorized' });
-  const list = [];
-  for (const u of USERS.values()) {
-    const s = normShares(u.shares), sub = u.shareSubs || {};
-    for (const p of ['insta', 'twitter']) if (s[p] === 'pending') list.push({ email: u.email, name: u.name, platform: p, url: (sub[p] && sub[p].url) || '', ts: (sub[p] && sub[p].ts) || null });
-  }
-  list.sort((a, b) => (a.ts || 0) - (b.ts || 0));
-  res.json({ ok: true, count: list.length, list });
-});
-// [관리자] 공유 인증 승인 → 룰렛 1회 지급
-app.post('/api/admin/share-approve', (req, res) => {
-  if (!adminOK(req)) return res.status(401).json({ ok: false, error: 'unauthorized' });
-  const email = String((req.body && req.body.email) || '').trim().toLowerCase();
-  const plat = String((req.body && req.body.platform) || '');
-  if (!['insta', 'twitter'].includes(plat)) return res.json({ ok: false, error: 'bad-platform' });
-  const u = [...USERS.values()].find(x => String(x.email || '').toLowerCase() === email);
-  if (!u) return res.json({ ok: false, error: 'user-not-found' });
-  u.shares = normShares(u.shares);
-  if (u.shares[plat] !== 'pending') return res.json({ ok: false, error: 'not-pending' });
-  u.shares[plat] = 'approved';
-  u.spinsLeft = (u.spinsLeft || 0) + 1;   // 보너스 룰렛 1회
-  u.spinAvailable = true;
-  const sub = (u.shareSubs && u.shareSubs[plat]) || {};
-  if (u.shareSubs && u.shareSubs[plat]) u.shareSubs[plat].approvedTs = Date.now();   // 회원 기록에도 승인시각 남김
-  persistUser(u);
-  pushShareLog({ email: u.email, name: u.name, platform: plat, url: sub.url || '', ts: sub.ts || null, decidedTs: Date.now(), action: 'approved' });
-  res.json({ ok: true });
-});
-// [관리자] 공유 인증 거절 → 재제출 가능하도록 초기화
-app.post('/api/admin/share-reject', (req, res) => {
-  if (!adminOK(req)) return res.status(401).json({ ok: false, error: 'unauthorized' });
-  const email = String((req.body && req.body.email) || '').trim().toLowerCase();
-  const plat = String((req.body && req.body.platform) || '');
-  if (!['insta', 'twitter'].includes(plat)) return res.json({ ok: false, error: 'bad-platform' });
-  const u = [...USERS.values()].find(x => String(x.email || '').toLowerCase() === email);
-  if (!u) return res.json({ ok: false, error: 'user-not-found' });
-  u.shares = normShares(u.shares);
-  const sub = (u.shareSubs && u.shareSubs[plat]) || {};
-  pushShareLog({ email: u.email, name: u.name, platform: plat, url: sub.url || '', ts: sub.ts || null, decidedTs: Date.now(), action: 'rejected' });
-  u.shares[plat] = 'none';
-  if (u.shareSubs) delete u.shareSubs[plat];
-  persistUser(u);
-  res.json({ ok: true });
-});
-// [관리자] 공유 인증 처리 내역 (승인/거절한 링크 기록 — 최신순)
-app.get('/api/admin/share-log', (req, res) => {
-  if (!adminOK(req)) return res.status(401).json({ ok: false, error: 'unauthorized' });
-  const list = shareLog.slice().reverse();   // 최신순
-  const approved = shareLog.filter(x => x.action === 'approved').length;
-  res.json({ ok: true, count: list.length, approved, list });
-});
-
-// ============================================================
-//  🎉 1+3 당첨 인증 이벤트 (X·인스타·페북 각 5,000원 상품권 · 100% 지급)
-//     - 사용자가 당첨 인증글 링크 제출 → 관리자 확인 후 수동 지급(지급완료 표시)
-// ============================================================
-const EV_PLATS = ['twitter', 'insta', 'facebook'];
-function evStates(ev) { const o = {}; for (const p of EV_PLATS) o[p] = (ev && ev[p] && ev[p].status) || 'none'; return o; }
-// [사용자] 이벤트 인증 링크 제출
-app.post('/api/event/submit', (req, res) => {
-  const u = userFromReq(req);
-  if (!u) return res.status(401).json({ ok: false, error: 'login required' });
-  const plat = String((req.body && req.body.platform) || '');
-  if (!EV_PLATS.includes(plat)) return res.json({ ok: false, error: 'bad-platform' });
-  const url = String((req.body && req.body.url) || '').trim();
-  if (!/^https?:\/\/.+/i.test(url)) return res.json({ ok: false, error: 'bad-url' });
-  u.event13 = u.event13 || {};
-  const cur = u.event13[plat] && u.event13[plat].status;
-  if (cur === 'approved') return res.json({ ok: false, error: 'already', states: evStates(u.event13) });
-  u.event13[plat] = { url, ts: Date.now(), status: 'pending' };
-  persistUser(u);
-  res.json({ ok: true, states: evStates(u.event13) });
-});
-// [사용자] 내 이벤트 인증 상태
-app.get('/api/event/mine', (req, res) => {
-  const u = userFromReq(req);
-  if (!u) return res.status(401).json({ ok: false, error: 'login required' });
-  res.json({ ok: true, states: evStates(u.event13) });
-});
-// [관리자] 이벤트 인증 제출 목록(대기/전체)
-app.get('/api/admin/event-subs', (req, res) => {
-  if (!adminOK(req)) return res.status(401).json({ ok: false, error: 'unauthorized' });
-  const list = [];
-  for (const u of USERS.values()) {
-    const ev = u.event13 || {};
-    for (const p of EV_PLATS) if (ev[p] && ev[p].status && ev[p].status !== 'none') list.push({ email: u.email, name: u.name, platform: p, url: ev[p].url || '', ts: ev[p].ts || null, status: ev[p].status });
-  }
-  list.sort((a, b) => (a.status === 'pending' ? 0 : 1) - (b.status === 'pending' ? 0 : 1) || (a.ts || 0) - (b.ts || 0));
-  res.json({ ok: true, count: list.length, pending: list.filter(x => x.status === 'pending').length, list });
-});
-// [관리자] 이벤트 인증 지급완료 처리
-app.post('/api/admin/event-approve', (req, res) => {
-  if (!adminOK(req)) return res.status(401).json({ ok: false, error: 'unauthorized' });
-  const email = String((req.body && req.body.email) || '').trim().toLowerCase();
-  const plat = String((req.body && req.body.platform) || '');
-  if (!EV_PLATS.includes(plat)) return res.json({ ok: false, error: 'bad-platform' });
-  const u = [...USERS.values()].find(x => String(x.email || '').toLowerCase() === email);
-  if (!u || !u.event13 || !u.event13[plat]) return res.json({ ok: false, error: 'not-found' });
-  u.event13[plat].status = 'approved';
-  u.event13[plat].paidAt = Date.now();
-  persistUser(u);
-  res.json({ ok: true });
-});
-// [관리자] 이벤트 인증 거절 → 재제출 가능
-app.post('/api/admin/event-reject', (req, res) => {
-  if (!adminOK(req)) return res.status(401).json({ ok: false, error: 'unauthorized' });
-  const email = String((req.body && req.body.email) || '').trim().toLowerCase();
-  const plat = String((req.body && req.body.platform) || '');
-  if (!EV_PLATS.includes(plat)) return res.json({ ok: false, error: 'bad-platform' });
-  const u = [...USERS.values()].find(x => String(x.email || '').toLowerCase() === email);
-  if (!u || !u.event13) return res.json({ ok: false, error: 'not-found' });
-  delete u.event13[plat];
-  persistUser(u);
-  res.json({ ok: true });
-});
-// [관리자] 룰렛/바코드 현황 (+ 개별 바코드 목록·상태)
-app.get('/api/admin/roulette', (req, res) => {
-  if (!adminOK(req)) return res.status(401).json({ ok: false, error: 'unauthorized' });
-  const used = barcodePool.filter(b => b.used).length;
-  // 지급된 바코드의 assignedTo(sub) → 이메일/이름으로 변환해서 표시
-  const list = barcodePool.map(b => {
-    let to = null;
-    if (b.assignedTo) { const u = USERS.get(b.assignedTo); to = u ? { email: u.email, name: u.name } : { email: '', name: '(탈퇴/미상)' }; }
-    return { code: b.code, used: !!b.used, to, ts: b.ts || null };
-  });
-  res.json({ ok: true, cfg: rouletteCfg, pool: { total: barcodePool.length, used, left: barcodePool.length - used }, list });
-});
-// [관리자] 바코드 1개 삭제 (미사용만 삭제 가능 · 지급된 건 이력 보존)
-app.post('/api/admin/roulette/delete-code', (req, res) => {
-  if (!adminOK(req)) return res.status(401).json({ ok: false, error: 'unauthorized' });
-  const code = String((req.body && req.body.code) || '').trim();
-  const i = barcodePool.findIndex(b => b.code === code);
-  if (i < 0) return res.json({ ok: false, error: 'not-found' });
-  if (barcodePool[i].used) return res.json({ ok: false, error: 'already-used' });
-  barcodePool.splice(i, 1); saveBarcodes();
-  const used = barcodePool.filter(b => b.used).length;
-  res.json({ ok: true, total: barcodePool.length, left: barcodePool.length - used });
-});
-// [관리자] 미사용(잔여) 바코드 삭제 — 지급된 것은 이력 보존 위해 유지
-app.post('/api/admin/roulette/clear-unused', (req, res) => {
-  if (!adminOK(req)) return res.status(401).json({ ok: false, error: 'unauthorized' });
-  const before = barcodePool.length;
-  barcodePool = barcodePool.filter(b => b.used);
-  saveBarcodes();
-  res.json({ ok: true, removed: before - barcodePool.length, total: barcodePool.length });
-});
-// [관리자] 룰렛 on/off + 당첨확률
-app.post('/api/admin/roulette/config', (req, res) => {
-  if (!adminOK(req)) return res.status(401).json({ ok: false, error: 'unauthorized' });
-  const b = req.body || {};
-  if (typeof b.enabled === 'boolean') rouletteCfg.enabled = b.enabled;
-  if (b.winRate != null) { let w = Number(b.winRate); if (!isNaN(w)) { if (w > 1) w = w / 100; rouletteCfg.winRate = Math.max(0, Math.min(1, w)); } }
-  if (b.prizeName) rouletteCfg.prizeName = String(b.prizeName).slice(0, 40);
-  if (b.prizeAmount != null && !isNaN(Number(b.prizeAmount))) rouletteCfg.prizeAmount = Number(b.prizeAmount);
-  saveRoulette();
-  res.json({ ok: true, cfg: rouletteCfg });
-});
-// [관리자] 바코드 등록 (줄바꿈/콤마 구분, 중복 제외)
-app.post('/api/admin/roulette/barcodes', (req, res) => {
-  if (!adminOK(req)) return res.status(401).json({ ok: false, error: 'unauthorized' });
-  const raw = req.body && req.body.codes;
-  const codes = Array.isArray(raw) ? raw : String(raw || '').split(/[\r\n,]+/);
-  const clean = codes.map(c => String(c).trim()).filter(Boolean);
-  const existing = new Set(barcodePool.map(b => b.code));
-  let added = 0;
-  for (const c of clean) { if (!existing.has(c)) { barcodePool.push({ code: c, used: false, assignedTo: null, ts: null }); existing.add(c); added++; } }
-  saveBarcodes();
-  const used = barcodePool.filter(b => b.used).length;
-  res.json({ ok: true, added, total: barcodePool.length, left: barcodePool.length - used });
-});
-// [관리자] 특정 회원에게 상품 직접 지급
-app.post('/api/admin/grant', (req, res) => {
-  if (!adminOK(req)) return res.status(401).json({ ok: false, error: 'unauthorized' });
-  const email = String((req.body && req.body.email) || '').trim().toLowerCase();
-  const code = String((req.body && req.body.code) || '').trim();
-  const name = String((req.body && req.body.name) || rouletteCfg.prizeName).trim();
-  if (!email) return res.json({ ok: false, error: 'email required' });
-  const u = [...USERS.values()].find(x => String(x.email || '').toLowerCase() === email);
-  if (!u) return res.json({ ok: false, error: 'user-not-found' });
-  const prize = { id: 'p' + Date.now() + (Math.random() * 1000 | 0), status: code ? 'won' : 'miss', name, amount: rouletteCfg.prizeAmount, code: code || null, ts: Date.now(), source: 'admin' };
-  u.prizes = u.prizes || []; u.prizes.push(prize);
-  persistUser(u);
-  res.json({ ok: true, prize, to: { name: u.name, email: u.email } });
-});
-// [관리자] 별도 상품권 지급 (금액 선택 · 여러 장 한번에)
-app.post('/api/admin/grant-multi', (req, res) => {
-  if (!adminOK(req)) return res.status(401).json({ ok: false, error: 'unauthorized' });
-  const email = String((req.body && req.body.email) || '').trim().toLowerCase();
-  const items = Array.isArray(req.body && req.body.items) ? req.body.items : [];
-  if (!email) return res.json({ ok: false, error: 'email required' });
-  const u = [...USERS.values()].find(x => String(x.email || '').toLowerCase() === email);
-  if (!u) return res.json({ ok: false, error: 'user-not-found' });
-  const ALLOWED = [5000, 10000, 20000, 30000];
-  const valid = items
-    .map(it => ({ amount: parseInt(it && it.amount, 10) || 0, code: String((it && it.code) || '').trim() }))
-    .filter(it => ALLOWED.includes(it.amount));
-  if (!valid.length) return res.json({ ok: false, error: 'no-items' });
-  u.prizes = u.prizes || [];
-  const added = [];
-  valid.forEach((it, i) => {
-    const prize = {
-      id: 'p' + Date.now() + i + (Math.random() * 1000 | 0),
-      status: 'won',
-      name: it.amount.toLocaleString('ko-KR') + '원 상품권',
-      amount: it.amount,
-      code: it.code || null,
-      ts: Date.now(),
-      source: 'admin'
-    };
-    u.prizes.push(prize); added.push(prize);
-  });
-  persistUser(u);
-  res.json({ ok: true, count: added.length, total: valid.reduce((a, b) => a + b.amount, 0), to: { name: u.name, email: u.email } });
-});
 // 관리자 페이지
 app.get('/admin', (req, res) => res.sendFile(path.join(__dirname, 'public', 'admin.html')));
 
@@ -2227,7 +1918,11 @@ app.get('/api/asports/lineups', async (req, res) => {
   const fixture = req.query.fixture;
   if (!fixture) return res.status(400).json({ error: 'need fixture' });
   try {
-    const j = await asRaw('football', `/fixtures/lineups?fixture=${encodeURIComponent(fixture)}`, 120000);
+    // ✅ 확정 라인업(startXI≥11)이 한 번 잡히면 6시간 고정(안 바뀜) → 재호출 없이 즉시 응답
+    const OKK = 'LUOK:' + fixture, okHit = cache.get(OKK);
+    if (okHit && Date.now() - okHit.t < 6 * 3600 * 1000) return res.json(okHit.v);
+    // 확정 전(빈 응답)은 45초만 캐시 → 경기 시작 후 확정 명단 뜨면 최대 45초 내 전환
+    const j = await asRaw('football', `/fixtures/lineups?fixture=${encodeURIComponent(fixture)}`, 45000);
     const teams = (j.response || []).map(t => ({
       team: t.team ? t.team.name : '', logo: t.team ? t.team.logo : '',
       formation: t.formation || '',
@@ -2235,7 +1930,9 @@ app.get('/api/asports/lineups', async (req, res) => {
       startXI: (t.startXI || []).map(x => ({ id: x.player.id, name: x.player.name, number: x.player.number, pos: x.player.pos, grid: x.player.grid })),
       subs: (t.substitutes || []).map(x => ({ id: x.player.id, name: x.player.name, number: x.player.number, pos: x.player.pos }))
     }));
-    res.json({ teams });
+    const out = { teams };
+    if (teams.length >= 2 && (teams[0].startXI || []).length >= 11) cache.set(OKK, { t: Date.now(), v: out });
+    res.json(out);
   } catch (e) { res.status(502).json({ error: String(e.message || e), teams: [] }); }
 });
 
@@ -2331,7 +2028,7 @@ app.get('/api/football/lineup', async (req, res) => {
   // 1) ⭐ api-football 확정 라인업 우선 (fixture id 기준, Mega 플랜 커버) — 경기 시작~종료 시 확정 라인업 제공
   if (fixtureId && APISPORTS_KEY) {
     try {
-      const j = await asRaw('football', `/fixtures/lineups?fixture=${encodeURIComponent(fixtureId)}`, 600000);
+      const j = await asRaw('football', `/fixtures/lineups?fixture=${encodeURIComponent(fixtureId)}`, 45000);
       const arr = j.response || [];
       if (arr.length >= 2 && (arr[0].startXI || []).length) {
         const mkP = x => ({ id: x.player && x.player.id, name: (x.player && x.player.name) || '', number: (x.player && x.player.number != null) ? x.player.number : '', pos: (x.player && x.player.pos) || '', grid: (x.player && x.player.grid) || '', photo: '' });
