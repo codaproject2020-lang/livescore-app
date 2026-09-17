@@ -32,8 +32,27 @@ app.use((req, res, next) => {
   }
   next();
 });
+app.set('trust proxy', true);   // Render 프록시 뒤 실제 클라이언트 IP 인식
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
+
+// ============================================================
+//  📊 접속자 추적(analytics) — 방문·버튼클릭·IP·시각 수집
+//     메모리 링버퍼 + (MONGODB 있으면) events 컬렉션 영구저장
+// ============================================================
+const EVENTS = [];              // 최근 이벤트 링버퍼
+const EVENTS_MAX = 8000;
+let eventsCol = null;
+function clientIP(req) {
+  const xf = (req.headers['x-forwarded-for'] || '').split(',')[0].trim();
+  let ip = xf || req.ip || (req.socket && req.socket.remoteAddress) || '';
+  return ip.replace(/^::ffff:/, '');   // IPv4-mapped 정리
+}
+function pushEvent(ev) {
+  EVENTS.push(ev);
+  if (EVENTS.length > EVENTS_MAX) EVENTS.splice(0, EVENTS.length - EVENTS_MAX);
+  if (eventsCol) { eventsCol.insertOne(ev).catch(() => {}); }
+}
 
 // ============================================================
 //  🔐 구글 로그인 (Google Identity Services · ID토큰 서버검증)
@@ -63,6 +82,15 @@ async function initDB() {
     const db = client.db(process.env.MONGODB_DB || 'liveup');
     usersCol = db.collection('users');
     await usersCol.createIndex({ id: 1 }, { unique: true });
+    // 📊 접속 추적 이벤트 컬렉션 (영구 저장 · 자동삭제 없음)
+    eventsCol = db.collection('events');
+    try {
+      await eventsCol.createIndex({ ts: 1 });
+      await eventsCol.createIndex({ t: 1, ts: 1 });
+      const recent = await eventsCol.find({}).sort({ ts: -1 }).limit(EVENTS_MAX).toArray();
+      recent.reverse().forEach(e => EVENTS.push(e));
+      console.log(`[DB] 접속 이벤트 ${recent.length}건 로드 (영구 저장)`);
+    } catch (e) { console.error('[DB] events 초기화 실패:', e.message); }
     const all = await usersCol.find({}).toArray();   // 기존 회원 메모리에 로드
     for (const u of all) {
       USERS.set(u.id, { id: u.id, email: u.email, name: u.name, picture: u.picture, verified: u.verified, first: u.first, last: u.last, token: u.token });
@@ -177,6 +205,79 @@ app.get('/api/admin/users', (req, res) => {
     .sort((a, b) => (b.first || 0) - (a.first || 0))
     .map(u => ({ name: u.name, email: u.email, picture: u.picture, verified: u.verified, first: u.first, last: u.last }));
   res.json({ ok: true, count: list.length, persist: !!usersCol, users: list });
+});
+
+// 📊 접속/클릭 수집 (공개) — 클라이언트가 방문·버튼클릭 전송
+app.post('/api/track', (req, res) => {
+  try {
+    const b = req.body || {};
+    const type = String(b.t || 'visit').slice(0, 12);           // 'visit' | 'click'
+    const name = String(b.n || '').slice(0, 60);                // 버튼/탭 라벨
+    const page = String(b.p || '').slice(0, 60);
+    const lang = String(b.l || '').slice(0, 6);
+    const u = userFromReq(req);
+    const now = Date.now();
+    pushEvent({
+      ts: now, at: new Date(now), t: type, n: name, p: page, l: lang,
+      ip: clientIP(req),
+      ua: String(req.get('user-agent') || '').slice(0, 200),
+      uid: u ? u.id : '', uname: u ? u.name : ''
+    });
+  } catch (e) {}
+  res.json({ ok: true });
+});
+
+// 📊 관리자 접속자 추적 통계
+app.get('/api/admin/analytics', async (req, res) => {
+  if (!adminOK(req)) return res.status(401).json({ ok: false, error: 'unauthorized' });
+  const now = Date.now();
+  const t0 = new Date(); t0.setHours(0, 0, 0, 0);
+  const todayStart = t0.getTime();
+  const dayAgo = now - 24 * 3600000;
+  const visits = EVENTS.filter(e => e.t === 'visit');
+  const clicks = EVENTS.filter(e => e.t === 'click');
+  let todayVisits = visits.filter(e => e.ts >= todayStart);
+  let uniqIPToday = new Set(todayVisits.map(e => e.ip)).size;
+  // 🗄️ DB 있으면 전체 누적/오늘 통계는 DB에서 정확히 집계 (메모리 8000건 한계 극복)
+  let dbTotals = null;
+  if (eventsCol) {
+    try {
+      const [tv, tc, tvToday, ipsToday] = await Promise.all([
+        eventsCol.countDocuments({ t: 'visit' }),
+        eventsCol.countDocuments({ t: 'click' }),
+        eventsCol.countDocuments({ t: 'visit', ts: { $gte: todayStart } }),
+        eventsCol.distinct('ip', { t: 'visit', ts: { $gte: todayStart } })
+      ]);
+      dbTotals = { totalVisits: tv, totalClicks: tc, todayVisits: tvToday, uniqIPToday: (ipsToday || []).length };
+    } catch (e) { dbTotals = null; }
+  }
+  // 시간대별(최근 24시간) 방문 수
+  const byHour = [];
+  for (let h = 23; h >= 0; h--) {
+    const start = now - (h + 1) * 3600000, end = now - h * 3600000;
+    const d = new Date(end);
+    byHour.push({ label: String(d.getHours()).padStart(2, '0'), count: visits.filter(e => e.ts >= start && e.ts < end).length });
+  }
+  // 버튼 클릭 TOP
+  const clickMap = {};
+  clicks.forEach(e => { const k = e.n || '(기타)'; clickMap[k] = (clickMap[k] || 0) + 1; });
+  const topClicks = Object.entries(clickMap).map(([name, count]) => ({ name, count })).sort((a, b) => b.count - a.count).slice(0, 20);
+  // 최근 접속/클릭 로그 (최신순 80건)
+  const recent = EVENTS.slice(-80).reverse().map(e => ({
+    ts: e.ts, t: e.t, n: e.n, ip: e.ip, ua: e.ua, uname: e.uname, l: e.l, p: e.p
+  }));
+  res.json({
+    ok: true,
+    persist: !!eventsCol,
+    stored: EVENTS.length,
+    online: (typeof totalOnline === 'function') ? totalOnline() : 0,
+    todayVisits: dbTotals ? dbTotals.todayVisits : todayVisits.length,
+    uniqIPToday: dbTotals ? dbTotals.uniqIPToday : uniqIPToday,
+    visits24h: visits.filter(e => e.ts >= dayAgo).length,
+    totalVisits: dbTotals ? dbTotals.totalVisits : visits.length,
+    totalClicks: dbTotals ? dbTotals.totalClicks : clicks.length,
+    byHour, topClicks, recent
+  });
 });
 
 // 관리자 페이지
