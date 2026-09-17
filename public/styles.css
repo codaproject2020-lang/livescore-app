@@ -83,3 +83,15 @@
 .hb-dots{display:flex;gap:4px;flex:0 0 auto;align-items:center}
 .hb-dots i{width:5px;height:5px;border-radius:50%;background:rgba(255,255,255,.35);transition:.2s}
 .hb-dots i.on{background:#fff;width:13px;border-radius:3px}
+/* 🔥 하이라이트 그리드 (한눈에) */
+.higrid{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin:8px 0}
+@media(min-width:560px){.higrid{grid-template-columns:repeat(3,1fr)}}
+@media(min-width:1000px){.higrid{grid-template-columns:repeat(4,1fr)}}
+.hicard{display:flex;align-items:center;gap:9px;background:#fff;border:1px solid var(--line,#e6e9ee);border-left:4px solid var(--hc,#2f6bff);border-radius:12px;padding:10px 11px;box-shadow:0 1px 3px rgba(20,30,60,.05)}
+.hc-ic{font-size:22px;flex:0 0 auto;line-height:1}
+.hc-tx{display:flex;flex-direction:column;min-width:0}
+.hc-t{font-weight:800;font-size:13px;color:var(--txt,#1b2333);line-height:1.25}
+.hc-s{font-size:11px;color:#8a94a6;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+/* 뉴스 카테고리 버튼(링크) */
+.news-cats .ncat{text-decoration:none}
+.news-cats{padding-bottom:2px}
