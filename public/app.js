@@ -91,45 +91,53 @@ console.log("LIVE UP build: apisports-v2");const $=(e,a=document)=>a.querySelect
   else document.addEventListener('DOMContentLoaded',function(){luTrack('visit','');});
 })();
 
-/* ===== 스포츠 뉴스 (버튼→ESPN 링크) + 하이라이트 그리드 ===== */
+/* ===== 뉴스 버튼(ESPN) + 하이라이트 그리드 (6개·다국어·클릭이동) ===== */
 ;(function(){
   function lg(){ return (typeof LANG!=='undefined')?LANG:'en'; }
-  function T(ko,en){ return lg()==='ko'?ko:en; }
   function esc2(s){return String(s==null?'':s).replace(/[&<>"]/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];});}
+  function pick(o){ return o[lg()]||o.en; }
+  function go(tab){ try{ if(typeof setTab==='function'){ setTab(tab); window.scrollTo({top:0,behavior:'smooth'}); } }catch(e){} }
 
-  // --- 뉴스: 카테고리 버튼 누르면 해당 ESPN 뉴스 페이지로 이동 ---
+  // 뉴스: 카테고리 → 해당 ESPN 최신 뉴스로 이동
   var CATS=[
-    {k:'all',ko:'전체',en:'All',url:'https://www.espn.com/'},
-    {k:'soccer',ko:'축구',en:'Soccer',url:'https://www.espn.com/soccer/'},
-    {k:'mlb',ko:'MLB',en:'MLB',url:'https://www.espn.com/mlb/'},
-    {k:'nba',ko:'NBA',en:'NBA',url:'https://www.espn.com/nba/'},
-    {k:'nfl',ko:'NFL',en:'NFL',url:'https://www.espn.com/nfl/'},
-    {k:'nhl',ko:'NHL',en:'NHL',url:'https://www.espn.com/nhl/'}
+    {ko:'전체',en:'All',url:'https://www.espn.com/'},
+    {ko:'축구',en:'Soccer',url:'https://www.espn.com/soccer/'},
+    {ko:'MLB',en:'MLB',url:'https://www.espn.com/mlb/'},
+    {ko:'NBA',en:'NBA',url:'https://www.espn.com/nba/'},
+    {ko:'NFL',en:'NFL',url:'https://www.espn.com/nfl/'},
+    {ko:'NHL',en:'NHL',url:'https://www.espn.com/nhl/'}
   ];
   function initNews(){
-    var nt=document.getElementById('newsTitle'); if(nt)nt.textContent=T('스포츠 뉴스','Sports News');
+    var nt=document.getElementById('newsTitle'); if(nt)nt.textContent=pick({ko:'스포츠 뉴스',en:'Sports News'});
     var el=document.getElementById('newsCats'); if(!el)return;
-    el.innerHTML=CATS.map(function(c){return '<a class="ncat" href="'+c.url+'" target="_blank" rel="noopener" data-nc="'+c.k+'">'+esc2(lg()==='ko'?c.ko:c.en)+'</a>';}).join('');
+    el.innerHTML=CATS.map(function(c){return '<a class="ncat" href="'+c.url+'" target="_blank" rel="noopener">'+esc2(pick(c))+'</a>';}).join('');
   }
-  if(document.readyState!=='loading') initNews(); else document.addEventListener('DOMContentLoaded',initNews);
 
-  // --- 하이라이트: 7개 카드 한눈에 ---
+  // 하이라이트 6개 (Trending Now 제거) — 클릭시 해당 메뉴
   var HI=[
-    {i:'🔥',c:'#ff6b35',t:['오늘의 빅매치','Big Match Today'],s:['지금 가장 많이 보는 경기','Most-watched now']},
-    {i:'⚡',c:'#f7b500',t:['실시간 경기 핵심','Live Match Pulse'],s:['후반 78분 · 슈팅 14-6 · 점유율 62-38','78min · Shots 14-6 · Poss 62-38']},
-    {i:'📈',c:'#22c55e',t:['경기 흐름','Momentum'],s:['최근 10분 슈팅 5-1 · 흐름 상승','Last 10min shots 5-1 · rising']},
-    {i:'🆚',c:'#3b82f6',t:['상대전적','Head-to-Head'],s:['최근 5경기: 3승 1무 1패','Last 5: 3W 1D 1L']},
-    {i:'📊',c:'#8b5cf6',t:['최근 폼','Recent Form'],s:['최근 5경기: W-W-D-L-W','Last 5: W-W-D-L-W']},
-    {i:'🚨',c:'#ef4444',t:['실시간 알림','Live Alerts'],s:['골 · 라인업 · 시작 알림','Goals · lineup · kickoff']},
-    {i:'👥',c:'#06b6d4',t:['인기 경기','Trending Now'],s:['많이 보는 경기','Most viewed']}
+    {i:'🔥',c:'#ff6b35',fire:true,tab:'home',t:{ko:'오늘의 빅매치',en:'Big Match Today'},s:{ko:'지금 가장 인기 경기',en:'Most popular now'}},
+    {i:'⚡',c:'#f7b500',tab:'live',t:{ko:'실시간 경기 핵심',en:'Live Match Pulse'},s:{ko:'후반 78분 · 슈팅 14-6',en:"78' · Shots 14-6"}},
+    {i:'📈',c:'#22c55e',tab:'live',t:{ko:'경기 흐름',en:'Momentum'},s:{ko:'최근 10분 흐름 상승',en:'Rising last 10 min'}},
+    {i:'🆚',c:'#3b82f6',tab:'info',t:{ko:'상대전적',en:'Head-to-Head'},s:{ko:'최근 5경기 비교',en:'Last 5 meetings'}},
+    {i:'📊',c:'#8b5cf6',tab:'mkt2',t:{ko:'최근 폼',en:'Recent Form'},s:{ko:'최근 5경기 W-W-D-L-W',en:'Last 5: W-W-D-L-W'}},
+    {i:'🚨',c:'#ef4444',tab:'live',t:{ko:'실시간 알림',en:'Live Alerts'},s:{ko:'골·라인업·시작 알림',en:'Goals·lineup·kickoff'}}
   ];
   function initHi(){
     var el=document.getElementById('higrid'); if(!el)return;
-    var L=lg()==='ko'?0:1;
-    el.innerHTML=HI.map(function(h){
-      return '<div class="hicard" style="--hc:'+h.c+'"><span class="hc-ic">'+h.i+'</span>'
-        +'<span class="hc-tx"><span class="hc-t">'+h.t[L]+'</span><span class="hc-s">'+h.s[L]+'</span></span></div>';
+    el.innerHTML=HI.map(function(h,idx){
+      return '<div class="hicard" data-hitab="'+h.tab+'" style="--hc:'+h.c+'">'
+        +'<span class="hc-ic'+(h.fire?' flame':'')+'">'+h.i+'</span>'
+        +'<span class="hc-tx"><span class="hc-t">'+esc2(pick(h.t))+'</span><span class="hc-s">'+esc2(pick(h.s))+'</span></span></div>';
     }).join('');
+    Array.prototype.forEach.call(el.querySelectorAll('.hicard'),function(card){
+      card.addEventListener('click',function(){ go(card.getAttribute('data-hitab')); });
+    });
   }
-  if(document.readyState!=='loading') initHi(); else document.addEventListener('DOMContentLoaded',initHi);
+  function renderAll(){ initNews(); initHi(); }
+  if(document.readyState!=='loading') renderAll(); else document.addEventListener('DOMContentLoaded',renderAll);
+  // 언어 변경 시 다시 그림
+  ['langSel','langSelM'].forEach(function(id){
+    document.addEventListener('change',function(e){ if(e.target&&e.target.id===id){ setTimeout(renderAll,60); } });
+  });
+  window.__liveupRerender=renderAll;
 })();

@@ -83,15 +83,23 @@
 .hb-dots{display:flex;gap:4px;flex:0 0 auto;align-items:center}
 .hb-dots i{width:5px;height:5px;border-radius:50%;background:rgba(255,255,255,.35);transition:.2s}
 .hb-dots i.on{background:#fff;width:13px;border-radius:3px}
-/* 🔥 하이라이트 그리드 (한눈에) */
-.higrid{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin:8px 0}
+
+/* 🔥 하이라이트 그리드 (콤팩트·한눈에) */
+.higrid{display:grid;grid-template-columns:repeat(2,1fr);gap:7px;margin:8px 0}
 @media(min-width:560px){.higrid{grid-template-columns:repeat(3,1fr)}}
-@media(min-width:1000px){.higrid{grid-template-columns:repeat(4,1fr)}}
-.hicard{display:flex;align-items:center;gap:9px;background:#fff;border:1px solid var(--line,#e6e9ee);border-left:4px solid var(--hc,#2f6bff);border-radius:12px;padding:10px 11px;box-shadow:0 1px 3px rgba(20,30,60,.05)}
-.hc-ic{font-size:22px;flex:0 0 auto;line-height:1}
-.hc-tx{display:flex;flex-direction:column;min-width:0}
-.hc-t{font-weight:800;font-size:13px;color:var(--txt,#1b2333);line-height:1.25}
-.hc-s{font-size:11px;color:#8a94a6;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-/* 뉴스 카테고리 버튼(링크) */
+@media(min-width:1000px){.higrid{grid-template-columns:repeat(3,1fr)}}
+.hicard{display:flex;align-items:center;gap:8px;min-width:0;overflow:hidden;background:#fff;border:1px solid var(--line,#e6e9ee);border-left:4px solid var(--hc,#2f6bff);border-radius:11px;padding:8px 9px;box-shadow:0 1px 3px rgba(20,30,60,.05);cursor:pointer;transition:transform .08s,box-shadow .15s}
+.hicard:active{transform:scale(.97)}
+.hicard:hover{box-shadow:0 3px 10px rgba(20,30,60,.12)}
+.hc-ic{font-size:19px;flex:0 0 auto;line-height:1}
+.hc-tx{display:flex;flex-direction:column;min-width:0;flex:1}
+.hc-t{font-weight:800;font-size:12.5px;color:var(--txt,#1b2333);line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.hc-s{font-size:10.5px;color:#8a94a6;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:1px}
+/* 불꽃 애니메이션 (빅매치) */
+@keyframes flame{0%,100%{transform:scale(1) rotate(-3deg)}25%{transform:scale(1.18) rotate(4deg)}50%{transform:scale(.94) rotate(-2deg)}75%{transform:scale(1.12) rotate(3deg)}}
+.hc-ic.flame{display:inline-block;transform-origin:center bottom;animation:flame .8s ease-in-out infinite;filter:drop-shadow(0 0 4px rgba(255,110,0,.6))}
+/* 뉴스 NEW 반짝임 */
+@keyframes newBlink{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.25;transform:scale(.9)}}
+.news-new{margin-left:6px;font-size:9px;font-weight:900;letter-spacing:.5px;color:#fff;background:#ef4444;padding:2px 6px;border-radius:5px;animation:newBlink 1.1s ease-in-out infinite}
 .news-cats .ncat{text-decoration:none}
 .news-cats{padding-bottom:2px}
