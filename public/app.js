@@ -67,7 +67,7 @@ console.log("LIVE UP build: apisports-v2");const $=(e,a=document)=>a.querySelect
   function C(el,sel){ return el&&el.closest?el.closest(sel):null; }
   function luLabel(el){
     var t=C(el,'[data-tab]'); if(t) return 'tab:'+(t.dataset.tab||'');
-    if(C(el,'.macard,.mktcard,.hpick,[data-mkt]')) return 'match_open';
+    if(C(el,'.macard,.mktcard,[data-mkt]')) return 'match_open';
     if(C(el,'.share,#btnShare,#btnShareM,#mShare')) return 'share';
     if(C(el,'#btnDownload,#btnDownloadM')) return 'download';
     if(C(el,'#btnLogin,.loginbtn,#igLogin,#drawerLogin,.gsi-material-button')) return 'login';
@@ -95,7 +95,7 @@ console.log("LIVE UP build: apisports-v2");const $=(e,a=document)=>a.querySelect
 ;(function(){
   function lg(){ return (typeof LANG!=='undefined')?LANG:'en'; }
   function esc2(s){return String(s==null?'':s).replace(/[&<>"]/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];});}
-  function pick(o){ return o[lg()]||o.en; }
+  function pk(o){ return o[lg()]||o.en; }
   function go(tab){ try{ if(typeof setTab==='function'){ setTab(tab); window.scrollTo({top:0,behavior:'smooth'}); } }catch(e){} }
 
   var CATS=[
@@ -107,9 +107,9 @@ console.log("LIVE UP build: apisports-v2");const $=(e,a=document)=>a.querySelect
     {ko:'NHL',en:'NHL',url:'https://www.espn.com/nhl/'}
   ];
   function initNews(){
-    var nt=document.getElementById('newsTitle'); if(nt)nt.textContent=pick({ko:'스포츠 뉴스',en:'Sports News'});
+    var nt=document.getElementById('newsTitle'); if(nt)nt.textContent=pk({ko:'스포츠 뉴스',en:'Sports News'});
     var el=document.getElementById('newsCats'); if(!el)return;
-    el.innerHTML=CATS.map(function(c){return '<a class="ncat" href="'+c.url+'" target="_blank" rel="noopener">'+esc2(pick(c))+'</a>';}).join('');
+    el.innerHTML=CATS.map(function(c){return '<a class="ncat" href="'+c.url+'" target="_blank" rel="noopener">'+esc2(pk(c))+'</a>';}).join('');
   }
 
   var SVG={
@@ -134,7 +134,7 @@ console.log("LIVE UP build: apisports-v2");const $=(e,a=document)=>a.querySelect
       return '<div class="hicard" data-hitab="'+h.tab+'">'
         +'<span class="hc-tile'+(h.fire?' flame':'')+'" style="background:linear-gradient(135deg,'+h.g[0]+','+h.g[1]+')">'
         +'<svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">'+SVG[h.ic]+'</svg></span>'
-        +'<span class="hc-tx"><span class="hc-t">'+esc2(pick(h.t))+'</span><span class="hc-s">'+esc2(pick(h.s))+'</span></span>'
+        +'<span class="hc-tx"><span class="hc-t">'+esc2(pk(h.t))+'</span><span class="hc-s">'+esc2(pk(h.s))+'</span></span>'
         +'<span class="hc-arw">›</span></div>';
     }).join('');
     Array.prototype.forEach.call(el.querySelectorAll('.hicard'),function(card){
@@ -160,7 +160,7 @@ console.log("LIVE UP build: apisports-v2");const $=(e,a=document)=>a.querySelect
 /* ===== 메뉴 아이콘 (다크 타일 + 글리프) 교체 ===== */
 ;(function(){
   function lg(){ return (typeof LANG!=='undefined')?LANG:'en'; }
-  function pick(o){ return o[lg()]||o.en; }
+  function pk(o){ return o[lg()]||o.en; }
   var TILE='linear-gradient(145deg,#26375e,#0e1830)';
   var GOLD='linear-gradient(145deg,#463714,#17100a)';
   var G={
@@ -177,7 +177,7 @@ console.log("LIVE UP build: apisports-v2");const $=(e,a=document)=>a.querySelect
     Array.prototype.forEach.call(document.querySelectorAll(sel),function(a){
       var tab=a.getAttribute('data-tab'); if(!G[tab])return;
       a.classList.add('mimenu');
-      a.innerHTML=tileHTML(tab)+'<span class="mi-tx"><span class="mi-t">'+pick(TITLE[tab])+'</span><span class="mi-sub">'+pick(SUB[tab])+'</span></span><span class="mi-arw">›</span>';
+      a.innerHTML=tileHTML(tab)+'<span class="mi-tx"><span class="mi-t">'+pk(TITLE[tab])+'</span><span class="mi-sub">'+pk(SUB[tab])+'</span></span><span class="mi-arw">›</span>';
     });
   }
   function fillBar(){
