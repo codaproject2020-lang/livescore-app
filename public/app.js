@@ -90,3 +90,62 @@ console.log("LIVE UP build: apisports-v2");const $=(e,a=document)=>a.querySelect
   if(document.readyState!=='loading') luTrack('visit','');
   else document.addEventListener('DOMContentLoaded',function(){luTrack('visit','');});
 })();
+
+/* ===== ESPN 스포츠 뉴스 위젯 ===== */
+;(function(){
+  function lg(){ return (typeof LANG!=='undefined')?LANG:'en'; }
+  function T(ko,en){ return lg()==='ko'?ko:en; }
+  function esc2(s){return String(s==null?'':s).replace(/[&<>"]/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];});}
+  var CATS=[{k:'all',ko:'전체',en:'All'},{k:'soccer',ko:'축구',en:'Soccer'},{k:'mlb',ko:'MLB',en:'MLB'},{k:'nba',ko:'NBA',en:'NBA'},{k:'nfl',ko:'NFL',en:'NFL'},{k:'nhl',ko:'NHL',en:'NHL'}];
+  var cur='all', busy=false;
+  function ago(ts){ if(!ts)return''; var s=(Date.now()-ts)/1000; if(s<3600)return Math.max(1,Math.round(s/60))+T('분 전','m ago'); if(s<86400)return Math.round(s/3600)+T('시간 전','h ago'); return Math.round(s/86400)+T('일 전','d ago'); }
+  function renderCats(){
+    var el=document.getElementById('newsCats'); if(!el)return;
+    el.innerHTML=CATS.map(function(c){return '<div class="ncat'+(c.k===cur?' on':'')+'" data-nc="'+c.k+'">'+esc2(lg()==='ko'?c.ko:c.en)+'</div>';}).join('');
+    Array.prototype.forEach.call(el.querySelectorAll('.ncat'),function(b){b.addEventListener('click',function(){ if(b.dataset.nc!==cur){ cur=b.dataset.nc; renderCats(); loadNews(); } });});
+  }
+  function loadNews(){
+    var box=document.getElementById('newsList'); if(!box||busy)return; busy=true;
+    box.innerHTML='<div class="news-load">'+esc2(T('불러오는 중…','Loading…'))+'</div>';
+    fetch('/api/news?cat='+cur).then(function(r){return r.json();}).then(function(d){
+      busy=false;
+      var items=(d&&d.items)||[];
+      if(!items.length){ box.innerHTML='<div class="news-load">'+esc2(T('뉴스를 불러오지 못했습니다.','No news available.'))+'</div>'; return; }
+      box.innerHTML=items.slice(0,12).map(function(n){
+        return '<a class="news-item" href="'+esc2(n.link)+'" target="_blank" rel="noopener"><span class="ni-t">'+esc2(n.title)+'</span><span class="ni-m">'+esc2(ago(n.ts))+'</span></a>';
+      }).join('');
+    }).catch(function(){ busy=false; box.innerHTML='<div class="news-load">'+esc2(T('뉴스를 불러오지 못했습니다.','No news available.'))+'</div>'; });
+  }
+  function initNews(){ if(!document.getElementById('newsCats'))return; var nt=document.getElementById('newsTitle'); if(nt)nt.textContent=T('스포츠 뉴스','Sports News'); renderCats(); loadNews(); }
+  if(document.readyState!=='loading') initNews(); else document.addEventListener('DOMContentLoaded',initNews);
+  // 언어 변경 시 갱신
+  window.__newsRefresh=function(){ renderCats(); loadNews(); };
+})();
+
+/* ===== 하이라이트 배너 (회전) ===== */
+;(function(){
+  function lg(){ return (typeof LANG!=='undefined')?LANG:'en'; }
+  var ko=lg()==='ko';
+  var ITEMS=[
+    {i:'🔥',t:['오늘의 빅매치','Big Match Today'],s:['지금 가장 많이 보는 경기','The most-watched match right now']},
+    {i:'⚡',t:['실시간 경기 핵심','Live Match Pulse'],s:['후반 78분 · 슈팅 14-6 · 점유율 62-38','78′ · Shots 14-6 · Poss 62-38']},
+    {i:'📈',t:['경기 흐름','Momentum'],s:['최근 10분 슈팅 5-1 · 공격 흐름 상승','Last 10′ shots 5-1 · attack rising']},
+    {i:'🆚',t:['상대전적','Head-to-Head'],s:['최근 맞대결 5경기: 3승 1무 1패','Last 5 meetings: 3W 1D 1L']},
+    {i:'📊',t:['최근 폼','Recent Form'],s:['최근 5경기: W-W-D-L-W','Last 5: W-W-D-L-W']},
+    {i:'🚨',t:['실시간 알림','Live Alerts'],s:['골 · 라인업 · 경기 시작 알림','Goals · lineups · kickoff alerts']},
+    {i:'👥',t:['인기 경기','Trending Now'],s:['현재 LIVE UP에서 많이 보는 경기','Most-viewed on LIVE UP now']}
+  ];
+  var idx=0, timer=null;
+  function render(){
+    var el=document.getElementById('hiban'); if(!el)return;
+    var L=lg()==='ko'?0:1; var it=ITEMS[idx];
+    el.innerHTML='<div class="hb-in"><span class="hb-no">'+(idx+1)+'</span><span class="hb-ic">'+it.i+'</span>'
+      +'<span class="hb-mid"><span class="hb-t">'+it.t[L]+'</span><span class="hb-s">'+it.s[L]+'</span></span>'
+      +'<span class="hb-dots">'+ITEMS.map(function(_,k){return '<i class="'+(k===idx?'on':'')+'"></i>';}).join('')+'</span></div>';
+    el.firstChild.classList.remove('hb-anim'); void el.offsetWidth; el.firstChild.classList.add('hb-anim');
+  }
+  function next(){ idx=(idx+1)%ITEMS.length; render(); }
+  function start(){ if(timer)clearInterval(timer); render(); timer=setInterval(next,3500); }
+  function initHi(){ var el=document.getElementById('hiban'); if(!el)return; el.addEventListener('click',function(){ next(); start(); }); start(); }
+  if(document.readyState!=='loading') initHi(); else document.addEventListener('DOMContentLoaded',initHi);
+})();
