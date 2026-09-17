@@ -53,3 +53,40 @@ console.log("LIVE UP build: apisports-v2");const $=(e,a=document)=>a.querySelect
   window.__renderMkt2=renderMkt2;
   if(typeof setTab==="function"){ var _o=setTab; setTab=function(e){_o(e); if(e==="mkt2") renderMkt2();}; }
 })();
+
+/* ===== 접속자 추적 (analytics) ===== */
+;(function(){
+  function actTab(){ try{var a=document.querySelector('.topnav a.on,.topbar .tt.on');return a&&a.dataset?a.dataset.tab||'':'';}catch(e){return'';} }
+  function luTrack(t,n){
+    try{
+      var body=JSON.stringify({t:t,n:n||'',p:actTab(),l:(typeof LANG!=='undefined'?LANG:''),token:localStorage.getItem('liveup_token')||''});
+      if(navigator.sendBeacon){navigator.sendBeacon('/api/track',new Blob([body],{type:'application/json'}));}
+      else{fetch('/api/track',{method:'POST',headers:{'Content-Type':'application/json'},body:body,keepalive:true}).catch(function(){});}
+    }catch(e){}
+  }
+  function C(el,sel){ return el&&el.closest?el.closest(sel):null; }
+  function luLabel(el){
+    var t=C(el,'[data-tab]'); if(t) return 'tab:'+(t.dataset.tab||'');
+    if(C(el,'.macard,.mktcard,.hpick,[data-mkt]')) return 'match_open';
+    if(C(el,'.share,#btnShare,#btnShareM,#mShare')) return 'share';
+    if(C(el,'#btnDownload,#btnDownloadM')) return 'download';
+    if(C(el,'#btnLogin,.loginbtn,#igLogin,#drawerLogin,.gsi-material-button')) return 'login';
+    if(C(el,'#btnMenu')) return 'menu';
+    if(C(el,'#btnRefresh')) return 'refresh';
+    var ms=C(el,'[data-msport]'); if(ms) return 'sport:'+ms.dataset.msport;
+    var ps=C(el,'[data-psport]'); if(ps) return 'sport:'+ps.dataset.psport;
+    var sp=C(el,'[data-sport]'); if(sp) return 'sport:'+sp.dataset.sport;
+    if(C(el,'.ticker a')) return 'news';
+    var b=C(el,'button[id],a[id]'); if(b&&b.id) return b.id;
+    return '';
+  }
+  var lastN='',lastT=0;
+  document.addEventListener('click',function(e){
+    var n=luLabel(e.target); if(!n) return;
+    var now=Date.now(); if(n===lastN && now-lastT<600) return; lastN=n; lastT=now;
+    luTrack('click',n);
+  },true);
+  // 방문 기록 (1회)
+  if(document.readyState!=='loading') luTrack('visit','');
+  else document.addEventListener('DOMContentLoaded',function(){luTrack('visit','');});
+})();

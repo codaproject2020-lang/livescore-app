@@ -100,7 +100,48 @@
     </div>
     <div class="empty" id="empty" style="display:none">아직 가입한 회원이 없습니다.</div>
   </div>
+
+  <!-- 📊 접속자 추적 -->
+  <div class="panel" style="margin-top:16px">
+    <div class="hd"><span>📊 접속자 추적 <span class="muted" style="font-weight:600">(방문·클릭·IP)</span></span><span class="cnt" id="anStored"></span></div>
+    <div class="cards" style="margin:6px 0 16px">
+      <div class="card hl"><div class="k">현재 접속</div><div class="v" id="anOnline">–</div></div>
+      <div class="card"><div class="k">오늘 방문</div><div class="v" id="anToday">–</div></div>
+      <div class="card"><div class="k">오늘 순 방문자(IP)</div><div class="v" id="anUniq">–</div></div>
+      <div class="card"><div class="k">총 클릭</div><div class="v" id="anClicks">–</div></div>
+    </div>
+    <div class="sub2">⏱ 시간대별 방문 (최근 24시간)</div>
+    <div id="anHours" class="hours"></div>
+    <div class="an2col">
+      <div>
+        <div class="sub2">🖱 버튼 클릭 TOP</div>
+        <div id="anTop" class="toplist"></div>
+      </div>
+      <div>
+        <div class="sub2">🕒 최근 접속 로그</div>
+        <div style="overflow:auto;max-height:440px">
+          <table class="tbl"><thead><tr><th>시각</th><th>동작</th><th>IP</th><th class="hide-m">기기</th></tr></thead><tbody id="anRows"></tbody></table>
+        </div>
+      </div>
+    </div>
+  </div>
 </div>
+
+<style>
+  .sub2{font-weight:800;font-size:13px;color:#cbd5e1;margin:14px 0 8px}
+  .hours{display:flex;align-items:flex-end;gap:3px;height:120px;background:rgba(255,255,255,.03);border-radius:10px;padding:10px 8px 4px}
+  .hbar{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%}
+  .hbar-b{width:70%;min-height:2px;background:linear-gradient(180deg,#f6d67a,#e0a92e);border-radius:3px 3px 0 0;transition:height .3s}
+  .hbar-l{font-size:9px;color:#8b93a0;margin-top:3px}
+  .an2col{display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-top:8px}
+  @media(max-width:760px){.an2col{grid-template-columns:1fr}}
+  .toplist{display:flex;flex-direction:column;gap:7px}
+  .toprow{display:flex;align-items:center;gap:8px;font-size:13px}
+  .toprow .tn{width:34%;color:#e2e8f0;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .toprow .tb{flex:1;height:10px;background:rgba(255,255,255,.06);border-radius:6px;overflow:hidden}
+  .toprow .tb span{display:block;height:100%;background:linear-gradient(90deg,#5b8cff,#7aa2ff);border-radius:6px}
+  .toprow b{width:38px;text-align:right;color:#fff}
+</style>
 
 <script>
   const $ = s => document.querySelector(s);
@@ -157,7 +198,32 @@
     }
   }
 
-  function showDash(){ $('#gate').style.display='none'; $('#wrap').style.display='block'; load(); }
+  function dev(ua){ ua=ua||''; if(/iphone/i.test(ua))return'📱 iPhone'; if(/ipad/i.test(ua))return'📱 iPad'; if(/android/i.test(ua))return'📱 Android'; if(/windows/i.test(ua))return'💻 Windows'; if(/mac/i.test(ua))return'💻 Mac'; if(/linux/i.test(ua))return'💻 Linux'; return ua.slice(0,40); }
+  function tfmt(ts){ if(!ts)return'–'; const d=new Date(ts); const p=n=>String(n).padStart(2,'0'); return `${p(d.getMonth()+1)}.${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`; }
+  async function loadAnalytics(){
+    try{
+      const a = await api('/api/admin/analytics');
+      if(!a || !a.ok) return;
+      $('#anStored').textContent = (a.stored||0).toLocaleString()+'건'+(a.persist?' · 🟢DB':' · 메모리');
+      $('#anOnline').innerHTML=(a.online||0).toLocaleString()+'<small>명</small>';
+      $('#anToday').innerHTML=(a.todayVisits||0).toLocaleString()+'<small>회</small>';
+      $('#anUniq').innerHTML=(a.uniqIPToday||0).toLocaleString()+'<small>명</small>';
+      $('#anClicks').innerHTML=(a.totalClicks||0).toLocaleString()+'<small>회</small>';
+      const hrs=a.byHour||[]; const mx=Math.max(1,...hrs.map(h=>h.count));
+      $('#anHours').innerHTML=hrs.map(h=>`<div class="hbar" title="${h.label}시 · ${h.count}회"><div class="hbar-b" style="height:${Math.round(h.count/mx*100)}%"></div><div class="hbar-l">${h.label}</div></div>`).join('');
+      const tc=a.topClicks||[]; const cm=Math.max(1,...tc.map(c=>c.count));
+      $('#anTop').innerHTML= tc.length ? tc.map(c=>`<div class="toprow"><span class="tn">${esc(c.name)}</span><span class="tb"><span style="width:${Math.round(c.count/cm*100)}%"></span></span><b>${c.count}</b></div>`).join('') : '<div class="muted" style="padding:10px 0">클릭 데이터가 아직 없습니다.</div>';
+      const rows=$('#anRows'); rows.innerHTML='';
+      (a.recent||[]).forEach(e=>{
+        const tr=document.createElement('tr');
+        const act = e.t==='visit' ? '🔵 방문' : ('👆 '+esc(e.n||''));
+        const who = e.uname ? ' <span class="muted">('+esc(e.uname)+')</span>' : '';
+        tr.innerHTML=`<td class="muted">${tfmt(e.ts)}</td><td>${act}${who}</td><td class="mail">${esc(e.ip||'')}</td><td class="hide-m muted" style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(dev(e.ua))}</td>`;
+        rows.appendChild(tr);
+      });
+    }catch(e){ if(String(e.message)==='unauthorized') logout(); }
+  }
+  function showDash(){ $('#gate').style.display='none'; $('#wrap').style.display='block'; load(); loadAnalytics(); }
   function logout(){ sessionStorage.removeItem('liveup_admin_key'); KEY=''; $('#wrap').style.display='none'; $('#gate').style.display='flex'; $('#pw').value=''; }
 
   async function login(){
@@ -174,13 +240,13 @@
 
   $('#loginBtn').addEventListener('click', login);
   $('#pw').addEventListener('keydown', e=>{ if(e.key==='Enter') login(); });
-  $('#refresh').addEventListener('click', load);
+  $('#refresh').addEventListener('click', ()=>{ load(); loadAnalytics(); });
   $('#logout').addEventListener('click', logout);
 
   // 저장된 키가 있으면 자동 검증 후 대시보드
   if(KEY){ api('/api/admin/stats').then(j=>{ if(j&&j.ok) showDash(); else logout(); }).catch(()=>logout()); }
   // 30초마다 자동 새로고침
-  setInterval(()=>{ if($('#wrap').style.display==='block') load(); }, 30000);
+  setInterval(()=>{ if($('#wrap').style.display==='block'){ load(); loadAnalytics(); } }, 30000);
 </script>
 </body>
 </html>
