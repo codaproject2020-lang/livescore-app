@@ -172,7 +172,7 @@ console.log("LIVE UP build: apisports-v2");const $=(e,a=document)=>a.querySelect
   };
   var TITLE={live:{ko:'라이브',en:'Live'},home:{ko:'홈',en:'Home'},info:{ko:'경기 정보방',en:'Match Info'},mkt2:{ko:'MATCH INSIGHTS',en:'MATCH INSIGHTS'},table:{ko:'순위',en:'Standings'}};
   var SUB={live:{ko:'실시간 경기',en:'REAL-TIME MATCHES'},home:{ko:'전체 경기',en:'ALL MATCHES'},info:{ko:'기록·라인업·이벤트',en:'STATS · LINEUPS · EVENTS'},mkt2:{ko:'AI 분석·핵심 흐름',en:'AI ANALYSIS · KEY TRENDS'},table:{ko:'리그·순위표',en:'LEAGUES & TABLES'}};
-  var IMG={home:'/home-ic.png',info:'/info-ic.png',mkt2:'/insights-ic.png',table:'/table-ic.png'};function tileHTML(tab){ if(IMG[tab]) return '<span class="mi-ic mi-img"><img src="'+IMG[tab]+'?v=297" alt=""></span>'; return '<span class="mi-ic" style="background:'+(tab==='table'?GOLD:TILE)+'"><svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">'+(G[tab]||'')+'</svg></span>'; }
+  var IMG={home:'/home-ic.png',info:'/info-ic.png',mkt2:'/insights-ic.png',table:'/table-ic.png'};function tileHTML(tab){ if(IMG[tab]) return '<span class="mi-ic mi-img"><img src="'+IMG[tab]+'?v=298" alt=""></span>'; return '<span class="mi-ic" style="background:'+(tab==='table'?GOLD:TILE)+'"><svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">'+(G[tab]||'')+'</svg></span>'; }
   function fillVertical(sel){
     Array.prototype.forEach.call(document.querySelectorAll(sel),function(a){
       var tab=a.getAttribute('data-tab'); if(!G[tab])return;
@@ -183,7 +183,7 @@ console.log("LIVE UP build: apisports-v2");const $=(e,a=document)=>a.querySelect
   function fillBar(){
     Array.prototype.forEach.call(document.querySelectorAll('.topbar .tt[data-tab]'),function(t){
       var tab=t.getAttribute('data-tab'); if(!G[tab])return;
-      var ic=t.querySelector('.tt-ic'); if(ic) ic.innerHTML = IMG[tab] ? '<img class="tt-img" src="'+IMG[tab]+'?v=297" alt="">' : '<svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">'+G[tab]+'</svg>';
+      var ic=t.querySelector('.tt-ic'); if(ic) ic.innerHTML = IMG[tab] ? '<img class="tt-img" src="'+IMG[tab]+'?v=298" alt="">' : '<svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">'+G[tab]+'</svg>';
     });
   }
   function run(){ fillVertical('.topnav a[data-tab]'); fillVertical('.dmenu a[data-tab]'); fillBar(); }

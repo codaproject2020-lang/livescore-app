@@ -124,5 +124,5 @@
 .livedot{animation:livePulse 1s ease-in-out infinite}
 /* 메뉴 이미지 아이콘(3D 타일) */
 .mi-ic.mi-img{background:none !important;box-shadow:none;border:none;overflow:hidden;border-radius:11px}
-.mi-ic.mi-img img{width:100%;height:100%;object-fit:cover;display:block}
-.topbar .tt-ic .tt-img{width:24px;height:24px;border-radius:6px;object-fit:cover;display:block;margin:0 auto}
+.mi-ic.mi-img img{width:100%;height:100%;object-fit:contain;display:block}
+.topbar .tt-ic .tt-img{width:26px;height:26px;object-fit:contain;display:block;margin:0 auto}
