@@ -101,15 +101,19 @@
     </div>
     <div class="sub2">⏱ 시간대별 방문 (최근 24시간)</div>
     <div id="anHours" class="hours"></div>
+    <div class="sub2">📅 최근 14일 방문 추이</div>
+    <div id="anTrend" class="hours"></div>
     <div class="an2col">
       <div>
         <div class="sub2">🖱 버튼 클릭 TOP</div>
         <div id="anTop" class="toplist"></div>
+        <div class="sub2" style="margin-top:18px">🌍 국가별 방문 TOP</div>
+        <div id="anCountries" class="toplist"></div>
       </div>
       <div>
         <div class="sub2">🕒 최근 접속 로그</div>
-        <div style="overflow:auto;max-height:440px">
-          <table class="tbl"><thead><tr><th>시각</th><th>동작</th><th>IP</th><th class="hide-m">기기</th></tr></thead><tbody id="anRows"></tbody></table>
+        <div style="overflow:auto;max-height:560px">
+          <table class="tbl"><thead><tr><th>시각</th><th>동작</th><th>IP</th><th>국가</th><th class="hide-m">기기</th></tr></thead><tbody id="anRows"></tbody></table>
         </div>
       </div>
     </div>
@@ -200,6 +204,9 @@
   }
 
   function dev(ua){ ua=ua||''; if(/iphone/i.test(ua))return'📱 iPhone'; if(/ipad/i.test(ua))return'📱 iPad'; if(/android/i.test(ua))return'📱 Android'; if(/windows/i.test(ua))return'💻 Windows'; if(/mac/i.test(ua))return'💻 Mac'; if(/linux/i.test(ua))return'💻 Linux'; return ua.slice(0,40); }
+  const CCN={KR:'대한민국',US:'미국',JP:'일본',CN:'중국',GB:'영국',DE:'독일',FR:'프랑스',ES:'스페인',IT:'이탈리아',RU:'러시아',IN:'인도',VN:'베트남',TH:'태국',PH:'필리핀',ID:'인도네시아',CA:'캐나다',AU:'호주',BR:'브라질',MX:'멕시코',TW:'대만',HK:'홍콩',SG:'싱가포르',MY:'말레이시아'};
+  function flag(cc){ cc=(cc||'').toUpperCase(); if(cc.length!==2||!/^[A-Z]{2}$/.test(cc)) return '🏳️'; return String.fromCodePoint(...[...cc].map(c=>127397+c.charCodeAt(0))); }
+  function ccLabel(cc){ if(!cc) return '<span class="muted">–</span>'; return flag(cc)+' '+(CCN[cc.toUpperCase()]||cc.toUpperCase()); }
   function tfmt(ts){ if(!ts)return'–'; const d=new Date(ts); const p=n=>String(n).padStart(2,'0'); return `${p(d.getMonth()+1)}.${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`; }
   async function loadAnalytics(){
     try{
@@ -214,12 +221,18 @@
       $('#anHours').innerHTML=hrs.map(h=>`<div class="hbar" title="${h.label}시 · ${h.count}회"><div class="hbar-b" style="height:${Math.round(h.count/mx*100)}%"></div><div class="hbar-l">${h.label}</div></div>`).join('');
       const tc=a.topClicks||[]; const cm=Math.max(1,...tc.map(c=>c.count));
       $('#anTop').innerHTML= tc.length ? tc.map(c=>`<div class="toprow"><span class="tn">${esc(c.name)}</span><span class="tb"><span style="width:${Math.round(c.count/cm*100)}%"></span></span><b>${c.count}</b></div>`).join('') : '<div class="muted" style="padding:10px 0">클릭 데이터가 아직 없습니다.</div>';
+      // 최근 14일 방문 추이
+      const tr14=a.trend||[]; const tmx=Math.max(1,...tr14.map(x=>x.visits));
+      $('#anTrend').innerHTML= tr14.length ? tr14.map(x=>`<div class="hbar" title="${x.day} · ${x.visits}회"><div class="hbar-b" style="height:${Math.round(x.visits/tmx*100)}%"></div><div class="hbar-l">${(x.day||'').slice(5)}</div></div>`).join('') : '<div class="muted" style="padding:10px">데이터 없음</div>';
+      // 국가별 방문 TOP
+      const co=a.topCountries||[]; const om=Math.max(1,...co.map(c=>c.count));
+      $('#anCountries').innerHTML= co.length ? co.map(c=>`<div class="toprow"><span class="tn">${ccLabel(c.cc)}</span><span class="tb"><span style="width:${Math.round(c.count/om*100)}%;background:linear-gradient(90deg,#34d399,#10b981)"></span></span><b>${c.count}</b></div>`).join('') : '<div class="muted" style="padding:10px 0">국가 데이터가 아직 없습니다.</div>';
       const rows=$('#anRows'); rows.innerHTML='';
       (a.recent||[]).forEach(e=>{
         const tr=document.createElement('tr');
         const act = e.t==='visit' ? '🔵 방문' : ('👆 '+esc(e.n||''));
         const who = e.uname ? ' <span class="muted">('+esc(e.uname)+')</span>' : '';
-        tr.innerHTML=`<td class="muted">${tfmt(e.ts)}</td><td>${act}${who}</td><td class="mail">${esc(e.ip||'')}</td><td class="hide-m muted" style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(dev(e.ua))}</td>`;
+        tr.innerHTML=`<td class="muted">${tfmt(e.ts)}</td><td>${act}${who}</td><td class="mail">${esc(e.ip||'')}</td><td>${ccLabel(e.cc)}</td><td class="hide-m muted" style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(dev(e.ua))}</td>`;
         rows.appendChild(tr);
       });
     }catch(e){ if(String(e.message)==='unauthorized') logout(); }
