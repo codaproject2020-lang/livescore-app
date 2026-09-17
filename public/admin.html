@@ -90,17 +90,6 @@
     <div class="card hl"><div class="k">현재 접속</div><div class="v" id="cOnline">–</div></div>
   </div>
 
-  <div class="panel">
-    <div class="hd"><span>👥 회원 목록 <span class="muted" style="font-weight:600">(최신 가입순)</span></span><span class="cnt" id="uCnt"></span></div>
-    <div style="overflow-x:auto">
-      <table class="tbl">
-        <thead><tr><th>회원</th><th>이메일</th><th>가입일</th><th class="hide-m">최근 접속</th><th>인증</th></tr></thead>
-        <tbody id="rows"></tbody>
-      </table>
-    </div>
-    <div class="empty" id="empty" style="display:none">아직 가입한 회원이 없습니다.</div>
-  </div>
-
   <!-- 📊 접속자 추적 -->
   <div class="panel" style="margin-top:16px">
     <div class="hd"><span>📊 접속자 추적 <span class="muted" style="font-weight:600">(방문·클릭·IP)</span></span><span class="cnt" id="anStored"></span></div>
@@ -125,6 +114,18 @@
       </div>
     </div>
   </div>
+
+  <div class="panel">
+    <div class="hd"><span>👥 회원 목록 <span class="muted" style="font-weight:600">(최신 가입순)</span></span><span class="cnt" id="uCnt"></span></div>
+    <div style="overflow-x:auto">
+      <table class="tbl">
+        <thead><tr><th>회원</th><th>이메일</th><th>가입일</th><th class="hide-m">최근 접속</th><th>인증</th></tr></thead>
+        <tbody id="rows"></tbody>
+      </table>
+    </div>
+    <div class="empty" id="empty" style="display:none">아직 가입한 회원이 없습니다.</div>
+  </div>
+
 </div>
 
 <style>
