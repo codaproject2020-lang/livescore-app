@@ -324,6 +324,45 @@ app.get('/api/admin/analytics', async (req, res) => {
   });
 });
 
+// 📰 스포츠 뉴스 (ESPN RSS 프록시) — 전체/축구/MLB/NBA/NFL/NHL
+const NEWS_FEEDS = {
+  all: 'https://www.espn.com/espn/rss/news',
+  soccer: 'https://www.espn.com/espn/rss/soccer/news',
+  mlb: 'https://www.espn.com/espn/rss/mlb/news',
+  nba: 'https://www.espn.com/espn/rss/nba/news',
+  nfl: 'https://www.espn.com/espn/rss/nfl/news',
+  nhl: 'https://www.espn.com/espn/rss/nhl/news'
+};
+const newsCache = new Map();
+function decodeEnt(s) { return String(s).replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;|&apos;/g, "'").replace(/&#(\d+);/g, (m, n) => String.fromCharCode(+n)); }
+function parseRss(xml) {
+  const items = [];
+  const blocks = String(xml).split(/<item[\s>]/i).slice(1);
+  for (const b of blocks) {
+    const end = b.search(/<\/item>/i); const seg = end >= 0 ? b.slice(0, end) : b;
+    const pick = (tag) => { const m = seg.match(new RegExp('<' + tag + '[^>]*>([\\s\\S]*?)<\\/' + tag + '>', 'i')); if (!m) return ''; let v = m[1].trim(); v = v.replace(/^<!\[CDATA\[/, '').replace(/\]\]>$/, '').trim(); return v; };
+    const title = pick('title'); const link = pick('link'); const pub = pick('pubDate'); const desc = pick('description');
+    if (title) items.push({ title: decodeEnt(title), link: link || '', desc: decodeEnt(desc).replace(/<[^>]+>/g, '').slice(0, 140), ts: pub ? (Date.parse(pub) || 0) : 0 });
+  }
+  return items;
+}
+app.get('/api/news', async (req, res) => {
+  const cat = String(req.query.cat || 'all').toLowerCase();
+  const url = NEWS_FEEDS[cat] || NEWS_FEEDS.all;
+  const now = Date.now(); const hit = newsCache.get(cat);
+  if (hit && now - hit.t < 600000) return res.json({ ok: true, cat, items: hit.items });
+  try {
+    const r = await fetch(url, { headers: { 'User-Agent': 'Mozilla/5.0 (LiveUp News)' } });
+    const xml = await r.text();
+    const items = parseRss(xml).slice(0, 15);
+    if (items.length) newsCache.set(cat, { t: now, items });
+    res.json({ ok: true, cat, items: items.length ? items : (hit ? hit.items : []) });
+  } catch (e) {
+    if (hit) return res.json({ ok: true, cat, items: hit.items });
+    res.json({ ok: false, cat, items: [] });
+  }
+});
+
 // 관리자 페이지
 app.get('/admin', (req, res) => res.sendFile(path.join(__dirname, 'public', 'admin.html')));
 
