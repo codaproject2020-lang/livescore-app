@@ -126,7 +126,7 @@ console.log("LIVE UP build: apisports-v2");const $=(e,a=document)=>a.querySelect
     {g:['#35D07F','#0C7A44'],ic:'mom',tab:'live',t:{ko:'경기 흐름',en:'Momentum'},s:{ko:'경기 트렌드',en:'Match trends'}},
     {g:['#4C9BF0','#17357F'],ic:'shield',tab:'info',t:{ko:'상대전적',en:'Head-to-Head'},s:{ko:'히스토리·기록',en:'History & records'}},
     {g:['#B07CFF','#5A2597'],ic:'bars',tab:'mkt2',t:{ko:'최근 폼',en:'Recent Form'},s:{ko:'최근 5경기',en:'Last 5 matches'}},
-    {g:['#FF6B6B','#A31414'],ic:'bell',tab:'live',t:{ko:'실시간 알림',en:'Live Alerts'},s:{ko:'경기 알림',en:'Never miss a match'}}
+    {g:['#FF6B6B','#A31414'],ic:'bell',tab:'__notif',t:{ko:'실시간 알림',en:'Live Alerts'},s:{ko:'경기 알림',en:'Never miss a match'}}
   ];
   function initHi(){
     var el=document.getElementById('higrid'); if(!el)return;
@@ -138,7 +138,17 @@ console.log("LIVE UP build: apisports-v2");const $=(e,a=document)=>a.querySelect
         +'<span class="hc-arw">›</span></div>';
     }).join('');
     Array.prototype.forEach.call(el.querySelectorAll('.hicard'),function(card){
-      card.addEventListener('click',function(){ go(card.getAttribute('data-hitab')); });
+      card.addEventListener('click',function(){
+        var tab=card.getAttribute('data-hitab');
+        if(tab==='__notif'){
+          try{
+            if(typeof loggedIn!=='undefined' && !loggedIn){ if(typeof openLogin==='function') openLogin(); return; }
+            if(typeof openNotifSettings==='function'){ openNotifSettings(); return; }
+          }catch(e){}
+          go('live'); return;
+        }
+        go(tab);
+      });
     });
   }
   function renderAll(){ initNews(); initHi(); }
@@ -162,7 +172,7 @@ console.log("LIVE UP build: apisports-v2");const $=(e,a=document)=>a.querySelect
   };
   var TITLE={live:{ko:'라이브',en:'Live'},home:{ko:'홈',en:'Home'},info:{ko:'경기 정보방',en:'Match Info'},mkt2:{ko:'MATCH INSIGHTS',en:'MATCH INSIGHTS'},table:{ko:'순위',en:'Standings'}};
   var SUB={live:{ko:'실시간 경기',en:'REAL-TIME MATCHES'},home:{ko:'전체 경기',en:'ALL MATCHES'},info:{ko:'기록·라인업·이벤트',en:'STATS · LINEUPS · EVENTS'},mkt2:{ko:'AI 분석·핵심 흐름',en:'AI ANALYSIS · KEY TRENDS'},table:{ko:'리그·순위표',en:'LEAGUES & TABLES'}};
-  function tileHTML(tab){ return '<span class="mi-ic" style="background:'+(tab==='table'?GOLD:TILE)+'"><svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">'+(G[tab]||'')+'</svg></span>'; }
+  var IMG={home:'/home-ic.png',info:'/info-ic.png',mkt2:'/insights-ic.png',table:'/table-ic.png'};function tileHTML(tab){ if(IMG[tab]) return '<span class="mi-ic mi-img"><img src="'+IMG[tab]+'?v=297" alt=""></span>'; return '<span class="mi-ic" style="background:'+(tab==='table'?GOLD:TILE)+'"><svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">'+(G[tab]||'')+'</svg></span>'; }
   function fillVertical(sel){
     Array.prototype.forEach.call(document.querySelectorAll(sel),function(a){
       var tab=a.getAttribute('data-tab'); if(!G[tab])return;
@@ -173,7 +183,7 @@ console.log("LIVE UP build: apisports-v2");const $=(e,a=document)=>a.querySelect
   function fillBar(){
     Array.prototype.forEach.call(document.querySelectorAll('.topbar .tt[data-tab]'),function(t){
       var tab=t.getAttribute('data-tab'); if(!G[tab])return;
-      var ic=t.querySelector('.tt-ic'); if(ic) ic.innerHTML='<svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">'+G[tab]+'</svg>';
+      var ic=t.querySelector('.tt-ic'); if(ic) ic.innerHTML = IMG[tab] ? '<img class="tt-img" src="'+IMG[tab]+'?v=297" alt="">' : '<svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">'+G[tab]+'</svg>';
     });
   }
   function run(){ fillVertical('.topnav a[data-tab]'); fillVertical('.dmenu a[data-tab]'); fillBar(); }
