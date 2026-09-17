@@ -91,14 +91,13 @@ console.log("LIVE UP build: apisports-v2");const $=(e,a=document)=>a.querySelect
   else document.addEventListener('DOMContentLoaded',function(){luTrack('visit','');});
 })();
 
-/* ===== 뉴스 버튼(ESPN) + 하이라이트 그리드 (6개·다국어·클릭이동) ===== */
+/* ===== 뉴스 버튼(ESPN) + 하이라이트 그리드 (그라디언트 아이콘 타일) ===== */
 ;(function(){
   function lg(){ return (typeof LANG!=='undefined')?LANG:'en'; }
   function esc2(s){return String(s==null?'':s).replace(/[&<>"]/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];});}
   function pick(o){ return o[lg()]||o.en; }
   function go(tab){ try{ if(typeof setTab==='function'){ setTab(tab); window.scrollTo({top:0,behavior:'smooth'}); } }catch(e){} }
 
-  // 뉴스: 카테고리 → 해당 ESPN 최신 뉴스로 이동
   var CATS=[
     {ko:'전체',en:'All',url:'https://www.espn.com/'},
     {ko:'축구',en:'Soccer',url:'https://www.espn.com/soccer/'},
@@ -113,21 +112,30 @@ console.log("LIVE UP build: apisports-v2");const $=(e,a=document)=>a.querySelect
     el.innerHTML=CATS.map(function(c){return '<a class="ncat" href="'+c.url+'" target="_blank" rel="noopener">'+esc2(pick(c))+'</a>';}).join('');
   }
 
-  // 하이라이트 6개 (Trending Now 제거) — 클릭시 해당 메뉴
+  var SVG={
+    fire:'<path fill="#fff" d="M12.5 2c.6 2.2-.8 3.3-1.6 4.5-.9 1.3-1.4 2.4-1.4 3.7 0 .6.2 1.1.5 1.5.2-1 .8-1.8 1.6-2.3-.3 1.2.1 2 .8 2.9.6.7 1.1 1.4 1.1 2.4a2.9 2.9 0 11-5.8 0c0-.6.1-1.1.3-1.6-1 .7-1.7 1.9-1.7 3.2A5 5 0 0017 16c0-2.6-1.4-4-2.6-5.4C13 9 12 7.5 12.5 2z"/>',
+    bolt:'<path fill="#fff" d="M13 2 5 13h5l-1 9 9-12h-6l1-8z"/>',
+    mom:'<path fill="none" stroke="#fff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M4 9l6-3 4 2 6-4"/><path fill="#fff" d="M20 3h.6v3.4L17.5 4z"/><g fill="#fff"><rect x="4" y="13" width="3" height="7" rx="1"/><rect x="10.5" y="10" width="3" height="10" rx="1"/><rect x="17" y="7" width="3" height="13" rx="1"/></g>',
+    shield:'<path fill="none" stroke="#fff" stroke-width="2" stroke-linejoin="round" d="M12 2.5l7.5 2.7v5.3c0 4.6-3.2 7.5-7.5 9.5-4.3-2-7.5-4.9-7.5-9.5V5.2z"/><path fill="#fff" d="M12 7.5l1 2 2.2.3-1.6 1.5.4 2.2L12 12.4l-2 1.1.4-2.2L8.8 9.8 11 9.5z"/>',
+    bars:'<g fill="#fff"><rect x="4" y="10" width="3.6" height="10" rx="1"/><rect x="10.2" y="5" width="3.6" height="15" rx="1"/><rect x="16.4" y="13" width="3.6" height="7" rx="1"/></g>',
+    bell:'<path fill="#fff" d="M12 2.4a1.4 1.4 0 011.4 1.4v.6A5.6 5.6 0 0117 9.8c0 4 1.3 5 2 5.8.5.5.1 1.4-.6 1.4H5.6c-.7 0-1.1-.9-.6-1.4.7-.8 2-1.8 2-5.8a5.6 5.6 0 013.6-5.4v-.6A1.4 1.4 0 0112 2.4z"/><path fill="#fff" d="M10 18.6a2 2 0 004 0z"/>'
+  };
   var HI=[
-    {i:'🔥',c:'#ff6b35',fire:true,tab:'home',t:{ko:'오늘의 빅매치',en:'Big Match Today'},s:{ko:'지금 가장 인기 경기',en:'Most popular now'}},
-    {i:'⚡',c:'#f7b500',tab:'live',t:{ko:'실시간 경기 핵심',en:'Live Match Pulse'},s:{ko:'후반 78분 · 슈팅 14-6',en:"78' · Shots 14-6"}},
-    {i:'📈',c:'#22c55e',tab:'live',t:{ko:'경기 흐름',en:'Momentum'},s:{ko:'최근 10분 흐름 상승',en:'Rising last 10 min'}},
-    {i:'🆚',c:'#3b82f6',tab:'info',t:{ko:'상대전적',en:'Head-to-Head'},s:{ko:'최근 5경기 비교',en:'Last 5 meetings'}},
-    {i:'📊',c:'#8b5cf6',tab:'mkt2',t:{ko:'최근 폼',en:'Recent Form'},s:{ko:'최근 5경기 W-W-D-L-W',en:'Last 5: W-W-D-L-W'}},
-    {i:'🚨',c:'#ef4444',tab:'live',t:{ko:'실시간 알림',en:'Live Alerts'},s:{ko:'골·라인업·시작 알림',en:'Goals·lineup·kickoff'}}
+    {g:['#FF8A3D','#E23A0E'],ic:'fire',fire:true,tab:'home',t:{ko:'오늘의 빅매치',en:'Big Match Today'},s:{ko:'주목 경기',en:'Featured matches'}},
+    {g:['#F6CB45','#9A6B0C'],ic:'bolt',tab:'live',t:{ko:'실시간 경기 핵심',en:'Live Match Pulse'},s:{ko:'실시간 업데이트',en:'Real-time updates'}},
+    {g:['#35D07F','#0C7A44'],ic:'mom',tab:'live',t:{ko:'경기 흐름',en:'Momentum'},s:{ko:'경기 트렌드',en:'Match trends'}},
+    {g:['#4C9BF0','#17357F'],ic:'shield',tab:'info',t:{ko:'상대전적',en:'Head-to-Head'},s:{ko:'히스토리·기록',en:'History & records'}},
+    {g:['#B07CFF','#5A2597'],ic:'bars',tab:'mkt2',t:{ko:'최근 폼',en:'Recent Form'},s:{ko:'최근 5경기',en:'Last 5 matches'}},
+    {g:['#FF6B6B','#A31414'],ic:'bell',tab:'live',t:{ko:'실시간 알림',en:'Live Alerts'},s:{ko:'경기 알림',en:'Never miss a match'}}
   ];
   function initHi(){
     var el=document.getElementById('higrid'); if(!el)return;
-    el.innerHTML=HI.map(function(h,idx){
-      return '<div class="hicard" data-hitab="'+h.tab+'" style="--hc:'+h.c+'">'
-        +'<span class="hc-ic'+(h.fire?' flame':'')+'">'+h.i+'</span>'
-        +'<span class="hc-tx"><span class="hc-t">'+esc2(pick(h.t))+'</span><span class="hc-s">'+esc2(pick(h.s))+'</span></span></div>';
+    el.innerHTML=HI.map(function(h){
+      return '<div class="hicard" data-hitab="'+h.tab+'">'
+        +'<span class="hc-tile'+(h.fire?' flame':'')+'" style="background:linear-gradient(135deg,'+h.g[0]+','+h.g[1]+')">'
+        +'<svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">'+SVG[h.ic]+'</svg></span>'
+        +'<span class="hc-tx"><span class="hc-t">'+esc2(pick(h.t))+'</span><span class="hc-s">'+esc2(pick(h.s))+'</span></span>'
+        +'<span class="hc-arw">›</span></div>';
     }).join('');
     Array.prototype.forEach.call(el.querySelectorAll('.hicard'),function(card){
       card.addEventListener('click',function(){ go(card.getAttribute('data-hitab')); });
@@ -135,9 +143,41 @@ console.log("LIVE UP build: apisports-v2");const $=(e,a=document)=>a.querySelect
   }
   function renderAll(){ initNews(); initHi(); }
   if(document.readyState!=='loading') renderAll(); else document.addEventListener('DOMContentLoaded',renderAll);
-  // 언어 변경 시 다시 그림
-  ['langSel','langSelM'].forEach(function(id){
-    document.addEventListener('change',function(e){ if(e.target&&e.target.id===id){ setTimeout(renderAll,60); } });
-  });
+  ['langSel','langSelM'].forEach(function(id){ document.addEventListener('change',function(e){ if(e.target&&e.target.id===id){ setTimeout(renderAll,60); } }); });
   window.__liveupRerender=renderAll;
+})();
+
+/* ===== 메뉴 아이콘 (다크 타일 + 글리프) 교체 ===== */
+;(function(){
+  function lg(){ return (typeof LANG!=='undefined')?LANG:'en'; }
+  function pick(o){ return o[lg()]||o.en; }
+  var TILE='linear-gradient(145deg,#26375e,#0e1830)';
+  var GOLD='linear-gradient(145deg,#463714,#17100a)';
+  var G={
+    live:'<path fill="#4d9bff" d="M13 2 6 13h4l-1 9 8-12h-5l1-8z"/><circle cx="17.6" cy="6" r="2.2" fill="#ff4d4d" class="livedot"/>',
+    home:'<path fill="#6aa8ff" d="M12 3.2l8.5 7.3-1.3 1.5L18 10.9V20h-4.5v-5h-3v5H6v-9.1L4.8 12 3.5 10.5z"/>',
+    info:'<g fill="#6aa8ff"><rect x="4" y="11" width="3.6" height="9" rx="1"/><rect x="10.2" y="6" width="3.6" height="14" rx="1"/><rect x="16.4" y="13" width="3.6" height="7" rx="1"/></g>',
+    mkt2:'<path fill="none" stroke="#ff6b6b" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round" d="M4 16l5-5 3 3 6-7"/><path fill="#ff6b6b" d="M15 6h5v5z"/>',
+    table:'<path fill="#f4c542" d="M7 4h10v4a5 5 0 01-10 0z"/><path fill="none" stroke="#f4c542" stroke-width="2" d="M7 6H4v1.4A3.4 3.4 0 007.4 11M17 6h3v1.4A3.4 3.4 0 0116.6 11"/><rect x="10.4" y="12.4" width="3.2" height="3.6" fill="#f4c542"/><rect x="8" y="17" width="8" height="2.4" rx="1" fill="#f4c542"/>'
+  };
+  var TITLE={live:{ko:'라이브',en:'Live'},home:{ko:'홈',en:'Home'},info:{ko:'경기 정보방',en:'Match Info'},mkt2:{ko:'MATCH INSIGHTS',en:'MATCH INSIGHTS'},table:{ko:'순위',en:'Standings'}};
+  var SUB={live:{ko:'실시간 경기',en:'REAL-TIME MATCHES'},home:{ko:'전체 경기',en:'ALL MATCHES'},info:{ko:'기록·라인업·이벤트',en:'STATS · LINEUPS · EVENTS'},mkt2:{ko:'AI 분석·핵심 흐름',en:'AI ANALYSIS · KEY TRENDS'},table:{ko:'리그·순위표',en:'LEAGUES & TABLES'}};
+  function tileHTML(tab){ return '<span class="mi-ic" style="background:'+(tab==='table'?GOLD:TILE)+'"><svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">'+(G[tab]||'')+'</svg></span>'; }
+  function fillVertical(sel){
+    Array.prototype.forEach.call(document.querySelectorAll(sel),function(a){
+      var tab=a.getAttribute('data-tab'); if(!G[tab])return;
+      a.classList.add('mimenu');
+      a.innerHTML=tileHTML(tab)+'<span class="mi-tx"><span class="mi-t">'+pick(TITLE[tab])+'</span><span class="mi-sub">'+pick(SUB[tab])+'</span></span><span class="mi-arw">›</span>';
+    });
+  }
+  function fillBar(){
+    Array.prototype.forEach.call(document.querySelectorAll('.topbar .tt[data-tab]'),function(t){
+      var tab=t.getAttribute('data-tab'); if(!G[tab])return;
+      var ic=t.querySelector('.tt-ic'); if(ic) ic.innerHTML='<svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">'+G[tab]+'</svg>';
+    });
+  }
+  function run(){ fillVertical('.topnav a[data-tab]'); fillVertical('.dmenu a[data-tab]'); fillBar(); }
+  function boot(){ run(); setTimeout(run,400); }   // 앱 자체 i18n 이후 한번 더
+  if(document.readyState!=='loading') boot(); else document.addEventListener('DOMContentLoaded',boot);
+  ['langSel','langSelM'].forEach(function(id){ document.addEventListener('change',function(e){ if(e.target&&e.target.id===id){ setTimeout(run,80); } }); });
 })();
