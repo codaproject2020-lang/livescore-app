@@ -45,6 +45,7 @@ const EVENTS = [];              // 최근 이벤트 링버퍼(화면 표시용)
 const EVENTS_MAX = 8000;
 let eventsCol = null;           // 원본 이벤트(최근 90일만 보관)
 let statsCol = null;            // 일별 요약(영구 보관)
+let subsCol = null;             // 웹푸시 구독(재시작·재배포 시 유지)
 function clientIP(req) {
   const xf = (req.headers['x-forwarded-for'] || '').split(',')[0].trim();
   let ip = xf || req.ip || (req.socket && req.socket.remoteAddress) || '';
@@ -121,6 +122,14 @@ async function initDB() {
       recent.reverse().forEach(e => EVENTS.push(e));
       console.log(`[DB] 접속 원본 ${recent.length}건 로드 · 일별요약 영구보관`);
     } catch (e) { console.error('[DB] events 초기화 실패:', e.message); }
+    // 🔔 웹푸시 구독 — 재시작·재배포 후에도 알림이 계속 오도록 DB에 영구 저장
+    subsCol = db.collection('push_subs');
+    try {
+      await subsCol.createIndex({ endpoint: 1 }, { unique: true });
+      const allSubs = await subsCol.find({}).toArray();
+      for (const s of allSubs) { if (s.endpoint && s.sub) subs.set(s.endpoint, { sub: s.sub, fav: s.fav || [], prefs: s.prefs || {}, lang: s.lang || 'en' }); }
+      console.log(`[DB] 푸시 구독 ${allSubs.length}건 로드`);
+    } catch (e) { console.error('[DB] push_subs 초기화 실패:', e.message); }
     const all = await usersCol.find({}).toArray();   // 기존 회원 메모리에 로드
     for (const u of all) {
       USERS.set(u.id, { id: u.id, email: u.email, name: u.name, picture: u.picture, verified: u.verified, first: u.first, last: u.last, token: u.token });
@@ -2411,10 +2420,12 @@ app.post('/api/push/subscribe', (req, res) => {
   const { subscription, fav, prefs, lang } = req.body || {};
   if (!subscription || !subscription.endpoint) return res.status(400).json({ ok: false });
   subs.set(subscription.endpoint, { sub: subscription, fav: fav || [], prefs: prefs || {}, lang: lang || 'en' });
+  if (subsCol) subsCol.updateOne({ endpoint: subscription.endpoint }, { $set: { endpoint: subscription.endpoint, sub: subscription, fav: fav || [], prefs: prefs || {}, lang: lang || 'en', at: new Date() } }, { upsert: true }).catch(e => console.error('[DB] sub 저장 실패:', e.message));
   res.json({ ok: true, count: subs.size });
 });
 app.post('/api/push/unsubscribe', (req, res) => {
   const ep = req.body && req.body.endpoint; if (ep) subs.delete(ep);
+  if (subsCol && ep) subsCol.deleteOne({ endpoint: ep }).catch(() => {});
   res.json({ ok: true });
 });
 app.get('/api/push/status', (req, res) => res.json({ enabled: PUSH_ON, subscribers: subs.size, publicKey: VAPID_PUBLIC.slice(0, 12) + '…' }));
@@ -2444,7 +2455,7 @@ async function sendPushEvent(type, prefKey, sport, g) {
       gameId: g.id, sport
     });
     try { await webpush.sendNotification(rec.sub, payload); }
-    catch (err) { if (err && (err.statusCode === 404 || err.statusCode === 410)) subs.delete(ep); }
+    catch (err) { if (err && (err.statusCode === 404 || err.statusCode === 410)) { subs.delete(ep); if (subsCol) subsCol.deleteOne({ endpoint: ep }).catch(() => {}); } }
   }
 }
 
