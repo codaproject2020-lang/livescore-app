@@ -126,3 +126,16 @@
 .mi-ic.mi-img{background:none !important;box-shadow:none;border:none;overflow:hidden;border-radius:11px}
 .mi-ic.mi-img img{width:100%;height:100%;object-fit:contain;display:block}
 .topbar .tt-ic .tt-img{width:26px;height:26px;object-fit:contain;display:block;margin:0 auto}
+
+/* ===== 골 알림 로그인 유도 CTA (접속수 옆) ===== */
+.onlinebar{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.golcta{margin-left:10px;display:inline-flex;align-items:center;gap:6px;border:0;cursor:pointer;
+  background:linear-gradient(135deg,#e2231a,#ff6a3d);color:#fff;font-weight:800;line-height:1;
+  font-size:12px;padding:7px 13px;border-radius:999px;white-space:nowrap;
+  box-shadow:0 2px 8px rgba(226,35,26,.35);animation:golpulse 1.15s ease-in-out infinite}
+.golcta:active{transform:scale(.96)}
+.golcta .gc-arw{animation:golarw .8s ease-in-out infinite;display:inline-block}
+@keyframes golpulse{0%,100%{box-shadow:0 2px 8px rgba(226,35,26,.35);transform:scale(1)}
+  50%{box-shadow:0 5px 18px rgba(226,35,26,.65);transform:scale(1.06)}}
+@keyframes golarw{0%,100%{transform:translateX(0)}50%{transform:translateX(5px)}}
+@media (max-width:380px){.golcta{font-size:11px;padding:6px 11px;margin-left:6px}}

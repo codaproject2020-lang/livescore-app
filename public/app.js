@@ -191,3 +191,20 @@ console.log("LIVE UP build: apisports-v2");const $=(e,a=document)=>a.querySelect
   if(document.readyState!=='loading') boot(); else document.addEventListener('DOMContentLoaded',boot);
   ['langSel','langSelM'].forEach(function(id){ document.addEventListener('change',function(e){ if(e.target&&e.target.id===id){ setTimeout(run,80); } }); });
 })();
+;(function(){
+  /* 골 알림 로그인 유도 CTA (접속수 옆 반짝 버튼) */
+  function lg(){try{return localStorage.getItem('liveup_lang')||'en';}catch(e){return 'en';}}
+  function isLogged(){try{return !!localStorage.getItem('liveup_token');}catch(e){return false;}}
+  var TXT={ko:'골 넣으면 알려드려요',en:'Get goal alerts',ja:'ゴール速報を受け取る',zh:'进球提醒',es:'Alertas de gol',hi:'गोल अलर्ट पाएं',vi:'Nhận báo bàn thắng',th:'รับการแจ้งเตือนประตู',ru:'Оповещения о голах',de:'Tor-Alarm erhalten',fr:'Alertes de but',it:'Avvisi gol'};
+  function setTxt(){var el=document.querySelector('#golCta .gc-t');if(el)el.textContent=TXT[lg()]||TXT.en;}
+  function openFav(){try{if(typeof openNotifSettings==='function'){openNotifSettings();}}catch(e){}}
+  function go(){
+    if(isLogged()){openFav();return;}
+    try{if(typeof openLogin==='function')openLogin();}catch(e){}
+    var n=0,iv=setInterval(function(){n++;if(isLogged()){clearInterval(iv);setTimeout(openFav,500);}else if(n>180){clearInterval(iv);}},500);
+  }
+  function bind(){var b=document.getElementById('golCta');if(b&&!b._lu){b._lu=1;b.addEventListener('click',go);}setTxt();}
+  if(document.readyState!=='loading')bind();else document.addEventListener('DOMContentLoaded',bind);
+  setInterval(bind,2000);
+  document.addEventListener('change',function(e){var t=e.target;if(t&&(t.id==='langSel'||t.id==='langSelM'))setTimeout(setTxt,300);});
+})();
