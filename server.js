@@ -1511,6 +1511,17 @@ async function buildGamesCore(sport, date, tz) {
       }
     });
   }
+  // 🛡️ [전종목] 시작 시각이 아직 미래인데 '종료/라이브'로 온 경기 → '예정'으로 보정.
+  //     (API-Sports가 경기 시작 전 KBO 등에 FT·0:0을 주는 결함 방어. 미래 경기는 종료·진행일 수 없음)
+  {
+    const nowMs = Date.now();
+    games.forEach(g => {
+      if (g.state && g.state !== 'scheduled' && g.date) {
+        const st = Date.parse(g.date);
+        if (st && st - nowMs > 5 * 60000) { g.state = 'scheduled'; g.status = 'NS'; }
+      }
+    });
+  }
   return { games, j };
 }
 
