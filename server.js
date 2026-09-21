@@ -1457,15 +1457,17 @@ async function buildGamesCore(sport, date, tz) {
   // ⚾ KBO(한국)·NPB(일본) = TheSports 실시간으로 교체 (API-Sports 지연 보정)
   if (sport === 'baseball' && TS_ON) {
     try {
-      // KBO(한국)·NPB(일본)·CPBL(대만) 아시아 프로리그만 TheSports로 (고교/아마추어 제외)
-      const wantRe = /KBO|NPB|CPBL|Korea|Korean|Nippon|Japan|Chinese Professional|Taiwan|일본|한국|대만|Futures|퓨처스|퓨쳐스|Eastern League|Western League/i;
+      // KBO·NPB·CPBL + 아시안게임 = TheSports로 교체 (API-Sports가 아시안게임 야구는 팀↔점수를 뒤집어 주는 오류가 있어 TheSports가 정확)
+      const wantRe = /KBO|NPB|CPBL|Korea|Korean|Nippon|Japan|Chinese Professional|Taiwan|일본|한국|대만|Futures|퓨처스|퓨쳐스|Eastern League|Western League|Asian Games|Asiad|아시안게임/i;
       const hsRe = /koshien|senbatsu|high\s*school|甲子園|고교|amateur|university|college/i;
-      // KBO/NPB/CPBL은 아시아(한국시간) 리그 → 보는 날짜 하루만 조회 (전날치까지 넣으면 날짜필터에 걸려 사라지는 버그 방지 + 호출 절감)
       const ts = await tsBaseballGames(date).catch(() => []);
       const kn = ts.filter(g => wantRe.test(g.league || '') && !hsRe.test(g.league || ''));
       if (kn.length) {
-        // TheSports가 해당 날짜 경기를 갖고 있을 때만 API-Sports 동일리그 제거 후 교체(더 정확). 없으면 API-Sports 그대로 유지
-        games = games.filter(g => !wantRe.test(g.league || ''));
+        // 🔑 TheSports가 같은 매치업을 가진 경기만 교체(제거+추가). 없는 경기는 API-Sports 그대로 유지 → 경기 사라짐 방지
+        const nk = s => String(s || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+        const key = g => [nk(g.home), nk(g.away)].sort().join('|');
+        const knKeys = new Set(kn.map(key));
+        games = games.filter(g => !wantRe.test(g.league || '') || !knKeys.has(key(g)));
         games = games.concat(kn);
       }
     } catch (e) { /* TheSports 실패 시 API-Sports 유지 */ }
