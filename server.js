@@ -665,6 +665,9 @@ const AS = {
   mma: { host: 'v1.mma.api-sports.io', ko: '격투기', em: '🥊', path: '/fights' }
 };
 
+// 타임존 쿼리: API-Sports는 "Asia/Seoul"처럼 슬래시가 살아있어야 인식. encodeURIComponent는 슬래시를 %2F로 바꿔
+// v1 종목(배구·농구·하키 등)이 '잘못된 타임존'으로 보고 0건 반환 → 슬래시만 원복(다른 특수문자는 안전하게 인코딩 유지)
+function tzq(tz) { return encodeURIComponent(tz || 'Asia/Seoul').replace(/%2F/gi, '/'); }
 async function asRaw(sport, path, ttl = 30000) {
   const cfg = AS[sport]; if (!cfg) throw new Error('bad sport');
   const url = `https://${cfg.host}${path}`;
@@ -1347,7 +1350,7 @@ async function buildGamesCore(sport, date, tz) {
   const apiDates = (sport === 'baseball') ? [prevDate, date, nextDate] : [date];
   let j = {}; let games = []; const _seen = new Set();
   for (const dt of apiDates) {
-    const jj = await asRaw(sport, `${cfg.path}?date=${dt}&timezone=${encodeURIComponent(tz)}`, 8000).catch(() => ({ response: [] }));
+    const jj = await asRaw(sport, `${cfg.path}?date=${dt}&timezone=${tzq(tz)}`, 8000).catch(() => ({ response: [] }));
     if (dt === date) j = jj;
     (jj.response || []).map(g => normAS(sport, g)).filter(Boolean).forEach(g => { if (!_seen.has(g.id)) { _seen.add(g.id); g._apiDate = dt; games.push(g); } });
   }
@@ -1489,7 +1492,7 @@ async function buildGamesCore(sport, date, tz) {
       const stale = games.filter(g => g.state === 'scheduled' && g.date && (now - Date.parse(g.date) > 6 * 60000)).slice(0, 20);
       for (let bi = 0; bi < stale.length; bi += 20) {
         const ids = stale.slice(bi, bi + 20).map(g => g.id).join('-');
-        const jj = await asRaw('football', `/fixtures?ids=${ids}&timezone=${encodeURIComponent(tz)}`, 3000).catch(() => ({ response: [] }));
+        const jj = await asRaw('football', `/fixtures?ids=${ids}&timezone=${tzq(tz)}`, 3000).catch(() => ({ response: [] }));
         const fresh = {};
         (jj.response || []).forEach(x => { const n = normAS('football', x); if (n) fresh[n.id] = n; });
         games = games.map(g => fresh[g.id] || g);
