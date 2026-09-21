@@ -668,6 +668,19 @@ const AS = {
 // 타임존 쿼리: API-Sports는 "Asia/Seoul"처럼 슬래시가 살아있어야 인식. encodeURIComponent는 슬래시를 %2F로 바꿔
 // v1 종목(배구·농구·하키 등)이 '잘못된 타임존'으로 보고 0건 반환 → 슬래시만 원복(다른 특수문자는 안전하게 인코딩 유지)
 function tzq(tz) { return encodeURIComponent(tz || 'Asia/Seoul').replace(/%2F/gi, '/'); }
+// 옛 타임존 별칭 → 표준 IANA 이름으로 정규화. (일부 서버/ICU가 Asia/Saigon 같은 옛 이름을 잘못 처리해
+//  날짜 필터가 깨지고 경기가 0건이 되는 문제 방어. 베트남 기기가 흔히 Asia/Saigon을 보냄)
+const TZ_ALIAS = {
+  'Asia/Saigon': 'Asia/Ho_Chi_Minh', 'Asia/Calcutta': 'Asia/Kolkata', 'Asia/Rangoon': 'Asia/Yangon',
+  'Asia/Katmandu': 'Asia/Kathmandu', 'Asia/Ulan_Bator': 'Asia/Ulaanbaatar', 'Asia/Chongqing': 'Asia/Shanghai',
+  'Asia/Harbin': 'Asia/Shanghai', 'Europe/Kiev': 'Europe/Kyiv', 'America/Buenos_Aires': 'America/Argentina/Buenos_Aires'
+};
+function canonTz(tz) {
+  tz = String(tz || '').trim() || 'Asia/Seoul';
+  if (TZ_ALIAS[tz]) tz = TZ_ALIAS[tz];
+  try { new Intl.DateTimeFormat('en-CA', { timeZone: tz }).format(new Date()); return tz; }
+  catch { return 'Asia/Seoul'; }   // 인식 못 하는 타임존은 안전하게 서울로
+}
 async function asRaw(sport, path, ttl = 30000) {
   const cfg = AS[sport]; if (!cfg) throw new Error('bad sport');
   const url = `https://${cfg.host}${path}`;
@@ -1342,7 +1355,7 @@ function ymdInTz(iso, tz) {
 const _lastGoodBB = new Map();   // 야구 간헐적 사라짐 방지용 직전 정상빌드 캐시
 async function buildGamesCore(sport, date, tz) {
   const cfg = AS[sport]; if (!cfg) return { games: [], j: {} };
-  tz = tz || 'Asia/Seoul';
+  tz = canonTz(tz);   // 옛 타임존 별칭(Asia/Saigon 등) 표준화 → 날짜 필터 안정화
   // 🏐 배구·농구·하키 등 v1 종목: API가 기기 타임존별 날짜버킷을 불안정하게 반환(라이브 경기 누락) →
   //    안정적인 Asia/Seoul로 조회한 뒤, 화면 표시는 기기 타임존 날짜로 필터한다.
   const MINOR = ['volleyball', 'basketball', 'hockey', 'handball', 'rugby'];
