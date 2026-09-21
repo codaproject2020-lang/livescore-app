@@ -860,6 +860,28 @@ async function tsFetch(path, params, ttl = 6000) {
   const qs = new URLSearchParams(Object.assign({ user: TS_USER, secret: TS_SECRET }, params || {})).toString();
   return cachedJSON(`${TS_BASE}${path}?${qs}`, ttl);
 }
+// 🏐 진단: TheSports 배구 커버리지 확인 (현재 플랜에 배구 스케줄/라이브가 포함되는지)
+app.get('/api/ts/volley', async (req, res) => {
+  if (!TS_ON) return res.json({ on: false, msg: 'TheSports 키 미설정' });
+  const ymd = String(req.query.date || new Date().toISOString().slice(0, 10)).replace(/-/g, '');
+  try {
+    const d = await tsFetch('/volleyball/match/diary', { date: ymd }, 5000).catch(e => ({ err: String((e && e.message) || e) }));
+    let lv = {};
+    try { lv = await tsFetch('/volleyball/match/detail_live', {}, 5000); } catch (e) { lv = { err: String((e && e.message) || e) }; }
+    const ex = (d && d.results_extra) || {};
+    res.json({
+      on: true, date: ymd,
+      diaryErr: (d && d.err) || null,
+      diaryCount: ((d && d.results) || []).length,
+      comps: ((ex.competition) || []).slice(0, 25).map(c => c.name),
+      teamsSample: ((ex.team) || []).slice(0, 12).map(t => t.name),
+      diarySample: ((d && d.results) || []).slice(0, 3),
+      liveErr: (lv && lv.err) || null,
+      liveCount: ((lv && lv.results) || []).length,
+      liveSample: ((lv && lv.results) || []).slice(0, 3)
+    });
+  } catch (e) { res.json({ on: true, error: String((e && e.message) || e) }); }
+});
 // 축구 status_id → 상태/표기 (TheSports enum)
 function tsFootState(s) { s = Number(s); if (s === 8) return 'finished'; if ([2, 3, 4, 5, 7].includes(s)) return 'live'; return 'scheduled'; }
 function tsFootStatus(s) { return ({ 1: 'NS', 2: '1H', 3: 'HT', 4: '2H', 5: 'ET', 7: 'PEN', 8: 'FT' })[Number(s)] || 'NS'; }
@@ -1353,6 +1375,7 @@ function ymdInTz(iso, tz) {
   catch { return String(iso || '').slice(0, 10); }
 }
 const _lastGoodBB = new Map();   // 야구 간헐적 사라짐 방지용 직전 정상빌드 캐시
+const _lastGoodMinor = new Map();   // 배구·농구·하키 등 간헐적 사라짐 방지용 직전 정상빌드 캐시
 async function buildGamesCore(sport, date, tz) {
   const cfg = AS[sport]; if (!cfg) return { games: [], j: {} };
   tz = canonTz(tz);   // 옛 타임존 별칭(Asia/Saigon 등) 표준화 → 날짜 필터 안정화
@@ -1430,6 +1453,19 @@ async function buildGamesCore(sport, date, tz) {
   if (sport === 'baseball') games = games.filter(g => !g.date || ymdInTz(g.date, tz) === date);
   // 🏐 마이너 종목: 서울tz로 3일치 받아왔으니, 기기 타임존 날짜와 같은 경기만 남긴다(라이브는 오늘 버킷에 들어와 유지됨)
   if (isMinor) games = games.filter(g => !g.date || ymdInTz(g.date, tz) === date);
+  // 🛡️ 마이너 종목 간헐적 사라짐 방지: API가 잠깐 빈 응답을 줘도 직전 정상빌드에 있던 같은-날짜 경기는 유지(떴다 사라짐 방지)
+  if (isMinor) {
+    try {
+      const mk = 'MN|' + sport + '|' + date + '|' + (tz || '');
+      const prev = _lastGoodMinor.get(mk);
+      if (prev && prev.list && prev.list.length) {
+        const ids = new Set(games.map(g => String(g.id)));
+        prev.list.forEach(pg => { if (!ids.has(String(pg.id))) games.push(pg); });
+      }
+      if (games.length) _lastGoodMinor.set(mk, { t: Date.now(), list: games.slice() });
+      for (const [k, v] of _lastGoodMinor) { if (Date.now() - v.t > 1800000) _lastGoodMinor.delete(k); }
+    } catch {}
+  }
   // 🛡️ MLB/야구 간헐적 사라짐 방지: 이번 빌드에 없는데 직전 정상빌드에 있던 같은-날짜 경기는 유지(업스트림 일시 빈응답 대응)
   if (sport === 'baseball') {
     try {
