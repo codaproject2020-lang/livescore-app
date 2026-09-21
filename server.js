@@ -752,13 +752,9 @@ function normAS(sport, g) {
       let lastPlayed = 0;
       for (let n = 1; n <= 15; n++) { if (filled(hi, n) || filled(ai, n)) lastPlayed = n; }
       curInning = statusNum || lastPlayed || null;
-      if (curInning != null) {
-        const hFilled = filled(hi, curInning), aFilled = filled(ai, curInning);
-        // 원정팀(초 공격)만 기록 → 초 / 홈팀(말 공격)까지 기록 → 말
-        if (aFilled && !hFilled) inningHalf = 'top';
-        else if (hFilled) inningHalf = 'bottom';
-        else inningHalf = 'top';   // 이닝 시작 직후(초 공격 준비)
-      }
+      // ⚠️ API-Sports 야구는 status에 초/말 정보가 없음("Inning 4"만). 점수 칸으로 추측하면 자주 틀림(4회말을 4회초로).
+      //    → 초/말은 표시하지 않고 회차만 표시(틀린 정보 방지). MLB(StatsAPI)·KBO/NPB/CPBL(TheSports)은 실제 초/말로 나중에 덮어씀.
+      inningHalf = null;
       box = {
         home: { r: (s.home && s.home.total != null ? s.home.total : hs), h: (s.home && s.home.hits != null ? s.home.hits : null), e: (s.home && s.home.errors != null ? s.home.errors : null), innings: hi },
         away: { r: (s.away && s.away.total != null ? s.away.total : as), h: (s.away && s.away.hits != null ? s.away.hits : null), e: (s.away && s.away.errors != null ? s.away.errors : null), innings: ai }
@@ -777,6 +773,20 @@ function normAS(sport, g) {
   } catch { return null; }
 }
 
+// 진단: 팀명으로 특정 경기의 원시 API 응답(teams/scores) 확인 — 점수 뒤집힘이 API 데이터인지 우리 매핑인지 판별용
+app.get('/api/asports/rawfind', async (req, res) => {
+  if (!APISPORTS_KEY) return res.json({ needKey: true });
+  const sport = req.query.sport || 'baseball';
+  const date = req.query.date || new Date().toISOString().slice(0, 10);
+  const q = String(req.query.q || '').toLowerCase();
+  const cfg = AS[sport]; if (!cfg) return res.status(400).json({ error: 'bad sport' });
+  try {
+    const j = await asRaw(sport, `${cfg.path}?date=${date}&timezone=Asia/Seoul`, 10000);
+    const arr = j.response || [];
+    const hits = arr.filter(g => { const h = ((g.teams && g.teams.home && g.teams.home.name) || '').toLowerCase(); const a = ((g.teams && g.teams.away && g.teams.away.name) || '').toLowerCase(); return q && (h.includes(q) || a.includes(q)); });
+    res.json({ total: arr.length, matched: hits.length, games: hits.slice(0, 4).map(g => ({ home: g.teams.home.name, away: g.teams.away.name, status: g.status, scores: g.scores })) });
+  } catch (e) { res.status(502).json({ error: String(e.message || e) }); }
+});
 // 진단: 라이브 경기의 원시 응답 구조 확인 (초/말·히트·실책·타석 데이터 유무 파악)
 app.get('/api/asports/raw', async (req, res) => {
   if (!APISPORTS_KEY) return res.json({ needKey: true });
