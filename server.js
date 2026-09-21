@@ -892,6 +892,18 @@ app.get('/api/ts/volley', async (req, res) => {
     });
   } catch (e) { res.json({ on: true, error: String((e && e.message) || e) }); }
 });
+// 🏟️ 진단: TheSports 야구가 아시안게임을 갖고 있는지 + 점수가 올바른지 확인
+app.get('/api/ts/baseball', async (req, res) => {
+  if (!TS_ON) return res.json({ on: false });
+  const date = req.query.date || new Date().toISOString().slice(0, 10);
+  const q = String(req.query.q || '').toLowerCase();
+  try {
+    const ts = await tsBaseballGames(date).catch(() => []);
+    const leagues = [...new Set(ts.map(g => g.league))];
+    const hit = q ? ts.filter(g => ((g.home || '') + (g.away || '') + (g.league || '')).toLowerCase().includes(q)) : [];
+    res.json({ count: ts.length, leagues, q, matched: hit.slice(0, 6).map(g => ({ h: g.home, a: g.away, hs: g.hs, as: g.as, league: g.league, state: g.state, inning: g.curInning, half: g.inningHalf })) });
+  } catch (e) { res.json({ err: String((e && e.message) || e) }); }
+});
 // 축구 status_id → 상태/표기 (TheSports enum)
 function tsFootState(s) { s = Number(s); if (s === 8) return 'finished'; if ([2, 3, 4, 5, 7].includes(s)) return 'live'; return 'scheduled'; }
 function tsFootStatus(s) { return ({ 1: 'NS', 2: '1H', 3: 'HT', 4: '2H', 5: 'ET', 7: 'PEN', 8: 'FT' })[Number(s)] || 'NS'; }
