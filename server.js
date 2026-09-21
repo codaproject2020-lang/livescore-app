@@ -2081,7 +2081,8 @@ async function mlbScoreMap(date, sportId = 1, tz = 'Asia/Seoul') {
         } catch {}
       }
       // 진행 중 경기: 볼/스트라이크/아웃 + 주자(1·2·3루) — 카드(바깥)에서 바로 보이도록
-      let bso = null;
+      // 🔑 라이브일 땐 여기서 부른 최신 /linescore의 이닝/초말을 카드에도 사용 → 상세보기(=같은 /linescore)와 100% 일치 + 지연 없음
+      let bso = null, liveInning = null, liveHalf = null;
       if (isLive) {
         try {
           const fl = await mlbFetch(`/api/v1/game/${g.gamePk}/linescore`, 8000);
@@ -2091,12 +2092,14 @@ async function mlbScoreMap(date, sportId = 1, tz = 'Asia/Seoul') {
             bases: { first: !!off.first, second: !!off.second, third: !!off.third },
             batter: off.batter ? off.batter.fullName : null
           };
+          if (fl.currentInning != null) liveInning = fl.currentInning;
+          if (fl.inningHalf) liveHalf = fl.inningHalf;
         } catch {}
       }
       const entry = {
         state: st === 'Final' ? 'finished' : isLive ? 'live' : 'scheduled',
-        inning: ls.currentInning != null ? ls.currentInning : null,
-        half: ls.inningHalf || null,
+        inning: liveInning != null ? liveInning : (ls.currentInning != null ? ls.currentInning : null),
+        half: liveHalf || ls.inningHalf || null,
         byNick: { [hN]: hs, [aN]: as },
         bso
       };
