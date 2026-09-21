@@ -1343,14 +1343,19 @@ const _lastGoodBB = new Map();   // 야구 간헐적 사라짐 방지용 직전 
 async function buildGamesCore(sport, date, tz) {
   const cfg = AS[sport]; if (!cfg) return { games: [], j: {} };
   tz = tz || 'Asia/Seoul';
+  // 🏐 배구·농구·하키 등 v1 종목: API가 기기 타임존별 날짜버킷을 불안정하게 반환(라이브 경기 누락) →
+  //    안정적인 Asia/Seoul로 조회한 뒤, 화면 표시는 기기 타임존 날짜로 필터한다.
+  const MINOR = ['volleyball', 'basketball', 'hockey', 'handball', 'rugby'];
+  const isMinor = MINOR.includes(sport);
+  const apiTz = isMinor ? 'Asia/Seoul' : tz;
   // 🗓️ 날짜 그룹 — KBO/NPB=한국시간, MLB=미국(동부) 날짜 기준. 미국 저녁 경기는 한국시간 다음날 새벽이라 전날·다음날치도 받아 필터
   const prevDate = new Date(Date.parse(date + 'T12:00:00Z') - 864e5).toISOString().slice(0, 10);
   const nextDate = new Date(Date.parse(date + 'T12:00:00Z') + 864e5).toISOString().slice(0, 10);
-  // 야구만 전날·당일·다음날 3일치(미국 리그 KST 시차 보정). 그 외 종목은 API가 timezone으로 이미 정확히 그룹 → 당일만(호출량 절약)
-  const apiDates = (sport === 'baseball') ? [prevDate, date, nextDate] : [date];
+  // 야구·마이너 종목은 전날·당일·다음날 3일치(타임존 시차 보정). 축구는 API가 정확히 그룹 → 당일만(호출량 절약)
+  const apiDates = (sport === 'baseball' || isMinor) ? [prevDate, date, nextDate] : [date];
   let j = {}; let games = []; const _seen = new Set();
   for (const dt of apiDates) {
-    const jj = await asRaw(sport, `${cfg.path}?date=${dt}&timezone=${tzq(tz)}`, 8000).catch(() => ({ response: [] }));
+    const jj = await asRaw(sport, `${cfg.path}?date=${dt}&timezone=${tzq(apiTz)}`, 8000).catch(() => ({ response: [] }));
     if (dt === date) j = jj;
     (jj.response || []).map(g => normAS(sport, g)).filter(Boolean).forEach(g => { if (!_seen.has(g.id)) { _seen.add(g.id); g._apiDate = dt; games.push(g); } });
   }
@@ -1410,6 +1415,8 @@ async function buildGamesCore(sport, date, tz) {
   // 🗓️ 야구만 날짜 필터: 경기 시작(UTC)을 기기 타임존으로 변환한 날짜가 선택 날짜와 같은 경기만 (MLB KST 시차 정확 처리)
   //    그 외 종목은 API가 timezone 파라미터로 이미 그날 경기만 반환 → 추가 필터 없음(경기 누락 방지)
   if (sport === 'baseball') games = games.filter(g => !g.date || ymdInTz(g.date, tz) === date);
+  // 🏐 마이너 종목: 서울tz로 3일치 받아왔으니, 기기 타임존 날짜와 같은 경기만 남긴다(라이브는 오늘 버킷에 들어와 유지됨)
+  if (isMinor) games = games.filter(g => !g.date || ymdInTz(g.date, tz) === date);
   // 🛡️ MLB/야구 간헐적 사라짐 방지: 이번 빌드에 없는데 직전 정상빌드에 있던 같은-날짜 경기는 유지(업스트림 일시 빈응답 대응)
   if (sport === 'baseball') {
     try {
