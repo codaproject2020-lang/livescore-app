@@ -1,0 +1,518 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1">
+<title>LIVE UP · Multi-Sport LIVE SIMULATION</title>
+<style>
+  :root{--bg:#0a0e15;--card:#121a26;--card2:#0f1620;--line:#243044;--gold:#f5c451;--blue:#3d7dff;--blue2:#8fd0ff;--red:#e2231a;--txt:#eef3fa;--sub:#8592a5;--home:#e2231a;--away:#3d7dff}
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;margin:0;padding:0}
+  body{background:radial-gradient(130% 100% at 50% -10%,#14202f,#0a0e15 60%);color:var(--txt);font-family:-apple-system,"Apple SD Gothic Neo",Roboto,"Malgun Gothic",sans-serif;padding:12px;line-height:1.4}
+  .wrap{max-width:440px;margin:0 auto}
+  .topbar{display:flex;gap:6px;justify-content:center;margin-bottom:8px;flex-wrap:wrap}
+  .topbar select,.sporttabs button{border:1px solid var(--line);background:#101826;color:var(--txt);border-radius:9px;padding:6px 9px;font-size:12px;font-weight:700;cursor:pointer}
+  .sporttabs{display:flex;gap:6px;justify-content:center;margin-bottom:10px}
+  .sporttabs button.on{background:linear-gradient(135deg,#20406e,#2b5aa0);border-color:#3a5f9e}
+  .card{position:relative;background:linear-gradient(180deg,var(--card),var(--card2));border:1px solid var(--line);border-radius:18px;overflow:hidden;box-shadow:0 10px 34px rgba(0,0,0,.4)}
+  .hdr{display:flex;align-items:center;justify-content:space-between;padding:11px 14px 6px}
+  .sim{display:inline-flex;align-items:center;gap:7px;font-weight:900;font-size:12.5px;letter-spacing:.4px}
+  .sim .dot{width:8px;height:8px;border-radius:50%;background:#ff453a;box-shadow:0 0 0 0 rgba(255,69,58,.6);animation:blip 1.3s infinite}
+  @keyframes blip{70%{box-shadow:0 0 0 7px rgba(255,69,58,0)}100%{box-shadow:0 0 0 0 rgba(255,69,58,0)}}
+  .lg{font-size:10px;color:var(--sub)}
+  .scorebar{display:flex;align-items:center;justify-content:center;gap:12px;padding:2px 14px 4px}
+  .tm{display:flex;align-items:center;gap:7px;font-weight:800;font-size:13.5px;flex:1;min-width:0}
+  .tm.h{justify-content:flex-end;text-align:right}
+  .tm .nm{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .badge{width:22px;height:22px;border-radius:50%;display:grid;place-items:center;font-size:10px;font-weight:900;flex:none}
+  .tm.h .badge{background:var(--home);color:#fff}
+  .tm.a .badge{background:#fff;color:#123;border:2px solid var(--away)}
+  .sc{font-weight:900;font-size:23px;letter-spacing:2px;font-variant-numeric:tabular-nums}
+  .sc .p{display:inline-block}
+  .sc .p.pop{animation:scP .55s cubic-bezier(.22,1,.36,1)}
+  @keyframes scP{0%{transform:scale(.85);color:var(--blue2)}45%{transform:scale(1.18);color:var(--blue2);text-shadow:0 0 14px rgba(61,125,255,.9)}100%{transform:scale(1)}}
+  .clk{text-align:center;color:var(--sub);font-size:11px;padding-bottom:7px;font-variant-numeric:tabular-nums}
+  .clk b{color:var(--gold)}
+  .stage{position:relative;background:#0b1119;overflow:hidden}
+  svg.field{display:block;width:100%;height:auto}
+  .ev{position:absolute;left:50%;top:42%;transform:translate(-50%,-50%) scale(.85);opacity:0;background:rgba(5,12,25,.82);border:1px solid rgba(140,180,255,.28);border-radius:14px;padding:10px 16px;text-align:center;pointer-events:none;transition:opacity .25s cubic-bezier(.22,1,.36,1),transform .25s cubic-bezier(.22,1,.36,1);min-width:150px;backdrop-filter:blur(5px)}
+  .ev.on{opacity:1;transform:translate(-50%,-50%) scale(1)}
+  .ev .big{font-size:21px;font-weight:900;letter-spacing:.3px}
+  .ev .sm{font-size:12px;color:var(--sub);margin-top:3px}
+  .fl{position:absolute;inset:0;opacity:0;pointer-events:none;transition:opacity .18s}
+  .fl.on{opacity:1}
+  /* 게이트 활성화 시 카드 전체(경기장+스탯+경기열기)를 동일하게 흐림 */
+  .card.locked .stage svg.field,.card.locked .stats,.card.locked .pulse,.card.locked .story{filter:blur(3.5px) saturate(.92) brightness(.92)}
+  .card.locked .stage svg.field{transform:scale(1.03)}
+  .gate{position:absolute;inset:0;display:none;align-items:center;justify-content:center;background:rgba(8,13,22,.26);backdrop-filter:blur(1px);z-index:5;padding:14px}
+  .gate.on{display:flex;animation:gfade .3s ease}
+  @keyframes gfade{from{opacity:0}to{opacity:1}}
+  .gbox{text-align:center;max-width:290px;text-shadow:0 2px 10px rgba(0,0,0,.85)}
+  .glock{font-size:30px;margin-bottom:6px;filter:drop-shadow(0 3px 8px rgba(0,0,0,.7))}
+  .gtitle{font-size:16px;font-weight:900;letter-spacing:.2px}
+  .gsub{font-size:12.5px;color:var(--blue2);margin:6px 0 12px;font-weight:700}
+  .gbtn{border:0;border-radius:11px;padding:11px 26px;font-size:14px;font-weight:900;color:#fff;cursor:pointer;background:linear-gradient(135deg,#2b5aa0,#3d7dff);box-shadow:0 6px 18px rgba(61,125,255,.4)}
+  .gbtn:active{transform:scale(.97)}
+  .stats{padding:11px 14px}
+  .prow{margin:8px 0}
+  .plab{display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px;font-variant-numeric:tabular-nums}
+  .plab .k{color:var(--sub);font-size:11px}
+  .plab .vh{color:#ffd9d6;font-weight:800}.plab .va{color:#d6e4ff;font-weight:800}
+  .pbar{display:flex;height:7px;border-radius:5px;overflow:hidden;background:#0a0f17}
+  .pbar .bh{background:linear-gradient(90deg,#b81812,#e2231a);transition:width .6s cubic-bezier(.2,.7,.2,1)}
+  .pbar .ba{background:linear-gradient(90deg,#3d7dff,#8fb6ff);transition:width .6s cubic-bezier(.2,.7,.2,1)}
+  .pulse{display:flex;align-items:center;gap:10px;padding:11px 14px;border-top:1px solid var(--line);margin-top:2px}
+  .pulse .lab{font-weight:900;font-size:12.5px}
+  .pulse .bar{flex:1;height:8px;border-radius:5px;background:#0a0f17;overflow:hidden}
+  .pulse .bar>i{display:block;height:100%;width:20%;border-radius:5px;background:linear-gradient(90deg,#3d7dff,#f5c451,#e2231a);transition:width .6s}
+  .pulse .n{font-weight:900;font-size:17px;color:var(--gold);font-variant-numeric:tabular-nums}
+  .story{margin:0 14px 14px;background:#0e1723;border:1px solid var(--line);border-radius:12px;padding:10px 12px}
+  .story .h{font-size:11px;color:var(--blue2);font-weight:800;margin-bottom:3px}
+  .story .t{font-size:13px}.story .t b{color:var(--gold)}
+  .ctrls{display:flex;flex-wrap:wrap;gap:6px;justify-content:center;margin:10px 0}
+  .ctrls button{border:1px solid var(--line);background:#101826;color:var(--txt);border-radius:9px;padding:7px 10px;font-size:12px;font-weight:700;cursor:pointer}
+  .ctrls button.play{background:linear-gradient(135deg,#e2231a,#ff6a3d);border:0;color:#fff;font-weight:900;padding:8px 16px}
+  .foot{font-size:10.5px;color:var(--sub);text-align:center;margin:10px 4px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="card">
+    <div class="hdr">
+      <span class="sim"><span class="dot"></span>LIVE SIMULATION</span>
+      <span class="lg" id="league"></span>
+    </div>
+    <div class="scorebar">
+      <div class="tm h"><span class="nm" id="hn"></span><span class="badge" id="hb"></span></div>
+      <div class="sc"><span class="p" id="hs">0</span><span id="scsep"> : </span><span class="p" id="as">0</span></div>
+      <div class="tm a"><span class="badge" id="ab"></span><span class="nm" id="an"></span></div>
+    </div>
+    <div class="clk">🕑 <b id="clk">0'</b> · <span id="per"></span></div>
+
+    <div class="stage">
+      <svg class="field" id="field" viewBox="0 0 400 300"></svg>
+      <div class="fl" id="fl"></div>
+      <div class="ev" id="ev"><div class="big" id="evB"></div><div class="sm" id="evS"></div></div>
+    </div>
+
+    <div class="stats" id="stats"></div>
+    <div class="pulse"><span class="lab">🔥 <span id="pulseLab"></span></span><div class="bar"><i id="pf"></i></div><span class="n" id="pn">15</span></div>
+    <div class="story"><div class="h">🤖 <span id="storyLab"></span></div><div class="t" id="story"></div></div>
+    <div class="gate" id="gate">
+      <div class="gbox">
+        <div class="glock">🔒</div>
+        <div class="gtitle" id="gateTitle"></div>
+        <div class="gsub" id="gateSub"></div>
+        <button class="gbtn" id="gateBtn"></button>
+      </div>
+    </div>
+  </div>
+
+  <div class="foot" id="foot"></div>
+</div>
+
+<script>
+(function(){
+var NS="http://www.w3.org/2000/svg",$=function(i){return document.getElementById(i)};
+var LANGS=["en","ko","ja","zh","es","hi","vi","th","ru","de","fr","it"];
+var LANGNAME={en:"English",ko:"한국어",ja:"日本語",zh:"中文",es:"Español",hi:"हिन्दी",vi:"Tiếng Việt",th:"ไทย",ru:"Русский",de:"Deutsch",fr:"Français",it:"Italiano"};
+var LANG="ko";
+// ---- i18n dictionary (LANGS order) ----
+var D={
+ pulse:["MATCH PULSE","경기 열기","マッチパルス","比赛强度","Pulso del partido","मैच पल्स","Nhịp trận","จังหวะเกม","Пульс матча","Match-Puls","Pouls du match","Ritmo partita"],
+ story:["AI LIVE STORY","AI 라이브 스토리","AIライブストーリー","AI直播解说","Historia en vivo IA","AI लाइव स्टोरी","Câu chuyện AI","AI สดเรื่องราว","AI-история","KI Live-Story","Récit IA en direct","Storia AI dal vivo"],
+ play:["▶ Play","▶ 재생","▶ 再生","▶ 播放","▶ Reproducir","▶ चलाएं","▶ Phát","▶ เล่น","▶ Играть","▶ Abspielen","▶ Lecture","▶ Riproduci"],
+ note:["Visualized from live match data","실시간 경기 데이터를 기반으로 한 시각화","ライブ試合データに基づく可視化","基于实时比赛数据的可视化","Visualización de datos en vivo","लाइव मैच डेटा से","Trực quan từ dữ liệu trận đấu","จากข้อมูลสด","На основе данных матча","Aus Live-Spieldaten","À partir des données en direct","Dai dati della partita"],
+ // soccer
+ kickoff:["KICK OFF","킥오프","キックオフ","开球","SAQUE","किक ऑफ","GIAO BÓNG","เริ่มเกม","СТАРТ","ANSTOSS","COUP D'ENVOI","CALCIO D'INIZIO"],
+ goal:["GOAL!","골!","ゴール！","进球！","¡GOL!","गोल!","VÀO!","ประตู!","ГОЛ!","TOR!","BUT !","GOL!"],
+ shot:["SHOT","슛","シュート","射门","REMATE","शॉट","SÚT","ยิง","УДАР","SCHUSS","TIR","TIRO"],
+ ontarget:["ON TARGET","유효슛","枠内シュート","射正","A PUERTA","ऑन टारगेट","TRÚNG ĐÍCH","เข้ากรอบ","В СТВОР","AUFS TOR","CADRÉ","IN PORTA"],
+ corner:["CORNER","코너킥","コーナー","角球","CÓRNER","कॉर्नर","PHẠT GÓC","เตะมุม","УГЛОВОЙ","ECKBALL","CORNER","CALCIO D'ANGOLO"],
+ yellow:["YELLOW CARD","옐로카드","イエローカード","黄牌","TARJETA AMARILLA","पीला कार्ड","THẺ VÀNG","ใบเหลือง","ЖЁЛТАЯ","GELBE KARTE","CARTON JAUNE","CARTELLINO GIALLO"],
+ red:["RED CARD","레드카드","レッドカード","红牌","TARJETA ROJA","लाल कार्ड","THẺ ĐỎ","ใบแดง","КРАСНАЯ","ROTE KARTE","CARTON ROUGE","CARTELLINO ROSSO"],
+ half:["HALF TIME","전반 종료","ハーフタイム","中场休息","DESCANSO","हाफ टाइम","HẾT HIỆP 1","พักครึ่ง","ПЕРЕРЫВ","HALBZEIT","MI-TEMPS","INTERVALLO"],
+ full:["FULL TIME","경기 종료","試合終了","比赛结束","FINAL","फुल टाइम","KẾT THÚC","จบเกม","МАТЧ ОКОНЧЕН","SPIELENDE","FIN DU MATCH","FINALE"],
+ st_sh:["Shots","슈팅","シュート","射门","Remates","शॉट्स","Cú sút","ยิงประตู","Удары","Schüsse","Tirs","Tiri"],
+ st_ot:["On Target","유효슈팅","枠内","射正","A puerta","ऑन टारगेट","Trúng đích","เข้ากรอบ","В створ","Aufs Tor","Cadrés","In porta"],
+ st_co:["Corners","코너킥","コーナー","角球","Córners","कॉर्नर","Phạt góc","เตะมุม","Угловые","Ecken","Corners","Angoli"],
+ st_pos:["Possession","점유율","ポゼッション","控球率","Posesión","पजेशन","Kiểm soát","ครองบอล","Владение","Ballbesitz","Possession","Possesso"],
+ // basketball
+ tipoff:["TIP-OFF","경기 시작","ティップオフ","跳球","SALTO INICIAL","टिप-ऑफ","NHẢY TRANH","เริ่มเกม","СПОРНЫЙ","SPRUNGBALL","ENTRE-DEUX","PALLA A DUE"],
+ two:["2 POINTS","2점","2ポイント","2分","2 PUNTOS","2 अंक","2 ĐIỂM","2 แต้ม","2 ОЧКА","2 PUNKTE","2 POINTS","2 PUNTI"],
+ three:["3 POINTS!","3점!","3ポイント！","3分！","¡TRIPLE!","3 अंक!","3 ĐIỂM!","3 แต้ม!","3 ОЧКА!","DREIER!","À 3 POINTS !","TRIPLA!"],
+ dunk:["DUNK!","덩크!","ダンク！","扣篮！","¡MATE!","डंक!","ÚP RỔ!","ดังก์!","ДАНК!","DUNK!","DUNK !","SCHIACCIATA!"],
+ freethrow:["FREE THROW","자유투","フリースロー","罚球","TIRO LIBRE","फ्री थ्रो","NÉM PHẠT","ลูกโทษ","ШТРАФНОЙ","FREIWURF","LANCER FRANC","TIRO LIBERO"],
+ foul:["FOUL","파울","ファウル","犯规","FALTA","फाउल","LỖI","ฟาวล์","ФОЛ","FOUL","FAUTE","FALLO"],
+ timeout:["TIMEOUT","타임아웃","タイムアウト","暂停","TIEMPO","टाइमआउट","HỘI Ý","ขอเวลานอก","ТАЙМ-АУТ","AUSZEIT","TEMPS MORT","TIMEOUT"],
+ st_fg:["Field Goals","야투","フィールドゴール","投篮","Tiros","फील्ड गोल","Ném rổ","ชู้ต","Броски","Würfe","Paniers","Tiri"],
+ st_3p:["3-Pointers","3점슛","3P","三分","Triples","3-पॉइंटर","3 điểm","3 แต้ม","Трёхочковые","Dreier","3 points","Triple"],
+ st_rb:["Rebounds","리바운드","リバウンド","篮板","Rebotes","रिबाउंड","Bắt bảng","รีบาวด์","Подборы","Rebounds","Rebonds","Rimbalzi"],
+ st_fl:["Fouls","파울","ファウル","犯规","Faltas","फाउल","Lỗi","ฟาวล์","Фолы","Fouls","Fautes","Falli"],
+ // volleyball
+ point:["POINT","득점","ポイント","得分","PUNTO","अंक","ĐIỂM","ได้แต้ม","ОЧКО","PUNKT","POINT","PUNTO"],
+ ace:["ACE!","서브에이스!","サービスエース！","发球得分！","¡ACE!","ऐस!","ACE!","เสิร์ฟได้แต้ม!","ЭЙС!","ASS!","ACE !","ACE!"],
+ block:["BLOCK!","블로킹!","ブロック！","拦网！","¡BLOQUEO!","ब्लॉक!","CHẮN BÓNG!","บล็อก!","БЛОК!","BLOCK!","CONTRE !","MURO!"],
+ spike:["SPIKE!","스파이크!","スパイク！","扣球！","¡REMATE!","स्पाइक!","ĐẬP BÓNG!","ตบ!","АТАКА!","ANGRIFF!","ATTAQUE !","SCHIACCIATA!"],
+ setpoint:["SET POINT","세트포인트","セットポイント","局点","PUNTO DE SET","सेट पॉइंट","ĐIỂM SET","เซ็ตพอยต์","СЕТ-БОЛ","SATZBALL","BALLE DE SET","SET POINT"],
+ setover:["SET OVER","세트 종료","セット終了","本局结束","SET FINALIZADO","सेट खत्म","HẾT SET","จบเซ็ต","СЕТ ОКОНЧЕН","SATZ ENDE","FIN DU SET","SET FINITO"],
+ st_ac:["Aces","서브에이스","エース","发球得分","Aces","ऐस","Ace","เสิร์ฟได้แต้ม","Эйсы","Asse","Aces","Ace"],
+ st_bl:["Blocks","블로킹","ブロック","拦网","Bloqueos","ब्लॉक","Chắn bóng","บล็อก","Блоки","Blocks","Contres","Muri"],
+ st_at:["Attacks","공격","アタック","扣球","Ataques","अटैक","Tấn công","ตบ","Атаки","Angriffe","Attaques","Attacchi"],
+ st_er:["Errors","범실","エラー","失误","Errores","गलती","Lỗi","ผิดพลาด","Ошибки","Fehler","Erreurs","Errori"],
+ // baseball
+ playball:["PLAY BALL","경기 시작","プレイボール","比赛开始","¡A JUGAR!","प्ले बॉल","BẮT ĐẦU","เริ่มเกม","ИГРА","SPIELBEGINN","JOUEZ","PLAY BALL"],
+ hit:["HIT!","안타!","ヒット！","安打！","¡HIT!","हिट!","AN TOÀN!","ตีโดน!","ХИТ!","HIT!","COUP SÛR !","VALIDA!"],
+ homerun:["HOME RUN!","홈런!","ホームラン！","本垒打！","¡JONRÓN!","होम रन!","HOME RUN!","โฮมรัน!","ХОУМ-РАН!","HOMERUN!","HOME RUN !","FUORICAMPO!"],
+ strikeout:["STRIKEOUT","삼진","三振","三振","PONCHE","स्ट्राइकआउट","ĐÁNH TRƯỢT","สไตรค์เอาต์","СТРАЙК-АУТ","STRIKEOUT","RETRAIT","STRIKEOUT"],
+ run:["RUN!","득점!","得点！","得分！","¡CARRERA!","रन!","GHI ĐIỂM!","ได้แต้ม!","РАН!","RUN!","POINT !","PUNTO!"],
+ out:["OUT","아웃","アウト","出局","OUT","आउट","OUT","เอาต์","АУТ","AUS","RETRAIT","OUT"],
+ st_h:["Hits","안타","安打","安打","Hits","हिट","An toàn","ฮิต","Хиты","Hits","Coups","Valide"],
+ st_r:["Runs","득점","得点","得分","Carreras","रन","Điểm","แต้ม","Раны","Runs","Points","Punti"],
+ st_e:["Errors","실책","失策","失误","Errores","गलती","Lỗi","ผิดพลาด","Ошибки","Fehler","Erreurs","Errori"],
+ st_so:["Strikeouts","삼진","三振","三振","Ponches","स्ट्राइकआउट","Đánh trượt","สไตรค์เอาต์","Страйк-ауты","Strikeouts","Retraits","Strikeout"],
+ // periods
+ per_soccer:["1st Half","전반","前半","上半场","1ª parte","पहला हाफ","Hiệp 1","ครึ่งแรก","1-й тайм","1. Halbzeit","1re mi-temps","1° tempo"],
+ per_soccer2:["2nd Half","후반","後半","下半场","2ª parte","दूसरा हाफ","Hiệp 2","ครึ่งหลัง","2-й тайм","2. Halbzeit","2e mi-temps","2° tempo"],
+ q:["Q","쿼터","Q","节","C","क्वार्टर","Hiệp","ควอเตอร์","Ч","V","QT","Q"],
+ set:["Set","세트","セット","局","Set","सेट","Set","เซ็ต","Сет","Satz","Set","Set"],
+ inning:["Inning","회","回","局","Entrada","पारी","Lượt","อินนิ่ง","Иннинг","Inning","Manche","Inning"],
+ gateTitle:["Sign in to keep watching","계속 보려면 로그인하세요","ログインして視聴を続ける","登录后继续观看","Inicia sesión para seguir viendo","देखना जारी रखने के लिए साइन इन करें","Đăng nhập để tiếp tục xem","เข้าสู่ระบบเพื่อดูต่อ","Войдите, чтобы продолжить","Zum Weiterschauen anmelden","Connectez-vous pour continuer","Accedi per continuare"],
+ gateSub:["Log in in 3 seconds with one click!","단 한번 클릭으로 3초만에 로그인해보세요!","ワンクリックで3秒でログイン！","一键3秒登录！","¡Inicia sesión en 3 segundos con un clic!","एक क्लिक में 3 सेकंड में लॉगिन करें!","Đăng nhập trong 3 giây chỉ với một cú nhấp!","ล็อกอินใน 3 วินาทีด้วยคลิกเดียว!","Вход за 3 секунды одним кликом!","In 3 Sekunden mit einem Klick anmelden!","Connectez-vous en 3 secondes en un clic !","Accedi in 3 secondi con un clic!"],
+ gateBtn:["Log in","로그인","ログイン","登录","Iniciar sesión","लॉग इन","Đăng nhập","เข้าสู่ระบบ","Войти","Anmelden","Se connecter","Accedi"]
+};
+function T(k){var a=D[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
+
+// ---- sample matches per sport (미리보기용, 실제 연동 시 파라미터로 대체) ----
+var MATCHES={
+ basket:{h:"Lakers",a:"Celtics",hb:"LA",ab:"BOS",lg:"NBA",seed:{hs:58,as:52,stat:{fg:[22,20],tp:[6,5],rb:[24,21],fl:[9,11]}}},
+ volley:{h:"Korea",a:"Japan",hb:"KOR",ab:"JPN",lg:"Asian Games",seed:{hs:18,as:15,stat:{ac:[3,2],bl:[4,3],at:[12,10],er:[5,6]}}},
+ baseball:{h:"Doosan",a:"LG",hb:"DOO",ab:"LG",lg:"KBO",seed:{hs:3,as:2,stat:{h:[7,6],r:[3,2],e:[0,1],so:[4,5]}}}
+};
+var SPORTS={
+ basket:{icon:"🏀",stats:[["fg","st_fg"],["tp","st_3p"],["rb","st_rb"],["fl","st_fl"]],ev:["tipoff","two","three","dunk","freethrow","foul","timeout"]},
+ volley:{icon:"🏐",stats:[["ac","st_ac"],["bl","st_bl"],["at","st_at"],["er","st_er"]],ev:["point","ace","block","spike","setpoint","setover"]},
+ baseball:{icon:"⚾",stats:[["h","st_h"],["r","st_r"],["e","st_e"],["so","st_so"]],ev:["playball","hit","homerun","strikeout","run","out"]}
+};
+var sport="basket", S={};
+
+function mk(t,a){var e=document.createElementNS(NS,t);for(var k in a)e.setAttribute(k,a[k]);return e;}
+function el(t,a){var e=document.createElementNS(NS,t);for(var k in a)e.setAttribute(k,a[k]);return e;}
+function ban(big,sm,goal){$("evB").textContent=big;$("evS").textContent=sm||"";$("ev").classList.toggle("goal",!!goal);$("ev").classList.add("on");setTimeout(function(){$("ev").classList.remove("on")},goal?2200:1500);}
+function flash(color){var f=$("fl");f.style.background="radial-gradient(circle at 50% 40%,"+color+",transparent 62%)";f.classList.add("on");setTimeout(function(){f.classList.remove("on")},380);}
+function scorePop(){["hs","as"].forEach(function(id){var e=$(id);e.classList.remove("pop");void e.offsetWidth;e.classList.add("pop");});}
+function setPulse(v,story){S.pulse=Math.max(0,Math.min(100,Math.round(v)));$("pn").textContent=S.pulse;$("pf").style.width=Math.max(8,S.pulse)+"%";if(story)$("story").innerHTML=story;}
+setInterval(function(){if(S.pulse>10)setPulse(S.pulse-1);},3000);
+
+// ================= FIELD DRAWERS =================
+var F=$("field");
+function clearField(){F.innerHTML="";}
+function crowdBar(){ // top stand strip
+  var g=el("g",{}); F.appendChild(g);
+  g.appendChild(el("rect",{x:0,y:0,width:400,height:34,fill:"#101c2c"}));
+  for(var i=0;i<160;i++){var cx=Math.random()*400;g.appendChild(el("rect",{x:cx.toFixed(0),y:(3+Math.random()*26).toFixed(0),width:2,height:2,fill:(cx<200?"#7d2530":"#274a6b"),opacity:(0.4+Math.random()*0.4).toFixed(2)}));}
+  return g;
+}
+// SOCCER — perspective pitch
+function drawSoccer(){
+  clearField();
+  var defs=el("defs",{});defs.innerHTML='<linearGradient id="gg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#176535"/><stop offset="1" stop-color="#249149"/></linearGradient><radialGradient id="atk" cx="50%" cy="50%" r="60%"><stop offset="0" stop-color="rgba(74,222,128,.6)"/><stop offset="70%" stop-color="rgba(74,222,128,0)"/></radialGradient>';F.appendChild(defs);
+  F.appendChild(el("rect",{width:400,height:300,fill:"#0a1420"}));crowdBar();
+  var TL=[70,44],TR=[330,44],NR=[392,296],NL=[8,296];
+  function P(u,v){var tx=TL[0]+(TR[0]-TL[0])*u,bx=NL[0]+(NR[0]-NL[0])*u;return[tx+(bx-tx)*v,TL[1]+(NL[1]-TL[1])*v];}
+  function ps(a){return a.map(function(p){return p[0].toFixed(1)+","+p[1].toFixed(1)}).join(" ");}
+  F.appendChild(el("polygon",{points:ps([P(0,0),P(1,0),P(1,1),P(0,1)]),fill:"url(#gg)"}));
+  for(var s=0;s<8;s++)F.appendChild(el("polygon",{points:ps([P(s/8,0),P((s+1)/8,0),P((s+1)/8,1),P(s/8,1)]),fill:(s%2?"rgba(255,255,255,.05)":"rgba(0,0,0,.05)")}));
+  S.glowR=el("path",{d:"M"+ps([P(.5,0),P(1,0),P(1,1),P(.5,1)]).replace(/ /g," L"),fill:"url(#atk)",opacity:0});F.appendChild(S.glowR);
+  S.glowL=el("path",{d:"M"+ps([P(.5,0),P(0,0),P(0,1),P(.5,1)]).replace(/ /g," L"),fill:"url(#atk)",opacity:0});F.appendChild(S.glowL);
+  function ln(a,b){F.appendChild(el("line",{x1:a[0].toFixed(1),y1:a[1].toFixed(1),x2:b[0].toFixed(1),y2:b[1].toFixed(1),stroke:"rgba(255,255,255,.75)","stroke-width":1.4}))}
+  F.appendChild(el("polygon",{points:ps([P(0,0),P(1,0),P(1,1),P(0,1)]),fill:"none",stroke:"rgba(255,255,255,.75)","stroke-width":1.6}));
+  ln(P(.5,0),P(.5,1));
+  F.appendChild(el("ellipse",{cx:200,cy:P(.5,.5)[1].toFixed(1),rx:34,ry:12,fill:"none",stroke:"rgba(255,255,255,.75)","stroke-width":1.4}));
+  // goals
+  ln(P(0,.42),P(0,.58));ln(P(1,.42),P(1,.58));
+  S.ball=el("circle",{r:5,fill:"#fff",stroke:"#111","stroke-width":1,opacity:0});F.appendChild(S.ball);
+  S.P=P;
+}
+// BASKETBALL — court
+function drawBasket(){
+  clearField();
+  F.appendChild(el("rect",{width:400,height:300,fill:"#0a1420"}));crowdBar();
+  var defs=el("defs",{});defs.innerHTML='<linearGradient id="wood" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#b07a34"/><stop offset="1" stop-color="#8a5a22"/></linearGradient>';F.appendChild(defs);
+  var TL=[60,50],TR=[340,50],NR=[394,292],NL=[6,292];
+  function P(u,v){var tx=TL[0]+(TR[0]-TL[0])*u,bx=NL[0]+(NR[0]-NL[0])*u;return[tx+(bx-tx)*v,TL[1]+(NL[1]-TL[1])*v];}
+  function ps(a){return a.map(function(p){return p[0].toFixed(1)+","+p[1].toFixed(1)}).join(" ")}
+  F.appendChild(el("polygon",{points:ps([P(0,0),P(1,0),P(1,1),P(0,1)]),fill:"url(#wood)"}));
+  function ln(a,b){F.appendChild(el("line",{x1:a[0].toFixed(1),y1:a[1].toFixed(1),x2:b[0].toFixed(1),y2:b[1].toFixed(1),stroke:"rgba(255,255,255,.85)","stroke-width":1.5}))}
+  F.appendChild(el("polygon",{points:ps([P(0,0),P(1,0),P(1,1),P(0,1)]),fill:"none",stroke:"rgba(255,255,255,.85)","stroke-width":1.8}));
+  ln(P(.5,0),P(.5,1));
+  F.appendChild(el("ellipse",{cx:200,cy:P(.5,.5)[1].toFixed(1),rx:30,ry:11,fill:"none",stroke:"rgba(255,255,255,.85)","stroke-width":1.5}));
+  // keys + hoops (left/right)
+  F.appendChild(el("polygon",{points:ps([P(0,.34),P(.18,.36),P(.18,.64),P(0,.66)]),fill:"rgba(200,80,40,.25)",stroke:"rgba(255,255,255,.7)","stroke-width":1.2}));
+  F.appendChild(el("polygon",{points:ps([P(1,.34),P(.82,.36),P(.82,.64),P(1,.66)]),fill:"rgba(200,80,40,.25)",stroke:"rgba(255,255,255,.7)","stroke-width":1.2}));
+  var d2=el("defs",{});d2.innerHTML='<radialGradient id="atk2"><stop offset="0" stop-color="rgba(255,150,60,.6)"/><stop offset="70%" stop-color="rgba(255,150,60,0)"/></radialGradient>';F.appendChild(d2);
+  var hl=P(.055,.5),hr=P(.945,.5);
+  var RAISE=46; // 림을 바닥에서 위로 띄우는 높이
+  S.glowL=el("ellipse",{cx:hl[0],cy:hl[1]-RAISE,rx:40,ry:30,fill:"url(#atk2)",opacity:0});F.appendChild(S.glowL);
+  S.glowR=el("ellipse",{cx:hr[0],cy:hr[1]-RAISE,rx:40,ry:30,fill:"url(#atk2)",opacity:0});F.appendChild(S.glowR);
+  function hoop(fx,fy,dir){ // fx,fy = 바닥(베이스라인) 기준점, dir:-1 왼쪽 +1 오른쪽
+    var cx=fx, cy=fy-RAISE;            // 림은 공중 높이
+    var px=fx+dir*13, pTop=cy-14;      // 폴은 골대 뒤쪽에서 위로
+    // 폴 받침
+    F.appendChild(el("ellipse",{cx:px.toFixed(1),cy:(fy+2).toFixed(1),rx:7,ry:2.6,fill:"rgba(0,0,0,.35)"}));
+    // 지지대(폴) — 바닥에서 백보드 높이까지 곧게
+    F.appendChild(el("line",{x1:px.toFixed(1),y1:(fy+1).toFixed(1),x2:px.toFixed(1),y2:pTop.toFixed(1),stroke:"#9aa4b2","stroke-width":3.2}));
+    F.appendChild(el("line",{x1:(px-1).toFixed(1),y1:(fy+1).toFixed(1),x2:(px-1).toFixed(1),y2:pTop.toFixed(1),stroke:"rgba(255,255,255,.35)","stroke-width":1}));
+    // 폴 → 백보드 연결 암
+    F.appendChild(el("line",{x1:px.toFixed(1),y1:(cy-6).toFixed(1),x2:(cx-dir*2).toFixed(1),y2:(cy-6).toFixed(1),stroke:"#9aa4b2","stroke-width":2.6}));
+    // 백보드 (공중)
+    F.appendChild(el("rect",{x:(cx-15).toFixed(1),y:(cy-22).toFixed(1),width:30,height:20,rx:2,fill:"rgba(238,242,247,.92)",stroke:"#8f99a7","stroke-width":1}));
+    F.appendChild(el("rect",{x:(cx-6).toFixed(1),y:(cy-12).toFixed(1),width:12,height:8,fill:"none",stroke:"#ff8c3a","stroke-width":1.2}));
+    // 림
+    var rim=el("ellipse",{cx:cx.toFixed(1),cy:cy.toFixed(1),rx:9,ry:3.8,fill:"none",stroke:"#ff8c3a","stroke-width":3});F.appendChild(rim);
+    // 그물 (림 아래로 늘어짐 — 바닥엔 안닿음)
+    for(var i=-2;i<=2;i++){F.appendChild(el("line",{x1:(cx+i*3.6).toFixed(1),y1:(cy+2).toFixed(1),x2:(cx+i*1.9).toFixed(1),y2:(cy+15).toFixed(1),stroke:"rgba(255,255,255,.65)","stroke-width":.9}));}
+    F.appendChild(el("line",{x1:(cx-7.5).toFixed(1),y1:(cy+4).toFixed(1),x2:(cx+7.5).toFixed(1),y2:(cy+4).toFixed(1),stroke:"rgba(255,255,255,.5)","stroke-width":.7}));
+    F.appendChild(el("line",{x1:(cx-6).toFixed(1),y1:(cy+8).toFixed(1),x2:(cx+6).toFixed(1),y2:(cy+8).toFixed(1),stroke:"rgba(255,255,255,.45)","stroke-width":.7}));
+    F.appendChild(el("line",{x1:(cx-4).toFixed(1),y1:(cy+12).toFixed(1),x2:(cx+4).toFixed(1),y2:(cy+12).toFixed(1),stroke:"rgba(255,255,255,.4)","stroke-width":.7}));
+    return rim;
+  }
+  S.hoopL=hoop(hl[0],hl[1],-1);
+  S.hoopR=hoop(hr[0],hr[1],1);
+  S.ball=el("circle",{r:6,fill:"#e8862e",stroke:"#7a3d10","stroke-width":1.2,opacity:0});F.appendChild(S.ball);
+  S.P=P;
+}
+// VOLLEYBALL — court + net
+function drawVolley(){
+  clearField();
+  F.appendChild(el("rect",{width:400,height:300,fill:"#0a1420"}));crowdBar();
+  var defs=el("defs",{});defs.innerHTML='<linearGradient id="vfl" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#c98a3a"/><stop offset="1" stop-color="#a86a24"/></linearGradient>';F.appendChild(defs);
+  var TL=[80,60],TR=[320,60],NR=[386,290],NL=[14,290];
+  function P(u,v){var tx=TL[0]+(TR[0]-TL[0])*u,bx=NL[0]+(NR[0]-NL[0])*u;return[tx+(bx-tx)*v,TL[1]+(NL[1]-TL[1])*v];}
+  function ps(a){return a.map(function(p){return p[0].toFixed(1)+","+p[1].toFixed(1)}).join(" ")}
+  F.appendChild(el("polygon",{points:ps([P(0,0),P(1,0),P(1,1),P(0,1)]),fill:"url(#vfl)"}));
+  F.appendChild(el("polygon",{points:ps([P(0,0),P(1,0),P(1,1),P(0,1)]),fill:"none",stroke:"rgba(255,255,255,.85)","stroke-width":1.8}));
+  // attack lines
+  F.appendChild(el("line",{x1:P(.33,0)[0].toFixed(1),y1:P(.33,0)[1].toFixed(1),x2:P(.33,1)[0].toFixed(1),y2:P(.33,1)[1].toFixed(1),stroke:"rgba(255,255,255,.6)","stroke-width":1}));
+  F.appendChild(el("line",{x1:P(.67,0)[0].toFixed(1),y1:P(.67,0)[1].toFixed(1),x2:P(.67,1)[0].toFixed(1),y2:P(.67,1)[1].toFixed(1),stroke:"rgba(255,255,255,.6)","stroke-width":1}));
+  // net (center, vertical mesh)
+  var na=P(.5,-0.06),nb=P(.5,1.06);var netX=200;
+  F.appendChild(el("line",{x1:na[0],y1:na[1]-4,x2:nb[0],y2:nb[1],stroke:"#eee","stroke-width":2}));
+  var ntop=el("g",{});for(var k=0;k<=10;k++){var yy=na[1]-4+(nb[1]-(na[1]-4))*k/10;ntop.appendChild(el("line",{x1:na[0]-14,y1:yy,x2:na[0]+14,y2:yy,stroke:"rgba(255,255,255,.4)","stroke-width":.7}))}
+  for(var k2=0;k2<7;k2++){var xx=na[0]-14+28*k2/6;ntop.appendChild(el("line",{x1:xx,y1:na[1]-4,x2:xx,y2:nb[1],stroke:"rgba(255,255,255,.4)","stroke-width":.7}))}
+  F.appendChild(ntop);
+  var d2=el("defs",{});d2.innerHTML='<linearGradient id="atkVR" x1="1" y1="0" x2="0" y2="0"><stop offset="0" stop-color="rgba(74,157,255,.62)"/><stop offset="100%" stop-color="rgba(74,157,255,0)"/></linearGradient><linearGradient id="atkVL" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="rgba(74,157,255,.62)"/><stop offset="100%" stop-color="rgba(74,157,255,0)"/></linearGradient>';F.appendChild(d2);
+  S.glowR=el("polygon",{points:ps([P(.5,0),P(1,0),P(1,1),P(.5,1)]),fill:"url(#atkVR)",opacity:0});F.appendChild(S.glowR);
+  S.glowL=el("polygon",{points:ps([P(0,0),P(.5,0),P(.5,1),P(0,1)]),fill:"url(#atkVL)",opacity:0});F.appendChild(S.glowL);
+  S.ball=el("circle",{r:6,fill:"#f5d353",stroke:"#8a6a10","stroke-width":1.2,opacity:0});F.appendChild(S.ball);
+  S.P=P;
+}
+// BASEBALL — diamond
+function drawBaseball(){
+  clearField();
+  F.appendChild(el("rect",{width:400,height:300,fill:"#0a1420"}));crowdBar();
+  var defs=el("defs",{});defs.innerHTML='<radialGradient id="grassb" cx="50%" cy="90%" r="90%"><stop offset="0" stop-color="#2a9a4e"/><stop offset="100%" stop-color="#12622f"/></radialGradient>';F.appendChild(defs);
+  // outfield fan
+  F.appendChild(el("path",{d:"M200 288 L40 90 A 220 220 0 0 1 360 90 Z",fill:"url(#grassb)"}));
+  // infield dirt diamond
+  var home=[200,262],first=[288,196],second=[200,132],third=[112,196];
+  function pj(a){return a.map(function(p){return p[0]+","+p[1]}).join(" ")}
+  F.appendChild(el("polygon",{points:pj([home,first,second,third]),fill:"#b5763b",stroke:"#e8c39a","stroke-width":1.5}));
+  // bases
+  [home,first,second,third].forEach(function(b,i){F.appendChild(el("rect",{x:b[0]-4,y:b[1]-4,width:8,height:8,fill:"#fff",transform:"rotate(45 "+b[0]+" "+b[1]+")"}))});
+  // pitcher mound
+  F.appendChild(el("circle",{cx:200,cy:196,r:7,fill:"#c98a52"}));
+  // outfield wall arc
+  F.appendChild(el("path",{d:"M40 90 A 220 220 0 0 1 360 90",fill:"none",stroke:"#16324a","stroke-width":6}));
+  var d2=el("defs",{});d2.innerHTML='<radialGradient id="atk4"><stop offset="0" stop-color="rgba(90,180,255,.55)"/><stop offset="70%" stop-color="rgba(90,180,255,0)"/></radialGradient>';F.appendChild(d2);
+  S.glowR=el("ellipse",{cx:200,cy:150,rx:120,ry:80,fill:"url(#atk4)",opacity:0});F.appendChild(S.glowR);
+  S.glowL=S.glowR;
+  S.diamond={home:home,first:first,second:second,third:third};
+  S.ball=el("circle",{r:5,fill:"#fff",stroke:"#c33","stroke-width":1,opacity:0});F.appendChild(S.ball);
+}
+
+// ================= EVENT ENGINE =================
+function tween(elm,x,y,ms){return new Promise(function(res){var x0=+elm.getAttribute("cx"),y0=+elm.getAttribute("cy"),t0=performance.now();function s(t){var k=Math.min(1,(t-t0)/ms),e=1-Math.pow(1-k,3);elm.setAttribute("cx",x0+(x-x0)*e);elm.setAttribute("cy",y0+(y-y0)*e);if(k<1)requestAnimationFrame(s);else res()}requestAnimationFrame(s)});}
+function lightGlow(g,op,hold){if(!g)return;g.style.transition="opacity .3s";g.setAttribute("opacity",op);clearTimeout(g._t);g._t=setTimeout(function(){g.setAttribute("opacity","0")},hold);}
+function wait(ms){return new Promise(function(r){setTimeout(r,ms)});}
+function setScore(hplus,aplus){if(hplus)S.hs+=hplus;if(aplus)S.as+=aplus;$("hs").textContent=S.hs;$("as").textContent=S.as;scorePop();}
+function statInc(k,side){S.stat[k][side]++;renderStats();}
+var busy=false,Q=[];
+function enqueue(e,team){Q.push([e,team]);drain();}
+async function drain(){if(busy||!Q.length)return;busy=true;var it=Q.shift();try{await run(it[0],it[1])}catch(err){}busy=false;drain();}
+
+async function run(e,team){
+  var R=(team!=="away"); var who=R?$("hn").textContent:$("an").textContent;
+  var glow=R?S.glowR:S.glowL, pb=S.ball, P=S.P;
+  function showBall(x,y){pb.setAttribute("opacity","1");pb.setAttribute("cx",x);pb.setAttribute("cy",y);}
+  function hideBall(){pb.setAttribute("opacity","0");}
+  if(sport==="soccer"){
+    var goalU=R?.92:.08, midU=R?.7:.3, ctr=P(.5,.5);
+    if(e==="kickoff"){lightGlow(glow,"0",0);ban(T("kickoff"),M().h+" vs "+M().a);flash("rgba(61,125,255,.4)");}
+    else if(e==="shot"){showBall(ctr[0],ctr[1]);lightGlow(glow,"0.7",900);var g=P(goalU,.5);await tween(pb,g[0],g[1],460);ban(T("shot"),who);statInc("sh",R?0:1);setPulse(S.pulse+6,"<b>"+who+"</b> · "+T("shot"));await tween(pb,ctr[0],ctr[1],400);hideBall();}
+    else if(e==="ontarget"){showBall(ctr[0],ctr[1]);lightGlow(glow,"0.85",1000);var g2=P(goalU,.5);await tween(pb,g2[0],g2[1],440);flash("rgba(255,255,255,.4)");ban(T("ontarget"),who);statInc("sh",R?0:1);statInc("ot",R?0:1);setPulse(S.pulse+9);await tween(pb,ctr[0],ctr[1],420);hideBall();}
+    else if(e==="corner"){showBall(ctr[0],ctr[1]);lightGlow(glow,"0.6",900);var c=P(R?1:0,Math.random()<.5?.02:.98);await tween(pb,c[0],c[1],440);ban(T("corner"),who);statInc("co",R?0:1);setPulse(S.pulse+4);await tween(pb,ctr[0],ctr[1],420);hideBall();}
+    else if(e==="goal"){showBall(ctr[0],ctr[1]);lightGlow(glow,"0.95",1400);var gg=P(goalU,.5);await tween(pb,gg[0],gg[1],420);flash("rgba(61,125,255,.55)");setScore(R?1:0,R?0:1);statInc("sh",R?0:1);statInc("ot",R?0:1);hideBall();ban(T("goal"),who+"  "+S.hs+" : "+S.as,true);setPulse(94,"⚽ <b>"+who+"</b> · "+T("goal")+" "+S.hs+" : "+S.as);}
+    else if(e==="yellow"){flash("rgba(245,196,81,.4)");ban(T("yellow"),who);setPulse(S.pulse+2);}
+    else if(e==="red"){flash("rgba(226,35,26,.45)");ban(T("red"),who);setPulse(S.pulse+6);}
+    else if(e==="half"){$("field").style.filter="saturate(.45)";ban(T("half"),M().h+" "+S.hs+" : "+S.as+" "+M().a);setTimeout(function(){$("field").style.filter=""},2000);}
+    else if(e==="full"){$("field").style.filter="saturate(.4) brightness(.9)";ban(T("full"),M().h+" "+S.hs+" : "+S.as+" "+M().a);}
+  } else if(sport==="basket"){
+    var hoop=R?S.hoopR:S.hoopL, ctr=P(.5,.5); var hx=+hoop.getAttribute("cx"),hy=+hoop.getAttribute("cy");
+    if(e==="tipoff"){ban(T("tipoff"),M().h+" vs "+M().a);flash("rgba(255,150,60,.4)");}
+    else if(e==="two"||e==="three"||e==="dunk"){showBall(ctr[0],ctr[1]);lightGlow(glow,"0.85",1000);await tween(pb,hx,hy,e==="dunk"?360:520);flash(e==="three"?"rgba(255,180,60,.5)":"rgba(255,150,60,.45)");var pts=e==="three"?3:2;setScore(R?pts:0,R?0:pts);statInc("fg",R?0:1);if(e==="three")statInc("tp",R?0:1);hideBall();ban(T(e),who+"  "+S.hs+" : "+S.as,e!=="two");setPulse(e==="dunk"?95:(S.pulse+10),"🏀 <b>"+who+"</b> · "+T(e)+" "+S.hs+" : "+S.as);}
+    else if(e==="freethrow"){showBall(hx-40,hy);lightGlow(glow,"0.6",800);await tween(pb,hx,hy,500);setScore(R?1:0,R?0:1);hideBall();ban(T("freethrow"),who+"  "+S.hs+" : "+S.as);setPulse(S.pulse+3);}
+    else if(e==="foul"){flash("rgba(245,196,81,.35)");ban(T("foul"),who);statInc("fl",R?0:1);setPulse(S.pulse+2);}
+    else if(e==="timeout"){ban(T("timeout"),who);setPulse(Math.max(10,S.pulse-8));}
+  } else if(sport==="volley"){
+    var ctr=P(.5,.5), tgt=P(R?.85:.15,.5);
+    if(e==="point"||e==="ace"||e==="spike"){showBall(ctr[0],ctr[1]);lightGlow(glow,"0.7",900);await tween(pb,tgt[0],tgt[1],460);flash("rgba(90,180,255,.45)");setScore(R?1:0,R?0:1);if(e==="ace")statInc("ac",R?0:1);if(e==="spike")statInc("at",R?0:1);hideBall();ban(T(e),who+"  "+S.hs+" : "+S.as,e==="ace");setPulse(S.pulse+ (e==="ace"?12:7),"🏐 <b>"+who+"</b> · "+T(e)+" "+S.hs+" : "+S.as);}
+    else if(e==="block"){showBall(P(.5,.5)[0],P(.5,.4)[1]);lightGlow(glow,"0.6",700);flash("rgba(90,180,255,.4)");setScore(R?1:0,R?0:1);statInc("bl",R?0:1);hideBall();ban(T("block"),who+"  "+S.hs+" : "+S.as);setPulse(S.pulse+8);}
+    else if(e==="setpoint"){ban(T("setpoint"),who);setPulse(90);}
+    else if(e==="setover"){$("field").style.filter="saturate(.5)";ban(T("setover"),M().h+" "+S.hs+" : "+S.as+" "+M().a);setTimeout(function(){$("field").style.filter=""},1800);}
+  } else if(sport==="baseball"){
+    var dm=S.diamond, home=dm.home;
+    if(e==="playball"){ban(T("playball"),M().h+" vs "+M().a);flash("rgba(90,180,255,.35)");}
+    else if(e==="hit"){showBall(home[0],home[1]);lightGlow(S.glowR,"0.5",800);await tween(pb,dm.first[0],dm.first[1],520);flash("rgba(255,255,255,.35)");statInc("h",R?0:1);hideBall();ban(T("hit"),who);setPulse(S.pulse+7,"⚾ <b>"+who+"</b> · "+T("hit"));}
+    else if(e==="homerun"){showBall(home[0],home[1]);lightGlow(S.glowR,"0.8",1400);// arc to outfield
+      var t0=performance.now();await new Promise(function(res){function s(t){var k=Math.min(1,(t-t0)/900);var x=home[0]+(200-home[0])*k;var y=home[1]-260*Math.sin(Math.PI*k*0.9)*1 - (home[1]-70)*k*0.0;var yy=home[1]+(70-home[1])*k - 120*Math.sin(Math.PI*k);pb.setAttribute("cx",x);pb.setAttribute("cy",yy);if(k<1)requestAnimationFrame(s);else res()}requestAnimationFrame(s)});
+      flash("rgba(245,196,81,.5)");setScore(R?1:0,R?0:1);statInc("h",R?0:1);statInc("r",R?0:1);hideBall();ban(T("homerun"),who+"  "+S.hs+" : "+S.as,true);setPulse(95,"⚾ <b>"+who+"</b> · "+T("homerun")+" "+S.hs+" : "+S.as);}
+    else if(e==="run"){showBall(dm.third[0],dm.third[1]);lightGlow(S.glowR,"0.5",700);await tween(pb,dm.home[0],dm.home[1],520);flash("rgba(90,180,255,.4)");setScore(R?1:0,R?0:1);statInc("r",R?0:1);hideBall();ban(T("run"),who+"  "+S.hs+" : "+S.as);setPulse(S.pulse+8);}
+    else if(e==="strikeout"){flash("rgba(226,35,26,.3)");ban(T("strikeout"),who);statInc("so",R?0:1);setPulse(S.pulse+4);}
+    else if(e==="out"){ban(T("out"),who);setPulse(Math.max(10,S.pulse-3));}
+  }
+}
+
+// ================= UI / RENDER =================
+function M(){return MATCHES[sport];}
+function renderStats(){
+  var box=$("stats");box.innerHTML="";
+  SPORTS[sport].stats.forEach(function(st){
+    var k=st[0],h=S.stat[k][0],a=S.stat[k][1],tot=h+a||1;
+    var suffix=(sport==="soccer"&&k==="pos")?"%":"";
+    var row=document.createElement("div");row.className="prow";
+    row.innerHTML='<div class="plab"><span class="vh">'+h+suffix+'</span><span class="k">'+T(st[1])+'</span><span class="va">'+a+suffix+'</span></div><div class="pbar"><i class="bh" style="width:'+(h/tot*100)+'%"></i><i class="ba" style="width:'+(a/tot*100)+'%"></i></div>';
+    box.appendChild(row);
+  });
+}
+function periodLabel(){
+  if(sport==="soccer")return T(S.half2?"per_soccer2":"per_soccer");
+  if(sport==="basket")return "3"+T("q");
+  if(sport==="volley")return T("set")+" 2";
+  if(sport==="baseball")return "5 "+T("inning");
+  return "";
+}
+function initState(){
+  // 들어온 시점의 "현재 스코어"로 라이브 상태를 세팅 (처음부터 재생 아님)
+  var sd=M().seed||{};
+  S.hs=sd.hs||0;S.as=sd.as||0;S.pulse=45;S.half2=false;S.stat={};
+  SPORTS[sport].stats.forEach(function(st){S.stat[st[0]]= (sd.stat&&sd.stat[st[0]]) ? sd.stat[st[0]].slice() : [0,0]});
+  if(sport==="soccer"){S.stat.pos=[52,48];}
+  $("hs").textContent=S.hs;$("as").textContent=S.as;
+}
+function loadSport(){
+  var m=M();
+  $("hn").textContent=m.h;$("an").textContent=m.a;$("hb").textContent=m.hb;$("ab").textContent=m.ab;$("league").textContent=m.lg;
+  initState();
+  ({soccer:drawSoccer,basket:drawBasket,volley:drawVolley,baseball:drawBaseball})[sport]();
+  renderStats();
+  $("clk").textContent = sport==="baseball" ? "5"+T("inning") : (sport==="volley" ? T("set")+" 2" : (sport==="basket"?"03:20":"46'"));
+  $("per").textContent=periodLabel();
+  // 들어온 시점 = 라이브 상태. 현재 스코어를 그대로 보여주며 대기 (처음부터 재생 아님)
+  setPulse(45,"🔴 LIVE · "+m.h+" "+S.hs+" : "+S.as+" "+m.a);
+  buildCtrls();
+  armGate();
+}
+function buildCtrls(){ /* 실데이터 연동 버전: 수동 컨트롤 없음 */ }
+function buildSportTabs(){
+  var t=$("sportTabs");t.innerHTML="";
+  Object.keys(SPORTS).forEach(function(sp){var b=document.createElement("button");b.textContent=SPORTS[sp].icon+" "+({soccer:"축구",basket:"농구",volley:"배구",baseball:"야구"})[sp];b.className=(sp===sport?"on":"");b.onclick=function(){sport=sp;buildSportTabs();loadSport();};t.appendChild(b);});
+}
+// 라이브 데모: 현재 스코어에서 "새로 들어오는 이벤트"만 이어서 재생 (리셋 없음)
+function autoPlay(){
+  var seqs={
+    soccer:["shot","corner","goal","ontarget","yellow","goal"],
+    basket:["two","three","foul","dunk","two","three"],
+    volley:["point","ace","spike","block","point","spike"],
+    baseball:["hit","run","strikeout","homerun","hit","out"]
+  };
+  var seq=seqs[sport],i=0;
+  (function next(){ if(i>=seq.length)return; enqueue(seq[i], i%3===2?"away":"home"); i++; setTimeout(next, 2600); })();
+}
+
+// language + match selectors
+function buildLangSel(){var s=$("langSel");s.innerHTML="";LANGS.forEach(function(l){var o=document.createElement("option");o.value=l;o.textContent=LANGNAME[l];if(l===LANG)o.selected=true;s.appendChild(o);});s.onchange=function(){LANG=s.value;applyStatic();loadSport();};}
+function applyStatic(){$("pulseLab").textContent=T("pulse");$("storyLab").textContent=T("story");$("story").textContent="";$("foot").textContent=T("note")+" · LIVE UP";
+  $("gateTitle").textContent=T("gateTitle");$("gateSub").textContent=T("gateSub");$("gateBtn").textContent=T("gateBtn");}
+// ===== 로그인 게이트: 10초 시청 후 흐림 + 로그인 안내 =====
+function isLogged(){try{return !!(localStorage.getItem("liveup_token")||localStorage.getItem("liveup_user"))}catch(e){return false}}
+var gateTimer=null;
+function armGate(){
+  clearTimeout(gateTimer);
+  var card=document.querySelector(".card");
+  card.classList.remove("locked");$("gate").classList.remove("on");
+  if(isLogged())return; // 로그인 상태면 게이트 없음
+  gateTimer=setTimeout(function(){
+    card.classList.add("locked");$("gate").classList.add("on");
+    Q.length=0; // 대기중 이벤트 중지
+  },10000);
+}
+$("gateBtn").onclick=function(){
+  // 실제 앱: 로그인 모달 열기. 데모: 로그인한 것처럼 계속 보기
+  try{ if(window.parent&&window.parent!==window&&window.parent.openLogin){window.parent.openLogin();return;} }catch(e){}
+  var card=document.querySelector(".card");
+  card.classList.remove("locked");$("gate").classList.remove("on");
+  armGate();
+};
+
+// ===================== 실데이터 연동 컨트롤러 (농구/배구/야구) =====================
+function qp(k){try{return new URLSearchParams(location.search).get(k);}catch(e){return null;}}
+var SPMAP={basketball:{key:"basket",api:"basketball"},volleyball:{key:"volley",api:"volleyball"},baseball:{key:"baseball",api:"baseball"},basket:{key:"basket",api:"basketball"},volley:{key:"volley",api:"volleyball"}};
+var _p_sport=qp("sport")||"basketball", _m=SPMAP[_p_sport]||SPMAP.basketball;
+sport=_m.key;
+var EV=qp("ev"); var API_SPORT=_m.api;
+var _plang=qp("lang"); if(_plang&&LANGS.indexOf(_plang)>=0)LANG=_plang; else{try{var ll=localStorage.getItem("liveup_lang");if(ll&&LANGS.indexOf(ll)>=0)LANG=ll;}catch(e){}}
+function initials(n){if(!n)return"?";n=String(n).trim();var p=n.split(/\s+/);if(p.length>=2)return (p[0][0]+p[1][0]).toUpperCase();return n.slice(0,3).toUpperCase();}
+var _last={hs:null,as:null,done:false};
+async function getGame(){try{var r=await fetch("/api/asports/games?sport="+API_SPORT+"&_="+Date.now());var j=await r.json();return (j.games||[]).find(function(x){return String(x.id)===String(EV);});}catch(e){return null;}}
+function liveClock(g){
+  if(sport==="baseball"){var inn=g.curInning||g.period||"-";return inn+T("inning");}
+  if(sport==="volley"){var sc=(g.setScores&&g.setScores.length)||1;return T("set")+" "+sc;}
+  if(sport==="basket"){var pr=g.period||1;return (g.timer?g.timer:pr+T("q"));}
+  return "-";
+}
+function scoreEvents(sp,dHome,dAway){ // 점수 증가분 → 연출 이벤트 매핑
+  var side=dHome>0?"home":"away", d=dHome>0?dHome:dAway;
+  if(sp==="basket"){ return [ (d>=3?"three":(d===2?"two":"freethrow")), side ]; }
+  if(sp==="volley"){ return ["point", side]; }
+  if(sp==="baseball"){ return [ (d>=3?"homerun":"run"), side ]; }
+  return ["point",side];
+}
+async function tick(){
+  var g=await getGame(); if(!g)return;
+  // 헤더/현재 상태 갱신
+  MATCHES[sport].h=g.home||MATCHES[sport].h; MATCHES[sport].a=g.away||MATCHES[sport].a;
+  MATCHES[sport].hb=initials(g.home); MATCHES[sport].ab=initials(g.away); MATCHES[sport].lg=g.league||MATCHES[sport].lg;
+  $("hn").textContent=MATCHES[sport].h; $("an").textContent=MATCHES[sport].a;
+  $("hb").textContent=MATCHES[sport].hb; $("ab").textContent=MATCHES[sport].ab; $("league").textContent=MATCHES[sport].lg;
+  $("clk").textContent=liveClock(g);
+  var hs=g.hs||0, as=g.as||0;
+  if(_last.hs===null){ // 진입 시점 = 현재 스코어로 라이브 시작 (처음부터 재생 아님)
+    MATCHES[sport].seed={hs:hs,as:as};
+    loadSport(); // 현재 스코어로 그려짐
+    _last.hs=hs;_last.as=as;
+    $("clk").textContent=liveClock(g);
+  } else {
+    if(hs>_last.hs){var e1=scoreEvents(sport,hs-_last.hs,0);_last.hs=hs;enqueue(e1[0],e1[1]);}
+    else if(as>_last.as){var e2=scoreEvents(sport,0,as-_last.as);_last.as=as;enqueue(e2[0],e2[1]);}
+    else{ if(hs!==S.hs){S.hs=hs;$("hs").textContent=hs;} if(as!==S.as){S.as=as;$("as").textContent=as;} }
+  }
+  var st=String(g.status||g.state||"").toUpperCase();
+  if(/(FT|END|FINISH|AOT|AET)/.test(st)&&!_last.done){_last.done=true;setPulse(20,"⏹ "+MATCHES[sport].h+" "+S.hs+" : "+S.as+" "+MATCHES[sport].a);}
+}
+applyStatic();
+loadSport(); // 즉시 경기장 그리기 (데이터 도착 전 빈화면 방지)
+if(EV){ _last.hs=null;_last.as=null; tick(); setInterval(tick,15000); }
+})();
+</script>
+</body>
+</html>

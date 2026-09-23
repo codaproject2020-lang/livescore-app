@@ -208,3 +208,21 @@ console.log("LIVE UP build: apisports-v2");const $=(e,a=document)=>a.querySelect
   setInterval(bind,2000);
   document.addEventListener('change',function(e){var t=e.target;if(t&&(t.id==='langSel'||t.id==='langSelM'))setTimeout(setTxt,300);});
 })();
+
+;(function(){try{
+  var SIMLBL={en:"Watch Live",ko:"경기장 재생",ja:"試合ビュー",zh:"球场直播",es:"Ver en vivo",hi:"लाइव देखें",vi:"Xem sân",th:"ดูสนาม",ru:"Смотреть",de:"Live ansehen",fr:"Voir le match",it:"Guarda"};
+  var SUP={football:1,basketball:1,volleyball:1,baseball:1};
+  function lang(){try{return localStorage.getItem('liveup_lang')||'en';}catch(e){return 'en';}}
+  function simLabel(){return SIMLBL[lang()]||SIMLBL.en;}
+  function isLogged(){try{return !!(localStorage.getItem('liveup_token')||localStorage.getItem('liveup_user'));}catch(e){return false;}}
+  function curSport(){var n=document.querySelector('#sportRow .sp.on')||document.querySelector('#sportNav a.on')||document.querySelector('#sportNavD a.on');return n?(n.getAttribute('data-sport')||'football'):'football';}
+  var css=document.createElement('style');css.textContent=".match{position:relative;padding-right:46px}.simentry{position:absolute;right:6px;top:50%;transform:translateY(-50%);display:flex;flex-direction:column;align-items:center;gap:2px;cursor:pointer;z-index:4}.simico{width:30px;height:26px;border-radius:7px;background:linear-gradient(180deg,#1f7a43,#155e33);display:grid;place-items:center;border:1px solid #2a5c3a;position:relative;overflow:hidden}.simico:before{content:'';position:absolute;left:50%;top:0;bottom:0;width:1px;background:rgba(255,255,255,.4)}.simtri{width:0;height:0;border-left:8px solid #fff;border-top:5px solid transparent;border-bottom:5px solid transparent;margin-left:2px;z-index:1}.simtxt{font-size:8px;line-height:1;color:#8a94a3;white-space:nowrap;font-weight:700}#simModal{display:none;position:fixed;inset:0;background:rgba(0,0,0,.72);z-index:99998;align-items:center;justify-content:center}.simbox{position:relative;width:min(430px,95vw);height:min(88vh,780px);background:#0a0e15;border-radius:14px;overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,.6)}.simframe{width:100%;height:100%;border:0;background:#0a0e15}.simclose{position:absolute;top:8px;right:8px;z-index:2;width:32px;height:32px;border-radius:50%;border:0;background:rgba(0,0,0,.55);color:#fff;font-size:16px;cursor:pointer}";
+  document.head.appendChild(css);
+  function simURL(ev,sport){var lg=lang();var base=(sport==='football')?'/sim.html':'/sim-multi.html';return base+'?sport='+encodeURIComponent(sport)+'&ev='+encodeURIComponent(ev||'')+'&lang='+encodeURIComponent(lg);}
+  function openSim(ev,sport){var m=document.getElementById('simModal');if(!m){m=document.createElement('div');m.id='simModal';m.innerHTML='<div class="simbox"><button class="simclose">✕</button><iframe class="simframe" allow="autoplay"></iframe></div>';document.body.appendChild(m);m.querySelector('.simclose').onclick=function(){m.style.display='none';m.querySelector('.simframe').src='about:blank';};m.addEventListener('click',function(e){if(e.target===m){m.style.display='none';m.querySelector('.simframe').src='about:blank';}});}m.querySelector('.simframe').src=simURL(ev,sport);m.style.display='flex';}
+  window.openSim=openSim;
+  function addSimBtns(){var sp=curSport();document.querySelectorAll('#feed .match, .match').forEach(function(row){if(row.querySelector('.simentry'))return;var ev=row.getAttribute('data-ev');if(!ev)return;if(!SUP[sp])return;var b=document.createElement('span');b.className='simentry';b.setAttribute('data-sim',ev);b.setAttribute('data-sp',sp);b.innerHTML='<span class="simico"><span class="simtri"></span></span><span class="simtxt">'+simLabel()+'</span>';b.title='LIVE SIMULATION';b.addEventListener('click',function(e){e.stopPropagation();openSim(ev,b.getAttribute('data-sp'));});row.appendChild(b);});}
+  function refreshLbls(){var t=simLabel();document.querySelectorAll('.simentry .simtxt').forEach(function(x){x.textContent=t;});}
+  setInterval(addSimBtns,1200);setTimeout(addSimBtns,600);
+  var ll=lang();setInterval(function(){var l=lang();if(l!==ll){ll=l;refreshLbls();}},1000);
+}catch(err){console&&console.warn&&console.warn('sim init',err);}})();
