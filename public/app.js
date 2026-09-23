@@ -223,8 +223,10 @@ console.log("LIVE UP build: apisports-v2");const $=(e,a=document)=>a.querySelect
   function dismissSim(){var m=document.getElementById('simModal');if(m&&m._open&&m._pushed){m._pushed=false;try{history.back();return;}catch(e){}}closeSim();}
   function openSim(ev,sport){var m=document.getElementById('simModal');if(!m){m=document.createElement('div');m.id='simModal';m.innerHTML='<div class="simbox"><button class="simclose">✕</button></div>';document.body.appendChild(m);m.querySelector('.simclose').onclick=dismissSim;m.addEventListener('click',function(e){if(e.target===m)dismissSim();});}
     var bx=m.querySelector('.simbox');var old=bx.querySelector('.simframe');if(old)bx.removeChild(old);
-    var fr=document.createElement('iframe');fr.className='simframe';fr.setAttribute('allow','autoplay');fr.src=simURL(ev,sport);bx.appendChild(fr); // 새 iframe 생성(초기 로드는 히스토리 남기지 않음)→ 뒤로가기 한번에 닫힘
+    var fr=document.createElement('iframe');fr.className='simframe';fr.setAttribute('allow','autoplay');fr.setAttribute('scrolling','yes');fr.setAttribute('frameborder','0');fr.style.cssText='width:100%;height:100%;border:0;display:block;background:#0a0e15';
+    bx.appendChild(fr); // iOS Safari: DOM에 넣은 뒤 src 지정해야 로드됨(검은화면 방지)
     m.style.display='flex';m._open=true;
+    var _u=simURL(ev,sport); setTimeout(function(){try{fr.src=_u;}catch(e){fr.setAttribute('src',_u);}},0);
     try{history.pushState({sim:1},'');m._pushed=true;}catch(e){m._pushed=false;}}
   window.openSim=openSim;
   // 📱 폰 뒤로가기 = 시뮬 창만 닫힘 (앱은 안 나감)
