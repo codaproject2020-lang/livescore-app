@@ -583,16 +583,31 @@
     lCo:{ko:"코너킥",en:"Corners",ja:"コーナー",zh:"角球",es:"Córners",vi:"Phạt góc",th:"เตะมุม",ru:"Угловые",de:"Ecken",fr:"Corners",it:"Angoli",hi:"कॉर्नर"},
     lPs:{ko:"점유율",en:"Possession",ja:"支配率",zh:"控球率",es:"Posesión",vi:"Kiểm soát",th:"ครองบอล",ru:"Владение",de:"Ballbesitz",fr:"Possession",it:"Possesso",hi:"कब्ज़ा"},
     lPulse:{ko:"경기 열기",en:"MATCH PULSE",ja:"マッチパルス",zh:"比赛强度",es:"Pulso del partido",vi:"Nhịp trận",th:"จังหวะเกม",ru:"Пульс матча",de:"Match-Puls",fr:"Pouls du match",it:"Ritmo partita",hi:"मैच पल्स"},
-    lStory:{ko:"AI 라이브 스토리",en:"AI LIVE STORY",ja:"AIライブ解説",zh:"AI直播解说",es:"Historia en vivo IA",vi:"Câu chuyện AI",th:"AI สดเรื่องราว",ru:"AI-история",de:"KI Live-Story",fr:"Récit IA en direct",it:"Storia AI dal vivo",hi:"AI लाइव स्टोरी"}
+    lStory:{ko:"AI 라이브 스토리",en:"AI LIVE STORY",ja:"AIライブ解説",zh:"AI直播解说",es:"Historia en vivo IA",vi:"Câu chuyện AI",th:"AI สดเรื่องราว",ru:"AI-история",de:"KI Live-Story",fr:"Récit IA en direct",it:"Storia AI dal vivo",hi:"AI लाइव स्टोरी"},
+    lNote:{ko:"실시간 경기 데이터를 기반으로 한 시각화입니다",en:"Visualized from live match data",ja:"ライブ試合データに基づく可視化",zh:"基于实时比赛数据的可视化",es:"Visualización de datos en vivo",vi:"Trực quan từ dữ liệu trận đấu",th:"จากข้อมูลสด",ru:"На основе данных матча",de:"Aus Live-Spieldaten",fr:"À partir des données en direct",it:"Dai dati della partita",hi:"लाइव मैच डेटा से"}
   };
   function CAP(k){return t(STR[k]);}
-  function applyStaticLabels(){var s=$("lab_sh");if(s)s.textContent=CAP('lSh');var o=$("lab_ot");if(o)o.textContent=CAP('lOt');var c=$("lab_co");if(c)c.textContent=CAP('lCo');var p=$("lab_ps");if(p)p.textContent=CAP('lPs');var pl=$("pulseLab");if(pl)pl.textContent=CAP('lPulse');var st=$("storyLab");if(st)st.textContent=CAP('lStory');}
+  function applyStaticLabels(){var s=$("lab_sh");if(s)s.textContent=CAP('lSh');var o=$("lab_ot");if(o)o.textContent=CAP('lOt');var c=$("lab_co");if(c)c.textContent=CAP('lCo');var p=$("lab_ps");if(p)p.textContent=CAP('lPs');var pl=$("pulseLab");if(pl)pl.textContent=CAP('lPulse');var st=$("storyLab");if(st)st.textContent=CAP('lStory');var ft=$("foot");if(ft)ft.textContent=CAP('lNote')+" · LIVE UP";}
   function t(o){return o[LG0]||o.en||o.ko;}
   function initials(n){if(!n)return"?";n=String(n).trim();var p=n.split(/\s+/);if(p.length>=2)return (p[0][0]+p[1][0]).toUpperCase();return n.slice(0,3).toUpperCase();}
   function perLabel(g){var s=String(g.status||'').toUpperCase();if(s==='HT')return'HT';if(/(FT|AET|PEN|END)/.test(s))return t(STR.fin);var e=g.elapsed;if(e==null)return'-';return e>45?t(STR.h2):t(STR.h1);}
   var last={hs:null,as:null,evKeys:{},done:false};
   async function getGame(){try{var r=await fetch(GAMES_API+'&_='+Date.now());var j=await r.json();return (j.games||[]).find(function(x){return String(x.id)===String(EV);});}catch(e){return null;}}
   async function getEvents(){if(!EV)return[];try{var r=await fetch(EVENTS_API+'&_='+Date.now());var j=await r.json();return j.events||[];}catch(e){return[];}}
+  var STATS_API='/api/asports/fbstats?fixture='+encodeURIComponent(EV||'');
+  function num(v){if(v==null)return 0;var m=String(v).replace('%','').trim();var n=parseInt(m,10);return isNaN(n)?0:n;}
+  async function updateStats(g){ // 실제 누적 스탯 반영 (슈팅/유효슛/코너/점유율)
+    try{
+      var r=await fetch(STATS_API+'&_='+Date.now());var j=await r.json();var tm=j.teams||[];if(tm.length<2)return;
+      var H=tm.find(function(x){return x.team===g.home;})||tm[0], A=tm.find(function(x){return x.team===g.away;})||tm[1];
+      function pick(t,name){var s=(t.stats||[]).find(function(x){return x.type===name;});return s?num(s.value):0;}
+      S.sh_h=pick(H,'Total Shots');S.sh_a=pick(A,'Total Shots');
+      S.ot_h=pick(H,'Shots on Goal');S.ot_a=pick(A,'Shots on Goal');
+      S.co_h=pick(H,'Corner Kicks');S.co_a=pick(A,'Corner Kicks');
+      var ph=pick(H,'Ball Possession');if(ph)S.ps_h=ph;
+      bars();
+    }catch(e){}
+  }
   function hydrate(g){
     if(g.home)$("hn").textContent=g.home; if(g.away)$("an").textContent=g.away;
     $("hb").textContent=initials(g.home); $("ab").textContent=initials(g.away);
@@ -603,6 +618,7 @@
   async function tick(){
     var g=await getGame(); if(!g)return;
     hydrate(g);
+    updateStats(g);
     var hs=g.hs||0, as=g.as||0;
     if(last.hs===null){ // 진입 시점 = 현재 스코어로 라이브 시작 (처음부터 재생 아님)
       S.hs=hs;S.as=as;$("hs").textContent=hs;$("as").textContent=as;last.hs=hs;last.as=as;

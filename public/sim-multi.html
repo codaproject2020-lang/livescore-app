@@ -480,6 +480,24 @@ function liveClock(g){
   if(sport==="basket"){var pr=g.period||1;return (g.timer?g.timer:pr+T("q"));}
   return "-";
 }
+function statRow(label,h,a){var tot=(Number(h)||0)+(Number(a)||0)||1;var row=document.createElement("div");row.className="prow";row.innerHTML='<div class="plab"><span class="vh">'+h+'</span><span class="k">'+label+'</span><span class="va">'+a+'</span></div><div class="pbar"><i class="bh" style="width:'+((Number(h)||0)/tot*100)+'%"></i><i class="ba" style="width:'+((Number(a)||0)/tot*100)+'%"></i></div>';return row;}
+function renderReal(g){ // API 실제 누적 스탯 표시
+  var box=$("stats");if(!box)return;
+  if(sport==="baseball"){
+    var b=g.box; if(!b)return; box.innerHTML="";
+    box.appendChild(statRow(T("st_h"), (b.home&&b.home.h!=null?b.home.h:0),(b.away&&b.away.h!=null?b.away.h:0)));
+    box.appendChild(statRow(T("st_r"), (b.home&&b.home.r!=null?b.home.r:g.hs),(b.away&&b.away.r!=null?b.away.r:g.as)));
+    box.appendChild(statRow(T("st_e"), (b.home&&b.home.e!=null?b.home.e:0),(b.away&&b.away.e!=null?b.away.e:0)));
+    if(b.home&&b.home.bb!=null) box.appendChild(statRow("BB", b.home.bb,(b.away&&b.away.bb!=null?b.away.bb:0)));
+    return;
+  }
+  if((sport==="basket"||sport==="volley")&&g.setScores&&g.setScores.length){
+    box.innerHTML="";
+    var lab=(sport==="basket")?T("q"):T("set");
+    g.setScores.forEach(function(p,i){box.appendChild(statRow(lab+" "+(i+1),(p.home!=null?p.home:0),(p.away!=null?p.away:0)));});
+    return;
+  }
+}
 function scoreEvents(sp,dHome,dAway){ // 점수 증가분 → 연출 이벤트 매핑
   var side=dHome>0?"home":"away", d=dHome>0?dHome:dAway;
   if(sp==="basket"){ return [ (d>=3?"three":(d===2?"two":"freethrow")), side ]; }
@@ -501,10 +519,12 @@ async function tick(){
     loadSport(); // 현재 스코어로 그려짐
     _last.hs=hs;_last.as=as;
     $("clk").textContent=liveClock(g);
+    renderReal(g); // 실제 누적 스탯
   } else {
     if(hs>_last.hs){var e1=scoreEvents(sport,hs-_last.hs,0);_last.hs=hs;enqueue(e1[0],e1[1]);}
     else if(as>_last.as){var e2=scoreEvents(sport,0,as-_last.as);_last.as=as;enqueue(e2[0],e2[1]);}
     else{ if(hs!==S.hs){S.hs=hs;$("hs").textContent=hs;} if(as!==S.as){S.as=as;$("as").textContent=as;} }
+    renderReal(g); // 실제 누적 스탯 갱신
   }
   var st=String(g.status||g.state||"").toUpperCase();
   if(/(FT|END|FINISH|AOT|AET)/.test(st)&&!_last.done){_last.done=true;setPulse(20,"⏹ "+MATCHES[sport].h+" "+S.hs+" : "+S.as+" "+MATCHES[sport].a);}
