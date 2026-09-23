@@ -212,17 +212,19 @@ console.log("LIVE UP build: apisports-v2");const $=(e,a=document)=>a.querySelect
 ;(function(){try{
   var SIMLBL={en:"Watch Live",ko:"경기장 재생",ja:"試合ビュー",zh:"球场直播",es:"Ver en vivo",hi:"लाइव देखें",vi:"Xem sân",th:"ดูสนาม",ru:"Смотреть",de:"Live ansehen",fr:"Voir le match",it:"Guarda"};
   var SUP={football:1,basketball:1,volleyball:1,baseball:1};
-  function lang(){try{return localStorage.getItem('liveup_lang')||'en';}catch(e){return 'en';}}
+  function lang(){try{return localStorage.getItem('liveup_lang_user')||localStorage.getItem('liveup_lang')||'en';}catch(e){return 'en';}}
   function simLabel(){return SIMLBL[lang()]||SIMLBL.en;}
   function isLogged(){try{return !!(localStorage.getItem('liveup_token')||localStorage.getItem('liveup_user'));}catch(e){return false;}}
   function curSport(){var n=document.querySelector('#sportRow .sp.on')||document.querySelector('#sportNav a.on')||document.querySelector('#sportNavD a.on');return n?(n.getAttribute('data-sport')||'football'):'football';}
   var css=document.createElement('style');css.textContent=".match{position:relative;padding-right:46px}.simentry{position:absolute;right:6px;top:6px;display:flex;flex-direction:column;align-items:center;gap:2px;cursor:pointer;z-index:4}.simico{width:30px;height:26px;border-radius:7px;background:linear-gradient(180deg,#1f7a43,#155e33);display:grid;place-items:center;border:1px solid #2a5c3a;position:relative;overflow:hidden}.simico:before{content:'';position:absolute;left:50%;top:0;bottom:0;width:1px;background:rgba(255,255,255,.4)}.simtri{width:0;height:0;border-left:8px solid #fff;border-top:5px solid transparent;border-bottom:5px solid transparent;margin-left:2px;z-index:1}.simtxt{font-size:8px;line-height:1;color:#8a94a3;white-space:nowrap;font-weight:700}#simModal{display:none;position:fixed;inset:0;background:rgba(0,0,0,.72);z-index:99998;align-items:center;justify-content:center}.simbox{position:relative;width:min(430px,95vw);height:min(88vh,780px);background:#0a0e15;border-radius:14px;overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,.6)}.simframe{width:100%;height:100%;border:0;background:#0a0e15}.simclose{position:absolute;top:8px;right:8px;z-index:2;width:32px;height:32px;border-radius:50%;border:0;background:rgba(0,0,0,.55);color:#fff;font-size:16px;cursor:pointer}";
   document.head.appendChild(css);
   function simURL(ev,sport){var lg=lang();var base=(sport==='football')?'/sim.html':'/sim-multi.html';return base+'?sport='+encodeURIComponent(sport)+'&ev='+encodeURIComponent(ev||'')+'&lang='+encodeURIComponent(lg);}
-  function closeSim(){var m=document.getElementById('simModal');if(!m||m.style.display==='none')return;m.style.display='none';m.querySelector('.simframe').src='about:blank';m._open=false;}
+  function closeSim(){var m=document.getElementById('simModal');if(!m||m.style.display==='none')return;m.style.display='none';var bx=m.querySelector('.simbox'),fr=m.querySelector('.simframe');if(fr&&bx)bx.removeChild(fr);m._open=false;}
   function dismissSim(){var m=document.getElementById('simModal');if(m&&m._open&&m._pushed){m._pushed=false;try{history.back();return;}catch(e){}}closeSim();}
-  function openSim(ev,sport){var m=document.getElementById('simModal');if(!m){m=document.createElement('div');m.id='simModal';m.innerHTML='<div class="simbox"><button class="simclose">✕</button><iframe class="simframe" allow="autoplay"></iframe></div>';document.body.appendChild(m);m.querySelector('.simclose').onclick=dismissSim;m.addEventListener('click',function(e){if(e.target===m)dismissSim();});}
-    m.querySelector('.simframe').src=simURL(ev,sport);m.style.display='flex';m._open=true;
+  function openSim(ev,sport){var m=document.getElementById('simModal');if(!m){m=document.createElement('div');m.id='simModal';m.innerHTML='<div class="simbox"><button class="simclose">✕</button></div>';document.body.appendChild(m);m.querySelector('.simclose').onclick=dismissSim;m.addEventListener('click',function(e){if(e.target===m)dismissSim();});}
+    var bx=m.querySelector('.simbox');var old=bx.querySelector('.simframe');if(old)bx.removeChild(old);
+    var fr=document.createElement('iframe');fr.className='simframe';fr.setAttribute('allow','autoplay');fr.src=simURL(ev,sport);bx.appendChild(fr); // 새 iframe 생성(초기 로드는 히스토리 남기지 않음)→ 뒤로가기 한번에 닫힘
+    m.style.display='flex';m._open=true;
     try{history.pushState({sim:1},'');m._pushed=true;}catch(e){m._pushed=false;}}
   window.openSim=openSim;
   // 📱 폰 뒤로가기 = 시뮬 창만 닫힘 (앱은 안 나감)

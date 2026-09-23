@@ -470,7 +470,7 @@ var SPMAP={basketball:{key:"basket",api:"basketball"},volleyball:{key:"volley",a
 var _p_sport=qp("sport")||"basketball", _m=SPMAP[_p_sport]||SPMAP.basketball;
 sport=_m.key;
 var EV=qp("ev"); var API_SPORT=_m.api;
-var _plang=qp("lang"); if(_plang&&LANGS.indexOf(_plang)>=0)LANG=_plang; else{try{var ll=localStorage.getItem("liveup_lang");if(ll&&LANGS.indexOf(ll)>=0)LANG=ll;}catch(e){}}
+var _plang=qp("lang"); if(_plang&&LANGS.indexOf(_plang)>=0)LANG=_plang; else{try{var ll=localStorage.getItem("liveup_lang_user")||localStorage.getItem("liveup_lang");if(ll&&LANGS.indexOf(ll)>=0)LANG=ll;}catch(e){}}
 function initials(n){if(!n)return"?";n=String(n).trim();var p=n.split(/\s+/);if(p.length>=2)return (p[0][0]+p[1][0]).toUpperCase();return n.slice(0,3).toUpperCase();}
 var _last={hs:null,as:null,done:false};
 async function getGame(){try{var r=await fetch("/api/asports/games?sport="+API_SPORT+"&_="+Date.now());var j=await r.json();return (j.games||[]).find(function(x){return String(x.id)===String(EV);});}catch(e){return null;}}

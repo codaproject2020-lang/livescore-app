@@ -555,7 +555,7 @@
 
   // ===================== 실데이터 연동 컨트롤러 (축구) =====================
   function qp(k){try{return new URLSearchParams(location.search).get(k);}catch(e){return null;}}
-  var EV=qp('ev'), LG0=qp('lang')||(function(){try{return localStorage.getItem('liveup_lang')||'ko';}catch(e){return 'ko';}})();
+  var EV=qp('ev'), LG0=qp('lang')||(function(){try{return localStorage.getItem('liveup_lang_user')||localStorage.getItem('liveup_lang')||'en';}catch(e){return 'en';}})();
   var GAMES_API='/api/asports/games?sport=football';
   var EVENTS_API='/api/asports/events?fixture='+encodeURIComponent(EV||'');
   var STR={
@@ -654,7 +654,7 @@
     sub:["Log in in 3 seconds with one click!","단 한번 클릭으로 3초만에 로그인해보세요!","ワンクリックで3秒でログイン！","一键3秒登录！","¡Inicia sesión en 3 segundos con un clic!","एक क्लिक में 3 सेकंड में लॉगिन करें!","Đăng nhập trong 3 giây chỉ với một cú nhấp!","ล็อกอินใน 3 วินาทีด้วยคลิกเดียว!","Вход за 3 секунды одним кликом!","In 3 Sekunden mit einem Klick anmelden!","Connectez-vous en 3 secondes en un clic !","Accedi in 3 secondi con un clic!"],
     btn:["Log in","로그인","ログイン","登录","Iniciar sesión","लॉग इन","Đăng nhập","เข้าสู่ระบบ","Войти","Anmelden","Se connecter","Accedi"]
   };
-  function glang(){try{var l=localStorage.getItem("liveup_lang")||"ko";var i=GL.indexOf(l);return i<0?1:i;}catch(e){return 1;}}
+  function glang(){var i=GL.indexOf(LG0);return i<0?0:i;}
   (function(){var i=glang();$("gateTitle").textContent=GT.title[i];$("gateSub").textContent=GT.sub[i];$("gateBtn").textContent=GT.btn[i];})();
   function isLogged(){try{return !!(localStorage.getItem("liveup_token")||localStorage.getItem("liveup_user"))}catch(e){return false}}
   var gateTimer=null, card=document.querySelector(".card");
