@@ -308,17 +308,17 @@
     </div>
 
     <div class="stats">
-      <div class="prow"><div class="plabels"><span class="vh" id="sh_h">0</span><span class="k">슈팅</span><span class="va" id="sh_a">0</span></div>
+      <div class="prow"><div class="plabels"><span class="vh" id="sh_h">0</span><span class="k" id="lab_sh">슈팅</span><span class="va" id="sh_a">0</span></div>
         <div class="pbar"><i class="bh" id="bh_sh" style="width:50%"></i><i class="ba" id="ba_sh" style="width:50%"></i></div></div>
-      <div class="prow"><div class="plabels"><span class="vh" id="ot_h">0</span><span class="k">유효슈팅</span><span class="va" id="ot_a">0</span></div>
+      <div class="prow"><div class="plabels"><span class="vh" id="ot_h">0</span><span class="k" id="lab_ot">유효슈팅</span><span class="va" id="ot_a">0</span></div>
         <div class="pbar"><i class="bh" id="bh_ot" style="width:50%"></i><i class="ba" id="ba_ot" style="width:50%"></i></div></div>
-      <div class="prow"><div class="plabels"><span class="vh" id="co_h">0</span><span class="k">코너킥</span><span class="va" id="co_a">0</span></div>
+      <div class="prow"><div class="plabels"><span class="vh" id="co_h">0</span><span class="k" id="lab_co">코너킥</span><span class="va" id="co_a">0</span></div>
         <div class="pbar"><i class="bh" id="bh_co" style="width:50%"></i><i class="ba" id="ba_co" style="width:50%"></i></div></div>
-      <div class="prow"><div class="plabels"><span class="vh" id="ps_h">50%</span><span class="k">점유율</span><span class="va" id="ps_a">50%</span></div>
+      <div class="prow"><div class="plabels"><span class="vh" id="ps_h">50%</span><span class="k" id="lab_ps">점유율</span><span class="va" id="ps_a">50%</span></div>
         <div class="pbar"><i class="bh" id="bh_ps" style="width:50%"></i><i class="ba" id="ba_ps" style="width:50%"></i></div></div>
     </div>
-    <div class="pulse"><span class="lab">🔥 MATCH PULSE</span><div class="bar"><i id="pf"></i></div><span class="n" id="pn">15</span></div>
-    <div class="story"><div class="h">🤖 AI LIVE STORY</div><div class="t" id="story">경기 시작을 기다리는 중…</div></div>
+    <div class="pulse"><span class="lab">🔥 <span id="pulseLab">MATCH PULSE</span></span><div class="bar"><i id="pf"></i></div><span class="n" id="pn">15</span></div>
+    <div class="story"><div class="h">🤖 <span id="storyLab">AI LIVE STORY</span></div><div class="t" id="story">…</div></div>
     <div class="gate" id="gate">
       <div class="gbox">
         <div class="glock">🔒</div>
@@ -577,9 +577,16 @@
     gWord:{ko:"골!",en:"GOAL!",ja:"ゴール！",zh:"进球！",es:"¡GOL!",vi:"VÀO!",th:"ประตู!",ru:"ГОЛ!",de:"TOR!",fr:"BUT !",it:"GOL!",hi:"गोल!"},
     sShot:{ko:"슈팅 시도. 경기 흐름이 살아납니다.",en:"takes a shot — momentum building.",ja:"シュート。流れが来ています。",zh:"起脚射门，气势正盛。",es:"remata — el ritmo sube.",vi:"tung cú sút — thế trận dâng cao.",th:"ยิงประตู — จังหวะกำลังมา",ru:"наносит удар — темп растёт.",de:"schießt — das Momentum wächst.",fr:"tente sa chance — le rythme monte.",it:"tira — cresce il ritmo.",hi:"शॉट लगाया — लय बन रही है।"},
     sOt:{ko:"골문을 위협!",en:"threatens the goal!",ja:"ゴールを脅かす！",zh:"威胁球门！",es:"¡amenaza la portería!",vi:"uy hiếp khung thành!",th:"คุกคามประตู!",ru:"угрожает воротам!",de:"prüft den Torwart!",fr:"menace le but !",it:"minaccia la porta!",hi:"गोल पर खतरा!"},
-    sGoal:{ko:"득점!",en:"scores!",ja:"得点！",zh:"得分！",es:"¡marca!",vi:"ghi bàn!",th:"ทำประตู!",ru:"забивает!",de:"trifft!",fr:"marque !",it:"segna!",hi:"गोल किया!"}
+    sGoal:{ko:"득점!",en:"scores!",ja:"得点！",zh:"得分！",es:"¡marca!",vi:"ghi bàn!",th:"ทำประตู!",ru:"забивает!",de:"trifft!",fr:"marque !",it:"segna!",hi:"गोल किया!"},
+    lSh:{ko:"슈팅",en:"Shots",ja:"シュート",zh:"射门",es:"Remates",vi:"Sút",th:"ยิงประตู",ru:"Удары",de:"Schüsse",fr:"Tirs",it:"Tiri",hi:"शॉट"},
+    lOt:{ko:"유효슈팅",en:"On Target",ja:"枠内",zh:"射正",es:"A puerta",vi:"Trúng đích",th:"เข้ากรอบ",ru:"В створ",de:"Aufs Tor",fr:"Cadrés",it:"In porta",hi:"ऑन टारगेट"},
+    lCo:{ko:"코너킥",en:"Corners",ja:"コーナー",zh:"角球",es:"Córners",vi:"Phạt góc",th:"เตะมุม",ru:"Угловые",de:"Ecken",fr:"Corners",it:"Angoli",hi:"कॉर्नर"},
+    lPs:{ko:"점유율",en:"Possession",ja:"支配率",zh:"控球率",es:"Posesión",vi:"Kiểm soát",th:"ครองบอล",ru:"Владение",de:"Ballbesitz",fr:"Possession",it:"Possesso",hi:"कब्ज़ा"},
+    lPulse:{ko:"경기 열기",en:"MATCH PULSE",ja:"マッチパルス",zh:"比赛强度",es:"Pulso del partido",vi:"Nhịp trận",th:"จังหวะเกม",ru:"Пульс матча",de:"Match-Puls",fr:"Pouls du match",it:"Ritmo partita",hi:"मैच पल्स"},
+    lStory:{ko:"AI 라이브 스토리",en:"AI LIVE STORY",ja:"AIライブ解説",zh:"AI直播解说",es:"Historia en vivo IA",vi:"Câu chuyện AI",th:"AI สดเรื่องราว",ru:"AI-история",de:"KI Live-Story",fr:"Récit IA en direct",it:"Storia AI dal vivo",hi:"AI लाइव स्टोरी"}
   };
   function CAP(k){return t(STR[k]);}
+  function applyStaticLabels(){var s=$("lab_sh");if(s)s.textContent=CAP('lSh');var o=$("lab_ot");if(o)o.textContent=CAP('lOt');var c=$("lab_co");if(c)c.textContent=CAP('lCo');var p=$("lab_ps");if(p)p.textContent=CAP('lPs');var pl=$("pulseLab");if(pl)pl.textContent=CAP('lPulse');var st=$("storyLab");if(st)st.textContent=CAP('lStory');}
   function t(o){return o[LG0]||o.en||o.ko;}
   function initials(n){if(!n)return"?";n=String(n).trim();var p=n.split(/\s+/);if(p.length>=2)return (p[0][0]+p[1][0]).toUpperCase();return n.slice(0,3).toUpperCase();}
   function perLabel(g){var s=String(g.status||'').toUpperCase();if(s==='HT')return'HT';if(/(FT|AET|PEN|END)/.test(s))return t(STR.fin);var e=g.elapsed;if(e==null)return'-';return e>45?t(STR.h2):t(STR.h1);}
@@ -620,7 +627,8 @@
     if(/(FT|AET|PEN|END)/.test(st)&&!last.done){last.done=true;pulse(20,t(STR.fin)+" · "+g.home+" "+S.hs+" : "+S.as+" "+g.away);}
   }
   function evKey(ev){return (ev.minute||'')+'|'+(ev.team||'')+'|'+(ev.type||'')+'|'+(ev.detail||'')+'|'+(ev.player||'');}
-  if(EV){ tick(); setInterval(tick,15000); }
+  applyStaticLabels();
+  if(EV){ pulse(15,t(STR.wait)); tick(); setInterval(tick,15000); }
   else { pulse(15,t(STR.wait)); }
 
   // ===== 로그인 게이트: 10초 시청 후 카드 전체 흐림 + 안내 (전 종목 동일) =====
