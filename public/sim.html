@@ -664,7 +664,7 @@
     gateTimer=setTimeout(function(){card.classList.add("locked");$("gate").classList.add("on");try{Q.length=0;}catch(e){}},10000);
   }
   $("gateBtn").addEventListener("click",function(){
-    try{ if(window.parent&&window.parent!==window&&window.parent.openLogin){window.parent.openLogin();return;} }catch(e){}
+    try{ if(window.parent&&window.parent!==window){window.parent.postMessage({liveupSim:"login"},"*");return;} }catch(e){}
     card.classList.remove("locked");$("gate").classList.remove("on");armGate();
   });
   armGate();

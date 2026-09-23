@@ -457,8 +457,8 @@ function armGate(){
   },10000);
 }
 $("gateBtn").onclick=function(){
-  // 실제 앱: 로그인 모달 열기. 데모: 로그인한 것처럼 계속 보기
-  try{ if(window.parent&&window.parent!==window&&window.parent.openLogin){window.parent.openLogin();return;} }catch(e){}
+  // 실제 앱: 부모창에 로그인 요청(postMessage). 데모: 계속 보기
+  try{ if(window.parent&&window.parent!==window){window.parent.postMessage({liveupSim:"login"},"*");return;} }catch(e){}
   var card=document.querySelector(".card");
   card.classList.remove("locked");$("gate").classList.remove("on");
   armGate();

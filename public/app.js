@@ -232,6 +232,8 @@ console.log("LIVE UP build: apisports-v2");const $=(e,a=document)=>a.querySelect
   window.openSim=openSim;
   // 📱 폰 뒤로가기 = 시뮬 창만 닫힘 (앱은 안 나감)
   window.addEventListener('popstate',function(){var m=document.getElementById('simModal');if(m&&m._open){m._pushed=false;closeSim();}});
+  // 🔐 시뮬 내부 게이트의 로그인 버튼 → 시뮬 닫고 앱 로그인 열기
+  window.addEventListener('message',function(ev){var d=ev&&ev.data;if(!d||d.liveupSim!=='login')return;dismissSim();setTimeout(function(){try{if(typeof openLogin==='function'){openLogin();return;}}catch(e){}if(window.openLogin){window.openLogin();return;}var b=document.getElementById('igLogin')||document.getElementById('btnUser')||document.getElementById('btnUserIc')||document.getElementById('drawerLogin');if(b)b.click();},120);});
   function addSimBtns(){var sp=curSport();document.querySelectorAll('#feed .match, .match').forEach(function(row){if(row.querySelector('.simentry'))return;var ev=row.getAttribute('data-ev');if(!ev)return;if(!SUP[sp])return;var b=document.createElement('span');b.className='simentry';b.setAttribute('data-sim',ev);b.setAttribute('data-sp',sp);b.innerHTML='<span class="simico"><span class="simtri"></span></span><span class="simtxt">'+simLabel()+'</span>';b.title='LIVE SIMULATION';b.addEventListener('click',function(e){e.stopPropagation();openSim(ev,b.getAttribute('data-sp'));});row.appendChild(b);});}
   function refreshLbls(){var t=simLabel();document.querySelectorAll('.simentry .simtxt').forEach(function(x){x.textContent=t;});}
   setInterval(addSimBtns,1200);setTimeout(addSimBtns,600);
