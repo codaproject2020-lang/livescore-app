@@ -230,8 +230,20 @@ function drawSoccer(){
   F.appendChild(el("polygon",{points:ps([P(0,0),P(1,0),P(1,1),P(0,1)]),fill:"none",stroke:"rgba(255,255,255,.75)","stroke-width":1.6}));
   ln(P(.5,0),P(.5,1));
   F.appendChild(el("ellipse",{cx:200,cy:P(.5,.5)[1].toFixed(1),rx:34,ry:12,fill:"none",stroke:"rgba(255,255,255,.75)","stroke-width":1.4}));
-  // goals
-  ln(P(0,.42),P(0,.58));ln(P(1,.42),P(1,.58));
+  // 골대 (양쪽) — 포스트 + 크로스바 + 그물
+  function goalPost(u){
+    var top=P(u,.42), bot=P(u,.58); var dir=(u<.5)?-1:1; var dep=10*dir;
+    // 그물망
+    var net=el("polygon",{points:ps([top,[top[0]+dep,top[1]-3],[bot[0]+dep,bot[1]+3],bot]),fill:"rgba(255,255,255,.10)",stroke:"rgba(255,255,255,.35)","stroke-width":.6});F.appendChild(net);
+    for(var i=1;i<4;i++){var yy=top[1]+(bot[1]-top[1])*i/4;F.appendChild(el("line",{x1:(top[0]).toFixed(1),y1:yy.toFixed(1),x2:(top[0]+dep).toFixed(1),y2:(yy-1).toFixed(1),stroke:"rgba(255,255,255,.28)","stroke-width":.5}));}
+    // 뒤 포스트
+    F.appendChild(el("line",{x1:(top[0]+dep).toFixed(1),y1:(top[1]-3).toFixed(1),x2:(bot[0]+dep).toFixed(1),y2:(bot[1]+3).toFixed(1),stroke:"#cdd6e2","stroke-width":1.4}));
+    // 앞 포스트(굵게) + 크로스바
+    F.appendChild(el("line",{x1:top[0].toFixed(1),y1:top[1].toFixed(1),x2:(top[0]+dep).toFixed(1),y2:(top[1]-3).toFixed(1),stroke:"#eef3fa","stroke-width":2}));
+    F.appendChild(el("line",{x1:bot[0].toFixed(1),y1:bot[1].toFixed(1),x2:(bot[0]+dep).toFixed(1),y2:(bot[1]+3).toFixed(1),stroke:"#eef3fa","stroke-width":2}));
+    F.appendChild(el("line",{x1:top[0].toFixed(1),y1:top[1].toFixed(1),x2:bot[0].toFixed(1),y2:bot[1].toFixed(1),stroke:"#ffffff","stroke-width":2.6}));
+  }
+  goalPost(0);goalPost(1);
   S.ball=el("circle",{r:5,fill:"#fff",stroke:"#111","stroke-width":1,opacity:0});F.appendChild(S.ball);
   S.P=P;
 }
@@ -375,9 +387,18 @@ async function run(e,team){
     var dm=S.diamond, home=dm.home;
     if(e==="playball"){ban(T("playball"),M().h+" vs "+M().a);flash("rgba(90,180,255,.35)");}
     else if(e==="hit"){showBall(home[0],home[1]);lightGlow(S.glowR,"0.5",800);await tween(pb,dm.first[0],dm.first[1],520);flash("rgba(255,255,255,.35)");statInc("h",R?0:1);hideBall();ban(T("hit"),who);setPulse(S.pulse+7,"⚾ <b>"+who+"</b> · "+T("hit"));}
-    else if(e==="homerun"){showBall(home[0],home[1]);lightGlow(S.glowR,"0.8",1400);// arc to outfield
-      var t0=performance.now();await new Promise(function(res){function s(t){var k=Math.min(1,(t-t0)/900);var x=home[0]+(200-home[0])*k;var y=home[1]-260*Math.sin(Math.PI*k*0.9)*1 - (home[1]-70)*k*0.0;var yy=home[1]+(70-home[1])*k - 120*Math.sin(Math.PI*k);pb.setAttribute("cx",x);pb.setAttribute("cy",yy);if(k<1)requestAnimationFrame(s);else res()}requestAnimationFrame(s)});
-      flash("rgba(245,196,81,.5)");setScore(R?1:0,R?0:1);statInc("h",R?0:1);statInc("r",R?0:1);hideBall();ban(T("homerun"),who+"  "+S.hs+" : "+S.as,true);setPulse(95,"⚾ <b>"+who+"</b> · "+T("homerun")+" "+S.hs+" : "+S.as);}
+    else if(e==="homerun"){showBall(home[0],home[1]);lightGlow(S.glowR,"0.9",1900);// 큰 홈런 아치 (더 높고 길게)
+      var tgtX=home[0]+(240-home[0]); // 우중간 담장쪽
+      var t0=performance.now(), DUR=1500;
+      await new Promise(function(res){function s(t){var k=Math.min(1,(t-t0)/DUR);
+        var x=home[0]+(tgtX-home[0])*k;
+        var yy=home[1]+(58-home[1])*k - 210*Math.sin(Math.PI*k); // 더 높은 포물선
+        var r=6+7*Math.sin(Math.PI*k); // 날아오르며 커졌다 작아짐
+        pb.setAttribute("cx",x);pb.setAttribute("cy",yy);pb.setAttribute("r",r.toFixed(1));
+        if(k<1)requestAnimationFrame(s);else res();}requestAnimationFrame(s)});
+      pb.setAttribute("r","6");
+      flash("rgba(245,196,81,.6)");setTimeout(function(){flash("rgba(255,255,255,.4)");},180);
+      setScore(R?1:0,R?0:1);statInc("h",R?0:1);statInc("r",R?0:1);hideBall();ban("💥 "+T("homerun"),who+"  "+S.hs+" : "+S.as,true);setPulse(97,"⚾ <b>"+who+"</b> · "+T("homerun")+" "+S.hs+" : "+S.as);}
     else if(e==="run"){showBall(dm.third[0],dm.third[1]);lightGlow(S.glowR,"0.5",700);await tween(pb,dm.home[0],dm.home[1],520);flash("rgba(90,180,255,.4)");setScore(R?1:0,R?0:1);statInc("r",R?0:1);hideBall();ban(T("run"),who+"  "+S.hs+" : "+S.as);setPulse(S.pulse+8);}
     else if(e==="strikeout"){flash("rgba(226,35,26,.3)");ban(T("strikeout"),who);statInc("so",R?0:1);setPulse(S.pulse+4);}
     else if(e==="out"){ban(T("out"),who);setPulse(Math.max(10,S.pulse-3));}
@@ -477,21 +498,45 @@ document.head.appendChild(hideCss);
 var stage=document.querySelector(".stage");
 var badge=document.createElement("div");badge.id="shBadge";badge.innerHTML='<span class="dot"></span>⚡ LIVE UP SHORTS';stage.appendChild(badge);
 var bar=document.createElement("div");bar.id="shBar";bar.innerHTML='<i></i>';stage.appendChild(bar);var barI=bar.querySelector("i");
+// 스탯 게이지 오버레이(중간중간 점유율/슈팅 게이지 차오르는 연출)
+var gg=document.createElement("div");gg.id="shGauge";gg.innerHTML='<div class="gg-row"><span class="gg-l" id="ggL">0</span><span class="gg-k" id="ggK">-</span><span class="gg-r" id="ggR">0</span></div><div class="gg-bar"><i class="gg-h" id="ggH"></i><i class="gg-a" id="ggA"></i></div>';stage.appendChild(gg);
+var ggCss=document.createElement("style");ggCss.textContent="#shGauge{position:absolute;left:10px;right:10px;bottom:12px;z-index:6;background:rgba(6,11,20,.55);border:1px solid rgba(140,180,255,.22);border-radius:10px;padding:7px 10px;backdrop-filter:blur(3px);opacity:0;transform:translateY(6px);transition:opacity .35s,transform .35s}#shGauge.on{opacity:1;transform:none}#shGauge .gg-row{display:flex;justify-content:space-between;font-size:11.5px;font-weight:800;font-variant-numeric:tabular-nums}#shGauge .gg-l{color:#ffd9d6}#shGauge .gg-r{color:#d6e4ff}#shGauge .gg-k{color:#9fb2c8;font-size:10.5px}#shGauge .gg-bar{display:flex;height:7px;border-radius:5px;overflow:hidden;background:#0a0f17;margin-top:4px}#shGauge .gg-h{background:linear-gradient(90deg,#b81812,#e2231a);transition:width 1.1s cubic-bezier(.2,.7,.2,1)}#shGauge .gg-a{background:linear-gradient(90deg,#3d7dff,#8fb6ff);transition:width 1.1s cubic-bezier(.2,.7,.2,1)}";document.head.appendChild(ggCss);
+function gk(key,fb){try{var v=T(key);return (v&&v!==key)?v:fb;}catch(e){return fb;}}
+function showGauge(kind){
+  var pairs={
+    pos:{k:gk("st_pos","점유율"),h:44+Math.floor(Math.random()*20),pct:true},
+    sh :{k:gk("st_sh","슈팅"), h:7+Math.floor(Math.random()*9), a:4+Math.floor(Math.random()*7)},
+    at :{k:gk("st_at","공격"), h:9+Math.floor(Math.random()*11),a:6+Math.floor(Math.random()*9)},
+    h  :{k:gk("st_h","안타"),  h:5+Math.floor(Math.random()*7), a:3+Math.floor(Math.random()*6)},
+    fg :{k:gk("st_fg","야투"), h:18+Math.floor(Math.random()*12),a:15+Math.floor(Math.random()*10)}
+  };
+  var d=pairs[kind]||pairs.sh, hv,av;
+  if(d.pct){hv=d.h;av=100-d.h;} else {hv=d.h;av=d.a;}
+  $("ggK").textContent=d.k;
+  $("ggL").textContent=d.pct?hv+"%":hv; $("ggR").textContent=d.pct?av+"%":av;
+  $("ggH").style.width="50%";$("ggA").style.width="50%"; // 리셋 후 차오름
+  gg.classList.add("on");
+  setTimeout(function(){var t=hv+av||1;$("ggH").style.width=(hv/t*100)+"%";$("ggA").style.width=(av/t*100)+"%";},60);
+  clearTimeout(gg._t);gg._t=setTimeout(function(){gg.classList.remove("on");},2600);
+}
 applyStatic();
-// 하이라이트 순서: 축구 골 → 야구 홈런 → 배구 스파이크 → 농구 덩크 (각 ~3.7s, 반복)
+// 하이라이트 순서: 축구 골 → 야구 홈런 → 배구 스파이크 → 농구 덩크 → 축구 옐로 → 축구 레드 (반복)
 var REEL=[
-  {sp:"soccer",   ev:"goal",    side:"home"},
-  {sp:"baseball", ev:"homerun", side:"home"},
-  {sp:"volley",   ev:"spike",   side:"away"},
-  {sp:"basket",   ev:"dunk",    side:"home"}
+  {sp:"soccer",   ev:"goal",    side:"home", g:"pos"},
+  {sp:"baseball", ev:"homerun", side:"home", g:"h"},
+  {sp:"volley",   ev:"spike",   side:"away", g:"at"},
+  {sp:"basket",   ev:"dunk",    side:"home", g:"fg"},
+  {sp:"soccer",   ev:"yellow",  side:"away", g:"sh"},
+  {sp:"soccer",   ev:"red",     side:"home", g:"pos"}
 ];
-var CLIP=3700, ri=0, t0=0;
+var CLIP=3000, ri=0, t0=0;
 function clip(){
   var c=REEL[ri%REEL.length]; ri++;
   sport=c.sp; Q.length=0;
   loadSport();            // 종목별 경기장 그리기 + 현재 스코어
   setPulse(62);
   setTimeout(function(){ enqueue(c.ev, c.side); }, 700);  // 하이라이트 연출
+  if(c.g) setTimeout(function(){ showGauge(c.g); }, 1400); // 중간 스탯 게이지 연출
   t0=Date.now();
   setTimeout(clip, CLIP);
 }
