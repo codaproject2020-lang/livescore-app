@@ -1396,6 +1396,11 @@ function ymdInTz(iso, tz) {
   try { return new Intl.DateTimeFormat('en-CA', { timeZone: tz || 'Asia/Seoul', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date(iso)); }
   catch { return String(iso || '').slice(0, 10); }
 }
+// 팀 닉네임(마지막 유의미 단어) 추출 — 소스별 팀명 표기 차이 흡수용 (예: "Rakuten Gold. Eagles"→"eagles")
+function nkLast(name) {
+  const toks = String(name || '').toLowerCase().replace(/[^a-z0-9\s]/g, ' ').split(/\s+/).filter(Boolean);
+  return toks.length ? toks[toks.length - 1] : '';
+}
 const _lastGoodBB = new Map();   // 야구 간헐적 사라짐 방지용 직전 정상빌드 캐시
 const _lastGoodMinor = new Map();   // 배구·농구·하키 등 간헐적 사라짐 방지용 직전 정상빌드 캐시
 async function buildGamesCore(sport, date, tz) {
@@ -1464,8 +1469,9 @@ async function buildGamesCore(sport, date, tz) {
       const kn = ts.filter(g => wantRe.test(g.league || '') && !hsRe.test(g.league || ''));
       if (kn.length) {
         // 🔑 TheSports가 같은 매치업을 가진 경기만 교체(제거+추가). 없는 경기는 API-Sports 그대로 유지 → 경기 사라짐 방지
-        const nk = s => String(s || '').toLowerCase().replace(/[^a-z0-9]/g, '');
-        const key = g => [nk(g.home), nk(g.away)].sort().join('|');
+        // ⚠️ 소스마다 팀명이 달라(예: "Nippon Ham Fighters" vs "Hokkaido Nippon-Ham Fighters") 전체이름 키는 안 맞음
+        //    → 닉네임(마지막 단어: Fighters/Eagles 등) 쌍으로 매칭해 중복 방지
+        const key = g => [nkLast(g.home), nkLast(g.away)].sort().join('|');
         const knKeys = new Set(kn.map(key));
         games = games.filter(g => !wantRe.test(g.league || '') || !knKeys.has(key(g)));
         games = games.concat(kn);
@@ -1502,6 +1508,27 @@ async function buildGamesCore(sport, date, tz) {
       if (games.length) _lastGoodBB.set(kk, { t: Date.now(), list: games.slice() });
       for (const [k, v] of _lastGoodBB) { if (Date.now() - v.t > 1800000) _lastGoodBB.delete(k); }
     } catch {}
+  }
+  // ⚾ 최종 중복 제거: 같은 경기가 두 소스(API-Sports·TheSports)에서 팀명만 다르게 두 번 뜨는 것 방지.
+  //    닉네임 쌍 + 날짜로 묶고, 정보가 더 풍부한 쪽(초/말·B/S/O·라이브·긴 팀명 = 보통 TheSports)만 남김.
+  if (sport === 'baseball') {
+    const bestScore = g => {
+      let s = 0;
+      const st = String(g.status || g.state || '').toUpperCase();
+      if (g.state === 'live' || /IN|TOP|BOT/.test(st)) s += 1000; else if (g.state === 'finished') s += 100;
+      if (g.inningHalf) s += 40;              // 초/말 정보 = TheSports
+      if (g.bso) s += 40;                     // B/S/O 카운트 = TheSports
+      if (g.box && (g.box.home && (g.box.home.h != null))) s += 10;
+      s += String(g.home || '').length + String(g.away || '').length; // 긴 정식 팀명 우선
+      return s;
+    };
+    const seen = new Map();
+    for (const g of games) {
+      const k = [nkLast(g.home), nkLast(g.away)].sort().join('|') + '|' + (g.date ? ymdInTz(g.date, tz) : '');
+      const cur = seen.get(k);
+      if (!cur || bestScore(g) > bestScore(cur)) seen.set(k, g);
+    }
+    games = [...seen.values()];
   }
   // ⚾ 선발투수 시즌성적(ERA·승·패) 채우기 — 화면에 보이는 경기 투수만, 선수별 1시간 캐시로 호출 최소화
   if (sport === 'baseball') {
