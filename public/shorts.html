@@ -491,33 +491,23 @@ $("gateBtn").onclick=function(){
 function qp(k){try{return new URLSearchParams(location.search).get(k);}catch(e){return null;}}
 var _plang=qp("lang"); if(_plang&&LANGS.indexOf(_plang)>=0)LANG=_plang; else{try{var ll=localStorage.getItem("liveup_lang_user")||localStorage.getItem("liveup_lang");if(ll&&LANGS.indexOf(ll)>=0)LANG=ll;}catch(e){}}
 armGate=function(){};  // 숏츠엔 로그인 게이트 없음
-// 스탯/펄스/스토리 패널 숨겨서 영상처럼 (경기장 위주)
-var hideCss=document.createElement("style");hideCss.textContent=".stats,.pulse,.story{display:none!important}.card{border:0;box-shadow:none;background:#0a0e15}.stage{border-radius:14px}#shBadge{position:absolute;left:10px;top:8px;z-index:6;display:flex;align-items:center;gap:5px;font-weight:900;font-size:11px;letter-spacing:.3px;background:linear-gradient(135deg,#e2231a,#ff6a3d);color:#fff;padding:4px 9px;border-radius:20px;box-shadow:0 3px 10px rgba(226,35,26,.4)}#shBadge .dot{width:6px;height:6px;border-radius:50%;background:#fff;animation:blip 1.2s infinite}#shBar{position:absolute;left:0;right:0;bottom:0;height:3px;background:rgba(255,255,255,.12);z-index:6}#shBar>i{display:block;height:100%;width:0;background:linear-gradient(90deg,#f5c451,#e2231a);transition:width .2s linear}";
+// 숏츠: 실제 화면처럼 스탯 패널(슈팅/점유율)·MATCH PULSE·AI STORY 모두 표시
+var hideCss=document.createElement("style");hideCss.textContent="#shBadge{position:absolute;left:10px;top:8px;z-index:6;display:flex;align-items:center;gap:5px;font-weight:900;font-size:11px;letter-spacing:.3px;background:linear-gradient(135deg,#e2231a,#ff6a3d);color:#fff;padding:4px 9px;border-radius:20px;box-shadow:0 3px 10px rgba(226,35,26,.4)}#shBadge .dot{width:6px;height:6px;border-radius:50%;background:#fff;animation:blip 1.2s infinite}#shBar{position:absolute;left:0;right:0;bottom:0;height:3px;background:rgba(255,255,255,.12);z-index:6}#shBar>i{display:block;height:100%;width:0;background:linear-gradient(90deg,#f5c451,#e2231a);transition:width .2s linear}";
 document.head.appendChild(hideCss);
 // 배지 + 진행바 오버레이
 var stage=document.querySelector(".stage");
 var badge=document.createElement("div");badge.id="shBadge";badge.innerHTML='<span class="dot"></span>⚡ LIVE UP SHORTS';stage.appendChild(badge);
 var bar=document.createElement("div");bar.id="shBar";bar.innerHTML='<i></i>';stage.appendChild(bar);var barI=bar.querySelector("i");
-// 스탯 게이지 오버레이(중간중간 점유율/슈팅 게이지 차오르는 연출)
-var gg=document.createElement("div");gg.id="shGauge";gg.innerHTML='<div class="gg-row"><span class="gg-l" id="ggL">0</span><span class="gg-k" id="ggK">-</span><span class="gg-r" id="ggR">0</span></div><div class="gg-bar"><i class="gg-h" id="ggH"></i><i class="gg-a" id="ggA"></i></div>';stage.appendChild(gg);
-var ggCss=document.createElement("style");ggCss.textContent="#shGauge{position:absolute;left:10px;right:10px;bottom:12px;z-index:6;background:rgba(6,11,20,.55);border:1px solid rgba(140,180,255,.22);border-radius:10px;padding:7px 10px;backdrop-filter:blur(3px);opacity:0;transform:translateY(6px);transition:opacity .35s,transform .35s}#shGauge.on{opacity:1;transform:none}#shGauge .gg-row{display:flex;justify-content:space-between;font-size:11.5px;font-weight:800;font-variant-numeric:tabular-nums}#shGauge .gg-l{color:#ffd9d6}#shGauge .gg-r{color:#d6e4ff}#shGauge .gg-k{color:#9fb2c8;font-size:10.5px}#shGauge .gg-bar{display:flex;height:7px;border-radius:5px;overflow:hidden;background:#0a0f17;margin-top:4px}#shGauge .gg-h{background:linear-gradient(90deg,#b81812,#e2231a);transition:width 1.1s cubic-bezier(.2,.7,.2,1)}#shGauge .gg-a{background:linear-gradient(90deg,#3d7dff,#8fb6ff);transition:width 1.1s cubic-bezier(.2,.7,.2,1)}";document.head.appendChild(ggCss);
-function gk(key,fb){try{var v=T(key);return (v&&v!==key)?v:fb;}catch(e){return fb;}}
-function showGauge(kind){
-  var pairs={
-    pos:{k:gk("st_pos","점유율"),h:44+Math.floor(Math.random()*20),pct:true},
-    sh :{k:gk("st_sh","슈팅"), h:7+Math.floor(Math.random()*9), a:4+Math.floor(Math.random()*7)},
-    at :{k:gk("st_at","공격"), h:9+Math.floor(Math.random()*11),a:6+Math.floor(Math.random()*9)},
-    h  :{k:gk("st_h","안타"),  h:5+Math.floor(Math.random()*7), a:3+Math.floor(Math.random()*6)},
-    fg :{k:gk("st_fg","야투"), h:18+Math.floor(Math.random()*12),a:15+Math.floor(Math.random()*10)}
-  };
-  var d=pairs[kind]||pairs.sh, hv,av;
-  if(d.pct){hv=d.h;av=100-d.h;} else {hv=d.h;av=d.a;}
-  $("ggK").textContent=d.k;
-  $("ggL").textContent=d.pct?hv+"%":hv; $("ggR").textContent=d.pct?av+"%":av;
-  $("ggH").style.width="50%";$("ggA").style.width="50%"; // 리셋 후 차오름
-  gg.classList.add("on");
-  setTimeout(function(){var t=hv+av||1;$("ggH").style.width=(hv/t*100)+"%";$("ggA").style.width=(av/t*100)+"%";},60);
-  clearTimeout(gg._t);gg._t=setTimeout(function(){gg.classList.remove("on");},2600);
+// 실제 스탯 패널(슈팅/점유율 등) 게이지를 클립 중간에 차오르게 연출
+function nudge(){
+  try{
+    var ks=SPORTS[sport].stats.map(function(x){return x[0];});
+    var k=ks[Math.floor(Math.random()*ks.length)];
+    if(S.stat[k]){ S.stat[k][Math.random()<.5?0:1]+=1+Math.floor(Math.random()*2); }
+    if(sport==="soccer"&&S.stat.pos){ var d=(Math.random()<.5?1:-1)*(1+Math.floor(Math.random()*3)); S.stat.pos[0]=Math.max(36,Math.min(64,S.stat.pos[0]+d)); S.stat.pos[1]=100-S.stat.pos[0]; }
+    renderStats();
+    setPulse(Math.max(30,Math.min(96,S.pulse+(Math.random()<.5?-4:6))));
+  }catch(e){}
 }
 applyStatic();
 // 하이라이트 순서: 축구 골 → 야구 홈런 → 배구 스파이크 → 농구 덩크 → 축구 옐로 → 축구 레드 (반복)
@@ -536,7 +526,7 @@ function clip(){
   loadSport();            // 종목별 경기장 그리기 + 현재 스코어
   setPulse(62);
   setTimeout(function(){ enqueue(c.ev, c.side); }, 700);  // 하이라이트 연출
-  if(c.g) setTimeout(function(){ showGauge(c.g); }, 1400); // 중간 스탯 게이지 연출
+  setTimeout(nudge,1300); setTimeout(nudge,2100);         // 스탯 패널 게이지 차오름
   t0=Date.now();
   setTimeout(clip, CLIP);
 }
