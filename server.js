@@ -46,6 +46,29 @@ const EVENTS_MAX = 8000;
 let eventsCol = null;           // 원본 이벤트(최근 90일만 보관)
 let statsCol = null;            // 일별 요약(영구 보관)
 let subsCol = null;             // 웹푸시 구독(재시작·재배포 시 유지)
+// 👥 재방문자 추적: 방문자키 → {key,name,count(방문횟수),first,last,ip,cc}
+const VISITORS = new Map();
+const ONLINE_WIN = 5 * 60 * 1000;   // 최근 5분 이내 활동 = "접속중"
+let visitorsCol = null;             // 방문자 영속 컬렉션(연결 시)
+function maskKey(k) {
+  k = String(k || '');
+  if (k.startsWith('u:')) return '회원';
+  if (k.startsWith('d:')) return '기기·' + k.slice(2, 8);
+  if (k.startsWith('ip:')) { const p = k.slice(3).split('.'); return 'IP ' + (p[0] || '') + '.' + (p[1] || '') + '.*.*'; }
+  return k.slice(0, 12);
+}
+function recordVisitor(key, name, ip, cc, type, now) {
+  if (!key) return;
+  let v = VISITORS.get(key);
+  if (!v) { v = { key, name: name || '', count: 0, first: now, last: now, ip, cc }; VISITORS.set(key, v); }
+  v.last = now; if (name) v.name = name; if (ip) v.ip = ip; if (cc) v.cc = cc;
+  if (type === 'visit') {
+    v.count = (v.count || 0) + 1;
+    if (visitorsCol) visitorsCol.updateOne({ key }, { $inc: { count: 1 }, $set: { name: v.name, ip, cc, last: now }, $setOnInsert: { first: now } }, { upsert: true }).catch(() => {});
+  } else if (visitorsCol) {
+    visitorsCol.updateOne({ key }, { $set: { last: now } }).catch(() => {});
+  }
+}
 function clientIP(req) {
   const xf = (req.headers['x-forwarded-for'] || '').split(',')[0].trim();
   let ip = xf || req.ip || (req.socket && req.socket.remoteAddress) || '';
@@ -122,6 +145,15 @@ async function initDB() {
       recent.reverse().forEach(e => EVENTS.push(e));
       console.log(`[DB] 접속 원본 ${recent.length}건 로드 · 일별요약 영구보관`);
     } catch (e) { console.error('[DB] events 초기화 실패:', e.message); }
+    // 👥 재방문자 컬렉션
+    visitorsCol = db.collection('visitors');
+    try {
+      await visitorsCol.createIndex({ key: 1 }, { unique: true });
+      await visitorsCol.createIndex({ last: -1 });
+      const vs = await visitorsCol.find({}).sort({ last: -1 }).limit(8000).toArray();
+      vs.forEach(v => VISITORS.set(v.key, { key: v.key, name: v.name || '', count: v.count || 0, first: v.first || 0, last: v.last || 0, ip: v.ip || '', cc: v.cc || '' }));
+      console.log(`[DB] 방문자 ${vs.length}명 로드`);
+    } catch (e) { console.error('[DB] visitors 초기화 실패:', e.message); }
     // 🔔 웹푸시 구독 — 재시작·재배포 후에도 알림이 계속 오도록 DB에 영구 저장
     subsCol = db.collection('push_subs');
     try {
@@ -258,6 +290,11 @@ app.post('/api/track', async (req, res) => {
     const now = Date.now();
     const ip = clientIP(req);
     const cc = await geoCountry(ip);                            // 국가코드(오프라인)
+    // 👥 재방문자 기록: 회원=uid, 비회원=기기 vid, 없으면 IP 기준
+    const vid = String(b.vid || '').slice(0, 40);
+    const vkey = (u && u.id) ? ('u:' + u.id) : (vid ? ('d:' + vid) : ('ip:' + ip));
+    recordVisitor(vkey, u ? u.name : '', ip, cc, type, now);
+    if (type === 'ping') { return res.json({ ok: true }); }   // 하트비트는 이벤트버퍼에 안 쌓음
     pushEvent({
       ts: now, at: new Date(now), t: type, n: name, p: page, l: lang,
       ip, cc,
@@ -321,6 +358,19 @@ app.get('/api/admin/analytics', async (req, res) => {
   const recent = EVENTS.slice(-80).reverse().map(e => ({
     ts: e.ts, t: e.t, n: e.n, ip: e.ip, cc: e.cc || '', ua: e.ua, uname: e.uname, l: e.l, p: e.p
   }));
+  // 👥 재방문자 통계 (총 접속중 / 재방문 접속중 / 방문자별 방문횟수)
+  const nowT = Date.now();
+  let onlineVisitors = 0, returningOnline = 0, returningTotal = 0;
+  const vlist = [];
+  for (const v of VISITORS.values()) {
+    const on = (nowT - (v.last || 0)) <= ONLINE_WIN;
+    const ret = (v.count || 0) >= 2;
+    if (ret) returningTotal++;
+    if (on) { onlineVisitors++; if (ret) returningOnline++; }
+    vlist.push({ who: v.name || maskKey(v.key), count: v.count || 0, online: on, returning: ret, last: v.last || 0, cc: v.cc || '' });
+  }
+  vlist.sort((a, b) => (b.online - a.online) || (b.count - a.count) || (b.last - a.last));
+  const visitors = vlist.slice(0, 80);
   res.json({
     ok: true,
     persist: !!statsCol,
@@ -329,7 +379,8 @@ app.get('/api/admin/analytics', async (req, res) => {
     todayVisits, uniqIPToday,
     visits24h: visits.filter(e => e.ts >= dayAgo).length,
     totalVisits, totalClicks,
-    byHour, topClicks, topCountries, trend, recent
+    onlineVisitors, returningOnline, returningTotal, uniqueVisitors: VISITORS.size,
+    byHour, topClicks, topCountries, trend, recent, visitors
   });
 });
 
