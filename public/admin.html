@@ -99,6 +99,16 @@
       <div class="card"><div class="k">오늘 순 방문자(IP)</div><div class="v" id="anUniq">–</div></div>
       <div class="card"><div class="k">총 클릭</div><div class="v" id="anClicks">–</div></div>
     </div>
+    <div class="sub2">👥 재방문자 기록</div>
+    <div class="cards" style="margin:6px 0 12px">
+      <div class="card hl"><div class="k">총 접속중</div><div class="v" id="anVOnline">–</div></div>
+      <div class="card hl"><div class="k">재방문 접속중</div><div class="v" id="anVReturn">–</div></div>
+      <div class="card"><div class="k">누적 재방문자</div><div class="v" id="anVReturnTot">–</div></div>
+      <div class="card"><div class="k">전체 방문자 수</div><div class="v" id="anVUniq">–</div></div>
+    </div>
+    <div style="overflow:auto;max-height:420px;margin-bottom:16px">
+      <table class="tbl"><thead><tr><th>방문자</th><th>방문횟수</th><th>상태</th><th>국가</th><th class="hide-m">최근접속</th></tr></thead><tbody id="anVisitors"></tbody></table>
+    </div>
     <div class="sub2">⏱ 시간대별 방문 (최근 24시간)</div>
     <div id="anHours" class="hours"></div>
     <div class="sub2">📅 최근 14일 방문 추이</div>
@@ -217,6 +227,19 @@
       $('#anToday').innerHTML=(a.todayVisits||0).toLocaleString()+'<small>회</small>';
       $('#anUniq').innerHTML=(a.uniqIPToday||0).toLocaleString()+'<small>명</small>';
       $('#anClicks').innerHTML=(a.totalClicks||0).toLocaleString()+'<small>회</small>';
+      // 👥 재방문자 기록
+      $('#anVOnline').innerHTML=(a.onlineVisitors||0).toLocaleString()+'<small>명</small>';
+      $('#anVReturn').innerHTML=(a.returningOnline||0).toLocaleString()+'<small>명</small>';
+      $('#anVReturnTot').innerHTML=(a.returningTotal||0).toLocaleString()+'<small>명</small>';
+      $('#anVUniq').innerHTML=(a.uniqueVisitors||0).toLocaleString()+'<small>명</small>';
+      const vb=$('#anVisitors'); vb.innerHTML='';
+      (a.visitors||[]).forEach(v=>{
+        const tr=document.createElement('tr');
+        const stat = (v.online?'<span style="color:#10b981;font-weight:800">🟢 접속중</span>':'<span class="muted">오프라인</span>') + (v.returning?' <span style="color:#e2231a;font-weight:800">· 재방문</span>':' <span class="muted">· 신규</span>');
+        tr.innerHTML=`<td>${esc(v.who||'')}</td><td><b>${(v.count||0).toLocaleString()}</b>회</td><td>${stat}</td><td>${ccLabel(v.cc)}</td><td class="hide-m muted">${tfmt(v.last)}</td>`;
+        vb.appendChild(tr);
+      });
+      if(!(a.visitors||[]).length) vb.innerHTML='<tr><td colspan="5" class="muted" style="padding:12px">방문자 데이터가 아직 없습니다.</td></tr>';
       const hrs=a.byHour||[]; const mx=Math.max(1,...hrs.map(h=>h.count));
       $('#anHours').innerHTML=hrs.map(h=>`<div class="hbar" title="${h.label}시 · ${h.count}회"><div class="hbar-b" style="height:${Math.round(h.count/mx*100)}%"></div><div class="hbar-l">${h.label}</div></div>`).join('');
       const tc=a.topClicks||[]; const cm=Math.max(1,...tc.map(c=>c.count));

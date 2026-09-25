@@ -57,13 +57,16 @@ console.log("LIVE UP build: apisports-v2");const $=(e,a=document)=>a.querySelect
 /* ===== 접속자 추적 (analytics) ===== */
 ;(function(){
   function actTab(){ try{var a=document.querySelector('.topnav a.on,.topbar .tt.on');return a&&a.dataset?a.dataset.tab||'':'';}catch(e){return'';} }
+  function luVid(){try{var v=localStorage.getItem('liveup_vid');if(!v){v=(Date.now().toString(36)+Math.random().toString(36).slice(2,10));localStorage.setItem('liveup_vid',v);}return v;}catch(e){return '';}}
   function luTrack(t,n){
     try{
-      var body=JSON.stringify({t:t,n:n||'',p:actTab(),l:(typeof LANG!=='undefined'?LANG:''),token:localStorage.getItem('liveup_token')||''});
+      var body=JSON.stringify({t:t,n:n||'',p:actTab(),l:(typeof LANG!=='undefined'?LANG:''),token:localStorage.getItem('liveup_token')||'',vid:luVid()});
       if(navigator.sendBeacon){navigator.sendBeacon('/api/track',new Blob([body],{type:'application/json'}));}
       else{fetch('/api/track',{method:'POST',headers:{'Content-Type':'application/json'},body:body,keepalive:true}).catch(function(){});}
     }catch(e){}
   }
+  // 👥 접속중 유지용 하트비트(60초) — 재방문/접속중 집계 정확도
+  try{ setInterval(function(){ if(document.visibilityState!=='hidden') luTrack('ping'); }, 60000); }catch(e){}
   function C(el,sel){ return el&&el.closest?el.closest(sel):null; }
   function luLabel(el){
     var t=C(el,'[data-tab]'); if(t) return 'tab:'+(t.dataset.tab||'');
