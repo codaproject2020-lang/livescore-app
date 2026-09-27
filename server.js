@@ -1122,14 +1122,18 @@ async function tsBaseballGames(date) {
           if ((g.box[s].e == null) && tb[s].e != null) g.box[s].e = tb[s].e;
         });
       }
-      // 🏏 안타(H) 팀 합계 보정: 라인스코어/팀스탯에 H가 안 실려도(NPB 라이브 등) 타자 개인기록 합계로 채움
+      // 🏏 안타(H)·볼넷(BB) 팀 합계 보정: 라인스코어/팀스탯에 안 실려도(NPB 라이브 등) 타자 개인기록 합계로 채움
       ['home', 'away'].forEach(s => {
-        if (g.box[s].h != null && g.box[s].h > 0) return;
         const pl = (lvm.players && lvm.players[s]) || [];
         if (!pl.length) return;
-        let hh = 0, has = false;
-        pl.forEach(p => { const d = tsDecode(p.stats, TS_PSTAT); if (d && d.ip == null && d.h != null) { hh += (tsNum(d.h) || 0); has = true; } });
-        if (has) g.box[s].h = hh;
+        let hh = 0, bb = 0, hasH = false, hasBB = false;
+        pl.forEach(p => {
+          const d = tsDecode(p.stats, TS_PSTAT); if (!d || d.ip != null) return;   // 타자만(투수 제외)
+          if (d.h != null) { hh += (tsNum(d.h) || 0); hasH = true; }
+          if (d.bb != null) { bb += (tsNum(d.bb) || 0); hasBB = true; }
+        });
+        if (hasH && !(g.box[s].h > 0)) g.box[s].h = hh;
+        if (hasBB && !(g.box[s].bb > 0)) g.box[s].bb = bb;
       });
       // 🏏 타격팀 타자 3명(카드 좌측 표시용) — 이름/사진은 map 이후 일괄 조회
       const bside = g.batting || (g.inningHalf === 'top' ? 'away' : 'home');
