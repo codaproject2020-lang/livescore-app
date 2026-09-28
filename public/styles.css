@@ -139,3 +139,6 @@
   50%{box-shadow:0 5px 18px rgba(226,35,26,.65);transform:scale(1.06)}}
 @keyframes golarw{0%,100%{transform:translateX(0)}50%{transform:translateX(5px)}}
 @media (max-width:380px){.golcta{font-size:11px;padding:6px 11px;margin-left:6px}}
+
+.lgchip.intlchip{background:linear-gradient(135deg,#fff6df,#ffe7a6);border-color:#e8c463;color:#7a5a12;font-weight:800}
+.lgchip.intlchip.on{background:linear-gradient(135deg,#f5c451,#e0a92e);color:#231803;border-color:#d9a93a}
