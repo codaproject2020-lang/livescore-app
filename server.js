@@ -1706,7 +1706,7 @@ async function buildGamesCore(sport, date, tz) {
 
 // ⚡ 경기목록 전체 결과를 짧게 캐시 (피드 7초·중계봇 10초·픽제공·푸시가 공유 → 외부호출/CPU 절감)
 // ⚡ 종목별 캐시/갱신 주기: 축구=Mega(15만/일) 빠르게, 야구=Ultra 중간, 그 외=보수적(Pro 한도 보호)
-function sportTtl(sport){ return sport==='football' ? 8000 : sport==='baseball' ? 12000 : 25000; }
+function sportTtl(sport){ return sport==='football' ? 8000 : sport==='baseball' ? 12000 : 12000; }
 const gamesCoreCache = new Map();
 async function buildGamesCoreCached(sport, date, tz, ttl = sportTtl(sport)) {
   const k = sport + '|' + date + '|' + (tz || '');
