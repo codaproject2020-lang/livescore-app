@@ -469,11 +469,12 @@ function qp(k){try{return new URLSearchParams(location.search).get(k);}catch(e){
 var SPMAP={basketball:{key:"basket",api:"basketball"},volleyball:{key:"volley",api:"volleyball"},baseball:{key:"baseball",api:"baseball"},basket:{key:"basket",api:"basketball"},volley:{key:"volley",api:"volleyball"}};
 var _p_sport=qp("sport")||"basketball", _m=SPMAP[_p_sport]||SPMAP.basketball;
 sport=_m.key;
-var EV=qp("ev"); var API_SPORT=_m.api;
+var EV=qp("ev"); var API_SPORT=_m.api; var _D=qp("date")||"", _TZ=qp("tz")||"";
+var GAMES_Q="/api/asports/games?sport="+API_SPORT+(_D?"&date="+encodeURIComponent(_D):"")+(_TZ?"&tz="+encodeURIComponent(_TZ):"");
 var _plang=qp("lang"); if(_plang&&LANGS.indexOf(_plang)>=0)LANG=_plang; else{try{var ll=localStorage.getItem("liveup_lang_user")||localStorage.getItem("liveup_lang");if(ll&&LANGS.indexOf(ll)>=0)LANG=ll;}catch(e){}}
 function initials(n){if(!n)return"?";n=String(n).trim();var p=n.split(/\s+/);if(p.length>=2)return (p[0][0]+p[1][0]).toUpperCase();return n.slice(0,3).toUpperCase();}
 var _last={hs:null,as:null,done:false};
-async function getGame(){try{var r=await fetch("/api/asports/games?sport="+API_SPORT+"&_="+Date.now());var j=await r.json();return (j.games||[]).find(function(x){return String(x.id)===String(EV);});}catch(e){return null;}}
+async function getGame(){try{var r=await fetch(GAMES_Q+"&_="+Date.now());var j=await r.json();return (j.games||[]).find(function(x){return String(x.id)===String(EV);});}catch(e){return null;}}
 function liveClock(g){
   if(sport==="baseball"){var inn=g.curInning||g.period||"-";return inn+T("inning");}
   if(sport==="volley"){var sc=(g.setScores&&g.setScores.length)||1;return T("set")+" "+sc;}

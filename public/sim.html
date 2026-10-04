@@ -556,7 +556,8 @@
   // ===================== 실데이터 연동 컨트롤러 (축구) =====================
   function qp(k){try{return new URLSearchParams(location.search).get(k);}catch(e){return null;}}
   var EV=qp('ev'), LG0=qp('lang')||(function(){try{return localStorage.getItem('liveup_lang_user')||localStorage.getItem('liveup_lang')||'en';}catch(e){return 'en';}})();
-  var GAMES_API='/api/asports/games?sport=football';
+  var _D=qp('date')||'', _TZ=qp('tz')||'';
+  var GAMES_API='/api/asports/games?sport=football'+(_D?'&date='+encodeURIComponent(_D):'')+(_TZ?'&tz='+encodeURIComponent(_TZ):'');
   var EVENTS_API='/api/asports/events?fixture='+encodeURIComponent(EV||'');
   var STR={
     live:{ko:"🔴 LIVE 진행 중",en:"🔴 LIVE",ja:"🔴 LIVE",zh:"🔴 直播中",es:"🔴 EN VIVO",vi:"🔴 TRỰC TIẾP",th:"🔴 สด",ru:"🔴 LIVE",de:"🔴 LIVE",fr:"🔴 EN DIRECT",it:"🔴 LIVE",hi:"🔴 लाइव"},
