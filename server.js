@@ -960,10 +960,24 @@ app.get('/api/gs/logotest', async (req, res) => {
       ids = [...new Set(games.flatMap(g => [g.homeTid, g.awayTid]).filter(Boolean).map(String))].slice(0, 6);
     }
     const url = `http://data2.goalserve.com:8084/api/v1/logotips/basketball/teams?k=${GOALSERVE_KEY}&ids=${ids.join(',')}`;
-    let raw = null, parsed = null, err = null;
-    try { raw = await cachedJSON(url, 30000); parsed = gsParseLogos(raw); } catch (e) { err = String(e.message || e); }
-    res.json({ idsTested: ids, parsedLogos: parsed, resolved: parsed ? Object.keys(parsed).length : 0, error: err, rawSample: raw });
+    let parsed = null, err = null, shape = null;
+    try { const raw = await cachedJSON(url, 30000); parsed = gsParseLogos(raw); shape = Array.isArray(raw) ? ('array[' + raw.length + '] keys=' + Object.keys(raw[0] || {}).join(',')) : typeof raw; } catch (e) { err = String(e.message || e); }
+    const summary = {}; if (parsed) for (const [id, v] of Object.entries(parsed)) summary[id] = v.b64 ? ('base64(' + v.b64.length + ')') : (v.url || '?');
+    res.json({ idsTested: ids, resolved: parsed ? Object.keys(parsed).length : 0, logos: summary, imageUrls: ids.map(id => '/api/gs/logo/' + id), responseShape: shape, error: err });
   } catch (e) { res.status(502).json({ error: String(e.message || e) }); }
+});
+
+// 🏀 팀 로고 이미지 서빙 (base64 → PNG, 브라우저/CDN 캐시). 카드엔 이 URL만 들어가 폴링이 가벼움.
+app.get('/api/gs/logo/:id', async (req, res) => {
+  const id = String(req.params.id || '').replace(/[^0-9]/g, '');
+  if (!id) return res.status(400).end();
+  try {
+    let h = _gsLogoCache.get(id);
+    if (!(h && h.exp > Date.now() && (h.b64 || h.url))) { await gsTeamLogos([id]).catch(() => {}); h = _gsLogoCache.get(id); }
+    if (h && h.b64) { res.set('Content-Type', 'image/png'); res.set('Cache-Control', 'public, max-age=86400'); return res.end(Buffer.from(h.b64, 'base64')); }
+    if (h && h.url) { res.set('Cache-Control', 'public, max-age=86400'); return res.redirect(h.url); }
+    return res.status(404).end();
+  } catch { return res.status(502).end(); }
 });
 
 const _nrm = s => String(s || '').toLowerCase().replace(/[^a-z0-9]/g, '');
@@ -1635,45 +1649,46 @@ async function gsBasketballGames(date, tz) {
       }
     }
   }
-  // 🏀 팀 로고 붙이기 (Goalserve 로고 API, 팀 ID 기반 · 장기 캐시 · 실패해도 빈 로고로 안전)
+  // 🏀 팀 로고 붙이기 — 로고 있으면 이미지 엔드포인트 URL로(폴링마다 base64 전송 방지). 실패해도 빈 로고로 안전.
   try {
     const ids = [...new Set(out.flatMap(g => [g.homeTid, g.awayTid]).filter(Boolean).map(String))];
-    const logos = await gsTeamLogos(ids);
-    out.forEach(g => { if (g.homeTid && logos[g.homeTid]) g.homeLogo = logos[g.homeTid]; if (g.awayTid && logos[g.awayTid]) g.awayLogo = logos[g.awayTid]; });
+    const have = await gsTeamLogos(ids);
+    out.forEach(g => { if (g.homeTid && have.has(String(g.homeTid))) g.homeLogo = '/api/gs/logo/' + g.homeTid; if (g.awayTid && have.has(String(g.awayTid))) g.awayLogo = '/api/gs/logo/' + g.awayTid; });
   } catch {}
   return out;
 }
 
-// 🏀 Goalserve 팀 로고 — 팀 ID로 조회(쉼표 다중). 응답 shape가 유동적이라 여러 형태 수용. 장기 캐시(로고는 거의 안 바뀜).
-const _gsLogoCache = new Map();   // id → { url, exp }
+// 🏀 Goalserve 팀 로고 — 팀 ID로 조회. 응답은 [{id, base64}] 형태(PNG base64). URL 형태도 대비해 수용. 장기 캐시.
+const _gsLogoCache = new Map();   // id → { b64, url, exp }
 const GS_LOGO_TTL = 24 * 3600 * 1000;      // 로고 있으면 24시간 캐시
 const GS_LOGO_RETRY = 10 * 60 * 1000;      // 못 찾음/실패는 10분 뒤 재시도
 function gsParseLogos(data) {
   const map = {};
-  const add = (id, url) => { if (id != null && url && typeof url === 'string') map[String(id)] = url; };
-  const pick = o => o && (o.url || o.logo || o.image || o.src || o.path || o['@url']);
   const pid = o => o && (o.id ?? o['@id'] ?? o.team_id ?? o.teamId ?? o.entity_id);
-  if (Array.isArray(data)) data.forEach(o => add(pid(o), pick(o)));
+  const pb64 = o => o && (o.base64 ?? o['@base64'] ?? o.img64 ?? o.logo64);
+  const purl = o => o && (o.url || o.logo || o.image || o.src || o.path || o['@url']);
+  const add = o => { const id = pid(o); if (id == null) return; const b = pb64(o), u = purl(o); if (b) map[String(id)] = { b64: String(b) }; else if (u && typeof u === 'string') map[String(id)] = { url: u }; };
+  if (Array.isArray(data)) data.forEach(add);
   else if (data && typeof data === 'object') {
     const arr = data.teams || data.data || data.logos || data.result || data.logotips || (data.scores && data.scores.team);
-    if (Array.isArray(arr)) arr.forEach(o => add(pid(o), pick(o)));
-    else Object.entries(data).forEach(([k, v]) => { if (typeof v === 'string') add(k, v); else if (v && typeof v === 'object') add(pid(v) || k, pick(v)); });
+    if (Array.isArray(arr)) arr.forEach(add);
+    else Object.values(data).forEach(v => { if (v && typeof v === 'object') add(v); });
   }
   return map;
 }
 async function gsTeamLogos(ids) {
-  const now = Date.now(); const out = {}; const need = [];
-  for (const id of ids) { const h = _gsLogoCache.get(id); if (h && h.exp > now) { if (h.url) out[id] = h.url; } else need.push(id); }
+  const now = Date.now(); const have = new Set(); const need = [];
+  for (const id of ids) { const h = _gsLogoCache.get(id); if (h && h.exp > now) { if (h.b64 || h.url) have.add(String(id)); } else need.push(id); }
   for (let i = 0; i < need.length; i += 50) {
     const chunk = need.slice(i, i + 50);
     try {
       const url = `http://data2.goalserve.com:8084/api/v1/logotips/basketball/teams?k=${GOALSERVE_KEY}&ids=${chunk.join(',')}`;
       const data = await cachedJSON(url, GS_LOGO_TTL);
       const m = gsParseLogos(data);
-      chunk.forEach(id => { const u = m[id] || ''; _gsLogoCache.set(id, { url: u, exp: now + (u ? GS_LOGO_TTL : GS_LOGO_RETRY) }); if (u) out[id] = u; });
-    } catch { chunk.forEach(id => _gsLogoCache.set(id, { url: '', exp: now + GS_LOGO_RETRY })); }
+      chunk.forEach(id => { const e = m[String(id)]; if (e && (e.b64 || e.url)) { _gsLogoCache.set(String(id), { b64: e.b64 || '', url: e.url || '', exp: now + GS_LOGO_TTL }); have.add(String(id)); } else { _gsLogoCache.set(String(id), { b64: '', url: '', exp: now + GS_LOGO_RETRY }); } });
+    } catch { chunk.forEach(id => _gsLogoCache.set(String(id), { b64: '', url: '', exp: now + GS_LOGO_RETRY })); }
   }
-  return out;
+  return have;
 }
 
 async function buildGamesCore(sport, date, tz) {
