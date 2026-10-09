@@ -257,3 +257,41 @@ function gameInFilter(e){return"all"===state.leagueFilter||("intl"===state.leagu
   if(document.readyState!=='loading')addChip();else document.addEventListener('DOMContentLoaded',addChip);
   setInterval(addChip,1500);
 }catch(err){console&&console.warn&&console.warn('shorts chip',err);}})();
+
+;(function(){try{
+  /* 📱 유튜브/인앱 WebView(안드로이드)에서는 구글 로그인(OAuth)이 차단됨 → Chrome으로 열기 유도 */
+  var ua=navigator.userAgent||'';
+  function isAndroid(){return /Android/i.test(ua);}
+  function isInAppWV(){
+    if(!isAndroid())return false;
+    if(/; wv\)/.test(ua)||/\bwv\b/.test(ua))return true;                 // 안드로이드 WebView
+    if(/(FBAN|FBAV|FB_IAB|Instagram|Line\/|KAKAOTALK|NAVER|Daum|Snapchat|Twitter)/i.test(ua))return true; // 주요 인앱
+    if(/Version\/\d+\.\d+ Chrome/.test(ua))return true;                  // WebView 특유의 Version/ 포함
+    return false;
+  }
+  function L(o){var l;try{l=localStorage.getItem('liveup_lang_user')||localStorage.getItem('liveup_lang')||'en';}catch(e){l='en';}return o[l]||o.en;}
+  function openInChrome(){
+    var noScheme=location.href.replace(/^https?:\/\//,'');
+    var fb=encodeURIComponent(location.href);
+    try{location.href='intent://'+noScheme+'#Intent;scheme=https;package=com.android.chrome;S.browser_fallback_url='+fb+';end';}
+    catch(e){try{location.href=location.href;}catch(_){}}
+  }
+  window.luOpenInChrome=openInChrome;
+  if(!isInAppWV())return;
+  var css=document.createElement('style');css.textContent="#chromeBar{position:fixed;left:0;right:0;top:0;z-index:100000;background:linear-gradient(135deg,#2b5aa0,#3d7dff);color:#fff;display:flex;align-items:center;gap:8px;padding:9px 12px;font-size:13px;font-weight:700;box-shadow:0 2px 10px rgba(0,0,0,.25)}#chromeBar .cb-t{flex:1;line-height:1.35}#chromeBar .cb-go{flex:none;background:#fff;color:#1f3f73;border:0;border-radius:8px;padding:7px 12px;font-weight:900;font-size:12.5px;cursor:pointer}#chromeBar .cb-x{flex:none;background:transparent;border:0;color:#dbe6ff;font-size:16px;cursor:pointer;padding:2px 4px}.lm-chrome{display:block;width:100%;margin:4px 0 10px;background:linear-gradient(135deg,#2b5aa0,#3d7dff);color:#fff;border:0;border-radius:11px;padding:12px;font-size:14px;font-weight:900;cursor:pointer}";
+  document.head.appendChild(css);
+  // 상단 배너
+  function showBar(){
+    if(document.getElementById('chromeBar'))return;
+    try{if(sessionStorage.getItem('liveup_chromebar_x'))return;}catch(e){}
+    var b=document.createElement('div');b.id='chromeBar';
+    b.innerHTML='<span class="cb-t">'+L({en:'For 1-tap Google sign-in, open in Chrome.',ko:'구글 간편 로그인은 Chrome에서 열어주세요.',ja:'Googleワンタップログインは Chrome で開いてください。',zh:'一键 Google 登录请用 Chrome 打开。',es:'Para iniciar con Google, abre en Chrome.',vi:'Đăng nhập Google 1 chạm: mở bằng Chrome.',th:'ล็อกอิน Google แบบแตะเดียว เปิดใน Chrome',ru:'Для входа Google откройте в Chrome.',de:'Für Google-Login in Chrome öffnen.',fr:'Connexion Google : ouvrez dans Chrome.',it:'Per accedere con Google, apri in Chrome.',hi:'Google साइन-इन के लिए Chrome में खोलें।'})+'</span><button class="cb-go">'+L({en:'Open in Chrome',ko:'Chrome에서 열기',ja:'Chromeで開く',zh:'用Chrome打开',es:'Abrir en Chrome',vi:'Mở Chrome',th:'เปิดใน Chrome',ru:'Открыть в Chrome',de:'In Chrome',fr:'Ouvrir Chrome',it:'Apri in Chrome',hi:'Chrome में खोलें'})+'</button><button class="cb-x" title="close">✕</button>';
+    document.body.appendChild(b);document.body.style.paddingTop='46px';
+    b.querySelector('.cb-go').onclick=openInChrome;
+    b.querySelector('.cb-x').onclick=function(){try{sessionStorage.setItem('liveup_chromebar_x','1');}catch(e){}b.remove();document.body.style.paddingTop='';};
+  }
+  if(document.readyState!=='loading')showBar();else document.addEventListener('DOMContentLoaded',showBar);
+  // 로그인 모달 안에도 Chrome 버튼 삽입
+  function injectLoginBtn(){var g=document.getElementById('gSignIn');if(!g||document.getElementById('lmChrome'))return;var btn=document.createElement('button');btn.id='lmChrome';btn.className='lm-chrome';btn.textContent='🌐 '+L({en:'Open in Chrome for Google login',ko:'Chrome에서 열어 구글 로그인',ja:'Chromeで開いてGoogleログイン',zh:'用Chrome打开进行Google登录',es:'Abrir en Chrome para Google',vi:'Mở Chrome để đăng nhập Google',th:'เปิด Chrome เพื่อล็อกอิน Google',ru:'Открыть в Chrome для входа Google',de:'In Chrome für Google-Login',fr:'Ouvrir Chrome pour Google',it:'Apri in Chrome per Google',hi:'Google लॉगिन हेतु Chrome में खोलें'});btn.onclick=openInChrome;g.parentNode.insertBefore(btn,g);}
+  setInterval(injectLoginBtn,1200);setTimeout(injectLoginBtn,600);
+}catch(err){console&&console.warn&&console.warn('chrome-hint',err);}})();
