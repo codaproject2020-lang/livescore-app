@@ -950,6 +950,22 @@ app.get('/api/gs/bsktest', async (req, res) => {
   }
 });
 
+// 🏀 팀 로고 응답 형태 확인용 진단 (ids 미지정 시 오늘 라이브 경기 팀 ID 자동 사용)
+app.get('/api/gs/logotest', async (req, res) => {
+  try {
+    let ids = String(req.query.ids || '').split(',').map(s => s.trim()).filter(Boolean);
+    if (!ids.length) {
+      const date = ymdInTz(new Date(), 'Asia/Seoul');
+      const games = await gsBasketballGames(date, 'Asia/Seoul').catch(() => []);
+      ids = [...new Set(games.flatMap(g => [g.homeTid, g.awayTid]).filter(Boolean).map(String))].slice(0, 6);
+    }
+    const url = `http://data2.goalserve.com:8084/api/v1/logotips/basketball/teams?k=${GOALSERVE_KEY}&ids=${ids.join(',')}`;
+    let raw = null, parsed = null, err = null;
+    try { raw = await cachedJSON(url, 30000); parsed = gsParseLogos(raw); } catch (e) { err = String(e.message || e); }
+    res.json({ idsTested: ids, parsedLogos: parsed, resolved: parsed ? Object.keys(parsed).length : 0, error: err, rawSample: raw });
+  } catch (e) { res.status(502).json({ error: String(e.message || e) }); }
+});
+
 const _nrm = s => String(s || '').toLowerCase().replace(/[^a-z0-9]/g, '');
 
 
@@ -1604,9 +1620,11 @@ async function gsBasketballGames(date, tz) {
           if ((h != null && h !== '') || (a != null && a !== '')) setScores.push({ home: numOrNull(h), away: numOrNull(a) });
         });
         const tmr = GSA(m, 'timer');
+        const htid = GSA(lt, 'id'), atid = GSA(at, 'id');
         const g = {
           id, league, leagueLogo: '', country,
           home: GSA(lt, 'name') || '', homeLogo: '', away: GSA(at, 'name') || '', awayLogo: '',
+          homeTid: htid, awayTid: atid,
           hs: hsN, as: asN, status: short, statusLong: stRaw,
           period: qn, timer: (tmr != null && tmr !== '') ? String(tmr) : null,
           livePts: null, setScores: setScores.length ? setScores : null, box: null, curInning: null, inningHalf: null,
@@ -1616,6 +1634,44 @@ async function gsBasketballGames(date, tz) {
         seen.add(id); out.push(g);
       }
     }
+  }
+  // 🏀 팀 로고 붙이기 (Goalserve 로고 API, 팀 ID 기반 · 장기 캐시 · 실패해도 빈 로고로 안전)
+  try {
+    const ids = [...new Set(out.flatMap(g => [g.homeTid, g.awayTid]).filter(Boolean).map(String))];
+    const logos = await gsTeamLogos(ids);
+    out.forEach(g => { if (g.homeTid && logos[g.homeTid]) g.homeLogo = logos[g.homeTid]; if (g.awayTid && logos[g.awayTid]) g.awayLogo = logos[g.awayTid]; });
+  } catch {}
+  return out;
+}
+
+// 🏀 Goalserve 팀 로고 — 팀 ID로 조회(쉼표 다중). 응답 shape가 유동적이라 여러 형태 수용. 장기 캐시(로고는 거의 안 바뀜).
+const _gsLogoCache = new Map();   // id → { url, exp }
+const GS_LOGO_TTL = 24 * 3600 * 1000;      // 로고 있으면 24시간 캐시
+const GS_LOGO_RETRY = 10 * 60 * 1000;      // 못 찾음/실패는 10분 뒤 재시도
+function gsParseLogos(data) {
+  const map = {};
+  const add = (id, url) => { if (id != null && url && typeof url === 'string') map[String(id)] = url; };
+  const pick = o => o && (o.url || o.logo || o.image || o.src || o.path || o['@url']);
+  const pid = o => o && (o.id ?? o['@id'] ?? o.team_id ?? o.teamId ?? o.entity_id);
+  if (Array.isArray(data)) data.forEach(o => add(pid(o), pick(o)));
+  else if (data && typeof data === 'object') {
+    const arr = data.teams || data.data || data.logos || data.result || data.logotips || (data.scores && data.scores.team);
+    if (Array.isArray(arr)) arr.forEach(o => add(pid(o), pick(o)));
+    else Object.entries(data).forEach(([k, v]) => { if (typeof v === 'string') add(k, v); else if (v && typeof v === 'object') add(pid(v) || k, pick(v)); });
+  }
+  return map;
+}
+async function gsTeamLogos(ids) {
+  const now = Date.now(); const out = {}; const need = [];
+  for (const id of ids) { const h = _gsLogoCache.get(id); if (h && h.exp > now) { if (h.url) out[id] = h.url; } else need.push(id); }
+  for (let i = 0; i < need.length; i += 50) {
+    const chunk = need.slice(i, i + 50);
+    try {
+      const url = `http://data2.goalserve.com:8084/api/v1/logotips/basketball/teams?k=${GOALSERVE_KEY}&ids=${chunk.join(',')}`;
+      const data = await cachedJSON(url, GS_LOGO_TTL);
+      const m = gsParseLogos(data);
+      chunk.forEach(id => { const u = m[id] || ''; _gsLogoCache.set(id, { url: u, exp: now + (u ? GS_LOGO_TTL : GS_LOGO_RETRY) }); if (u) out[id] = u; });
+    } catch { chunk.forEach(id => _gsLogoCache.set(id, { url: '', exp: now + GS_LOGO_RETRY })); }
   }
   return out;
 }
