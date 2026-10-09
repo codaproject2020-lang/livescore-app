@@ -896,6 +896,60 @@ app.get('/api/asports/leagues', async (req, res) => {
     res.json({ sport, date, leagues });
   } catch (e) { res.status(502).json({ error: String(e.message || e) }); }
 });
+
+// ============================================================
+//  🏀 Goalserve 농구 라이브 시계 테스트 엔드포인트
+//  배포 후 브라우저로 /api/gs/bsktest 열면 쿼터/시계 수신 여부 확인
+//  키는 환경변수 GOALSERVE_KEY 우선, 없으면 테스트키 폴백
+// ============================================================
+app.get('/api/gs/bsktest', async (req, res) => {
+  const KEY = (process.env.GOALSERVE_KEY || '063b89c0de9d4078431908df2595d029').trim();
+  const base = `https://www.goalserve.com/getfeed/${KEY}/bsktbl`;
+  const A = (o, k) => { if (!o) return undefined; if (o['@' + k] !== undefined) return o['@' + k]; if (o[k] !== undefined && typeof o[k] !== 'object') return o[k]; return undefined; };
+  const arr = x => Array.isArray(x) ? x : (x ? [x] : []);
+  try {
+    // 1) 연결 체크 — leagues 피드(항상 데이터 있음)
+    let lgCount = 0, lgErr = null;
+    try { const lj = await cachedJSON(`${base}/leagues?json=1`, 60000); lgCount = arr(lj?.scores?.category || lj?.leagues?.league || lj?.scores?.league).length; } catch (e) { lgErr = String(e.message || e); }
+    // 2) 라이브 스코어 피드
+    const j = await cachedJSON(`${base}/home?json=1`, 8000);
+    const cats = arr(j?.scores?.category);
+    let total = 0; const statusCounts = {}; const live = []; const timerSamples = new Set();
+    for (const c of cats) {
+      const league = A(c, 'name');
+      for (const m of arr(c.match)) {
+        total++;
+        const st = A(m, 'status') || '';
+        statusCounts[st] = (statusCounts[st] || 0) + 1;
+        const tm = A(m, 'timer'); if (tm) timerSamples.add(tm);
+        const lt = m.localteam, at = m.visitorteam || m.awayteam;
+        if (/quarter|overtime|half ?time|break/i.test(st)) {
+          live.push({
+            league, home: A(lt, 'name'), away: A(at, 'name'),
+            score: `${A(lt, 'totalscore') || 0}:${A(at, 'totalscore') || 0}`,
+            status: st, timer: tm || '(없음)',
+            quarters: `${A(lt, 'q1') || '-'}/${A(lt, 'q2') || '-'}/${A(lt, 'q3') || '-'}/${A(lt, 'q4') || '-'}  vs  ${A(at, 'q1') || '-'}/${A(at, 'q2') || '-'}/${A(at, 'q3') || '-'}/${A(at, 'q4') || '-'}`
+          });
+        }
+      }
+    }
+    res.json({
+      ok: true,
+      keyUsed: KEY.slice(0, 6) + '…',
+      연결상태: (lgCount > 0 || total > 0) ? '✅ 피드 정상 (IP 통과됨)' : '❌ 빈 응답 → IP 잠금 가능성, Goalserve에 142.93.195.157 화이트리스트 요청',
+      리그수: lgCount, 리그에러: lgErr,
+      오늘경기수: total,
+      현재라이브: live.length,
+      상태별카운트: statusCounts,
+      시계값샘플: [...timerSamples].slice(0, 20),
+      라이브경기: live.slice(0, 30),
+      설명: 'status=쿼터(1st/2nd/3rd/4th Quarter 등), timer=라이브 시계(분). 라이브 경기가 있을 때만 값이 참. 한국 오전엔 경기 적음(유럽/미국 저녁~새벽 권장).'
+    });
+  } catch (e) {
+    res.status(502).json({ ok: false, error: String(e.message || e), hint: '빈 응답/에러면 IP 잠금 가능성 → Goalserve에 142.93.195.157(또는 Render 아웃바운드 IP) 화이트리스트 요청' });
+  }
+});
+
 const _nrm = s => String(s || '').toLowerCase().replace(/[^a-z0-9]/g, '');
 
 
