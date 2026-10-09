@@ -1526,9 +1526,119 @@ function nkLast(name) {
 }
 const _lastGoodBB = new Map();   // 야구 간헐적 사라짐 방지용 직전 정상빌드 캐시
 const _lastGoodMinor = new Map();   // 배구·농구·하키 등 간헐적 사라짐 방지용 직전 정상빌드 캐시
+
+// ============================================================
+//  🏀 Goalserve 농구 — 라이브 쿼터 + 시계(timer) 제공 (API-Sports 대체)
+//  · getfeed 키 기반(IP 잠금 아님). home/d-1/d1 3일치 받아 기기 타임존으로 필터
+//  · game 객체 shape를 normAS 농구와 동일하게 맞춤(status/period/timer/setScores/hs/as)
+// ============================================================
+const GOALSERVE_KEY = (process.env.GOALSERVE_KEY || '063b89c0de9d4078431908df2595d029').trim();
+const GSA = (o, k) => { if (!o) return undefined; if (o['@' + k] !== undefined) return o['@' + k]; if (o[k] !== undefined && typeof o[k] !== 'object') return o[k]; return undefined; };
+const GSARR = x => Array.isArray(x) ? x : (x ? [x] : []);
+function gsBskShort(st) {
+  const s = String(st || '').toLowerCase();
+  if (/1st q/.test(s)) return 'Q1';
+  if (/2nd q/.test(s)) return 'Q2';
+  if (/3rd q/.test(s)) return 'Q3';
+  if (/4th q/.test(s)) return 'Q4';
+  if (/after over time/.test(s)) return 'FT';
+  if (/overtime/.test(s)) return 'OT';
+  if (/half ?time/.test(s)) return 'HT';
+  if (/break/.test(s)) return 'BT';
+  if (/not started/.test(s)) return 'NS';
+  if (/finished|\bend\b|\bft\b/.test(s)) return 'FT';
+  if (/postponed/.test(s)) return 'PST';
+  if (/cancel/.test(s)) return 'CANC';
+  if (/abandon/.test(s)) return 'ABD';
+  if (/suspend|interrupt|delay/.test(s)) return 'SUSP';
+  if (/awarded|walk ?over/.test(s)) return 'AWD';
+  return (st || '').trim();
+}
+const GS_LG_ACRONYMS = ['NBA', 'WNBA', 'NBL', 'KBL', 'WKBL', 'NCAA', 'CBA', 'BBL', 'PBA', 'MPBL', 'NBDL', 'ABA', 'KBSL', 'BSL', 'VTB', 'ACB', 'LNB', 'BNXT', 'FIBA', 'EASL', 'U18', 'U19', 'U16', 'W'];
+function gsPrettyLeague(name) {
+  let s = String(name || '').trim();
+  if (!s) return s;
+  // 각 단어가 약어면 대문자로 (예: "Nba"→"NBA", "Nbl"→"NBL", "Kbl Basket League"→"KBL Basket League")
+  s = s.split(/\s+/).map(w => {
+    const up = w.toUpperCase().replace(/[^A-Z0-9]/g, '');
+    return GS_LG_ACRONYMS.includes(up) ? w.toUpperCase() : w;
+  }).join(' ');
+  return s;
+}
+function gsIso(d, tm) {   // d="22.11.2023"(UTC) tm="01:00" → ISO UTC
+  if (!d) return null;
+  const p = String(d).split('.'); if (p.length < 3) return null;
+  const dd = p[0].padStart(2, '0'), mo = p[1].padStart(2, '0'), yy = p[2];
+  let hh = '00', mi = '00'; const tp = String(tm || '').split(':');
+  if (tp.length >= 2 && /^\d/.test(tp[0])) { hh = tp[0].padStart(2, '0'); mi = tp[1].padStart(2, '0'); }
+  return `${yy}-${mo}-${dd}T${hh}:${mi}:00Z`;
+}
+async function gsBasketballGames(date, tz) {
+  tz = canonTz(tz);
+  const base = `https://www.goalserve.com/getfeed/${GOALSERVE_KEY}/bsktbl`;
+  const feeds = ['d-1', 'home', 'd1'];   // 전날/오늘/다음날(UTC) → 기기 타임존 날짜로 필터
+  const out = []; const seen = new Set();
+  const numOrNull = v => (v === '' || v == null) ? null : (isNaN(+v) ? null : +v);
+  for (const f of feeds) {
+    let j; try { j = await cachedJSON(`${base}/${f}?json=1`, 9000); } catch { continue; }
+    const cats = GSARR(j && j.scores && j.scores.category);
+    for (const c of cats) {
+      const rawName = GSA(c, 'name') || '';
+      // 🚫 e스포츠/시뮬레이션 농구(Ebasketball, GG League, 4x5mins, Cyber 등) 제외 — 실제 경기만
+      if (/e-?basketball|\bgg league\b|\b4x5\b|cyber|simulated|esports/i.test(rawName)) continue;
+      const country = rawName.includes(':') ? rawName.split(':')[0].trim() : '';
+      let league = rawName.includes(':') ? rawName.split(':').slice(1).join(':').trim() : rawName;
+      league = gsPrettyLeague(league);
+      for (const m of GSARR(c.match)) {
+        const id = 'gs' + (GSA(m, 'id') || '');
+        if (seen.has(id)) continue;
+        const stRaw = GSA(m, 'status') || '';
+        const short = gsBskShort(stRaw);
+        const lt = m.localteam, at = m.visitorteam || m.awayteam;
+        const hsN = numOrNull(GSA(lt, 'totalscore')), asN = numOrNull(GSA(at, 'totalscore'));
+        const iso = gsIso(GSA(m, 'date'), GSA(m, 'time'));
+        const qn = { Q1: 1, Q2: 2, Q3: 3, Q4: 4, OT: 5 }[short] || null;
+        const setScores = [];
+        ['q1', 'q2', 'q3', 'q4', 'ot'].forEach(k => {
+          const h = GSA(lt, k), a = GSA(at, k);
+          if ((h != null && h !== '') || (a != null && a !== '')) setScores.push({ home: numOrNull(h), away: numOrNull(a) });
+        });
+        const tmr = GSA(m, 'timer');
+        const g = {
+          id, league, leagueLogo: '', country,
+          home: GSA(lt, 'name') || '', homeLogo: '', away: GSA(at, 'name') || '', awayLogo: '',
+          hs: hsN, as: asN, status: short, statusLong: stRaw,
+          period: qn, timer: (tmr != null && tmr !== '') ? String(tmr) : null,
+          livePts: null, setScores: setScores.length ? setScores : null, box: null, curInning: null, inningHalf: null,
+          date: iso, state: asState(short, hsN), _src: 'goalserve'
+        };
+        if (iso && ymdInTz(iso, tz) !== date) continue;   // 기기 타임존 날짜만
+        seen.add(id); out.push(g);
+      }
+    }
+  }
+  return out;
+}
+
 async function buildGamesCore(sport, date, tz) {
   const cfg = AS[sport]; if (!cfg) return { games: [], j: {} };
-  tz = canonTz(tz);   // 옛 타임존 별칭(Asia/Saigon 등) 표준화 → 날짜 필터 안정화
+  tz = canonTz(tz);
+  // 🏀 농구 = Goalserve로 전체 교체 (라이브 쿼터 + 시계). 간헐적 빈응답은 직전 정상빌드로 방어.
+  if (sport === 'basketball') {
+    let games = [];
+    try { games = await gsBasketballGames(date, tz); } catch {}
+    try {
+      const mk = 'MN|basketball|' + date + '|' + (tz || '');
+      const prev = _lastGoodMinor.get(mk);
+      if (prev && prev.list && prev.list.length) {
+        const ids = new Set(games.map(g => String(g.id)));
+        prev.list.forEach(pg => { if (!ids.has(String(pg.id))) games.push(pg); });
+      }
+      if (games.length) _lastGoodMinor.set(mk, { t: Date.now(), list: games.slice() });
+      for (const [k, v] of _lastGoodMinor) { if (Date.now() - v.t > 1800000) _lastGoodMinor.delete(k); }
+    } catch {}
+    return { games, j: { results: games.length } };
+  }   // 옛 타임존 별칭(Asia/Saigon 등) 표준화 → 날짜 필터 안정화
   // 🏐 배구·농구·하키 등 v1 종목: API가 기기 타임존별 날짜버킷을 불안정하게 반환(라이브 경기 누락) →
   //    안정적인 Asia/Seoul로 조회한 뒤, 화면 표시는 기기 타임존 날짜로 필터한다.
   const MINOR = ['volleyball', 'basketball', 'hockey', 'handball', 'rugby'];
@@ -1809,7 +1919,8 @@ function warmFeeds() {
 }
 setTimeout(warmFeeds, 1500); setInterval(warmFeeds, 20000);
 app.get('/api/asports/games', async (req, res) => {
-  if (!APISPORTS_KEY) return res.json({ needKey: true, games: [] });
+  // 🏀 농구는 Goalserve 사용(API-Sports 키 불필요) → 키 없어도 통과
+  if (!APISPORTS_KEY && req.query.sport !== 'basketball') return res.json({ needKey: true, games: [] });
   const sport = req.query.sport || 'football';
   const date = req.query.date || new Date().toISOString().slice(0, 10);
   const cfg = AS[sport]; if (!cfg) return res.status(400).json({ error: 'bad sport' });
