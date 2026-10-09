@@ -478,7 +478,7 @@ async function getGame(){try{var r=await fetch(GAMES_Q+"&_="+Date.now());var j=a
 function liveClock(g){
   if(sport==="baseball"){var inn=g.curInning||g.period||"-";return inn+T("inning");}
   if(sport==="volley"){var sc=(g.setScores&&g.setScores.length)||1;return T("set")+" "+sc;}
-  if(sport==="basket"){var pr=g.period||1;return (g.timer?g.timer:pr+T("q"));}
+  if(sport==="basket"){var pr=g.period||1;var base=pr+T("q");return g.timer?(base+" "+g.timer+"'"):base;}
   return "-";
 }
 function statRow(label,h,a){var tot=(Number(h)||0)+(Number(a)||0)||1;var row=document.createElement("div");row.className="prow";row.innerHTML='<div class="plab"><span class="vh">'+h+'</span><span class="k">'+label+'</span><span class="va">'+a+'</span></div><div class="pbar"><i class="bh" style="width:'+((Number(h)||0)/tot*100)+'%"></i><i class="ba" style="width:'+((Number(a)||0)/tot*100)+'%"></i></div>';return row;}
