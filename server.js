@@ -967,6 +967,28 @@ app.get('/api/gs/logotest', async (req, res) => {
   } catch (e) { res.status(502).json({ error: String(e.message || e) }); }
 });
 
+// 🏀 초 단위 시계 탐색 진단 — 여러 농구 피드에서 분:초/clock 필드가 오는 엔드포인트 찾기
+app.get('/api/gs/secprobe', async (req, res) => {
+  const K = GOALSERVE_KEY, B = `https://www.goalserve.com/getfeed/${K}/bsktbl`;
+  const cands = [
+    { name: 'inplay', url: `${B}/inplay?json=1` },
+    { name: 'home_stats', url: `${B}/home_stats?json=1` },
+    { name: 'nba-playbyplay', url: `${B}/nba-playbyplay?json=1` },
+    { name: 'home_p2p', url: `${B}/home_p2p?json=1` }
+  ];
+  const out = [];
+  for (const c of cands) {
+    try {
+      const txt = JSON.stringify(await cachedJSON(c.url, 8000));
+      const hasSeconds = /"seconds?"\s*:/i.test(txt) || /"clock"\s*:/i.test(txt) || /"time_?remaining"\s*:/i.test(txt);
+      const mmss = (txt.match(/"\d{1,2}:\d{2}"/g) || []).slice(0, 5);   // "7:32" 형태 샘플
+      const keys = [...new Set((txt.match(/"[a-z_]+"\s*:/gi) || []).map(s => s.replace(/["\s:]/g, '')))].filter(k => /sec|clock|time|minute|period|quarter|status|timer/i.test(k)).slice(0, 25);
+      out.push({ feed: c.name, bytes: txt.length, hasSecondsField: hasSeconds, mmssSamples: mmss, timeKeys: keys });
+    } catch (e) { out.push({ feed: c.name, error: String(e.message || e) }); }
+  }
+  res.json({ note: 'hasSecondsField=true 이거나 mmssSamples에 "7:32" 같은 값이 보이는 피드가 초 단위 제공', results: out });
+});
+
 // 🏀 팀 로고 이미지 서빙 (base64 → PNG, 브라우저/CDN 캐시). 카드엔 이 URL만 들어가 폴링이 가벼움.
 app.get('/api/gs/logo/:id', async (req, res) => {
   const id = String(req.params.id || '').replace(/[^0-9]/g, '');
@@ -1650,14 +1672,21 @@ async function gsBasketballGames(date, tz) {
       }
     }
   }
-  // 🏀 팀 로고 붙이기 — 로고 있으면 이미지 엔드포인트 URL로(폴링마다 base64 전송 방지). 실패해도 빈 로고로 안전.
+  // 🏀 팀 로고 붙이기 — 캐시에 있으면 바로 URL, 없으면 백그라운드로 받아둠(경기 응답은 안 막힘).
+  //    로고 API가 '초당 1회' 제한이라 한 번에 많이 부르면 일부가 막힘 → gsTeamLogos가 묶음마다 간격을 둠.
   try {
-    const ids = [...new Set(out.flatMap(g => [g.homeTid, g.awayTid]).filter(Boolean).map(String))];
-    const have = await gsTeamLogos(ids);
-    out.forEach(g => { if (g.homeTid && have.has(String(g.homeTid))) g.homeLogo = '/api/gs/logo/' + g.homeTid; if (g.awayTid && have.has(String(g.awayTid))) g.awayLogo = '/api/gs/logo/' + g.awayTid; });
+    const now = Date.now();
+    out.forEach(g => {
+      const h = g.homeTid && _gsLogoCache.get(String(g.homeTid)); if (h && h.exp > now && (h.b64 || h.url)) g.homeLogo = '/api/gs/logo/' + g.homeTid;
+      const a = g.awayTid && _gsLogoCache.get(String(g.awayTid)); if (a && a.exp > now && (a.b64 || a.url)) g.awayLogo = '/api/gs/logo/' + g.awayTid;
+    });
+    const uncached = [...new Set(out.flatMap(g => [g.homeTid, g.awayTid]).filter(Boolean).map(String))]
+      .filter(id => { const h = _gsLogoCache.get(id); return !(h && h.exp > now); });
+    if (uncached.length && !_gsLogoFetching) { _gsLogoFetching = true; gsTeamLogos(uncached).catch(() => {}).finally(() => { _gsLogoFetching = false; }); }
   } catch {}
   return out;
 }
+let _gsLogoFetching = false;
 
 // 🏀 Goalserve 팀 로고 — 팀 ID로 조회. 응답은 [{id, base64}] 형태(PNG base64). URL 형태도 대비해 수용. 장기 캐시.
 const _gsLogoCache = new Map();   // id → { b64, url, exp }
@@ -1681,6 +1710,7 @@ async function gsTeamLogos(ids) {
   const now = Date.now(); const have = new Set(); const need = [];
   for (const id of ids) { const h = _gsLogoCache.get(id); if (h && h.exp > now) { if (h.b64 || h.url) have.add(String(id)); } else need.push(id); }
   for (let i = 0; i < need.length; i += 50) {
+    if (i > 0) await new Promise(r => setTimeout(r, 1200));   // 로고 API '초당 1회' 제한 준수 (묶음 간 간격)
     const chunk = need.slice(i, i + 50);
     try {
       const url = `http://data2.goalserve.com:8084/api/v1/logotips/basketball/teams?k=${GOALSERVE_KEY}&ids=${chunk.join(',')}`;
