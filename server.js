@@ -1187,9 +1187,10 @@ async function tsBaseballGames(date) {
       //    (TheSports status 코드가 지연/누락돼도 헤더 초말과 '공격 중' 팀이 어긋나지 않도록)
       if (g.batting === 'home') g.inningHalf = 'bottom';
       else if (g.batting === 'away') g.inningHalf = 'top';
-      // 🛡️ 라인스코어 정합성 가드: 현재 회에 홈팀 득점 기록이 있으면(=홈이 그 회 이미 공격) '말'로 확정.
-      //    라이브 초/말 플래그가 점수보다 늦게 갱신돼 "홈 득점했는데 아직 초"로 어긋나는 현상 방지.
-      if (g.curInning && ((tsNum(hInn[g.curInning]) || 0) > 0 || (aInn[g.curInning] != null && hInn[g.curInning] != null))) {
+      // 🛡️ 라인스코어 폴백(신뢰 신호가 전혀 없을 때만): 현재 회에 홈팀이 '실제 득점(>0)'했으면 홈이 그 회 공격 → '말'.
+      //    ⚠️ 예전엔 "현재 회 양팀 칸이 둘 다 null이 아니면 무조건 말"로 판정해, 0:0으로 채워진 3회초를 3회말로 뒤집는 버그가 있었음.
+      //    → 상태코드(sd)·공격팀(batTeam)이 있으면 그걸 신뢰하고, 둘 다 없을 때만 '홈 실득점(>0)' 조건으로 보정.
+      if (!sd && lvm.batTeam == null && g.curInning && (tsNum(hInn[g.curInning]) || 0) > 0) {
         g.inningHalf = 'bottom'; g.batting = 'home';
       }
       const x = lvm.extra || {};
