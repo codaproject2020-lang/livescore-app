@@ -989,6 +989,40 @@ app.get('/api/gs/secprobe', async (req, res) => {
   res.json({ note: 'hasSecondsField=true 이거나 mmssSamples에 "7:32" 같은 값이 보이는 피드가 초 단위 제공', results: out });
 });
 
+// 🏀 농구 선발/출전 라인업 — Goalserve home_stats(라이브 선수 스탯) 기반. 출전시간 상위 5명을 선발로 추정.
+const _bskLineupCache = new Map();
+app.get('/api/gs/bsklineup', async (req, res) => {
+  const ev = String(req.query.ev || '').replace(/^gs/i, '').replace(/[^0-9]/g, '');
+  if (!ev) return res.status(400).json({ error: 'need ev' });
+  const toSec = m => { const t = String(m || '').split(':'); if (t.length >= 2) return (+t[0] || 0) * 60 + (+t[1] || 0); return (+t[0] || 0) * 60; };
+  const parseTeam = node => {
+    const players = GSARR(node && node.player).map(p => ({
+      name: GSA(p, 'name'), min: GSA(p, 'minutes') || '',
+      pts: numOrNull(GSA(p, 'points')), reb: numOrNull(GSA(p, 'total_rebounds')),
+      ast: numOrNull(GSA(p, 'assists')), fg: GSA(p, 'field_goals_made'), fga: GSA(p, 'field_goals_attempts'),
+      tp: GSA(p, 'threepoint_goals_made')
+    })).filter(p => p.name);
+    players.sort((a, b) => toSec(b.min) - toSec(a.min));
+    players.forEach((p, i) => p.starter = i < 5);
+    return players;
+  };
+  try {
+    const data = await cachedJSON(`https://www.goalserve.com/getfeed/${GOALSERVE_KEY}/bsktbl/home_stats?json=1`, 30000);
+    const cats = GSARR(data && data.scores && data.scores.category);
+    let match = null;
+    for (const c of cats) { for (const m of GSARR(c.match)) { if (String(GSA(m, 'id')) === ev) { match = m; break; } } if (match) break; }
+    if (!match) return res.json({ ev, found: false, note: '라이브 스탯 피드에 없음(라이브 아님/미지원 리그)' });
+    const lt = match.localteam, at = match.visitorteam || match.awayteam;
+    const samplePlayer = GSARR(lt && lt.player)[0] || GSARR(at && at.player)[0] || null;
+    res.json({
+      ev, found: true, status: GSA(match, 'status'),
+      home: { name: GSA(lt, 'name'), players: parseTeam(lt) },
+      away: { name: GSA(at, 'name'), players: parseTeam(at) },
+      _debug: { localteamKeys: lt ? Object.keys(lt) : null, samplePlayerKeys: samplePlayer ? Object.keys(samplePlayer) : null }
+    });
+  } catch (e) { res.status(502).json({ error: String(e.message || e) }); }
+});
+
 // 🏀 팀 로고 이미지 서빙 (base64 → PNG, 브라우저/CDN 캐시). 카드엔 이 URL만 들어가 폴링이 가벼움.
 app.get('/api/gs/logo/:id', async (req, res) => {
   const id = String(req.params.id || '').replace(/[^0-9]/g, '');
@@ -1745,12 +1779,15 @@ async function buildGamesCore(sport, date, tz) {
   //    안정적인 Asia/Seoul로 조회한 뒤, 화면 표시는 기기 타임존 날짜로 필터한다.
   const MINOR = ['volleyball', 'basketball', 'hockey', 'handball', 'rugby'];
   const isMinor = MINOR.includes(sport);
-  const apiTz = isMinor ? 'Asia/Seoul' : tz;
+  // 🌐 모든 종목을 단일 타임존 버킷(Asia/Seoul)으로 조회 → 사용자 타임존(베트남 Asia/Saigon·태국·인니 등)마다
+  //    API를 따로 호출해 하루 요청한도(쿼터)를 소진하던 문제 해결. 전 지역이 같은 캐시를 공유한다.
+  //    표시용 날짜 그룹은 아래에서 기기 타임존으로 필터한다.
+  const apiTz = 'Asia/Seoul';
   // 🗓️ 날짜 그룹 — KBO/NPB=한국시간, MLB=미국(동부) 날짜 기준. 미국 저녁 경기는 한국시간 다음날 새벽이라 전날·다음날치도 받아 필터
   const prevDate = new Date(Date.parse(date + 'T12:00:00Z') - 864e5).toISOString().slice(0, 10);
   const nextDate = new Date(Date.parse(date + 'T12:00:00Z') + 864e5).toISOString().slice(0, 10);
-  // 야구·마이너 종목은 전날·당일·다음날 3일치(타임존 시차 보정). 축구는 API가 정확히 그룹 → 당일만(호출량 절약)
-  const apiDates = (sport === 'baseball' || isMinor) ? [prevDate, date, nextDate] : [date];
+  // 단일 버킷(Seoul)으로 받으므로 축구도 전날·당일·다음날 3일치를 받아 기기 타임존 날짜로 거른다(경계 경기 누락 방지).
+  const apiDates = [prevDate, date, nextDate];
   let j = {}; let games = []; const _seen = new Set();
   for (const dt of apiDates) {
     const jj = await asRaw(sport, `${cfg.path}?date=${dt}&timezone=${tzq(apiTz)}`, 8000).catch(() => ({ response: [] }));
@@ -1816,10 +1853,12 @@ async function buildGamesCore(sport, date, tz) {
   // 🗓️ 야구만 날짜 필터: 경기 시작(UTC)을 기기 타임존으로 변환한 날짜가 선택 날짜와 같은 경기만 (MLB KST 시차 정확 처리)
   //    그 외 종목은 API가 timezone 파라미터로 이미 그날 경기만 반환 → 추가 필터 없음(경기 누락 방지)
   if (sport === 'baseball') games = games.filter(g => !g.date || ymdInTz(g.date, tz) === date);
+  // ⚽ 축구도 이제 단일 버킷(Seoul)으로 3일치 받으므로 기기 타임존 날짜로 필터 (타임존별 중복 API호출 제거 → 쿼터 보호)
+  if (sport === 'football') games = games.filter(g => !g.date || ymdInTz(g.date, tz) === date);
   // 🏐 마이너 종목: 서울tz로 3일치 받아왔으니, 기기 타임존 날짜와 같은 경기만 남긴다(라이브는 오늘 버킷에 들어와 유지됨)
   if (isMinor) games = games.filter(g => !g.date || ymdInTz(g.date, tz) === date);
-  // 🛡️ 마이너 종목 간헐적 사라짐 방지: API가 잠깐 빈 응답을 줘도 직전 정상빌드에 있던 같은-날짜 경기는 유지(떴다 사라짐 방지)
-  if (isMinor) {
+  // 🛡️ 마이너 종목 + 축구 간헐적 사라짐 방지: API가 잠깐 빈 응답(쿼터/타임아웃)을 줘도 직전 정상빌드의 같은-날짜 경기는 유지
+  if (isMinor || sport === 'football') {
     try {
       const mk = 'MN|' + sport + '|' + date + '|' + (tz || '');
       const prev = _lastGoodMinor.get(mk);
