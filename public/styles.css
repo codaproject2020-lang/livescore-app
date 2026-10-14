@@ -144,5 +144,5 @@
 .lgchip.intlchip.on{background:linear-gradient(135deg,#f5c451,#e0a92e);color:#231803;border-color:#d9a93a}
 
 /* 라이브 경기 시계 줄 (AI 멘트 위, ⏰ + 현재 타임) */
-.gclock{display:block;text-align:center;font-size:13px;font-weight:700;color:#c0392b;margin:7px 0 1px;letter-spacing:.2px}
+.gclock{grid-column:2;display:block;text-align:center;font-size:13.5px;font-weight:800;color:#c0392b;margin:7px 0 2px;letter-spacing:.2px}
 .gclock b{font-weight:800}
