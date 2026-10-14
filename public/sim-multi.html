@@ -200,8 +200,8 @@ function el(t,a){var e=document.createElementNS(NS,t);for(var k in a)e.setAttrib
 function ban(big,sm,goal){$("evB").textContent=big;$("evS").textContent=sm||"";$("ev").classList.toggle("goal",!!goal);$("ev").classList.add("on");setTimeout(function(){$("ev").classList.remove("on")},goal?2200:1500);}
 function flash(color){var f=$("fl");f.style.background="radial-gradient(circle at 50% 40%,"+color+",transparent 62%)";f.classList.add("on");setTimeout(function(){f.classList.remove("on")},380);}
 function scorePop(){["hs","as"].forEach(function(id){var e=$(id);e.classList.remove("pop");void e.offsetWidth;e.classList.add("pop");});}
-function setPulse(v,story){S.pulse=Math.max(0,Math.min(100,Math.round(v)));$("pn").textContent=S.pulse;$("pf").style.width=Math.max(8,S.pulse)+"%";if(story)$("story").innerHTML=story;}
-setInterval(function(){if(S.pulse>10)setPulse(S.pulse-1);},3000);
+function setPulse(v,story){S.pulse=Math.max(0,Math.min(100,Math.round(v)));$("pn").textContent=S.pulse;$("pf").style.width=Math.max(8,S.pulse)+"%";if(story)$("story").innerHTML=story;}function heatPulse(g){if(!g)return 45;var a=Number(g.hs)||0,b=Number(g.as)||0,d=Math.abs(a-b),n=0;if(sport==="baseball"){var inn=Number(g.curInning||g.period)||0;if(inn>=7)n++;if(inn>=9)n++;if(d<=1)n++;var bs=g.bso&&g.bso.bases;if(bs&&bs.first&&bs.second&&bs.third)n+=2;else if(bs&&(bs.second||bs.third))n++;}else if(sport==="basket"){var pr=Number(g.period)||0;if(pr>=4)n++;if(d<=6)n++;if(d<=3)n++;if(d<=1&&pr>=4)n++;}else{var sc=(g.setScores&&g.setScores.length)||Number(g.period)||0;if(sc>=4)n++;if(d<=2)n++;if(d<=1)n++;}var lvl=n>=2?Math.min(3,n-1):(n>=1?1:0);return [45,62,78,99][lvl];}
+setInterval(function(){if(S.pulse>(S.pbase||10))setPulse(S.pulse-1);},3000);
 
 // ================= FIELD DRAWERS =================
 var F=$("field");
@@ -521,11 +521,13 @@ async function tick(){
     _last.hs=hs;_last.as=as;
     $("clk").textContent=liveClock(g);
     renderReal(g); // 실제 누적 스탯
+    S.pbase=heatPulse(g);setPulse(S.pbase);
   } else {
     if(hs>_last.hs){var e1=scoreEvents(sport,hs-_last.hs,0);_last.hs=hs;enqueue(e1[0],e1[1]);}
     else if(as>_last.as){var e2=scoreEvents(sport,0,as-_last.as);_last.as=as;enqueue(e2[0],e2[1]);}
     else{ if(hs!==S.hs){S.hs=hs;$("hs").textContent=hs;} if(as!==S.as){S.as=as;$("as").textContent=as;} }
     renderReal(g); // 실제 누적 스탯 갱신
+    S.pbase=heatPulse(g);if(S.pulse<S.pbase)setPulse(S.pbase);
   }
   var st=String(g.status||g.state||"").toUpperCase();
   if(/(FT|END|FINISH|AOT|AET)/.test(st)&&!_last.done){_last.done=true;setPulse(20,"⏹ "+MATCHES[sport].h+" "+S.hs+" : "+S.as+" "+MATCHES[sport].a);}

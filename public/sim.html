@@ -421,8 +421,8 @@
     $("co_h").textContent=S.co_h;$("co_a").textContent=S.co_a;set("co",S.co_h,S.co_a);
     $("ps_h").textContent=S.ps_h+"%";$("ps_a").textContent=(100-S.ps_h)+"%";$("bh_ps").style.width=S.ps_h+"%";$("ba_ps").style.width=(100-S.ps_h)+"%";
   }
-  function pulse(v,h){S.pulse=Math.max(0,Math.min(100,Math.round(v)));$("pn").textContent=S.pulse;$("pf").style.width=Math.max(8,S.pulse)+"%";if(h)$("story").innerHTML=h;}
-  setInterval(function(){pulse(Math.max(8,S.pulse-1));},3000);
+  function pulse(v,h){S.pulse=Math.max(0,Math.min(100,Math.round(v)));$("pn").textContent=S.pulse;$("pf").style.width=Math.max(8,S.pulse)+"%";if(h)$("story").innerHTML=h;}function heatPulse(g){if(!g)return 45;var a=Number(g.hs)||0,b=Number(g.as)||0,d=Math.abs(a-b),e=Number(g.elapsed||g.minute||0),n=0;if(e>=70)n++;if(e>=85)n++;if(d<=1)n++;if(d===0&&e>=80)n++;var lvl=n>=2?Math.min(3,n-1):(n>=1?1:0);return [45,62,78,99][lvl];}
+  setInterval(function(){pulse(Math.max(S.pbase||8,S.pulse-1));},3000);
 
   // ---- build ball-in-net hero scene once ----
   function ael(p,tag,a){var e=document.createElementNS(NS,tag);for(var k in a)e.setAttribute(k,a[k]);p.appendChild(e);return e;}
@@ -621,9 +621,10 @@
     hydrate(g);
     updateStats(g);
     var hs=g.hs||0, as=g.as||0;
+    S.pbase=heatPulse(g);if(S.pulse<S.pbase)pulse(S.pbase);
     if(last.hs===null){ // 진입 시점 = 현재 스코어로 라이브 시작 (처음부터 재생 아님)
       S.hs=hs;S.as=as;$("hs").textContent=hs;$("as").textContent=as;last.hs=hs;last.as=as;
-      pulse(45,t(STR.live)+" · "+g.home+" "+hs+" : "+as+" "+g.away);
+      pulse(S.pbase,t(STR.live)+" · "+g.home+" "+hs+" : "+as+" "+g.away);
       // 진입 시점 기준으로 기존 이벤트는 표시만 안하고 키만 등록
       (await getEvents()).forEach(function(ev){last.evKeys[evKey(ev)]=1;});
     } else {
