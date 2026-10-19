@@ -732,12 +732,18 @@ function canonTz(tz) {
   try { new Intl.DateTimeFormat('en-CA', { timeZone: tz }).format(new Date()); return tz; }
   catch { return 'Asia/Seoul'; }   // 인식 못 하는 타임존은 안전하게 서울로
 }
+let _asCalls = 0, _asUsage = null, _bootAt = Date.now();   // 📊 API-Sports 호출량 추적
 async function asRaw(sport, path, ttl = 30000) {
   const cfg = AS[sport]; if (!cfg) throw new Error('bad sport');
   const url = `https://${cfg.host}${path}`;
   const hit = cache.get(url), now = Date.now();
   if (hit && now - hit.t < ttl) return hit.v;
+  _asCalls++;   // 📊 실제 API-Sports 호출 1건 (캐시 miss)
   const r = await fetch(url, { headers: { 'x-apisports-key': APISPORTS_KEY } });
+  try {   // 응답 헤더에서 하루 한도/남은 횟수 캡처
+    const lim = r.headers.get('x-ratelimit-requests-limit'), rem = r.headers.get('x-ratelimit-requests-remaining');
+    if (lim != null || rem != null) _asUsage = { limit: lim != null ? Number(lim) : null, remaining: rem != null ? Number(rem) : null, used: (lim != null && rem != null) ? (Number(lim) - Number(rem)) : null, at: new Date().toISOString() };
+  } catch {}
   if (!r.ok) {
     if (hit) { hit.t = now; return hit.v; }   // ⚡ 429/5xx: 이전 정상 데이터 유지 + 백오프(빈 화면·예상라인업 방지)
     throw new Error('upstream ' + r.status);
@@ -862,6 +868,20 @@ app.get('/api/asports/debug', (req, res) => {
   });
 });
 // 키/쿼터 상태 확인 (배포 후 검증용)
+// 📊 호출량 조회 — API-Sports 하루 한도/남은횟수(헤더 기준) + 서버 기동 후 우리가 보낸 호출 수
+app.get('/api/asports/usage', (req, res) => {
+  const upMs = Date.now() - _bootAt, upMin = Math.round(upMs / 60000);
+  res.json({
+    apiSports하루한도: _asUsage ? _asUsage.limit : null,
+    오늘사용: _asUsage ? _asUsage.used : null,
+    오늘남음: _asUsage ? _asUsage.remaining : null,
+    헤더확인시각: _asUsage ? _asUsage.at : null,
+    서버기동후우리호출수: _asCalls,
+    서버가동시간분: upMin,
+    분당평균호출: upMin > 0 ? (_asCalls / upMin).toFixed(1) : _asCalls,
+    note: 'apiSports하루한도/사용/남음 = API-Sports 응답헤더 기준(축구·야구). 농구는 Goalserve(별도). 전체 공식 집계는 dashboard.api-football.com 참고.'
+  });
+});
 app.get('/api/asports/status', async (req, res) => {
   if (!APISPORTS_KEY) return res.json({ key: false, msg: 'APISPORTS_KEY 미설정' });
   try {
@@ -2018,8 +2038,14 @@ async function buildGamesCoreCached(sport, date, tz, ttl = sportTtl(sport)) {
   const k = sport + '|' + date + '|' + (tz || '');
   const hit = gamesCoreCache.get(k), now = Date.now();
   if (hit) {
-    // ⚡ stale-while-revalidate: 만료돼도 이전 값 즉시 반환 + 뒤에서 갱신 → 모든 요청이 즉시 응답
-    if (now - hit.t >= ttl && !hit.refreshing) {
+    const age = now - hit.t;
+    // 🕒 아주 오래된 캐시(복귀 유저 등, 30초 초과)면 옛 값 대신 새로 받아서 반환 → "옛 점수 먼저 보임" 방지
+    if (age > 30000) {
+      try { const v = await buildGamesCore(sport, date, tz); gamesCoreCache.set(k, { t: Date.now(), v }); return v; }
+      catch { return hit.v; }
+    }
+    // ⚡ stale-while-revalidate: 보통의 만료는 이전 값 즉시 반환 + 뒤에서 갱신 (활성 유저 빠른 응답)
+    if (age >= ttl && !hit.refreshing) {
       hit.refreshing = true;
       buildGamesCore(sport, date, tz)
         .then(v => gamesCoreCache.set(k, { t: Date.now(), v }))
@@ -2042,7 +2068,13 @@ async function buildFullGames(sport, date, tz) {
 async function fullGamesCached(sport, date, tz, ttl = sportTtl(sport)) {
   const k = sport + '|' + date + '|' + (tz || ''); const hit = fullGamesCache.get(k), now = Date.now();
   if (hit) {
-    if (now - hit.t >= ttl && !hit.refreshing) { hit.refreshing = true; buildFullGames(sport, date, tz).then(v => { const cur = fullGamesCache.get(k); const keepPrev = v && v.apiErrors && (!v.games || v.games.length === 0) && cur && cur.v && cur.v.games && cur.v.games.length > 0; if (keepPrev) { cur.t = Date.now(); cur.refreshing = false; } else { fullGamesCache.set(k, { t: Date.now(), v }); } }).catch(() => { hit.refreshing = false; }); }
+    const age = now - hit.t;
+    // 🕒 아주 오래된 캐시(복귀 유저, 30초 초과)면 옛 값 대신 새로 받아서 반환 → 현재 점수 즉시 표시
+    if (age > 30000) {
+      try { const v = await buildFullGames(sport, date, tz); const keepPrev = v && v.apiErrors && (!v.games || v.games.length === 0) && hit.v && hit.v.games && hit.v.games.length > 0; if (!keepPrev) fullGamesCache.set(k, { t: Date.now(), v }); else hit.t = Date.now(); return keepPrev ? hit.v : v; }
+      catch { return hit.v; }
+    }
+    if (age >= ttl && !hit.refreshing) { hit.refreshing = true; buildFullGames(sport, date, tz).then(v => { const cur = fullGamesCache.get(k); const keepPrev = v && v.apiErrors && (!v.games || v.games.length === 0) && cur && cur.v && cur.v.games && cur.v.games.length > 0; if (keepPrev) { cur.t = Date.now(); cur.refreshing = false; } else { fullGamesCache.set(k, { t: Date.now(), v }); } }).catch(() => { hit.refreshing = false; }); }
     return hit.v;
   }
   const v = await buildFullGames(sport, date, tz); fullGamesCache.set(k, { t: Date.now(), v }); return v;
