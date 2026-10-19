@@ -1235,14 +1235,14 @@ async function tsBaseballGames(date) {
       const sd = TS_STATUS[lvm.status];
       if (sd) { g.curInning = sd[0]; g.period = sd[0]; g.inningHalf = sd[1]; }
       else if (maxInn) { g.curInning = maxInn; g.period = maxInn; }
-      // 공격팀: detail_live batTeam(1=홈,2=원정) 우선, 없으면 초=원정/말=홈
-      if (lvm.batTeam === 1) g.batting = 'home';
-      else if (lvm.batTeam === 2) g.batting = 'away';
-      else if (g.inningHalf) g.batting = g.inningHalf === 'top' ? 'away' : 'home';
-      // ✅ 초/말 ↔ 공격팀 정합성 보정: 공격팀이 정해지면 초/말도 그에 맞춘다
-      //    (TheSports status 코드가 지연/누락돼도 헤더 초말과 '공격 중' 팀이 어긋나지 않도록)
-      if (g.batting === 'home') g.inningHalf = 'bottom';
-      else if (g.batting === 'away') g.inningHalf = 'top';
+      // 공격팀/초말: 상태코드(sd=이닝+초말 직접 인코딩)가 가장 정확 → sd가 있으면 그 초말을 신뢰(덮어쓰지 않음).
+      //   ⚠️ 예전엔 batTeam으로 초말을 무조건 덮어써서, batTeam이 틀리면 8회초를 8회말로 뒤집는 버그가 있었음.
+      //   → sd 있으면 sd 초말 고정, 공격팀은 거기서 유도. batTeam은 sd가 없을 때만 초말 결정에 사용.
+      if (sd) {
+        g.batting = g.inningHalf === 'top' ? 'away' : 'home';
+      } else if (lvm.batTeam === 1) { g.batting = 'home'; g.inningHalf = 'bottom'; }
+      else if (lvm.batTeam === 2) { g.batting = 'away'; g.inningHalf = 'top'; }
+      else if (g.inningHalf) { g.batting = g.inningHalf === 'top' ? 'away' : 'home'; }
       // 🛡️ 라인스코어 폴백(신뢰 신호가 전혀 없을 때만): 현재 회에 홈팀이 '실제 득점(>0)'했으면 홈이 그 회 공격 → '말'.
       //    ⚠️ 예전엔 "현재 회 양팀 칸이 둘 다 null이 아니면 무조건 말"로 판정해, 0:0으로 채워진 3회초를 3회말로 뒤집는 버그가 있었음.
       //    → 상태코드(sd)·공격팀(batTeam)이 있으면 그걸 신뢰하고, 둘 다 없을 때만 '홈 실득점(>0)' 조건으로 보정.
@@ -2011,7 +2011,8 @@ async function buildGamesCore(sport, date, tz) {
 
 // ⚡ 경기목록 전체 결과를 짧게 캐시 (피드 7초·중계봇 10초·픽제공·푸시가 공유 → 외부호출/CPU 절감)
 // ⚡ 종목별 캐시/갱신 주기: 축구=Mega(15만/일) 빠르게, 야구=Ultra 중간, 그 외=보수적(Pro 한도 보호)
-function sportTtl(sport){ return sport==='football' ? 8000 : sport==='baseball' ? 12000 : 12000; }
+// 단일 타임존 버킷(전 지역 공유)이라 TTL을 당겨도 API 호출이 적음 → 업데이트 체감 속도 개선
+function sportTtl(sport){ return sport==='football' ? 7000 : sport==='baseball' ? 8000 : 8000; }
 const gamesCoreCache = new Map();
 async function buildGamesCoreCached(sport, date, tz, ttl = sportTtl(sport)) {
   const k = sport + '|' + date + '|' + (tz || '');
@@ -2050,11 +2051,13 @@ async function fullGamesCached(sport, date, tz, ttl = sportTtl(sport)) {
 let _warmN = 0;
 function warmFeeds() {
   try {
-    if (!APISPORTS_KEY) return;
     const tz = 'Asia/Seoul';
     const d = (typeof ymdInTz === 'function') ? ymdInTz(new Date(), tz) : new Date().toISOString().slice(0, 10);
-    fullGamesCached('football', d, tz).catch(() => {});           // 축구는 매 사이클(10초) 워밍 → 항상 뜨겁게
-    if (_warmN % 3 === 0) fullGamesCached('baseball', d, tz).catch(() => {}); // 야구는 30초마다
+    fullGamesCached('basketball', d, tz).catch(() => {});         // 🏀 농구(Goalserve) 워밍 — API-Sports 키 불필요
+    if (APISPORTS_KEY) {
+      fullGamesCached('football', d, tz).catch(() => {});         // 축구는 매 사이클 워밍 → 항상 뜨겁게
+      if (_warmN % 2 === 0) fullGamesCached('baseball', d, tz).catch(() => {}); // 야구는 40초마다
+    }
     _warmN++;
   } catch (e) {}
 }
