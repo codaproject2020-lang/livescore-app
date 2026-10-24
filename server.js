@@ -1779,22 +1779,24 @@ async function gsTeamLogos(ids) {
 async function buildGamesCore(sport, date, tz) {
   const cfg = AS[sport]; if (!cfg) return { games: [], j: {} };
   tz = canonTz(tz);
-  // 🏀 농구 = Goalserve로 전체 교체 (라이브 쿼터 + 시계). 간헐적 빈응답은 직전 정상빌드로 방어.
+  // 🏀 농구 = Goalserve 우선(라이브 쿼터+시계). 비어있으면(테스트키 만료/장애) API-Sports로 자동 폴백.
   if (sport === 'basketball') {
     let games = [];
     try { games = await gsBasketballGames(date, tz); } catch {}
-    try {
-      const mk = 'MN|basketball|' + date + '|' + (tz || '');
-      const prev = _lastGoodMinor.get(mk);
-      if (prev && prev.list && prev.list.length) {
-        const ids = new Set(games.map(g => String(g.id)));
-        prev.list.forEach(pg => { if (!ids.has(String(pg.id))) games.push(pg); });
-      }
-      if (games.length) _lastGoodMinor.set(mk, { t: Date.now(), list: games.slice() });
+    const gk = 'GS|basketball|' + date + '|' + (tz || '');
+    if (games.length) {   // Goalserve 정상
+      _lastGoodMinor.set(gk, { t: Date.now(), list: games.slice() });
       for (const [k, v] of _lastGoodMinor) { if (Date.now() - v.t > 1800000) _lastGoodMinor.delete(k); }
-    } catch {}
-    return { games, j: { results: games.length } };
-  }   // 옛 타임존 별칭(Asia/Saigon 등) 표준화 → 날짜 필터 안정화
+      return { games, j: { results: games.length, src: 'goalserve' } };
+    }
+    // Goalserve 빈 응답 — 최근 90초 내 정상빌드 있으면 잠깐 버팀(일시 장애 깜빡임 방지)
+    const prev = _lastGoodMinor.get(gk);
+    if (prev && prev.list && prev.list.length && Date.now() - prev.t < 90000) {
+      return { games: prev.list.slice(), j: { results: prev.list.length, src: 'goalserve-cache' } };
+    }
+    // 장기 비어있음(테스트키 만료 등) → 아래 API-Sports 일반 경로로 폴백(early-return 안 함)
+  }
+  // 옛 타임존 별칭(Asia/Saigon 등) 표준화 → 날짜 필터 안정화
   // 🏐 배구·농구·하키 등 v1 종목: API가 기기 타임존별 날짜버킷을 불안정하게 반환(라이브 경기 누락) →
   //    안정적인 Asia/Seoul로 조회한 뒤, 화면 표시는 기기 타임존 날짜로 필터한다.
   const MINOR = ['volleyball', 'basketball', 'hockey', 'handball', 'rugby'];
