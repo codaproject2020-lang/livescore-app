@@ -129,6 +129,40 @@
     </div>
   </div>
 
+  <!-- 🛠️ 운영 관리 (에러·알림·기능 제어) -->
+  <div class="panel">
+    <div class="hd"><span>🛠️ 운영 관리 <span class="muted" style="font-weight:600">(에러 알림·기능 제어)</span></span><span class="cnt" id="opErrCnt"></span></div>
+    <div style="padding:14px">
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px;align-items:center">
+        <button class="btn g" id="opSub">🔔 이 휴대폰으로 오류 알림 받기</button>
+        <button class="btn" id="opTest">알림 테스트</button>
+        <button class="btn" id="opCache">🧹 서버 캐시 비우기</button>
+        <span class="muted" id="opMsg"></span>
+      </div>
+      <div class="sub2">⚙️ 기능 제어 <span class="muted" style="font-weight:600">(저장 시 전체 유저에게 즉시 반영 · 배포 불필요)</span></div>
+      <div style="display:flex;gap:18px;flex-wrap:wrap;align-items:center;margin:10px 0 8px">
+        <label style="cursor:pointer"><input type="checkbox" id="fShorts" checked> 숏츠 메뉴 표시</label>
+        <label style="cursor:pointer"><input type="checkbox" id="fNews" checked> 뉴스 표시</label>
+        <label>농구 데이터 소스:
+          <select id="fBsk" style="padding:6px;border:1px solid var(--line);border-radius:8px">
+            <option value="auto">자동 (골서브→API-Sports)</option>
+            <option value="goalserve">골서브 강제</option>
+            <option value="apisports">API-Sports 강제</option>
+          </select>
+        </label>
+      </div>
+      <div style="margin:8px 0">
+        <input id="fMaint" placeholder="⚠️ 메인터넌스 배너 문구 (비우면 안 보임 · 예: 농구 점검 중입니다)" style="width:100%;max-width:600px;padding:9px;border:1px solid var(--line);border-radius:9px;font-size:13px">
+      </div>
+      <button class="btn g" id="opSave">설정 저장</button>
+      <span class="muted" id="opSaveMsg" style="margin-left:8px"></span>
+      <div class="sub2" style="margin-top:20px">🚨 최근 오류 로그 <button class="btn" id="opErrClear" style="font-size:11px;padding:3px 9px;margin-left:6px">비우기</button></div>
+      <div style="overflow:auto;max-height:420px;margin-top:6px">
+        <table class="tbl"><thead><tr><th>시각</th><th>출처</th><th>내용</th></tr></thead><tbody id="opErrRows"></tbody></table>
+      </div>
+    </div>
+  </div>
+
   <div class="panel">
     <div class="hd"><span>👥 회원 목록 <span class="muted" style="font-weight:600">(최신 가입순)</span></span><span class="cnt" id="uCnt"></span></div>
     <div style="overflow-x:auto">
@@ -260,7 +294,57 @@
       });
     }catch(e){ if(String(e.message)==='unauthorized') logout(); }
   }
-  function showDash(){ $('#gate').style.display='none'; $('#wrap').style.display='block'; load(); loadAnalytics(); }
+  // 🛠️ 운영 관리
+  function tfmtS(ts){ if(!ts)return'–'; const d=new Date(ts); const p=n=>String(n).padStart(2,'0'); return `${p(d.getMonth()+1)}.${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`; }
+  async function loadOps(){
+    try{
+      const e=await api('/api/admin/errors');
+      if(e&&e.ok){
+        $('#opErrCnt').textContent=(e.count||0)+'건';
+        const b=$('#opErrRows'); b.innerHTML='';
+        (e.errors||[]).forEach(x=>{
+          const tr=document.createElement('tr');
+          const col=x.src==='client'?'#2563eb':x.src==='server'?'#e2231a':'#8a93a3';
+          tr.innerHTML=`<td class="muted" style="white-space:nowrap">${tfmtS(x.ts)}</td><td><b style="color:${col}">${esc(x.src||'')}</b> <span class="muted">${esc(x.type||'')}</span></td><td style="max-width:520px;word-break:break-word">${esc(x.msg||'')}${x.extra&&x.extra.url?`<div class="muted" style="font-size:11px">${esc(x.extra.url)}${x.extra.line?':'+x.extra.line:''}</div>`:''}</td>`;
+          b.appendChild(tr);
+        });
+        if(!(e.errors||[]).length) b.innerHTML='<tr><td colspan="3" class="muted" style="padding:12px">오류 없음 👍</td></tr>';
+      }
+      const c=await api('/api/admin/config');
+      if(c&&c.ok){ const f=c.flags||{}; $('#fShorts').checked=f.shorts!==false; $('#fNews').checked=f.news!==false; $('#fBsk').value=c.bskSrc||'auto'; $('#fMaint').value=c.maint||''; }
+    }catch(e){ if(String(e.message)==='unauthorized') logout(); }
+  }
+  async function saveOps(){
+    const flags={ shorts:$('#fShorts').checked, news:$('#fNews').checked };
+    try{ const r=await apiPost('/api/admin/config',{ flags, bskSrc:$('#fBsk').value, maint:$('#fMaint').value.trim() });
+      $('#opSaveMsg').textContent = r&&r.ok ? '✅ 저장됨 (전체 유저 반영 중)' : '저장 실패';
+      setTimeout(()=>{$('#opSaveMsg').textContent='';},4000);
+    }catch(e){ $('#opSaveMsg').textContent='실패'; }
+  }
+  function b64u(s){ const pad='='.repeat((4-s.length%4)%4); const b=(s+pad).replace(/-/g,'+').replace(/_/g,'/'); const raw=atob(b); const arr=new Uint8Array(raw.length); for(let i=0;i<raw.length;i++)arr[i]=raw.charCodeAt(i); return arr; }
+  async function subAdminPush(){
+    try{
+      $('#opMsg').textContent='구독 중…';
+      if(!('serviceWorker'in navigator)||!('PushManager'in window)){ $('#opMsg').textContent='이 기기는 푸시 미지원'; return; }
+      const perm=await Notification.requestPermission(); if(perm!=='granted'){ $('#opMsg').textContent='알림 권한이 거부됨 (설정에서 허용)'; return; }
+      const reg=await navigator.serviceWorker.register('/sw.js'); await navigator.serviceWorker.ready;
+      const kr=await (await fetch('/api/push/key')).json();
+      let sub=await reg.pushManager.getSubscription();
+      if(!sub) sub=await reg.pushManager.subscribe({userVisibleOnly:true,applicationServerKey:b64u(kr.key)});
+      const r=await apiPost('/api/admin/push/subscribe',{subscription:sub});
+      $('#opMsg').textContent = r&&r.ok ? '✅ 이 휴대폰에 오류 알림 등록됨' : '등록 실패';
+    }catch(e){ $('#opMsg').textContent='실패: '+(e.message||e); }
+  }
+  async function testPush(){ try{ await apiPost('/api/admin/push/test',{}); $('#opMsg').textContent='📨 테스트 발송 (잠시 후 알림 확인)'; setTimeout(()=>{$('#opMsg').textContent='';},5000);}catch(e){} }
+  async function clearCache(){ try{ const r=await apiPost('/api/admin/cache/clear',{}); $('#opMsg').textContent='🧹 캐시 비움: '+((r&&r.cleared||[]).join(',')||'ok'); setTimeout(()=>{$('#opMsg').textContent='';},4000);}catch(e){} }
+  async function clearErrs(){ try{ await apiPost('/api/admin/errors/clear',{}); loadOps(); }catch(e){} }
+  $('#opSub')&&$('#opSub').addEventListener('click',subAdminPush);
+  $('#opTest')&&$('#opTest').addEventListener('click',testPush);
+  $('#opCache')&&$('#opCache').addEventListener('click',clearCache);
+  $('#opSave')&&$('#opSave').addEventListener('click',saveOps);
+  $('#opErrClear')&&$('#opErrClear').addEventListener('click',clearErrs);
+
+  function showDash(){ $('#gate').style.display='none'; $('#wrap').style.display='block'; load(); loadAnalytics(); loadOps(); }
   function logout(){ sessionStorage.removeItem('liveup_admin_key'); KEY=''; $('#wrap').style.display='none'; $('#gate').style.display='flex'; $('#pw').value=''; }
 
   async function login(){
@@ -277,13 +361,13 @@
 
   $('#loginBtn').addEventListener('click', login);
   $('#pw').addEventListener('keydown', e=>{ if(e.key==='Enter') login(); });
-  $('#refresh').addEventListener('click', ()=>{ load(); loadAnalytics(); });
+  $('#refresh').addEventListener('click', ()=>{ load(); loadAnalytics(); loadOps(); });
   $('#logout').addEventListener('click', logout);
 
   // 저장된 키가 있으면 자동 검증 후 대시보드
   if(KEY){ api('/api/admin/stats').then(j=>{ if(j&&j.ok) showDash(); else logout(); }).catch(()=>logout()); }
   // 30초마다 자동 새로고침
-  setInterval(()=>{ if($('#wrap').style.display==='block'){ load(); loadAnalytics(); } }, 30000);
+  setInterval(()=>{ if($('#wrap').style.display==='block'){ load(); loadAnalytics(); loadOps(); } }, 30000);
 </script>
 </body>
 </html>

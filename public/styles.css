@@ -152,3 +152,7 @@
 .lghd .pinbtn:hover{background:#2b3038;transform:scale(1.07)}
 .lghd .pinbtn:active{transform:scale(.93)}
 .lghd .pinbtn + .up{margin-left:10px}
+
+/* 운영 기능 토글(관리자 config → body 클래스) */
+.cfg-off-shorts .sh-chip{display:none!important}
+.cfg-off-news .news-widget,.cfg-off-news #newsWidget{display:none!important}
