@@ -12,6 +12,9 @@ import fs from 'fs';
 import { fileURLToPath } from 'url';
 import webpush from 'web-push';
 import nodemailer from 'nodemailer';
+import { MongoClient } from 'mongodb';
+import crypto from 'crypto';
+import geoip from 'fast-geoip';   // 오프라인 IP→국가 (저메모리)
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
@@ -30,8 +33,79 @@ app.use((req, res, next) => {
   }
   next();
 });
+app.set('trust proxy', true);   // Render 프록시 뒤 실제 클라이언트 IP 인식
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
+
+// ============================================================
+//  📊 접속자 추적(analytics) — 방문·버튼클릭·IP·시각 수집
+//     메모리 링버퍼 + (MONGODB 있으면) events 컬렉션 영구저장
+// ============================================================
+const EVENTS = [];              // 최근 이벤트 링버퍼(화면 표시용)
+const EVENTS_MAX = 8000;
+let eventsCol = null;           // 원본 이벤트(최근 90일만 보관)
+let statsCol = null;            // 일별 요약(영구 보관)
+let subsCol = null;             // 웹푸시 구독(재시작·재배포 시 유지)
+// 👥 재방문자 추적: 방문자키 → {key,name,count(방문횟수),first,last,ip,cc}
+const VISITORS = new Map();
+const ONLINE_WIN = 5 * 60 * 1000;   // 최근 5분 이내 활동 = "접속중"
+let visitorsCol = null;             // 방문자 영속 컬렉션(연결 시)
+function maskKey(k) {
+  k = String(k || '');
+  if (k.startsWith('u:')) return '회원';
+  if (k.startsWith('d:')) return '기기·' + k.slice(2, 8);
+  if (k.startsWith('ip:')) { const p = k.slice(3).split('.'); return 'IP ' + (p[0] || '') + '.' + (p[1] || '') + '.*.*'; }
+  return k.slice(0, 12);
+}
+function recordVisitor(key, name, ip, cc, type, now) {
+  if (!key) return;
+  let v = VISITORS.get(key);
+  if (!v) { v = { key, name: name || '', count: 0, first: now, last: now, ip, cc }; VISITORS.set(key, v); }
+  v.last = now; if (name) v.name = name; if (ip) v.ip = ip; if (cc) v.cc = cc;
+  if (type === 'visit') {
+    v.count = (v.count || 0) + 1;
+    if (visitorsCol) visitorsCol.updateOne({ key }, { $inc: { count: 1 }, $set: { name: v.name, ip, cc, last: now }, $setOnInsert: { first: now } }, { upsert: true }).catch(() => {});
+  } else if (visitorsCol) {
+    visitorsCol.updateOne({ key }, { $set: { last: now } }).catch(() => {});
+  }
+}
+function clientIP(req) {
+  const xf = (req.headers['x-forwarded-for'] || '').split(',')[0].trim();
+  let ip = xf || req.ip || (req.socket && req.socket.remoteAddress) || '';
+  return ip.replace(/^::ffff:/, '');   // IPv4-mapped 정리
+}
+// IP → 국가코드 (오프라인 GeoIP + 캐시)
+const geoCache = new Map();   // ip -> countryCode
+function isPrivateIP(ip) { return !ip || /^(10\.|127\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.|::1|fc|fd|fe80|localhost)/i.test(ip); }
+async function geoCountry(ip) {
+  if (isPrivateIP(ip)) return '';
+  if (geoCache.has(ip)) return geoCache.get(ip);
+  let cc = '';
+  try { const g = await geoip.lookup(ip); cc = (g && g.country) || ''; } catch (e) { cc = ''; }
+  geoCache.set(ip, cc);
+  if (geoCache.size > 20000) geoCache.delete(geoCache.keys().next().value);
+  return cc;
+}
+// KST(한국시간) 기준 날짜/시(요약 집계용)
+function kstParts(ts) { const d = new Date(ts + 9 * 3600000); return { day: d.toISOString().slice(0, 10), hour: d.getUTCHours() }; }
+function fieldSafe(s) { return String(s || '(기타)').replace(/[.$]/g, '_').slice(0, 40); }
+// 일별 요약 업데이트(영구 보관) — 방문/클릭/시간대/버튼별/순IP
+async function aggregateDaily(ev) {
+  if (!statsCol) return;
+  const { day, hour } = kstParts(ev.ts);
+  const inc = {};
+  if (ev.t === 'visit') { inc['visits'] = 1; inc['hours.' + hour] = 1; if (ev.cc) inc['countries.' + ev.cc] = 1; }
+  else if (ev.t === 'click') { inc['clicks'] = 1; inc['buttons.' + fieldSafe(ev.n)] = 1; }
+  const op = { $inc: inc, $set: { day, lastTs: ev.ts } };
+  if (ev.t === 'visit' && ev.ip) op.$addToSet = { ips: ev.ip };
+  try { await statsCol.updateOne({ _id: day }, op, { upsert: true }); } catch (e) {}
+}
+function pushEvent(ev) {
+  EVENTS.push(ev);
+  if (EVENTS.length > EVENTS_MAX) EVENTS.splice(0, EVENTS.length - EVENTS_MAX);
+  if (eventsCol) eventsCol.insertOne(ev).catch(() => {});
+  aggregateDaily(ev);   // 요약은 영구 보관(용량 최소)
+}
 
 // ============================================================
 //  🔐 구글 로그인 (Google Identity Services · ID토큰 서버검증)
@@ -39,7 +113,73 @@ app.use(express.static(path.join(__dirname, 'public')));
 //  · 클라이언트ID는 공개값이라 노출돼도 안전 (시크릿 아님)
 // ============================================================
 const GOOGLE_CLIENT_ID = (process.env.GOOGLE_CLIENT_ID || '').trim();
-const USERS = new Map(); // sub -> {id,email,name,picture,first,last}
+const USERS = new Map(); // sub -> {id,email,name,picture,first,last,token}
+const TOKENS = new Map(); // 로그인 토큰 -> sub (API 인증용)
+
+function genToken() { return crypto.randomBytes(24).toString('hex'); }
+function userFromReq(req) { const tk = req.get('x-user-token') || (req.body && req.body.token) || ''; const sub = TOKENS.get(String(tk)); return sub ? USERS.get(sub) : null; }
+
+// ============================================================
+//  🗄️ MongoDB (선택) — 회원 영구 저장. MONGODB_URI 없으면 메모리 모드로 동작.
+//     Render 환경변수: MONGODB_URI = mongodb+srv://... (MongoDB Atlas 무료 M0)
+// ============================================================
+const MONGODB_URI = (process.env.MONGODB_URI || process.env.DATABASE_URL || '').trim();
+let usersCol = null;   // 연결되면 회원 컬렉션, 아니면 null(메모리 모드)
+let _dbTries = 0;
+async function initDB() {
+  if (!MONGODB_URI) { console.log('[DB] MONGODB_URI 미설정 — 메모리 모드(재시작 시 회원 초기화)'); return; }
+  if (usersCol) return;   // 이미 연결됨
+  try {
+    const client = new MongoClient(MONGODB_URI, { serverSelectionTimeoutMS: 10000 });
+    await client.connect();
+    const db = client.db(process.env.MONGODB_DB || 'liveup');
+    usersCol = db.collection('users');
+    await usersCol.createIndex({ id: 1 }, { unique: true });
+    // 📊 접속 추적 — 원본은 최근 90일만(TTL 자동정리), 일별 요약은 영구 보관
+    eventsCol = db.collection('events');
+    statsCol = db.collection('stats_daily');
+    try {
+      await eventsCol.createIndex({ ts: 1 });
+      await eventsCol.createIndex({ at: 1 }, { expireAfterSeconds: 60 * 60 * 24 * 90 });   // 원본 90일 후 자동삭제
+      const recent = await eventsCol.find({}).sort({ ts: -1 }).limit(EVENTS_MAX).toArray();
+      recent.reverse().forEach(e => EVENTS.push(e));
+      console.log(`[DB] 접속 원본 ${recent.length}건 로드 · 일별요약 영구보관`);
+    } catch (e) { console.error('[DB] events 초기화 실패:', e.message); }
+    // 👥 재방문자 컬렉션
+    visitorsCol = db.collection('visitors');
+    try {
+      await visitorsCol.createIndex({ key: 1 }, { unique: true });
+      await visitorsCol.createIndex({ last: -1 });
+      const vs = await visitorsCol.find({}).sort({ last: -1 }).limit(8000).toArray();
+      vs.forEach(v => VISITORS.set(v.key, { key: v.key, name: v.name || '', count: v.count || 0, first: v.first || 0, last: v.last || 0, ip: v.ip || '', cc: v.cc || '' }));
+      console.log(`[DB] 방문자 ${vs.length}명 로드`);
+    } catch (e) { console.error('[DB] visitors 초기화 실패:', e.message); }
+    // 🔔 웹푸시 구독 — 재시작·재배포 후에도 알림이 계속 오도록 DB에 영구 저장
+    subsCol = db.collection('push_subs');
+    try {
+      await subsCol.createIndex({ endpoint: 1 }, { unique: true });
+      const allSubs = await subsCol.find({}).toArray();
+      for (const s of allSubs) { if (s.endpoint && s.sub) subs.set(s.endpoint, { sub: s.sub, fav: s.fav || [], prefs: s.prefs || {}, lang: s.lang || 'en' }); }
+      console.log(`[DB] 푸시 구독 ${allSubs.length}건 로드`);
+    } catch (e) { console.error('[DB] push_subs 초기화 실패:', e.message); }
+    const all = await usersCol.find({}).toArray();   // 기존 회원 메모리에 로드
+    for (const u of all) {
+      USERS.set(u.id, { id: u.id, email: u.email, name: u.name, picture: u.picture, verified: u.verified, first: u.first, last: u.last, token: u.token });
+      if (u.token) TOKENS.set(u.token, u.id);   // 로그인 토큰 복원
+    }
+    console.log(`[DB] MongoDB 연결됨 · 회원 ${all.length}명 로드`);
+  } catch (e) {
+    usersCol = null; _dbTries++;
+    console.error(`[DB] 연결 실패(#${_dbTries}) → 60초 후 자동 재시도:`, e.message);
+    setTimeout(initDB, 60000);   // IP 화이트리스트 추가 등으로 나중에 열리면 자동 연결
+  }
+}
+initDB();
+// 회원 1명 저장(업서트) — DB 있으면 영구 저장, 없으면 메모리만
+function persistUser(rec) {
+  if (!usersCol || !rec || !rec.id) return;
+  usersCol.updateOne({ id: rec.id }, { $set: rec }, { upsert: true }).catch(e => console.error('[DB] upsert 실패:', e.message));
+}
 // ✉️ 회원가입 안내 메일 발송 (Google Workspace SMTP · @liveup.fans)
 //   Render 환경변수: SMTP_USER=noreply@liveup.fans, SMTP_PASS=<Workspace 앱 비밀번호>
 const SMTP_USER = (process.env.SMTP_USER || '').trim();
@@ -58,10 +198,10 @@ async function sendWelcomeMail(to, name) {
     </div>
     <div style="padding:22px 6px">
       <h2 style="margin:0 0 8px">${name || '회원'}님, 가입을 환영합니다 🎉</h2>
-      <p style="color:#444;line-height:1.6;font-size:14px">LIVE UP에 오신 것을 환영해요! 이제 실시간 스코어·AI 픽·배당·커뮤니티를 모두 이용하실 수 있어요.</p>
+      <p style="color:#444;line-height:1.6;font-size:14px">LIVE UP에 오신 것을 환영해요! 이제 실시간 스코어·AI 코멘트·커뮤니티를 모두 이용하실 수 있어요.</p>
       <ul style="color:#444;font-size:14px;line-height:1.8;padding-left:18px">
         <li>⚡ KBO·NPB·MLB 실시간 스코어와 선수 기록</li>
-        <li>🎯 AI 종합 지표 · 승부 예측 PICK</li>
+        <li>🤖 AI 경기 코멘트 · 최근 전적·상대전적</li>
         <li>💬 경기별 실시간 채팅</li>
       </ul>
       <div style="text-align:center;margin:22px 0">
@@ -88,12 +228,210 @@ app.post('/api/auth/google', async (req, res) => {
     const now = Date.now();
     const prev = USERS.get(info.sub);
     const user = { id: info.sub, email: info.email || '', name: info.name || (info.email || 'user').split('@')[0], picture: info.picture || '', verified: String(info.email_verified) === 'true' };
-    USERS.set(info.sub, Object.assign({ first: prev ? prev.first : now }, user, { last: now }));
+    const token = (prev && prev.token) || genToken();
+    const rec = Object.assign({ first: prev ? prev.first : now }, user, { last: now, token });
+    USERS.set(info.sub, rec);
+    TOKENS.set(token, info.sub);
+    persistUser(rec);   // 🗄️ DB에 영구 저장(있을 때)
     if (!prev) sendWelcomeMail(user.email, user.name);   // 첫 가입 시 환영 메일
-    res.json({ ok: true, user, isNew: !prev });
+    res.json({ ok: true, user, isNew: !prev, token });
   } catch (e) { res.json({ ok: false, error: String(e.message || e) }); }
 });
 app.get('/api/auth/count', (req, res) => res.json({ users: USERS.size }));
+
+// ============================================================
+//  👑 관리자 (비밀번호 인증) — Render 환경변수 ADMIN_KEY 설정
+//     /admin 페이지에서 비밀번호 입력 → 회원 목록·통계 확인
+// ============================================================
+const ADMIN_KEY = (process.env.ADMIN_KEY || '').trim();
+function adminOK(req) {
+  const k = req.get('x-admin-key') || (req.query && req.query.key) || (req.body && req.body.key) || '';
+  return !!ADMIN_KEY && String(k) === ADMIN_KEY;
+}
+// 관리자 로그인 확인(비밀번호 검증만)
+app.post('/api/admin/login', (req, res) => {
+  if (!ADMIN_KEY) return res.json({ ok: false, error: '서버에 ADMIN_KEY 환경변수가 설정되지 않았습니다' });
+  res.json({ ok: !!(req.body && String(req.body.key) === ADMIN_KEY) });
+});
+// 회원 통계
+app.get('/api/admin/stats', (req, res) => {
+  if (!adminOK(req)) return res.status(401).json({ ok: false, error: 'unauthorized' });
+  const now = Date.now();
+  const t0 = new Date(); t0.setHours(0, 0, 0, 0);
+  const todayStart = t0.getTime(), weekAgo = now - 7 * 86400000;
+  const arr = [...USERS.values()];
+  res.json({
+    ok: true,
+    total: arr.length,
+    todayNew: arr.filter(u => (u.first || 0) >= todayStart).length,
+    weekNew: arr.filter(u => (u.first || 0) >= weekAgo).length,
+    online: (typeof totalOnline === 'function') ? totalOnline() : 0,
+    persist: !!usersCol
+  });
+});
+// 회원 목록(최신 가입순)
+app.get('/api/admin/users', (req, res) => {
+  if (!adminOK(req)) return res.status(401).json({ ok: false, error: 'unauthorized' });
+  const list = [...USERS.values()]
+    .sort((a, b) => (b.first || 0) - (a.first || 0))
+    .map(u => ({ name: u.name, email: u.email, picture: u.picture, verified: u.verified, first: u.first, last: u.last }));
+  res.json({ ok: true, count: list.length, persist: !!usersCol, users: list });
+});
+
+// 📊 접속/클릭 수집 (공개) — 클라이언트가 방문·버튼클릭 전송
+app.post('/api/track', async (req, res) => {
+  try {
+    const b = req.body || {};
+    const type = String(b.t || 'visit').slice(0, 12);           // 'visit' | 'click'
+    const name = String(b.n || '').slice(0, 60);                // 버튼/탭 라벨
+    const page = String(b.p || '').slice(0, 60);
+    const lang = String(b.l || '').slice(0, 6);
+    const u = userFromReq(req);
+    const now = Date.now();
+    const ip = clientIP(req);
+    const cc = await geoCountry(ip);                            // 국가코드(오프라인)
+    // 👥 재방문자 기록: 회원=uid, 비회원=기기 vid, 없으면 IP 기준
+    const vid = String(b.vid || '').slice(0, 40);
+    const vkey = (u && u.id) ? ('u:' + u.id) : (vid ? ('d:' + vid) : ('ip:' + ip));
+    recordVisitor(vkey, u ? u.name : '', ip, cc, type, now);
+    if (type === 'ping') { return res.json({ ok: true }); }   // 하트비트는 이벤트버퍼에 안 쌓음
+    pushEvent({
+      ts: now, at: new Date(now), t: type, n: name, p: page, l: lang,
+      ip, cc,
+      ua: String(req.get('user-agent') || '').slice(0, 200),
+      uid: u ? u.id : '', uname: u ? u.name : ''
+    });
+  } catch (e) {}
+  res.json({ ok: true });
+});
+
+// 📊 관리자 접속자 추적 통계
+app.get('/api/admin/analytics', async (req, res) => {
+  if (!adminOK(req)) return res.status(401).json({ ok: false, error: 'unauthorized' });
+  try {
+  const now = Date.now();
+  const t0 = new Date(); t0.setHours(0, 0, 0, 0);
+  const todayStart = t0.getTime();
+  const dayAgo = now - 24 * 3600000;
+  const visits = EVENTS.filter(e => e.t === 'visit');
+  const clicks = EVENTS.filter(e => e.t === 'click');
+  let todayVisits = visits.filter(e => e.ts >= todayStart);
+  let uniqIPToday = new Set(todayVisits.map(e => e.ip)).size;
+  // 시간대별(최근 24시간) 방문 수 — 메모리(롤링)
+  const byHour = [];
+  for (let h = 23; h >= 0; h--) {
+    const start = now - (h + 1) * 3600000, end = now - h * 3600000;
+    const d = new Date(end);
+    byHour.push({ label: String(d.getHours()).padStart(2, '0'), count: visits.filter(e => e.ts >= start && e.ts < end).length });
+  }
+  // 📊 영구 요약(stats_daily) 기반 — 전체 통계·클릭TOP·국가TOP·14일 추이
+  let totalVisits, totalClicks, topClicks, topCountries = [], trend = [];
+  if (statsCol) {
+    try {
+      // ⚡ ips 배열(대용량)은 제외하고 로드 → analytics 응답 빠르게(타임아웃·에러 방지)
+      const docs = await statsCol.find({}, { projection: { ips: 0 } }).toArray();
+      const todayKey = kstParts(now).day;
+      let tv = 0, tc = 0; const bmap = {}, cmap = {};
+      docs.forEach(d => {
+        tv += d.visits || 0; tc += d.clicks || 0;
+        const b = d.buttons || {}; for (const k in b) bmap[k] = (bmap[k] || 0) + b[k];
+        const c = d.countries || {}; for (const k in c) cmap[k] = (cmap[k] || 0) + c[k];
+      });
+      totalVisits = tv; totalClicks = tc;
+      topClicks = Object.entries(bmap).map(([name, count]) => ({ name, count })).sort((a, b) => b.count - a.count).slice(0, 20);
+      topCountries = Object.entries(cmap).map(([cc, count]) => ({ cc, count })).sort((a, b) => b.count - a.count).slice(0, 12);
+      const td = docs.find(d => d._id === todayKey);
+      todayVisits = td ? (td.visits || 0) : 0;
+      // 오늘 순방문 IP 수는 today 문서만 따로(가볍게) 조회
+      try { const tdoc = await statsCol.findOne({ _id: todayKey }, { projection: { ips: 1 } }); uniqIPToday = tdoc && tdoc.ips ? tdoc.ips.length : 0; } catch { uniqIPToday = 0; }
+      trend = docs.map(d => ({ day: d._id, visits: d.visits || 0 })).filter(x => x.day).sort((a, b) => a.day < b.day ? -1 : 1).slice(-14);
+    } catch (e) { totalVisits = undefined; }
+  }
+  // 메모리 폴백 (DB 없을 때)
+  if (totalVisits === undefined) {
+    totalVisits = visits.length; totalClicks = clicks.length;
+    todayVisits = visits.filter(e => e.ts >= todayStart).length;
+    uniqIPToday = new Set(visits.filter(e => e.ts >= todayStart).map(e => e.ip)).size;
+    const clickMap = {}; clicks.forEach(e => { const k = e.n || '(기타)'; clickMap[k] = (clickMap[k] || 0) + 1; });
+    topClicks = Object.entries(clickMap).map(([name, count]) => ({ name, count })).sort((a, b) => b.count - a.count).slice(0, 20);
+    const ccMap = {}; visits.forEach(e => { if (e.cc) ccMap[e.cc] = (ccMap[e.cc] || 0) + 1; });
+    topCountries = Object.entries(ccMap).map(([cc, count]) => ({ cc, count })).sort((a, b) => b.count - a.count).slice(0, 12);
+  }
+  // 최근 접속/클릭 로그 (최신순 80건) — 국가 포함
+  const recent = EVENTS.slice(-80).reverse().map(e => ({
+    ts: e.ts, t: e.t, n: e.n, ip: e.ip, cc: e.cc || '', ua: e.ua, uname: e.uname, l: e.l, p: e.p
+  }));
+  // 👥 재방문자 통계 (총 접속중 / 재방문 접속중 / 방문자별 방문횟수)
+  const nowT = Date.now();
+  let onlineVisitors = 0, returningOnline = 0, returningTotal = 0;
+  const vlist = [];
+  for (const v of VISITORS.values()) {
+    const on = (nowT - (v.last || 0)) <= ONLINE_WIN;
+    const ret = (v.count || 0) >= 2;
+    if (ret) returningTotal++;
+    if (on) { onlineVisitors++; if (ret) returningOnline++; }
+    vlist.push({ who: v.name || maskKey(v.key), count: v.count || 0, online: on, returning: ret, last: v.last || 0, cc: v.cc || '' });
+  }
+  vlist.sort((a, b) => (b.online - a.online) || (b.count - a.count) || (b.last - a.last));
+  const visitors = vlist.slice(0, 80);
+  res.json({
+    ok: true,
+    persist: !!statsCol,
+    stored: EVENTS.length,
+    online: (typeof totalOnline === 'function') ? totalOnline() : 0,
+    todayVisits, uniqIPToday,
+    visits24h: visits.filter(e => e.ts >= dayAgo).length,
+    totalVisits, totalClicks,
+    onlineVisitors, returningOnline, returningTotal, uniqueVisitors: VISITORS.size,
+    byHour, topClicks, topCountries, trend, recent, visitors
+  });
+  } catch (e) {
+    // 어떤 이유로든 집계 실패해도 500(비JSON)이 아니라 JSON으로 안전 응답 → 관리자 "-"/에러 방지
+    res.json({ ok: true, degraded: true, err: String((e && e.message) || e), stored: EVENTS.length, online: (typeof totalOnline === 'function') ? totalOnline() : 0, todayVisits: 0, uniqIPToday: 0, totalVisits: 0, totalClicks: 0, onlineVisitors: 0, returningOnline: 0, returningTotal: 0, uniqueVisitors: VISITORS.size, byHour: [], topClicks: [], topCountries: [], trend: [], recent: [], visitors: [] });
+  }
+});
+
+// 📰 스포츠 뉴스 (ESPN RSS 프록시) — 전체/축구/MLB/NBA/NFL/NHL
+const NEWS_FEEDS = {
+  all: 'https://www.espn.com/espn/rss/news',
+  soccer: 'https://www.espn.com/espn/rss/soccer/news',
+  mlb: 'https://www.espn.com/espn/rss/mlb/news',
+  nba: 'https://www.espn.com/espn/rss/nba/news',
+  nfl: 'https://www.espn.com/espn/rss/nfl/news',
+  nhl: 'https://www.espn.com/espn/rss/nhl/news'
+};
+const newsCache = new Map();
+function decodeEnt(s) { return String(s).replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;|&apos;/g, "'").replace(/&#(\d+);/g, (m, n) => String.fromCharCode(+n)); }
+function parseRss(xml) {
+  const items = [];
+  const blocks = String(xml).split(/<item[\s>]/i).slice(1);
+  for (const b of blocks) {
+    const end = b.search(/<\/item>/i); const seg = end >= 0 ? b.slice(0, end) : b;
+    const pick = (tag) => { const m = seg.match(new RegExp('<' + tag + '[^>]*>([\\s\\S]*?)<\\/' + tag + '>', 'i')); if (!m) return ''; let v = m[1].trim(); v = v.replace(/^<!\[CDATA\[/, '').replace(/\]\]>$/, '').trim(); return v; };
+    const title = pick('title'); const link = pick('link'); const pub = pick('pubDate'); const desc = pick('description');
+    if (title) items.push({ title: decodeEnt(title), link: link || '', desc: decodeEnt(desc).replace(/<[^>]+>/g, '').slice(0, 140), ts: pub ? (Date.parse(pub) || 0) : 0 });
+  }
+  return items;
+}
+app.get('/api/news', async (req, res) => {
+  const cat = String(req.query.cat || 'all').toLowerCase();
+  const url = NEWS_FEEDS[cat] || NEWS_FEEDS.all;
+  const now = Date.now(); const hit = newsCache.get(cat);
+  if (hit && now - hit.t < 600000) return res.json({ ok: true, cat, items: hit.items });
+  try {
+    const r = await fetch(url, { headers: { 'User-Agent': 'Mozilla/5.0 (LiveUp News)' } });
+    const xml = await r.text();
+    const items = parseRss(xml).slice(0, 15);
+    if (items.length) newsCache.set(cat, { t: now, items });
+    res.json({ ok: true, cat, items: items.length ? items : (hit ? hit.items : []) });
+  } catch (e) {
+    if (hit) return res.json({ ok: true, cat, items: hit.items });
+    res.json({ ok: false, cat, items: [] });
+  }
+});
+
+// 관리자 페이지
+app.get('/admin', (req, res) => res.sendFile(path.join(__dirname, 'public', 'admin.html')));
 
 // ---------- 간단 캐시 (레이트리밋 보호) ----------
 const cache = new Map();
@@ -196,6 +534,122 @@ app.get('/api/table', async (req, res) => {
   }
 });
 
+// ============================================================
+//  🏆 순위표 (실데이터) — 축구=API-Football, 야구=MLB StatsAPI/TheSports, 농구=API-Sports
+// ============================================================
+// 축구 리그명 → API-Football 리그 ID
+const AF_RANK_ID = {
+  'Premier League': 39, 'Championship': 40, 'La Liga': 140, 'Segunda División': 141, 'Serie A': 135, 'Serie B': 136,
+  'Bundesliga': 78, 'Bundesliga 2': 79, 'Ligue 1': 61, 'Ligue 2': 62, 'Eredivisie': 88, 'Primeira Liga': 94,
+  'Süper Lig': 203, 'Saudi Pro League': 307, 'K League 1': 292, 'K League 2': 293, 'J1 League': 98, 'J2 League': 99,
+  'Major League Soccer': 253, 'Liga MX': 262, 'Brasileirão': 71, 'Liga Profesional Argentina': 128,
+  'UEFA Champions League': 2, 'UEFA Europa League': 3, 'Eliteserien': 103, 'Allsvenskan': 113
+};
+// 농구 리그명 → API-Sports 농구 리그 ID
+const AB_RANK_ID = { 'NBA': 12, 'EuroLeague': 120, 'KBL': 48 };
+async function rankFootball(league, season) {
+  const lid = AF_RANK_ID[league] || (/^\d+$/.test(league) ? league : null);
+  if (!lid) return { table: [], note: 'unmapped' };
+  const yr = String(season || '').match(/\d{4}/); const sy = yr ? +yr[0] : new Date().getFullYear();
+  const parse = j => {
+    const resp = j && j.response && j.response[0];
+    const st = resp && resp.league && resp.league.standings;
+    const rows = (st && (st[0] || [])) || [];
+    return rows.map(r => ({ rank: r.rank, team: r.team.name, logo: r.team.logo, played: r.all.played, win: r.all.win, draw: r.all.draw, loss: r.all.lose, points: r.points, gd: r.goalsDiff, form: r.form || '' }));
+  };
+  // 요청 시즌 → 비어있으면(새 시즌 시작 전 등) 직전 시즌으로 폴백
+  for (const s of [sy, sy - 1]) {
+    const j = await asRaw('football', `/standings?league=${lid}&season=${s}`, 3600000).catch(() => null);
+    const table = parse(j);
+    if (table.length) return { table, kind: 'football', season: s };
+  }
+  return { table: [], kind: 'football' };
+}
+async function rankMLB(season) {
+  const m = String(season || '').match(/\d{4}/); const sy = m ? +m[0] : new Date().getFullYear();
+  const DIV = { 200: 'AL West', 201: 'AL East', 202: 'AL Central', 203: 'NL West', 204: 'NL East', 205: 'NL Central' };
+  for (const yr of [sy, sy - 1]) {
+    const st = await mlbFetch(`/api/v1/standings?leagueId=103,104&season=${yr}&standingsTypes=regularSeason`, 600000).catch(() => null);
+    if (!st) continue;
+    const rows = [];
+    (st.records || []).forEach(rec => (rec.teamRecords || []).forEach(tr => {
+      rows.push({ team: tr.team.name, div: DIV[rec.division && rec.division.id] || '', win: tr.wins, loss: tr.losses, pct: tr.winningPercentage, gb: tr.gamesBack, streak: tr.streak ? tr.streak.streakCode : '' });
+    }));
+    if (rows.length) {
+      rows.sort((a, b) => parseFloat(b.pct) - parseFloat(a.pct));
+      rows.forEach((r, i) => r.rank = i + 1);
+      return { table: rows, kind: 'baseball', season: yr };
+    }
+  }
+  return { table: [], kind: 'baseball' };
+}
+// API-Sports 농구/배구 리그명 → 리그 ID 자동 검색 (하드코딩 없이 커버)
+const _leagueIdCache = new Map();
+async function asLeagueId(sport, name) {
+  if (!name) return null;
+  const ck = sport + '|' + name;
+  if (_leagueIdCache.has(ck)) return _leagueIdCache.get(ck);
+  let id = null;
+  try {
+    const j = await asRaw(sport, `/leagues?search=${encodeURIComponent(name)}`, 86400000);
+    const arr = (j && j.response) || [];
+    const nl = _nrm(name);
+    let best = arr.find(l => _nrm(l.name) === nl) || arr.find(l => _nrm(l.name).includes(nl) || nl.includes(_nrm(l.name))) || arr[0];
+    id = best && best.id;
+  } catch { }
+  _leagueIdCache.set(ck, id);
+  return id;
+}
+function parseHoopStandings(j) {
+  const groups = (j && j.response) || [];
+  const flat = [];
+  groups.forEach(g => (Array.isArray(g) ? g : [g]).forEach(r => { if (r && r.team) flat.push(r); }));
+  flat.sort((a, b) => (a.position || 99) - (b.position || 99));
+  return flat.map((r, i) => ({
+    rank: r.position || i + 1, team: r.team.name, logo: r.team.logo,
+    played: r.games && r.games.played,
+    win: r.games && r.games.win && (r.games.win.total ?? r.games.win),
+    loss: r.games && (r.games.lose ? (r.games.lose.total ?? r.games.lose) : (r.games.loss && (r.games.loss.total ?? r.games.loss))),
+    points: r.points != null ? r.points : ''
+  }));
+}
+async function rankBasketball(league, season) {
+  let lid = AB_RANK_ID[league] || (/^\d+$/.test(league) ? league : null);
+  if (!lid) lid = await asLeagueId('basketball', league);
+  if (!lid) return { table: [], note: 'unmapped' };
+  for (const sy of [String(season || '2025-2026'), '2024-2025']) {
+    const j = await asRaw('basketball', `/standings?league=${lid}&season=${encodeURIComponent(sy)}`, 3600000).catch(() => null);
+    const table = parseHoopStandings(j);
+    if (table.length) return { table, kind: 'basketball', season: sy };
+  }
+  return { table: [], kind: 'basketball' };
+}
+async function rankVolleyball(league, season) {
+  let lid = /^\d+$/.test(league) ? league : await asLeagueId('volleyball', league);
+  if (!lid) return { table: [], note: 'unmapped' };
+  const m = String(season || '').match(/\d{4}/); const y = m ? +m[0] : new Date().getFullYear();
+  for (const sy of [`${y}-${y + 1}`, String(y), `${y - 1}-${y}`, String(y - 1)]) {
+    const j = await asRaw('volleyball', `/standings?league=${lid}&season=${encodeURIComponent(sy)}`, 3600000).catch(() => null);
+    const table = parseHoopStandings(j);
+    if (table.length) return { table, kind: 'volleyball', season: sy };
+  }
+  return { table: [], kind: 'volleyball' };
+}
+app.get('/api/rank', async (req, res) => {
+  const sport = req.query.sport || 'football', league = req.query.league || '', season = req.query.season || '';
+  try {
+    let out = { table: [] };
+    if (sport === 'football') out = await rankFootball(league, season);
+    else if (sport === 'baseball') {
+      if (/KBO|NPB|CPBL/i.test(league)) out = { table: [], note: 'ts-todo' };   // KBO/NPB 준비중
+      else out = await rankMLB(season);   // MLB(및 기본)
+    }
+    else if (sport === 'basketball') out = await rankBasketball(league, season);
+    else if (sport === 'volleyball') out = await rankVolleyball(league, season);
+    res.json(out);
+  } catch (e) { res.status(502).json({ table: [], error: String(e.message || e) }); }
+});
+
 // 경기 상세 (클릭 시)
 app.get('/api/event', async (req, res) => {
   try {
@@ -226,107 +680,6 @@ app.get('/api/predict', async (req, res) => {
   res.json({ home: pw, draw: pd, away: pl, confidence: Math.min(92, 60 + Math.abs((h||0)-(a||0)) * 8) });
 });
 
-// ============================================================
-//  배당 (The Odds API · 실제 해외 북메이커 배당)
-//  ※ 무료키를 환경변수 ODDS_API_KEY 에 넣으면 실제 배당 표시.
-//    키 없으면 needKey:true 로 안내.
-// ============================================================
-const ODDS_KEY = process.env.ODDS_API_KEY || '';
-const ODDS_SPORTS = [
-  { key: 'baseball_kbo', ko: 'KBO', em: '⚾' },
-  { key: 'baseball_mlb', ko: 'MLB', em: '⚾' },
-  { key: 'baseball_npb', ko: 'NPB', em: '⚾' },
-  { key: 'soccer_korea_kleague1', ko: 'K리그1', em: '⚽' },
-  { key: 'soccer_epl', ko: 'EPL', em: '⚽' },
-  { key: 'soccer_spain_la_liga', ko: '라리가', em: '⚽' },
-  { key: 'soccer_usa_mls', ko: 'MLS', em: '⚽' },
-  { key: 'basketball_wnba', ko: 'WNBA', em: '🏀' }
-];
-
-app.get('/api/odds/sports', (req, res) => res.json({ sports: ODDS_SPORTS, hasKey: !!ODDS_KEY }));
-
-// 진단: The Odds API 남은 크레딧 확인 (헤더 x-requests-remaining)
-app.get('/api/odds/quota', async (req, res) => {
-  if (!ODDS_KEY) return res.json({ needKey: true });
-  try {
-    const r = await fetch(`https://api.the-odds-api.com/v4/sports/upcoming/odds/?apiKey=${ODDS_KEY}&regions=us&markets=h2h`);
-    const body = await r.text();
-    res.json({
-      httpStatus: r.status,
-      remaining: r.headers.get('x-requests-remaining'),
-      used: r.headers.get('x-requests-used'),
-      bodyPreview: body.slice(0, 200)
-    });
-  } catch (e) { res.status(502).json({ error: String(e.message || e) }); }
-});
-
-app.get('/api/odds', async (req, res) => {
-  if (!ODDS_KEY) return res.json({ needKey: true, games: [] });
-  try {
-    const sport = req.query.sport || 'soccer_epl';
-    const url = `https://api.the-odds-api.com/v4/sports/${encodeURIComponent(sport)}/odds/?apiKey=${ODDS_KEY}&regions=us,uk,eu&markets=h2h&oddsFormat=decimal`;
-    const data = await cachedJSON(url, 90000);
-    const arr = Array.isArray(data) ? data : [];
-    const games = arr.map(g => {
-      // 여러 북메이커의 h2h 배당을 결과별 평균(시장 컨센서스)으로 → 일관된 승·무·패 배당
-      const acc = { home: [], draw: [], away: [] }; let books = 0, sample = null;
-      (g.bookmakers || []).forEach(bk => {
-        const m = (bk.markets || []).find(x => x.key === 'h2h'); if (!m) return;
-        books++; if (!sample) sample = bk.title;
-        (m.outcomes || []).forEach(o => {
-          if (o.name === g.home_team) acc.home.push(o.price);
-          else if (o.name === g.away_team) acc.away.push(o.price);
-          else if (o.name === 'Draw') acc.draw.push(o.price);
-        });
-      });
-      const avg = a => a.length ? Math.round((a.reduce((s, x) => s + x, 0) / a.length) * 100) / 100 : null;
-      return {
-        id: g.id, league: g.sport_title, home: g.home_team, away: g.away_team,
-        time: g.commence_time,
-        homeOdds: avg(acc.home), drawOdds: avg(acc.draw), awayOdds: avg(acc.away),
-        books, sample
-      };
-    }).sort((a, b) => new Date(a.time) - new Date(b.time));
-    res.json({ needKey: false, sport, count: games.length, games });
-  } catch (e) {
-    res.status(502).json({ error: String(e.message || e) });
-  }
-});
-
-// 단일 경기 상세 배당 (승무패 + 핸디캡 + 오버언더, 업체별)
-app.get('/api/odds/event', async (req, res) => {
-  if (!ODDS_KEY) return res.json({ needKey: true });
-  try {
-    const { id, sport } = req.query;
-    if (!id || !sport) return res.status(400).json({ error: 'id/sport required' });
-    const url = `https://api.the-odds-api.com/v4/sports/${encodeURIComponent(sport)}/events/${encodeURIComponent(id)}/odds/?apiKey=${ODDS_KEY}&regions=us,uk,eu&markets=h2h,spreads,totals&oddsFormat=decimal`;
-    const g = await cachedJSON(url, 60000);
-    if (!g || !g.id) return res.json({ event: null });
-    const books = (g.bookmakers || []).map(bk => {
-      const h2h = (bk.markets || []).find(m => m.key === 'h2h');
-      const get = n => { const o = ((h2h && h2h.outcomes) || []).find(x => x.name === n); return o ? o.price : null; };
-      const spreads = (bk.markets || []).find(m => m.key === 'spreads');
-      const totals = (bk.markets || []).find(m => m.key === 'totals');
-      return {
-        title: bk.title,
-        home: get(g.home_team), away: get(g.away_team), draw: get('Draw'),
-        spread: spreads ? (spreads.outcomes || []).map(o => ({ name: o.name, price: o.price, point: o.point })) : [],
-        total: totals ? (totals.outcomes || []).map(o => ({ name: o.name, price: o.price, point: o.point })) : []
-      };
-    });
-    const hi = { home: 0, draw: 0, away: 0 };
-    books.forEach(b => { if (b.home) hi.home = Math.max(hi.home, b.home); if (b.away) hi.away = Math.max(hi.away, b.away); if (b.draw) hi.draw = Math.max(hi.draw, b.draw); });
-    // 대표 핸디/오버언더(첫 업체 값)
-    const sampleSpread = (books.find(b => b.spread.length) || {}).spread || [];
-    const sampleTotal = (books.find(b => b.total.length) || {}).total || [];
-    res.json({
-      event: { id: g.id, home: g.home_team, away: g.away_team, time: g.commence_time, league: g.sport_title },
-      best: hi, books, sampleSpread, sampleTotal
-    });
-  } catch (e) {
-    res.status(502).json({ error: String(e.message || e) });
-  }
-});
 
 // 팀 최근 경기 (TheSportsDB · 팀명 검색 → 최근 5경기)
 app.get('/api/team/recent', async (req, res) => {
@@ -370,14 +723,46 @@ const AS = {
   mma: { host: 'v1.mma.api-sports.io', ko: '격투기', em: '🥊', path: '/fights' }
 };
 
+// 타임존 쿼리: API-Sports는 "Asia/Seoul"처럼 슬래시가 살아있어야 인식. encodeURIComponent는 슬래시를 %2F로 바꿔
+// v1 종목(배구·농구·하키 등)이 '잘못된 타임존'으로 보고 0건 반환 → 슬래시만 원복(다른 특수문자는 안전하게 인코딩 유지)
+function tzq(tz) { return encodeURIComponent(tz || 'Asia/Seoul').replace(/%2F/gi, '/'); }
+// 옛 타임존 별칭 → 표준 IANA 이름으로 정규화. (일부 서버/ICU가 Asia/Saigon 같은 옛 이름을 잘못 처리해
+//  날짜 필터가 깨지고 경기가 0건이 되는 문제 방어. 베트남 기기가 흔히 Asia/Saigon을 보냄)
+const TZ_ALIAS = {
+  'Asia/Saigon': 'Asia/Ho_Chi_Minh', 'Asia/Calcutta': 'Asia/Kolkata', 'Asia/Rangoon': 'Asia/Yangon',
+  'Asia/Katmandu': 'Asia/Kathmandu', 'Asia/Ulan_Bator': 'Asia/Ulaanbaatar', 'Asia/Chongqing': 'Asia/Shanghai',
+  'Asia/Harbin': 'Asia/Shanghai', 'Europe/Kiev': 'Europe/Kyiv', 'America/Buenos_Aires': 'America/Argentina/Buenos_Aires'
+};
+function canonTz(tz) {
+  tz = String(tz || '').trim() || 'Asia/Seoul';
+  if (TZ_ALIAS[tz]) tz = TZ_ALIAS[tz];
+  try { new Intl.DateTimeFormat('en-CA', { timeZone: tz }).format(new Date()); return tz; }
+  catch { return 'Asia/Seoul'; }   // 인식 못 하는 타임존은 안전하게 서울로
+}
+let _asCalls = 0, _asUsage = null, _bootAt = Date.now();   // 📊 API-Sports 호출량 추적
 async function asRaw(sport, path, ttl = 30000) {
   const cfg = AS[sport]; if (!cfg) throw new Error('bad sport');
   const url = `https://${cfg.host}${path}`;
   const hit = cache.get(url), now = Date.now();
   if (hit && now - hit.t < ttl) return hit.v;
+  _asCalls++;   // 📊 실제 API-Sports 호출 1건 (캐시 miss)
   const r = await fetch(url, { headers: { 'x-apisports-key': APISPORTS_KEY } });
-  if (!r.ok) throw new Error('upstream ' + r.status);
+  try {   // 응답 헤더에서 하루 한도/남은 횟수 캡처
+    const lim = r.headers.get('x-ratelimit-requests-limit'), rem = r.headers.get('x-ratelimit-requests-remaining');
+    if (lim != null || rem != null) _asUsage = { limit: lim != null ? Number(lim) : null, remaining: rem != null ? Number(rem) : null, used: (lim != null && rem != null) ? (Number(lim) - Number(rem)) : null, at: new Date().toISOString() };
+  } catch {}
+  if (!r.ok) {
+    if (hit) { hit.t = now; return hit.v; }   // ⚡ 429/5xx: 이전 정상 데이터 유지 + 백오프(빈 화면·예상라인업 방지)
+    throw new Error('upstream ' + r.status);
+  }
   const v = await r.json();
+  // ⚠️ 에러/한도초과 응답(errors 존재 + 결과 0)은 캐시하지 않음 → 한도 회복/복구 즉시 반영
+  const errObj = v && v.errors;
+  const hasErr = errObj && (Array.isArray(errObj) ? errObj.length > 0 : Object.keys(errObj).length > 0);
+  if (hasErr && (v.results === 0 || v.results == null)) {
+    if (hit) return hit.v;   // 이전 정상 캐시가 있으면 그걸 유지(빈 화면 방지)
+    return v;                 // 없으면 그대로 반환(캐시는 안 함)
+  }
   cache.set(url, { t: now, v });
   return v;
 }
@@ -406,7 +791,7 @@ function normAS(sport, g) {
     const short = (g.status && g.status.short) || '';
     const long = (g.status && g.status.long) || '';
     // 현재 세트/피리어드 실시간 점수 (배구 등): periods에서 마지막 진행 세트 추출
-    let livePts = null;
+    let livePts = null, setScores = null;
     const pr = g.periods;
     if (pr && typeof pr === 'object') {
       const order = ['fifth', 'fourth', 'third', 'second', 'first'];
@@ -414,6 +799,11 @@ function normAS(sport, g) {
         const p = pr[k];
         if (p && typeof p === 'object' && (p.home != null || p.away != null)) { livePts = { home: p.home, away: p.away }; break; }
       }
+      // 세트/쿼터별 점수 전체 (배구=세트, 농구=쿼터)
+      const seq = ['first', 'second', 'third', 'fourth', 'fifth', 'sixth', 'seventh', 'eighth', 'overtime', 'extratime'];
+      const arr = [];
+      seq.forEach(k => { const p = pr[k]; if (p && typeof p === 'object' && (p.home != null || p.away != null)) arr.push({ home: p.home, away: p.away }); });
+      if (arr.length) setScores = arr;
     }
     // 야구: 라인스코어(이닝별 득점)·안타(H)·실책(E) + 초/말 추론
     let box = null, curInning = null, inningHalf = null;
@@ -426,13 +816,9 @@ function normAS(sport, g) {
       let lastPlayed = 0;
       for (let n = 1; n <= 15; n++) { if (filled(hi, n) || filled(ai, n)) lastPlayed = n; }
       curInning = statusNum || lastPlayed || null;
-      if (curInning != null) {
-        const hFilled = filled(hi, curInning), aFilled = filled(ai, curInning);
-        // 원정팀(초 공격)만 기록 → 초 / 홈팀(말 공격)까지 기록 → 말
-        if (aFilled && !hFilled) inningHalf = 'top';
-        else if (hFilled) inningHalf = 'bottom';
-        else inningHalf = 'top';   // 이닝 시작 직후(초 공격 준비)
-      }
+      // ⚠️ API-Sports 야구는 status에 초/말 정보가 없음("Inning 4"만). 점수 칸으로 추측하면 자주 틀림(4회말을 4회초로).
+      //    → 초/말은 표시하지 않고 회차만 표시(틀린 정보 방지). MLB(StatsAPI)·KBO/NPB/CPBL(TheSports)은 실제 초/말로 나중에 덮어씀.
+      inningHalf = null;
       box = {
         home: { r: (s.home && s.home.total != null ? s.home.total : hs), h: (s.home && s.home.hits != null ? s.home.hits : null), e: (s.home && s.home.errors != null ? s.home.errors : null), innings: hi },
         away: { r: (s.away && s.away.total != null ? s.away.total : as), h: (s.away && s.away.hits != null ? s.away.hits : null), e: (s.away && s.away.errors != null ? s.away.errors : null), innings: ai }
@@ -443,7 +829,7 @@ function normAS(sport, g) {
       home: t.home.name, homeLogo: t.home.logo, away: t.away.name, awayLogo: t.away.logo,
       hs, as, status: short || long, statusLong: long,
       period: g.period || g.inning || curInning || null, timer: g.timer || (g.status && g.status.timer) || null,
-      livePts, box, curInning, inningHalf,
+      livePts, setScores, box, curInning, inningHalf,
       // ⏱️ 절대시각(UTC)로 저장 — 유닉스 timestamp 우선(타임존 문자열은 애매해서 최후순위). 표시/그룹은 기기 타임존으로 변환
       date: (g.timestamp ? new Date(g.timestamp * 1000).toISOString() : (g.date || g.time || null)),
       state: asState(short || long, hs)
@@ -451,6 +837,20 @@ function normAS(sport, g) {
   } catch { return null; }
 }
 
+// 진단: 팀명으로 특정 경기의 원시 API 응답(teams/scores) 확인 — 점수 뒤집힘이 API 데이터인지 우리 매핑인지 판별용
+app.get('/api/asports/rawfind', async (req, res) => {
+  if (!APISPORTS_KEY) return res.json({ needKey: true });
+  const sport = req.query.sport || 'baseball';
+  const date = req.query.date || new Date().toISOString().slice(0, 10);
+  const q = String(req.query.q || '').toLowerCase();
+  const cfg = AS[sport]; if (!cfg) return res.status(400).json({ error: 'bad sport' });
+  try {
+    const j = await asRaw(sport, `${cfg.path}?date=${date}&timezone=Asia/Seoul`, 10000);
+    const arr = j.response || [];
+    const hits = arr.filter(g => { const h = ((g.teams && g.teams.home && g.teams.home.name) || '').toLowerCase(); const a = ((g.teams && g.teams.away && g.teams.away.name) || '').toLowerCase(); return q && (h.includes(q) || a.includes(q)); });
+    res.json({ total: arr.length, matched: hits.length, games: hits.slice(0, 4).map(g => ({ home: g.teams.home.name, away: g.teams.away.name, status: g.status, scores: g.scores })) });
+  } catch (e) { res.status(502).json({ error: String(e.message || e) }); }
+});
 // 진단: 라이브 경기의 원시 응답 구조 확인 (초/말·히트·실책·타석 데이터 유무 파악)
 app.get('/api/asports/raw', async (req, res) => {
   if (!APISPORTS_KEY) return res.json({ needKey: true });
@@ -467,7 +867,7 @@ app.get('/api/asports/raw', async (req, res) => {
 });
 // 진단: 서버가 받은 환경변수 "이름"만 표시 (값은 노출 안 함)
 app.get('/api/asports/debug', (req, res) => {
-  const names = Object.keys(process.env).filter(k => /(API|SPORT|ODDS|KEY|FOOTBALL)/i.test(k));
+  const names = Object.keys(process.env).filter(k => /(API|SPORT|KEY|FOOTBALL)/i.test(k));
   res.json({
     matchingEnvNames: names,
     apisportsKeyDetected: !!APISPORTS_KEY,
@@ -475,6 +875,20 @@ app.get('/api/asports/debug', (req, res) => {
   });
 });
 // 키/쿼터 상태 확인 (배포 후 검증용)
+// 📊 호출량 조회 — API-Sports 하루 한도/남은횟수(헤더 기준) + 서버 기동 후 우리가 보낸 호출 수
+app.get('/api/asports/usage', (req, res) => {
+  const upMs = Date.now() - _bootAt, upMin = Math.round(upMs / 60000);
+  res.json({
+    apiSports하루한도: _asUsage ? _asUsage.limit : null,
+    오늘사용: _asUsage ? _asUsage.used : null,
+    오늘남음: _asUsage ? _asUsage.remaining : null,
+    헤더확인시각: _asUsage ? _asUsage.at : null,
+    서버기동후우리호출수: _asCalls,
+    서버가동시간분: upMin,
+    분당평균호출: upMin > 0 ? (_asCalls / upMin).toFixed(1) : _asCalls,
+    note: 'apiSports하루한도/사용/남음 = API-Sports 응답헤더 기준(축구·야구). 농구는 Goalserve(별도). 전체 공식 집계는 dashboard.api-football.com 참고.'
+  });
+});
 app.get('/api/asports/status', async (req, res) => {
   if (!APISPORTS_KEY) return res.json({ key: false, msg: 'APISPORTS_KEY 미설정' });
   try {
@@ -505,138 +919,152 @@ app.get('/api/asports/leagues', async (req, res) => {
     const j = await asRaw(sport, `${cfg.path}?date=${date}&timezone=Asia/Seoul`, 60000);
     const counts = {};
     (j.response || []).map(g => normAS(sport, g)).filter(Boolean).forEach(g => { counts[g.league] = (counts[g.league] || 0) + 1; });
-    const leagues = Object.entries(counts).map(([name, n]) => ({ name, games: n, mapped: sport === 'football' ? !!LEAGUE_TO_ODDS[name] : 'group' })).sort((a, b) => b.games - a.games);
+    const leagues = Object.entries(counts).map(([name, n]) => ({ name, games: n, mapped: false })).sort((a, b) => b.games - a.games);
     res.json({ sport, date, leagues });
   } catch (e) { res.status(502).json({ error: String(e.message || e) }); }
 });
-// 리그명 → The Odds API sport 키 (해외배당 매칭용)
-const LEAGUE_TO_ODDS = {
-  // 야구
-  'MLB': 'baseball_mlb', 'KBO': 'baseball_kbo', 'NPB': 'baseball_npb',
-  // 축구
-  'Premier League': 'soccer_epl', 'La Liga': 'soccer_spain_la_liga', 'Serie A': 'soccer_italy_serie_a',
-  'Bundesliga': 'soccer_germany_bundesliga', 'Ligue 1': 'soccer_france_ligue_one', 'Ligue 1 - France': 'soccer_france_ligue_one',
-  'K League 1': 'soccer_korea_kleague1', 'Major League Soccer': 'soccer_usa_mls', 'MLS': 'soccer_usa_mls',
-  'UEFA Champions League': 'soccer_uefa_champs_league', 'Eredivisie': 'soccer_netherlands_eredivisie',
-  'Primeira Liga': 'soccer_portugal_primeira_liga', 'Championship': 'soccer_efl_champ',
-  'Serie A - Brazil': 'soccer_brazil_campeonato', 'Brasileirão Série A': 'soccer_brazil_campeonato',
-  'Primera División': 'soccer_argentina_primera_division', 'Liga Profesional Argentina': 'soccer_argentina_primera_division',
-  'J1 League': 'soccer_japan_j_league', 'J League': 'soccer_japan_j_league',
-  'A-League': 'soccer_australia_aleague', 'Süper Lig': 'soccer_turkey_super_league', 'Super Lig': 'soccer_turkey_super_league',
-  // 여름 시즌 진행 리그 (북유럽·남미 등)
-  'Eliteserien': 'soccer_norway_eliteserien', 'Allsvenskan': 'soccer_sweden_allsvenskan', 'Superettan': 'soccer_sweden_superettan',
-  'Veikkausliiga': 'soccer_finland_veikkausliiga', 'Superliga': 'soccer_denmark_superliga',
-  'Jupiler Pro League': 'soccer_belgium_first_div', 'First Division A': 'soccer_belgium_first_div',
-  'Serie B': 'soccer_brazil_serie_b', 'Liga MX': 'soccer_mexico_ligamx', 'Primera A': 'soccer_chile_campeonato',
-  'Super League': 'soccer_china_superleague', 'Premiership': 'soccer_spl', 'Bundesliga 2': 'soccer_germany_bundesliga2',
-  '3. Liga': 'soccer_germany_liga3', 'League One': 'soccer_england_league1', 'League Two': 'soccer_england_league2',
-  'UEFA Europa League': 'soccer_uefa_europa_league', 'UEFA Champions League Qualifying': 'soccer_uefa_champs_league_qualification',
-  // 농구·하키·미식축구·격투기
-  'NBA': 'basketball_nba', 'WNBA': 'basketball_wnba', 'NCAA': 'basketball_ncaab',
-  'NHL': 'icehockey_nhl', 'NFL': 'americanfootball_nfl', 'MMA': 'mma_mixed_martial_arts'
-};
-// 앱 종목 → The Odds API 그룹명 (그룹 안의 모든 활성 리그를 가져와 팀명으로 매칭)
-// ※ 축구(soccer)는 리그가 60개+라 개별 호출 비용이 커서 LEAGUE_TO_ODDS 매핑을 씀.
-// ※ 배구/핸드볼은 The Odds API에 아예 없음 → 배당 불가.
-const ODDS_GROUP = { baseball: 'Baseball', basketball: 'Basketball', hockey: 'Ice Hockey', rugby: 'Rugby League' };
-let oddsSportsList = null, oddsSportsListT = 0;
-async function oddsSportKeys(group) {
-  if (!ODDS_KEY || !group) return [];
-  const now = Date.now();
-  if (!oddsSportsList || now - oddsSportsListT > 3600000) {   // /v4/sports는 크레딧 소모 안 함, 1시간 캐시
-    try { const r = await fetch(`https://api.the-odds-api.com/v4/sports/?apiKey=${ODDS_KEY}`); oddsSportsList = await r.json(); oddsSportsListT = now; }
-    catch { return []; }
-  }
-  return (Array.isArray(oddsSportsList) ? oddsSportsList : []).filter(s => s.group === group && s.active && !s.has_outrights).map(s => s.key);
-}
-// ⚽ 축구 리그명 → The Odds API soccer 키 자동 매칭 (LEAGUE_TO_ODDS에 없는 리그 커버)
-//    /v4/sports 목록(무료)의 title/description 을 리그명·나라로 대조. 오매칭 방지 위해 나라도 확인.
-const _soccerKeyCache = new Map();   // "league|country" -> key|null
-async function ensureOddsSports() {
-  const now = Date.now();
-  if (!oddsSportsList || now - oddsSportsListT > 3600000) {
-    try { const r = await fetch(`https://api.the-odds-api.com/v4/sports/?apiKey=${ODDS_KEY}`); oddsSportsList = await r.json(); oddsSportsListT = now; } catch { }
-  }
-  return Array.isArray(oddsSportsList) ? oddsSportsList : [];
-}
-const _nrm = s => String(s || '').toLowerCase().replace(/[^a-z0-9]/g, '');
-async function soccerKeyForLeague(league, country) {
-  if (!ODDS_KEY || !league) return null;
-  const ck = league + '|' + (country || '');
-  if (_soccerKeyCache.has(ck)) return _soccerKeyCache.get(ck);
-  const list = (await ensureOddsSports()).filter(s => s.group === 'Soccer' && s.active && !s.has_outrights);
-  const nl = _nrm(league), nc = _nrm(country);
-  let best = null;
-  for (const s of list) {
-    const nt = _nrm(s.title), nd = _nrm(s.description);
-    const hay = nt + '|' + nd;
-    // 리그명이 title/description 안에 들어가면 후보. 나라가 있으면 나라도 일치해야 채택(오매칭 방지)
-    const leagueHit = nl.length >= 4 && (hay.includes(nl) || nl.includes(nt));
-    if (!leagueHit) continue;
-    const countryOk = !nc || nc.length < 3 || hay.includes(nc) || (nc === 'england' && hay.includes('epl'));
-    if (countryOk) { best = s.key; break; }
-    if (!best) best = s.key;   // 나라 불일치여도 일단 후보로 (더 나은 게 없을 때)
-  }
-  _soccerKeyCache.set(ck, best);
-  return best;
-}
-// 악센트(é·ñ·í…)를 기본 문자로 접어서 매칭 (한글은 NFC로 복원해 보존)
-const _foldAccents = s => String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').normalize('NFC');
-const normTeam = s => _foldAccents(s).toLowerCase().replace(/[^a-z0-9가-힣]/g, '');
-// 경기별 배당 영구 저장소(팀쌍 키). 경기 시작 후 The Odds API에서 사라져도 마지막 배당을 계속 보여줌.
-const oddsStore = new Map();   // key -> { home, away, draw, t }
-const ODDS_STORE_TTL = 8 * 3600 * 1000;   // 8시간 유지
-async function oddsLookup(oddsSport) {
-  if (!ODDS_KEY) return null;
-  // au(호주) 지역 추가 → KBO/NPB 등 아시아 야구 배당은 호주 북메이커가 많이 취급함
-  const url = `https://api.the-odds-api.com/v4/sports/${oddsSport}/odds/?apiKey=${ODDS_KEY}&regions=us,uk,eu,au&markets=h2h&oddsFormat=decimal`;
-  const ck = 'OL:' + oddsSport, now = Date.now(), hit = cache.get(ck);
-  if (hit && now - hit.t < 600000) return hit.v;   // 15분 캐시(무료 쿼터 절약)
+
+// ============================================================
+//  🏀 Goalserve 농구 라이브 시계 테스트 엔드포인트
+//  배포 후 브라우저로 /api/gs/bsktest 열면 쿼터/시계 수신 여부 확인
+//  키는 환경변수 GOALSERVE_KEY 우선, 없으면 테스트키 폴백
+// ============================================================
+app.get('/api/gs/bsktest', async (req, res) => {
+  const KEY = (process.env.GOALSERVE_KEY || '063b89c0de9d4078431908df2595d029').trim();
+  const base = `https://www.goalserve.com/getfeed/${KEY}/bsktbl`;
+  const A = (o, k) => { if (!o) return undefined; if (o['@' + k] !== undefined) return o['@' + k]; if (o[k] !== undefined && typeof o[k] !== 'object') return o[k]; return undefined; };
+  const arr = x => Array.isArray(x) ? x : (x ? [x] : []);
   try {
-    const r = await fetch(url); if (!r.ok) throw new Error('odds ' + r.status);
-    const arr = await r.json();
-    const map = {};
-    (Array.isArray(arr) ? arr : []).forEach(g => {
-      // 여러 북메이커의 h2h 배당을 결과별 평균(시장 컨센서스)으로 → 승·무·패가 일관된 배당(합산 확률 >100%)
-      const acc = { home: [], away: [], draw: [] };
-      (g.bookmakers || []).forEach(bk => {
-        const m = (bk.markets || []).find(x => x.key === 'h2h'); if (!m) return;
-        (m.outcomes || []).forEach(o => {
-          if (o.name === g.home_team) acc.home.push(o.price);
-          else if (o.name === g.away_team) acc.away.push(o.price);
-          else if (o.name === 'Draw') acc.draw.push(o.price);
-        });
-      });
-      const avg = a => a.length ? Math.round((a.reduce((s, x) => s + x, 0) / a.length) * 100) / 100 : null;
-      const key = normTeam(g.home_team) + '|' + normTeam(g.away_team);
-      const val = { home: avg(acc.home), away: avg(acc.away), draw: avg(acc.draw) };
-      map[key] = val;
-      if (val.home || val.away) oddsStore.set(key, { ...val, t: now });   // 영구 저장소에도 적립
+    // 1) 연결 체크 — leagues 피드(항상 데이터 있음)
+    let lgCount = 0, lgErr = null;
+    try { const lj = await cachedJSON(`${base}/leagues?json=1`, 60000); lgCount = arr(lj?.scores?.category || lj?.leagues?.league || lj?.scores?.league).length; } catch (e) { lgErr = String(e.message || e); }
+    // 2) 라이브 스코어 피드
+    const j = await cachedJSON(`${base}/home?json=1`, 8000);
+    const cats = arr(j?.scores?.category);
+    let total = 0; const statusCounts = {}; const live = []; const timerSamples = new Set();
+    for (const c of cats) {
+      const league = A(c, 'name');
+      for (const m of arr(c.match)) {
+        total++;
+        const st = A(m, 'status') || '';
+        statusCounts[st] = (statusCounts[st] || 0) + 1;
+        const tm = A(m, 'timer'); if (tm) timerSamples.add(tm);
+        const lt = m.localteam, at = m.visitorteam || m.awayteam;
+        if (/quarter|overtime|half ?time|break/i.test(st)) {
+          live.push({
+            league, home: A(lt, 'name'), away: A(at, 'name'),
+            score: `${A(lt, 'totalscore') || 0}:${A(at, 'totalscore') || 0}`,
+            status: st, timer: tm || '(없음)',
+            quarters: `${A(lt, 'q1') || '-'}/${A(lt, 'q2') || '-'}/${A(lt, 'q3') || '-'}/${A(lt, 'q4') || '-'}  vs  ${A(at, 'q1') || '-'}/${A(at, 'q2') || '-'}/${A(at, 'q3') || '-'}/${A(at, 'q4') || '-'}`
+          });
+        }
+      }
+    }
+    res.json({
+      ok: true,
+      keyUsed: KEY.slice(0, 6) + '…',
+      연결상태: (lgCount > 0 || total > 0) ? '✅ 피드 정상 (IP 통과됨)' : '❌ 빈 응답 → IP 잠금 가능성, Goalserve에 142.93.195.157 화이트리스트 요청',
+      리그수: lgCount, 리그에러: lgErr,
+      오늘경기수: total,
+      현재라이브: live.length,
+      상태별카운트: statusCounts,
+      시계값샘플: [...timerSamples].slice(0, 20),
+      라이브경기: live.slice(0, 30),
+      설명: 'status=쿼터(1st/2nd/3rd/4th Quarter 등), timer=라이브 시계(분). 라이브 경기가 있을 때만 값이 참. 한국 오전엔 경기 적음(유럽/미국 저녁~새벽 권장).'
     });
-    cache.set(ck, { t: now, v: map });
-    return map;
-  } catch { return null; }
-}
-function fuzzyFind(container, hk, ak, getEntries) {
-  for (const [k, v] of getEntries(container)) {
-    const [kh, ka] = k.split('|');
-    if ((kh.includes(hk.slice(0, 5)) || hk.includes(kh.slice(0, 5))) && (ka.includes(ak.slice(0, 5)) || ak.includes(ka.slice(0, 5)))) return v;
+  } catch (e) {
+    res.status(502).json({ ok: false, error: String(e.message || e), hint: '빈 응답/에러면 IP 잠금 가능성 → Goalserve에 142.93.195.157(또는 Render 아웃바운드 IP) 화이트리스트 요청' });
   }
-  return null;
-}
-function attachOdds(g, map) {
-  const hk = normTeam(g.home), ak = normTeam(g.away), pair = hk + '|' + ak;
-  let f = map ? map[pair] : null;
-  if (!f && map) f = fuzzyFind(map, hk, ak, m => Object.entries(m));
-  // 라이브 등으로 현재 맵에 없으면 영구 저장소에서 마지막 배당 사용
-  if (!f) {
-    const now = Date.now();
-    let s = oddsStore.get(pair);
-    if (!s) s = fuzzyFind(oddsStore, hk, ak, m => m.entries());
-    if (s && now - s.t < ODDS_STORE_TTL) f = s;
+});
+
+// 🏀 팀 로고 응답 형태 확인용 진단 (ids 미지정 시 오늘 라이브 경기 팀 ID 자동 사용)
+app.get('/api/gs/logotest', async (req, res) => {
+  try {
+    let ids = String(req.query.ids || '').split(',').map(s => s.trim()).filter(Boolean);
+    if (!ids.length) {
+      const date = ymdInTz(new Date(), 'Asia/Seoul');
+      const games = await gsBasketballGames(date, 'Asia/Seoul').catch(() => []);
+      ids = [...new Set(games.flatMap(g => [g.homeTid, g.awayTid]).filter(Boolean).map(String))].slice(0, 6);
+    }
+    const url = `http://data2.goalserve.com:8084/api/v1/logotips/basketball/teams?k=${GOALSERVE_KEY}&ids=${ids.join(',')}`;
+    let parsed = null, err = null, shape = null;
+    try { const raw = await cachedJSON(url, 30000); parsed = gsParseLogos(raw); shape = Array.isArray(raw) ? ('array[' + raw.length + '] keys=' + Object.keys(raw[0] || {}).join(',')) : typeof raw; } catch (e) { err = String(e.message || e); }
+    const summary = {}; if (parsed) for (const [id, v] of Object.entries(parsed)) summary[id] = v.b64 ? ('base64(' + v.b64.length + ')') : (v.url || '?');
+    res.json({ idsTested: ids, resolved: parsed ? Object.keys(parsed).length : 0, logos: summary, imageUrls: ids.map(id => '/api/gs/logo/' + id), responseShape: shape, error: err });
+  } catch (e) { res.status(502).json({ error: String(e.message || e) }); }
+});
+
+// 🏀 초 단위 시계 탐색 진단 — 여러 농구 피드에서 분:초/clock 필드가 오는 엔드포인트 찾기
+app.get('/api/gs/secprobe', async (req, res) => {
+  const K = GOALSERVE_KEY, B = `https://www.goalserve.com/getfeed/${K}/bsktbl`;
+  const cands = [
+    { name: 'inplay', url: `${B}/inplay?json=1` },
+    { name: 'home_stats', url: `${B}/home_stats?json=1` },
+    { name: 'nba-playbyplay', url: `${B}/nba-playbyplay?json=1` },
+    { name: 'home_p2p', url: `${B}/home_p2p?json=1` }
+  ];
+  const out = [];
+  for (const c of cands) {
+    try {
+      const txt = JSON.stringify(await cachedJSON(c.url, 8000));
+      const hasSeconds = /"seconds?"\s*:/i.test(txt) || /"clock"\s*:/i.test(txt) || /"time_?remaining"\s*:/i.test(txt);
+      const mmss = (txt.match(/"\d{1,2}:\d{2}"/g) || []).slice(0, 5);   // "7:32" 형태 샘플
+      const keys = [...new Set((txt.match(/"[a-z_]+"\s*:/gi) || []).map(s => s.replace(/["\s:]/g, '')))].filter(k => /sec|clock|time|minute|period|quarter|status|timer/i.test(k)).slice(0, 25);
+      out.push({ feed: c.name, bytes: txt.length, hasSecondsField: hasSeconds, mmssSamples: mmss, timeKeys: keys });
+    } catch (e) { out.push({ feed: c.name, error: String(e.message || e) }); }
   }
-  if (f) g.odds = f;
-}
+  res.json({ note: 'hasSecondsField=true 이거나 mmssSamples에 "7:32" 같은 값이 보이는 피드가 초 단위 제공', results: out });
+});
+
+// 🏀 농구 선발/출전 라인업 — Goalserve home_stats(라이브 선수 스탯) 기반. 출전시간 상위 5명을 선발로 추정.
+const _bskLineupCache = new Map();
+app.get('/api/gs/bsklineup', async (req, res) => {
+  const ev = String(req.query.ev || '').replace(/^gs/i, '').replace(/[^0-9]/g, '');
+  if (!ev) return res.status(400).json({ error: 'need ev' });
+  const toSec = m => { const t = String(m || '').split(':'); if (t.length >= 2) return (+t[0] || 0) * 60 + (+t[1] || 0); return (+t[0] || 0) * 60; };
+  const parseTeam = node => {
+    const players = GSARR(node && node.player).map(p => ({
+      name: GSA(p, 'name'), min: GSA(p, 'minutes') || '',
+      pts: numOrNull(GSA(p, 'points')), reb: numOrNull(GSA(p, 'total_rebounds')),
+      ast: numOrNull(GSA(p, 'assists')), fg: GSA(p, 'field_goals_made'), fga: GSA(p, 'field_goals_attempts'),
+      tp: GSA(p, 'threepoint_goals_made')
+    })).filter(p => p.name);
+    players.sort((a, b) => toSec(b.min) - toSec(a.min));
+    players.forEach((p, i) => p.starter = i < 5);
+    return players;
+  };
+  try {
+    const data = await cachedJSON(`https://www.goalserve.com/getfeed/${GOALSERVE_KEY}/bsktbl/home_stats?json=1`, 30000);
+    const cats = GSARR(data && data.scores && data.scores.category);
+    let match = null;
+    for (const c of cats) { for (const m of GSARR(c.match)) { if (String(GSA(m, 'id')) === ev) { match = m; break; } } if (match) break; }
+    if (!match) return res.json({ ev, found: false, note: '라이브 스탯 피드에 없음(라이브 아님/미지원 리그)' });
+    const lt = match.localteam, at = match.visitorteam || match.awayteam;
+    const samplePlayer = GSARR(lt && lt.player)[0] || GSARR(at && at.player)[0] || null;
+    res.json({
+      ev, found: true, status: GSA(match, 'status'),
+      home: { name: GSA(lt, 'name'), players: parseTeam(lt) },
+      away: { name: GSA(at, 'name'), players: parseTeam(at) },
+      _debug: { localteamKeys: lt ? Object.keys(lt) : null, samplePlayerKeys: samplePlayer ? Object.keys(samplePlayer) : null }
+    });
+  } catch (e) { res.status(502).json({ error: String(e.message || e) }); }
+});
+
+// 🏀 팀 로고 이미지 서빙 (base64 → PNG, 브라우저/CDN 캐시). 카드엔 이 URL만 들어가 폴링이 가벼움.
+app.get('/api/gs/logo/:id', async (req, res) => {
+  const id = String(req.params.id || '').replace(/[^0-9]/g, '');
+  if (!id) return res.status(400).end();
+  try {
+    let h = _gsLogoCache.get(id);
+    if (!(h && h.exp > Date.now() && (h.b64 || h.url))) { await gsTeamLogos([id]).catch(() => {}); h = _gsLogoCache.get(id); }
+    if (h && h.b64) { res.set('Content-Type', 'image/png'); res.set('Cache-Control', 'public, max-age=86400'); return res.end(Buffer.from(h.b64, 'base64')); }
+    if (h && h.url) { res.set('Cache-Control', 'public, max-age=86400'); return res.redirect(h.url); }
+    return res.status(404).end();
+  } catch { return res.status(502).end(); }
+});
+
+const _nrm = s => String(s || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+
 
 // ============================================================
 //  ⚡ TheSports API (유료) — 축구 실시간·라인업 (테스트 단계)
@@ -660,6 +1088,40 @@ async function tsFetch(path, params, ttl = 6000) {
   const qs = new URLSearchParams(Object.assign({ user: TS_USER, secret: TS_SECRET }, params || {})).toString();
   return cachedJSON(`${TS_BASE}${path}?${qs}`, ttl);
 }
+// 🏐 진단: TheSports 배구 커버리지 확인 (현재 플랜에 배구 스케줄/라이브가 포함되는지)
+app.get('/api/ts/volley', async (req, res) => {
+  if (!TS_ON) return res.json({ on: false, msg: 'TheSports 키 미설정' });
+  const ymd = String(req.query.date || new Date().toISOString().slice(0, 10)).replace(/-/g, '');
+  try {
+    const d = await tsFetch('/volleyball/match/diary', { date: ymd }, 5000).catch(e => ({ err: String((e && e.message) || e) }));
+    let lv = {};
+    try { lv = await tsFetch('/volleyball/match/detail_live', {}, 5000); } catch (e) { lv = { err: String((e && e.message) || e) }; }
+    const ex = (d && d.results_extra) || {};
+    res.json({
+      on: true, date: ymd,
+      diaryErr: (d && d.err) || null,
+      diaryCount: ((d && d.results) || []).length,
+      comps: ((ex.competition) || []).slice(0, 25).map(c => c.name),
+      teamsSample: ((ex.team) || []).slice(0, 12).map(t => t.name),
+      diarySample: ((d && d.results) || []).slice(0, 3),
+      liveErr: (lv && lv.err) || null,
+      liveCount: ((lv && lv.results) || []).length,
+      liveSample: ((lv && lv.results) || []).slice(0, 3)
+    });
+  } catch (e) { res.json({ on: true, error: String((e && e.message) || e) }); }
+});
+// 🏟️ 진단: TheSports 야구가 아시안게임을 갖고 있는지 + 점수가 올바른지 확인
+app.get('/api/ts/baseball', async (req, res) => {
+  if (!TS_ON) return res.json({ on: false });
+  const date = req.query.date || new Date().toISOString().slice(0, 10);
+  const q = String(req.query.q || '').toLowerCase();
+  try {
+    const ts = await tsBaseballGames(date).catch(() => []);
+    const leagues = [...new Set(ts.map(g => g.league))];
+    const hit = q ? ts.filter(g => ((g.home || '') + (g.away || '') + (g.league || '')).toLowerCase().includes(q)) : [];
+    res.json({ count: ts.length, leagues, q, matched: hit.slice(0, 6).map(g => ({ h: g.home, a: g.away, hs: g.hs, as: g.as, league: g.league, state: g.state, inning: g.curInning, half: g.inningHalf })) });
+  } catch (e) { res.json({ err: String((e && e.message) || e) }); }
+});
 // 축구 status_id → 상태/표기 (TheSports enum)
 function tsFootState(s) { s = Number(s); if (s === 8) return 'finished'; if ([2, 3, 4, 5, 7].includes(s)) return 'live'; return 'scheduled'; }
 function tsFootStatus(s) { return ({ 1: 'NS', 2: '1H', 3: 'HT', 4: '2H', 5: 'ET', 7: 'PEN', 8: 'FT' })[Number(s)] || 'NS'; }
@@ -739,7 +1201,7 @@ function tsDecodeBox(m) {
   return { team, players: { home: side(m.players && m.players.home), away: side(m.players && m.players.away) }, battingTeam: Array.isArray(m.score) ? m.score[2] : null };
 }
 // ⚡ 진행중 경기 실시간 박스(detail_live 에서 stats+players 추출)
-async function tsLiveBox(matchId, ttl = 4000) {
+async function tsLiveBox(matchId, ttl = 2500) {
   const lv = await tsFetch('/baseball/match/detail_live', {}, ttl).catch(() => null);
   const m = lv && (lv.results || []).find(x => (Array.isArray(x.score) && x.score[0] === matchId) || x.id === matchId);
   if (!m) return null;
@@ -757,7 +1219,7 @@ async function tsBaseballGames(date) {
   // 실시간(진행 경기): score[3]=scores객체, extra=볼카운트/주자/아웃
   const live = {};
   try {
-    const lv = await tsFetch('/baseball/match/detail_live', {}, 6000);
+    const lv = await tsFetch('/baseball/match/detail_live', {}, 3000);
     (lv.results || []).forEach(m => { const s = m.score || []; live[(s[0]) || m.id] = { status: s[1], batTeam: s[2], sc: s[3] || {}, extra: m.extra || {}, stats: m.stats || [], players: m.players || {} }; });
   } catch (e) {}
   const now = Date.now();
@@ -800,10 +1262,20 @@ async function tsBaseballGames(date) {
       const sd = TS_STATUS[lvm.status];
       if (sd) { g.curInning = sd[0]; g.period = sd[0]; g.inningHalf = sd[1]; }
       else if (maxInn) { g.curInning = maxInn; g.period = maxInn; }
-      // 공격팀: detail_live batTeam(1=홈,2=원정) 우선, 없으면 초=원정/말=홈
-      if (lvm.batTeam === 1) g.batting = 'home';
-      else if (lvm.batTeam === 2) g.batting = 'away';
-      else if (g.inningHalf) g.batting = g.inningHalf === 'top' ? 'away' : 'home';
+      // 공격팀/초말: 상태코드(sd=이닝+초말 직접 인코딩)가 가장 정확 → sd가 있으면 그 초말을 신뢰(덮어쓰지 않음).
+      //   ⚠️ 예전엔 batTeam으로 초말을 무조건 덮어써서, batTeam이 틀리면 8회초를 8회말로 뒤집는 버그가 있었음.
+      //   → sd 있으면 sd 초말 고정, 공격팀은 거기서 유도. batTeam은 sd가 없을 때만 초말 결정에 사용.
+      if (sd) {
+        g.batting = g.inningHalf === 'top' ? 'away' : 'home';
+      } else if (lvm.batTeam === 1) { g.batting = 'home'; g.inningHalf = 'bottom'; }
+      else if (lvm.batTeam === 2) { g.batting = 'away'; g.inningHalf = 'top'; }
+      else if (g.inningHalf) { g.batting = g.inningHalf === 'top' ? 'away' : 'home'; }
+      // 🛡️ 라인스코어 폴백(신뢰 신호가 전혀 없을 때만): 현재 회에 홈팀이 '실제 득점(>0)'했으면 홈이 그 회 공격 → '말'.
+      //    ⚠️ 예전엔 "현재 회 양팀 칸이 둘 다 null이 아니면 무조건 말"로 판정해, 0:0으로 채워진 3회초를 3회말로 뒤집는 버그가 있었음.
+      //    → 상태코드(sd)·공격팀(batTeam)이 있으면 그걸 신뢰하고, 둘 다 없을 때만 '홈 실득점(>0)' 조건으로 보정.
+      if (!sd && lvm.batTeam == null && g.curInning && (tsNum(hInn[g.curInning]) || 0) > 0) {
+        g.inningHalf = 'bottom'; g.batting = 'home';
+      }
       const x = lvm.extra || {};
       if (x.base != null || x.out != null || x.good != null || x.bad != null) {
         const base = String(x.base || '000');
@@ -818,6 +1290,19 @@ async function tsBaseballGames(date) {
           if ((g.box[s].e == null) && tb[s].e != null) g.box[s].e = tb[s].e;
         });
       }
+      // 🏏 안타(H)·볼넷(BB) 팀 합계 보정: 라인스코어/팀스탯에 안 실려도(NPB 라이브 등) 타자 개인기록 합계로 채움
+      ['home', 'away'].forEach(s => {
+        const pl = (lvm.players && lvm.players[s]) || [];
+        if (!pl.length) return;
+        let hh = 0, bb = 0, hasH = false, hasBB = false;
+        pl.forEach(p => {
+          const d = tsDecode(p.stats, TS_PSTAT); if (!d || d.ip != null) return;   // 타자만(투수 제외)
+          if (d.h != null) { hh += (tsNum(d.h) || 0); hasH = true; }
+          if (d.bb != null) { bb += (tsNum(d.bb) || 0); hasBB = true; }
+        });
+        if (hasH && !(g.box[s].h > 0)) g.box[s].h = hh;
+        if (hasBB && !(g.box[s].bb > 0)) g.box[s].bb = bb;
+      });
       // 🏏 타격팀 타자 3명(카드 좌측 표시용) — 이름/사진은 map 이후 일괄 조회
       const bside = g.batting || (g.inningHalf === 'top' ? 'away' : 'home');
       const rawP = (lvm.players && lvm.players[bside]) || [];
@@ -1148,17 +1633,193 @@ function ymdInTz(iso, tz) {
   try { return new Intl.DateTimeFormat('en-CA', { timeZone: tz || 'Asia/Seoul', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date(iso)); }
   catch { return String(iso || '').slice(0, 10); }
 }
+// 팀 닉네임(마지막 유의미 단어) 추출 — 소스별 팀명 표기 차이 흡수용 (예: "Rakuten Gold. Eagles"→"eagles")
+function nkLast(name) {
+  const toks = String(name || '').toLowerCase().replace(/[^a-z0-9\s]/g, ' ').split(/\s+/).filter(Boolean);
+  return toks.length ? toks[toks.length - 1] : '';
+}
+const _lastGoodBB = new Map();   // 야구 간헐적 사라짐 방지용 직전 정상빌드 캐시
+const _lastGoodMinor = new Map();   // 배구·농구·하키 등 간헐적 사라짐 방지용 직전 정상빌드 캐시
+
+// ============================================================
+//  🏀 Goalserve 농구 — 라이브 쿼터 + 시계(timer) 제공 (API-Sports 대체)
+//  · getfeed 키 기반(IP 잠금 아님). home/d-1/d1 3일치 받아 기기 타임존으로 필터
+//  · game 객체 shape를 normAS 농구와 동일하게 맞춤(status/period/timer/setScores/hs/as)
+// ============================================================
+const GOALSERVE_KEY = (process.env.GOALSERVE_KEY || '063b89c0de9d4078431908df2595d029').trim();
+const GSA = (o, k) => { if (!o) return undefined; if (o['@' + k] !== undefined) return o['@' + k]; if (o[k] !== undefined && typeof o[k] !== 'object') return o[k]; return undefined; };
+const GSARR = x => Array.isArray(x) ? x : (x ? [x] : []);
+function gsBskShort(st) {
+  const s = String(st || '').toLowerCase();
+  if (/1st q/.test(s)) return 'Q1';
+  if (/2nd q/.test(s)) return 'Q2';
+  if (/3rd q/.test(s)) return 'Q3';
+  if (/4th q/.test(s)) return 'Q4';
+  if (/after over time/.test(s)) return 'FT';
+  if (/overtime/.test(s)) return 'OT';
+  if (/half ?time/.test(s)) return 'HT';
+  if (/break/.test(s)) return 'BT';
+  if (/not started/.test(s)) return 'NS';
+  if (/finished|\bend\b|\bft\b/.test(s)) return 'FT';
+  if (/postponed/.test(s)) return 'PST';
+  if (/cancel/.test(s)) return 'CANC';
+  if (/abandon/.test(s)) return 'ABD';
+  if (/suspend|interrupt|delay/.test(s)) return 'SUSP';
+  if (/awarded|walk ?over/.test(s)) return 'AWD';
+  return (st || '').trim();
+}
+const GS_LG_ACRONYMS = ['NBA', 'WNBA', 'NBL', 'KBL', 'WKBL', 'NCAA', 'CBA', 'BBL', 'PBA', 'MPBL', 'NBDL', 'ABA', 'KBSL', 'BSL', 'VTB', 'ACB', 'LNB', 'BNXT', 'FIBA', 'EASL', 'U18', 'U19', 'U16', 'W'];
+function gsPrettyLeague(name) {
+  let s = String(name || '').trim();
+  if (!s) return s;
+  // 각 단어가 약어면 대문자로 (예: "Nba"→"NBA", "Nbl"→"NBL", "Kbl Basket League"→"KBL Basket League")
+  s = s.split(/\s+/).map(w => {
+    const up = w.toUpperCase().replace(/[^A-Z0-9]/g, '');
+    return GS_LG_ACRONYMS.includes(up) ? w.toUpperCase() : w;
+  }).join(' ');
+  return s;
+}
+function gsIso(d, tm) {   // d="22.11.2023"(UTC) tm="01:00" → ISO UTC
+  if (!d) return null;
+  const p = String(d).split('.'); if (p.length < 3) return null;
+  const dd = p[0].padStart(2, '0'), mo = p[1].padStart(2, '0'), yy = p[2];
+  let hh = '00', mi = '00'; const tp = String(tm || '').split(':');
+  if (tp.length >= 2 && /^\d/.test(tp[0])) { hh = tp[0].padStart(2, '0'); mi = tp[1].padStart(2, '0'); }
+  return `${yy}-${mo}-${dd}T${hh}:${mi}:00Z`;
+}
+async function gsBasketballGames(date, tz) {
+  tz = canonTz(tz);
+  const base = `https://www.goalserve.com/getfeed/${GOALSERVE_KEY}/bsktbl`;
+  const feeds = ['d-1', 'home', 'd1'];   // 전날/오늘/다음날(UTC) → 기기 타임존 날짜로 필터
+  const out = []; const seen = new Set();
+  const numOrNull = v => (v === '' || v == null) ? null : (isNaN(+v) ? null : +v);
+  for (const f of feeds) {
+    let j; try { j = await cachedJSON(`${base}/${f}?json=1`, 9000); } catch { continue; }
+    const cats = GSARR(j && j.scores && j.scores.category);
+    for (const c of cats) {
+      const rawName = GSA(c, 'name') || '';
+      // 🚫 e스포츠/시뮬레이션 농구(Ebasketball, GG League, 4x5mins, Cyber 등) 제외 — 실제 경기만
+      if (/e-?basketball|\bgg league\b|\b4x5\b|cyber|simulated|esports/i.test(rawName)) continue;
+      const country = rawName.includes(':') ? rawName.split(':')[0].trim() : '';
+      let league = rawName.includes(':') ? rawName.split(':').slice(1).join(':').trim() : rawName;
+      league = gsPrettyLeague(league);
+      for (const m of GSARR(c.match)) {
+        const id = 'gs' + (GSA(m, 'id') || '');
+        if (seen.has(id)) continue;
+        const stRaw = GSA(m, 'status') || '';
+        const short = gsBskShort(stRaw);
+        const lt = m.localteam, at = m.visitorteam || m.awayteam;
+        const hsN = numOrNull(GSA(lt, 'totalscore')), asN = numOrNull(GSA(at, 'totalscore'));
+        const iso = gsIso(GSA(m, 'date'), GSA(m, 'time'));
+        const qn = { Q1: 1, Q2: 2, Q3: 3, Q4: 4, OT: 5 }[short] || null;
+        const setScores = [];
+        ['q1', 'q2', 'q3', 'q4', 'ot'].forEach(k => {
+          const h = GSA(lt, k), a = GSA(at, k);
+          if ((h != null && h !== '') || (a != null && a !== '')) setScores.push({ home: numOrNull(h), away: numOrNull(a) });
+        });
+        const tmr = GSA(m, 'timer');
+        const htid = GSA(lt, 'id'), atid = GSA(at, 'id');
+        const g = {
+          id, league, leagueLogo: '', country,
+          home: GSA(lt, 'name') || '', homeLogo: '', away: GSA(at, 'name') || '', awayLogo: '',
+          homeTid: htid, awayTid: atid,
+          hs: hsN, as: asN, status: short, statusLong: stRaw,
+          period: qn, timer: (tmr != null && tmr !== '') ? String(tmr) : null,
+          livePts: null, setScores: setScores.length ? setScores : null, box: null, curInning: null, inningHalf: null,
+          date: iso, state: asState(short, hsN), _src: 'goalserve'
+        };
+        if (iso && ymdInTz(iso, tz) !== date) continue;   // 기기 타임존 날짜만
+        seen.add(id); out.push(g);
+      }
+    }
+  }
+  // 🏀 팀 로고 붙이기 — 캐시에 있으면 바로 URL, 없으면 백그라운드로 받아둠(경기 응답은 안 막힘).
+  //    로고 API가 '초당 1회' 제한이라 한 번에 많이 부르면 일부가 막힘 → gsTeamLogos가 묶음마다 간격을 둠.
+  try {
+    const now = Date.now();
+    out.forEach(g => {
+      const h = g.homeTid && _gsLogoCache.get(String(g.homeTid)); if (h && h.exp > now && (h.b64 || h.url)) g.homeLogo = '/api/gs/logo/' + g.homeTid;
+      const a = g.awayTid && _gsLogoCache.get(String(g.awayTid)); if (a && a.exp > now && (a.b64 || a.url)) g.awayLogo = '/api/gs/logo/' + g.awayTid;
+    });
+    const uncached = [...new Set(out.flatMap(g => [g.homeTid, g.awayTid]).filter(Boolean).map(String))]
+      .filter(id => { const h = _gsLogoCache.get(id); return !(h && h.exp > now); });
+    if (uncached.length && !_gsLogoFetching) { _gsLogoFetching = true; gsTeamLogos(uncached).catch(() => {}).finally(() => { _gsLogoFetching = false; }); }
+  } catch {}
+  return out;
+}
+let _gsLogoFetching = false;
+
+// 🏀 Goalserve 팀 로고 — 팀 ID로 조회. 응답은 [{id, base64}] 형태(PNG base64). URL 형태도 대비해 수용. 장기 캐시.
+const _gsLogoCache = new Map();   // id → { b64, url, exp }
+const GS_LOGO_TTL = 24 * 3600 * 1000;      // 로고 있으면 24시간 캐시
+const GS_LOGO_RETRY = 10 * 60 * 1000;      // 못 찾음/실패는 10분 뒤 재시도
+function gsParseLogos(data) {
+  const map = {};
+  const pid = o => o && (o.id ?? o['@id'] ?? o.team_id ?? o.teamId ?? o.entity_id);
+  const pb64 = o => o && (o.base64 ?? o['@base64'] ?? o.img64 ?? o.logo64);
+  const purl = o => o && (o.url || o.logo || o.image || o.src || o.path || o['@url']);
+  const add = o => { const id = pid(o); if (id == null) return; const b = pb64(o), u = purl(o); if (b) map[String(id)] = { b64: String(b) }; else if (u && typeof u === 'string') map[String(id)] = { url: u }; };
+  if (Array.isArray(data)) data.forEach(add);
+  else if (data && typeof data === 'object') {
+    const arr = data.teams || data.data || data.logos || data.result || data.logotips || (data.scores && data.scores.team);
+    if (Array.isArray(arr)) arr.forEach(add);
+    else Object.values(data).forEach(v => { if (v && typeof v === 'object') add(v); });
+  }
+  return map;
+}
+async function gsTeamLogos(ids) {
+  const now = Date.now(); const have = new Set(); const need = [];
+  for (const id of ids) { const h = _gsLogoCache.get(id); if (h && h.exp > now) { if (h.b64 || h.url) have.add(String(id)); } else need.push(id); }
+  for (let i = 0; i < need.length; i += 50) {
+    if (i > 0) await new Promise(r => setTimeout(r, 1200));   // 로고 API '초당 1회' 제한 준수 (묶음 간 간격)
+    const chunk = need.slice(i, i + 50);
+    try {
+      const url = `http://data2.goalserve.com:8084/api/v1/logotips/basketball/teams?k=${GOALSERVE_KEY}&ids=${chunk.join(',')}`;
+      const data = await cachedJSON(url, GS_LOGO_TTL);
+      const m = gsParseLogos(data);
+      chunk.forEach(id => { const e = m[String(id)]; if (e && (e.b64 || e.url)) { _gsLogoCache.set(String(id), { b64: e.b64 || '', url: e.url || '', exp: now + GS_LOGO_TTL }); have.add(String(id)); } else { _gsLogoCache.set(String(id), { b64: '', url: '', exp: now + GS_LOGO_RETRY }); } });
+    } catch { chunk.forEach(id => _gsLogoCache.set(String(id), { b64: '', url: '', exp: now + GS_LOGO_RETRY })); }
+  }
+  return have;
+}
+
 async function buildGamesCore(sport, date, tz) {
   const cfg = AS[sport]; if (!cfg) return { games: [], j: {} };
-  tz = tz || 'Asia/Seoul';
+  tz = canonTz(tz);
+  // 🏀 농구 = Goalserve 우선(라이브 쿼터+시계). 비어있으면(테스트키 만료/장애) API-Sports로 자동 폴백.
+  if (sport === 'basketball') {
+    let games = [];
+    try { games = await gsBasketballGames(date, tz); } catch {}
+    const gk = 'GS|basketball|' + date + '|' + (tz || '');
+    if (games.length) {   // Goalserve 정상
+      _lastGoodMinor.set(gk, { t: Date.now(), list: games.slice() });
+      for (const [k, v] of _lastGoodMinor) { if (Date.now() - v.t > 1800000) _lastGoodMinor.delete(k); }
+      return { games, j: { results: games.length, src: 'goalserve' } };
+    }
+    // Goalserve 빈 응답 — 최근 90초 내 정상빌드 있으면 잠깐 버팀(일시 장애 깜빡임 방지)
+    const prev = _lastGoodMinor.get(gk);
+    if (prev && prev.list && prev.list.length && Date.now() - prev.t < 90000) {
+      return { games: prev.list.slice(), j: { results: prev.list.length, src: 'goalserve-cache' } };
+    }
+    // 장기 비어있음(테스트키 만료 등) → 아래 API-Sports 일반 경로로 폴백(early-return 안 함)
+  }
+  // 옛 타임존 별칭(Asia/Saigon 등) 표준화 → 날짜 필터 안정화
+  // 🏐 배구·농구·하키 등 v1 종목: API가 기기 타임존별 날짜버킷을 불안정하게 반환(라이브 경기 누락) →
+  //    안정적인 Asia/Seoul로 조회한 뒤, 화면 표시는 기기 타임존 날짜로 필터한다.
+  const MINOR = ['volleyball', 'basketball', 'hockey', 'handball', 'rugby'];
+  const isMinor = MINOR.includes(sport);
+  // 🌐 모든 종목을 단일 타임존 버킷(Asia/Seoul)으로 조회 → 사용자 타임존(베트남 Asia/Saigon·태국·인니 등)마다
+  //    API를 따로 호출해 하루 요청한도(쿼터)를 소진하던 문제 해결. 전 지역이 같은 캐시를 공유한다.
+  //    표시용 날짜 그룹은 아래에서 기기 타임존으로 필터한다.
+  const apiTz = 'Asia/Seoul';
   // 🗓️ 날짜 그룹 — KBO/NPB=한국시간, MLB=미국(동부) 날짜 기준. 미국 저녁 경기는 한국시간 다음날 새벽이라 전날·다음날치도 받아 필터
   const prevDate = new Date(Date.parse(date + 'T12:00:00Z') - 864e5).toISOString().slice(0, 10);
   const nextDate = new Date(Date.parse(date + 'T12:00:00Z') + 864e5).toISOString().slice(0, 10);
-  // 야구만 전날·당일·다음날 3일치(미국 리그 KST 시차 보정). 그 외 종목은 API가 timezone으로 이미 정확히 그룹 → 당일만(호출량 절약)
-  const apiDates = (sport === 'baseball') ? [prevDate, date, nextDate] : [date];
+  // 단일 버킷(Seoul)으로 받으므로 축구도 전날·당일·다음날 3일치를 받아 기기 타임존 날짜로 거른다(경계 경기 누락 방지).
+  const apiDates = [prevDate, date, nextDate];
   let j = {}; let games = []; const _seen = new Set();
   for (const dt of apiDates) {
-    const jj = await asRaw(sport, `${cfg.path}?date=${dt}&timezone=${encodeURIComponent(tz)}`, 6000).catch(() => ({ response: [] }));
+    const jj = await asRaw(sport, `${cfg.path}?date=${dt}&timezone=${tzq(apiTz)}`, 8000).catch(() => ({ response: [] }));
     if (dt === date) j = jj;
     (jj.response || []).map(g => normAS(sport, g)).filter(Boolean).forEach(g => { if (!_seen.has(g.id)) { _seen.add(g.id); g._apiDate = dt; games.push(g); } });
   }
@@ -1202,15 +1863,18 @@ async function buildGamesCore(sport, date, tz) {
   // ⚾ KBO(한국)·NPB(일본) = TheSports 실시간으로 교체 (API-Sports 지연 보정)
   if (sport === 'baseball' && TS_ON) {
     try {
-      // KBO(한국)·NPB(일본)·CPBL(대만) 아시아 프로리그만 TheSports로 (고교/아마추어 제외)
-      const wantRe = /KBO|NPB|CPBL|Korea|Korean|Nippon|Japan|Chinese Professional|Taiwan|일본|한국|대만|Futures|퓨처스|퓨쳐스|Eastern League|Western League/i;
+      // KBO·NPB·CPBL + 아시안게임 = TheSports로 교체 (API-Sports가 아시안게임 야구는 팀↔점수를 뒤집어 주는 오류가 있어 TheSports가 정확)
+      const wantRe = /KBO|NPB|CPBL|Korea|Korean|Nippon|Japan|Chinese Professional|Taiwan|일본|한국|대만|Futures|퓨처스|퓨쳐스|Eastern League|Western League|Asian Games|Asiad|아시안게임/i;
       const hsRe = /koshien|senbatsu|high\s*school|甲子園|고교|amateur|university|college/i;
-      // KBO/NPB/CPBL은 아시아(한국시간) 리그 → 보는 날짜 하루만 조회 (전날치까지 넣으면 날짜필터에 걸려 사라지는 버그 방지 + 호출 절감)
       const ts = await tsBaseballGames(date).catch(() => []);
       const kn = ts.filter(g => wantRe.test(g.league || '') && !hsRe.test(g.league || ''));
       if (kn.length) {
-        // TheSports가 해당 날짜 경기를 갖고 있을 때만 API-Sports 동일리그 제거 후 교체(더 정확). 없으면 API-Sports 그대로 유지
-        games = games.filter(g => !wantRe.test(g.league || ''));
+        // 🔑 TheSports가 같은 매치업을 가진 경기만 교체(제거+추가). 없는 경기는 API-Sports 그대로 유지 → 경기 사라짐 방지
+        // ⚠️ 소스마다 팀명이 달라(예: "Nippon Ham Fighters" vs "Hokkaido Nippon-Ham Fighters") 전체이름 키는 안 맞음
+        //    → 닉네임(마지막 단어: Fighters/Eagles 등) 쌍으로 매칭해 중복 방지
+        const key = g => [nkLast(g.home), nkLast(g.away)].sort().join('|');
+        const knKeys = new Set(kn.map(key));
+        games = games.filter(g => !wantRe.test(g.league || '') || !knKeys.has(key(g)));
         games = games.concat(kn);
       }
     } catch (e) { /* TheSports 실패 시 API-Sports 유지 */ }
@@ -1218,6 +1882,57 @@ async function buildGamesCore(sport, date, tz) {
   // 🗓️ 야구만 날짜 필터: 경기 시작(UTC)을 기기 타임존으로 변환한 날짜가 선택 날짜와 같은 경기만 (MLB KST 시차 정확 처리)
   //    그 외 종목은 API가 timezone 파라미터로 이미 그날 경기만 반환 → 추가 필터 없음(경기 누락 방지)
   if (sport === 'baseball') games = games.filter(g => !g.date || ymdInTz(g.date, tz) === date);
+  // ⚽ 축구도 이제 단일 버킷(Seoul)으로 3일치 받으므로 기기 타임존 날짜로 필터 (타임존별 중복 API호출 제거 → 쿼터 보호)
+  if (sport === 'football') games = games.filter(g => !g.date || ymdInTz(g.date, tz) === date);
+  // 🏐 마이너 종목: 서울tz로 3일치 받아왔으니, 기기 타임존 날짜와 같은 경기만 남긴다(라이브는 오늘 버킷에 들어와 유지됨)
+  if (isMinor) games = games.filter(g => !g.date || ymdInTz(g.date, tz) === date);
+  // 🛡️ 마이너 종목 + 축구 간헐적 사라짐 방지: API가 잠깐 빈 응답(쿼터/타임아웃)을 줘도 직전 정상빌드의 같은-날짜 경기는 유지
+  if (isMinor || sport === 'football') {
+    try {
+      const mk = 'MN|' + sport + '|' + date + '|' + (tz || '');
+      const prev = _lastGoodMinor.get(mk);
+      if (prev && prev.list && prev.list.length) {
+        const ids = new Set(games.map(g => String(g.id)));
+        prev.list.forEach(pg => { if (!ids.has(String(pg.id))) games.push(pg); });
+      }
+      if (games.length) _lastGoodMinor.set(mk, { t: Date.now(), list: games.slice() });
+      for (const [k, v] of _lastGoodMinor) { if (Date.now() - v.t > 1800000) _lastGoodMinor.delete(k); }
+    } catch {}
+  }
+  // 🛡️ MLB/야구 간헐적 사라짐 방지: 이번 빌드에 없는데 직전 정상빌드에 있던 같은-날짜 경기는 유지(업스트림 일시 빈응답 대응)
+  if (sport === 'baseball') {
+    try {
+      const kk = 'BB|' + date + '|' + (tz || '');
+      const prev = _lastGoodBB.get(kk);
+      if (prev && prev.list && prev.list.length) {
+        const ids = new Set(games.map(g => String(g.id)));
+        prev.list.forEach(pg => { if (!ids.has(String(pg.id))) games.push(pg); });
+      }
+      if (games.length) _lastGoodBB.set(kk, { t: Date.now(), list: games.slice() });
+      for (const [k, v] of _lastGoodBB) { if (Date.now() - v.t > 1800000) _lastGoodBB.delete(k); }
+    } catch {}
+  }
+  // ⚾ 최종 중복 제거: 같은 경기가 두 소스(API-Sports·TheSports)에서 팀명만 다르게 두 번 뜨는 것 방지.
+  //    닉네임 쌍 + 날짜로 묶고, 정보가 더 풍부한 쪽(초/말·B/S/O·라이브·긴 팀명 = 보통 TheSports)만 남김.
+  if (sport === 'baseball') {
+    const bestScore = g => {
+      let s = 0;
+      const st = String(g.status || g.state || '').toUpperCase();
+      if (g.state === 'live' || /IN|TOP|BOT/.test(st)) s += 1000; else if (g.state === 'finished') s += 100;
+      if (g.inningHalf) s += 40;              // 초/말 정보 = TheSports
+      if (g.bso) s += 40;                     // B/S/O 카운트 = TheSports
+      if (g.box && (g.box.home && (g.box.home.h != null))) s += 10;
+      s += String(g.home || '').length + String(g.away || '').length; // 긴 정식 팀명 우선
+      return s;
+    };
+    const seen = new Map();
+    for (const g of games) {
+      const k = [nkLast(g.home), nkLast(g.away)].sort().join('|') + '|' + (g.date ? ymdInTz(g.date, tz) : '');
+      const cur = seen.get(k);
+      if (!cur || bestScore(g) > bestScore(cur)) seen.set(k, g);
+    }
+    games = [...seen.values()];
+  }
   // ⚾ 선발투수 시즌성적(ERA·승·패) 채우기 — 화면에 보이는 경기 투수만, 선수별 1시간 캐시로 호출 최소화
   if (sport === 'baseball') {
     const need = new Set();
@@ -1231,16 +1946,21 @@ async function buildGamesCore(sport, date, tz) {
       }); });
     }
   }
-  // ⚽ 라이브 축구: 팀별 통계(점유율·슈팅·유효슈팅·카드) — 라이브 경기만, 경기당 30초 캐시. statistics 한 번으로 카드까지 커버
+  // ⚽ 축구 팀별 통계(점유율·슈팅·유효슈팅·카드) — 라이브 + 종료 경기(최종 카드 표시). 종료는 길게 캐시.
   if (sport === 'football') {
-    const liveG = games.filter(g => g.state === 'live').slice(0, 40);
-    await Promise.all(liveG.map(async g => {
+    const liveG = games.filter(g => g.state === 'live');
+    const finG = games.filter(g => g.state === 'finished');
+    const targets = liveG.concat(finG).slice(0, 200);   // 라이브 우선 + 종료, 최대 200경기(사실상 전 경기)
+    // 캐시 히트는 즉시 처리, 미스만 API 호출 — 미스는 배치(20개씩)로 나눠 rate-limit 버스트 방지
+    const fetchOne = async g => {
       try {
         const ck = 'FBS:' + g.id, hit = cache.get(ck);
+        const ttl = g.state === 'finished' ? 3600000 : 30000;   // 종료=1시간(안 변함), 라이브=30초
         let stats;
-        if (hit && Date.now() - hit.t < 30000) stats = hit.v;
+        // 통계가 비어있으면(경기 직후 API 지연·일시 실패 등) 25초만 캐시 → 점유율 나올 때까지 빨리 재시도
+        if (hit && Date.now() - hit.t < (hit.v ? ttl : 25000)) stats = hit.v;
         else {
-          const st = await asRaw('football', `/fixtures/statistics?fixture=${g.id}`, 9000);
+          const st = await asRaw('football', `/fixtures/statistics?fixture=${g.id}`, 15000);
           const val = (arr, type) => { const it = (arr || []).find(x => x.type === type); return it ? it.value : null; };
           const s = {};
           (st.response || []).forEach(row => {
@@ -1266,19 +1986,75 @@ async function buildGamesCore(sport, date, tz) {
           if (hy || hr || ay || ar) g.cards = { home: { y: hy, r: hr }, away: { y: ay, r: ar } };
         }
       } catch {}
-    }));
+    };
+    // 캐시된 것 먼저 즉시 반영, 미완료(API 호출 필요)만 6개씩 배치로 순차 처리(버스트 rate-limit 회피 → 누락 방지)
+    for (let i = 0; i < targets.length; i += 6) {
+      await Promise.all(targets.slice(i, i + 6).map(fetchOne));
+      if (i + 6 < targets.length) await new Promise(r => setTimeout(r, 150));
+    }
+  }
+  // ⚡ 지난 킥오프인데 아직 '예정'인 축구 경기는 fixture id 직접조회로 최신 상태 보정 (api-football 날짜목록이 NS로 안 바뀌는 문제 대응)
+  if (sport === 'football') {
+    try {
+      const now = Date.now();
+      if (now - (globalThis._staleRefetchAt || 0) > 40000) {
+      globalThis._staleRefetchAt = now;
+      const stale = games.filter(g => g.state === 'scheduled' && g.date && (now - Date.parse(g.date) > 6 * 60000)).slice(0, 20);
+      for (let bi = 0; bi < stale.length; bi += 20) {
+        const ids = stale.slice(bi, bi + 20).map(g => g.id).join('-');
+        const jj = await asRaw('football', `/fixtures?ids=${ids}&timezone=${tzq(tz)}`, 3000).catch(() => ({ response: [] }));
+        const fresh = {};
+        (jj.response || []).forEach(x => { const n = normAS('football', x); if (n) fresh[n.id] = n; });
+        games = games.map(g => fresh[g.id] || g);
+      }
+      }
+    } catch (e) {}
+  }
+  // ⏱️ 종료됐는데 stale 상태(HT/1H/2H 등 live)로 남는 축구 경기 보정: 킥오프 후 170분 지나면 무조건 종료(FT) 처리
+  if (sport === 'football') {
+    const now2 = Date.now();
+    games.forEach(g => {
+      if (g.state === 'live' && g.date) {
+        const mins = (now2 - Date.parse(g.date)) / 60000;
+        if (mins > 170) {
+          g.state = 'finished';
+          const st = String(g.status || '').toUpperCase();
+          if (!st || ['HT', '1H', '2H', 'ET', 'BT', 'P', 'LIVE', 'INT', 'SUSP'].includes(st)) g.status = 'FT';
+        }
+      }
+    });
+  }
+  // 🛡️ [전종목] 시작 시각이 아직 미래인데 '종료/라이브'로 온 경기 → '예정'으로 보정.
+  //     (API-Sports가 경기 시작 전 KBO 등에 FT·0:0을 주는 결함 방어. 미래 경기는 종료·진행일 수 없음)
+  {
+    const nowMs = Date.now();
+    games.forEach(g => {
+      if (g.state && g.state !== 'scheduled' && g.date) {
+        const st = Date.parse(g.date);
+        if (st && st - nowMs > 5 * 60000) { g.state = 'scheduled'; g.status = 'NS'; }
+      }
+    });
   }
   return { games, j };
 }
 
 // ⚡ 경기목록 전체 결과를 짧게 캐시 (피드 7초·중계봇 10초·픽제공·푸시가 공유 → 외부호출/CPU 절감)
+// ⚡ 종목별 캐시/갱신 주기: 축구=Mega(15만/일) 빠르게, 야구=Ultra 중간, 그 외=보수적(Pro 한도 보호)
+// 단일 타임존 버킷(전 지역 공유)이라 TTL을 당겨도 API 호출이 적음 → 업데이트 체감 속도 개선
+function sportTtl(sport){ return sport==='football' ? 7000 : sport==='baseball' ? 8000 : 8000; }
 const gamesCoreCache = new Map();
-async function buildGamesCoreCached(sport, date, tz, ttl = 8000) {
+async function buildGamesCoreCached(sport, date, tz, ttl = sportTtl(sport)) {
   const k = sport + '|' + date + '|' + (tz || '');
   const hit = gamesCoreCache.get(k), now = Date.now();
   if (hit) {
-    // ⚡ stale-while-revalidate: 만료돼도 이전 값 즉시 반환 + 뒤에서 갱신 → 모든 요청이 즉시 응답
-    if (now - hit.t >= ttl && !hit.refreshing) {
+    const age = now - hit.t;
+    // 🕒 아주 오래된 캐시(복귀 유저 등, 30초 초과)면 옛 값 대신 새로 받아서 반환 → "옛 점수 먼저 보임" 방지
+    if (age > 30000) {
+      try { const v = await buildGamesCore(sport, date, tz); gamesCoreCache.set(k, { t: Date.now(), v }); return v; }
+      catch { return hit.v; }
+    }
+    // ⚡ stale-while-revalidate: 보통의 만료는 이전 값 즉시 반환 + 뒤에서 갱신 (활성 유저 빠른 응답)
+    if (age >= ttl && !hit.refreshing) {
       hit.refreshing = true;
       buildGamesCore(sport, date, tz)
         .then(v => gamesCoreCache.set(k, { t: Date.now(), v }))
@@ -1292,49 +2068,50 @@ async function buildGamesCoreCached(sport, date, tz, ttl = 8000) {
   return v;
 }
 // 날짜별 경기 (정규화 + 해외배당 매칭)
+const fullGamesCache = new Map();
+async function buildFullGames(sport, date, tz) {
+  const { games, j } = await buildGamesCoreCached(sport, date, tz);
+    games.sort((a, b) => (b.state === 'live') - (a.state === 'live'));
+  return { sport, date, count: games.length, apiErrors: j.errors || null, results: j.results, games };
+}
+async function fullGamesCached(sport, date, tz, ttl = sportTtl(sport)) {
+  const k = sport + '|' + date + '|' + (tz || ''); const hit = fullGamesCache.get(k), now = Date.now();
+  if (hit) {
+    const age = now - hit.t;
+    // 🕒 아주 오래된 캐시(복귀 유저, 30초 초과)면 옛 값 대신 새로 받아서 반환 → 현재 점수 즉시 표시
+    if (age > 30000) {
+      try { const v = await buildFullGames(sport, date, tz); const keepPrev = v && v.apiErrors && (!v.games || v.games.length === 0) && hit.v && hit.v.games && hit.v.games.length > 0; if (!keepPrev) fullGamesCache.set(k, { t: Date.now(), v }); else hit.t = Date.now(); return keepPrev ? hit.v : v; }
+      catch { return hit.v; }
+    }
+    if (age >= ttl && !hit.refreshing) { hit.refreshing = true; buildFullGames(sport, date, tz).then(v => { const cur = fullGamesCache.get(k); const keepPrev = v && v.apiErrors && (!v.games || v.games.length === 0) && cur && cur.v && cur.v.games && cur.v.games.length > 0; if (keepPrev) { cur.t = Date.now(); cur.refreshing = false; } else { fullGamesCache.set(k, { t: Date.now(), v }); } }).catch(() => { hit.refreshing = false; }); }
+    return hit.v;
+  }
+  const v = await buildFullGames(sport, date, tz); fullGamesCache.set(k, { t: Date.now(), v }); return v;
+}
+// 🔥 기본 피드 백그라운드 워머 (항상 캐시를 데워둬 첫 로드 즉시 응답)
+let _warmN = 0;
+function warmFeeds() {
+  try {
+    const tz = 'Asia/Seoul';
+    const d = (typeof ymdInTz === 'function') ? ymdInTz(new Date(), tz) : new Date().toISOString().slice(0, 10);
+    fullGamesCached('basketball', d, tz).catch(() => {});         // 🏀 농구(Goalserve) 워밍 — API-Sports 키 불필요
+    if (APISPORTS_KEY) {
+      fullGamesCached('football', d, tz).catch(() => {});         // 축구는 매 사이클 워밍 → 항상 뜨겁게
+      if (_warmN % 2 === 0) fullGamesCached('baseball', d, tz).catch(() => {}); // 야구는 40초마다
+    }
+    _warmN++;
+  } catch (e) {}
+}
+setTimeout(warmFeeds, 1500); setInterval(warmFeeds, 20000);
 app.get('/api/asports/games', async (req, res) => {
-  if (!APISPORTS_KEY) return res.json({ needKey: true, games: [] });
+  // 🏀 농구는 Goalserve 사용(API-Sports 키 불필요) → 키 없어도 통과
+  if (!APISPORTS_KEY && req.query.sport !== 'basketball') return res.json({ needKey: true, games: [] });
   const sport = req.query.sport || 'football';
   const date = req.query.date || new Date().toISOString().slice(0, 10);
   const cfg = AS[sport]; if (!cfg) return res.status(400).json({ error: 'bad sport' });
-  try {
-    const { games, j } = await buildGamesCoreCached(sport, date, req.query.tz);
-    // ⚡ 배당 매칭:
-    //   - 축구: 리그가 너무 많아 LEAGUE_TO_ODDS 매핑으로 필요한 리그만 조회
-    //   - 그 외(야구/농구/하키/럭비): The Odds API 그룹 안의 활성 리그 전부 조회해 팀명으로 매칭
-    //     → MLB·KBO·NPB·MiLB, NBA·WNBA·유로리그, NHL·SHL 등 자동 커버
-    let needed;
-    if (sport === 'football') {
-      // 1) 하드코딩 매핑 우선, 2) 없으면 The Odds API 축구 키 목록에서 자동 매칭 → 그날 있는 리그 전부 커버
-      const present = [...new Set(games.map(g => g.league).filter(Boolean))];
-      const keys = new Set();
-      await Promise.all(present.map(async lg => {
-        let k = LEAGUE_TO_ODDS[lg];
-        if (!k) { const g0 = games.find(x => x.league === lg); k = await soccerKeyForLeague(lg, g0 && g0.country).catch(() => null); }
-        if (k) keys.add(k);
-      }));
-      needed = [...keys];
-    } else {
-      needed = await oddsSportKeys(ODDS_GROUP[sport]);
-    }
-    const merged = {};
-    await Promise.all(needed.map(async os => {
-      let map = null;
-      const hit = cache.get('OL:' + os);
-      if (hit && Date.now() - hit.t < 600000) map = hit.v;
-      else map = await Promise.race([oddsLookup(os), new Promise(r => setTimeout(() => r(null), 3500))]);
-      if (map) Object.assign(merged, map);
-    }));
-    // 모든 경기에 팀명으로 매칭 시도 (merged에 없으면 attachOdds가 영구 저장소에서 보완)
-    games.forEach(g => attachOdds(g, merged));
-    games.sort((a, b) => (b.state === 'live') - (a.state === 'live'));
-    res.json({ sport, date, count: games.length, apiErrors: j.errors || null, results: j.results, games });
-  } catch (e) {
-    res.status(502).json({ error: String(e.message || e) });
-  }
-});
-
-// 축구 실시간 이벤트 (골·퇴장·경고·교체) — 선수 이름 포함 (API-Sports 축구만 제공)
+  try { res.json(await fullGamesCached(sport, date, req.query.tz)); }
+  catch (e) { res.status(502).json({ error: String(e.message || e) }); }
+});// 축구 실시간 이벤트 (골·퇴장·경고·교체) — 선수 이름 포함 (API-Sports 축구만 제공)
 app.get('/api/asports/events', async (req, res) => {
   if (!APISPORTS_KEY) return res.json({ needKey: true, events: [] });
   const fixture = req.query.fixture;
@@ -1361,7 +2138,11 @@ app.get('/api/asports/lineups', async (req, res) => {
   const fixture = req.query.fixture;
   if (!fixture) return res.status(400).json({ error: 'need fixture' });
   try {
-    const j = await asRaw('football', `/fixtures/lineups?fixture=${encodeURIComponent(fixture)}`, 120000);
+    // ✅ 확정 라인업(startXI≥11)이 한 번 잡히면 6시간 고정(안 바뀜) → 재호출 없이 즉시 응답
+    const OKK = 'LUOK:' + fixture, okHit = cache.get(OKK);
+    if (okHit && Date.now() - okHit.t < 6 * 3600 * 1000) return res.json(okHit.v);
+    // 확정 전(빈 응답)은 45초만 캐시 → 경기 시작 후 확정 명단 뜨면 최대 45초 내 전환
+    const j = await asRaw('football', `/fixtures/lineups?fixture=${encodeURIComponent(fixture)}`, 45000);
     const teams = (j.response || []).map(t => ({
       team: t.team ? t.team.name : '', logo: t.team ? t.team.logo : '',
       formation: t.formation || '',
@@ -1369,7 +2150,9 @@ app.get('/api/asports/lineups', async (req, res) => {
       startXI: (t.startXI || []).map(x => ({ id: x.player.id, name: x.player.name, number: x.player.number, pos: x.player.pos, grid: x.player.grid })),
       subs: (t.substitutes || []).map(x => ({ id: x.player.id, name: x.player.name, number: x.player.number, pos: x.player.pos }))
     }));
-    res.json({ teams });
+    const out = { teams };
+    if (teams.length >= 2 && (teams[0].startXI || []).length >= 11) cache.set(OKK, { t: Date.now(), v: out });
+    res.json(out);
   } catch (e) { res.status(502).json({ error: String(e.message || e), teams: [] }); }
 });
 
@@ -1459,9 +2242,23 @@ async function tsFbPlayer(pid) {
   FB_PLAYER.set(pid, v); return v;
 }
 app.get('/api/football/lineup', async (req, res) => {
-  if (!TS_ON) return res.json({ teams: [] });
   const home = req.query.home, away = req.query.away, debug = req.query.debug;
   const date = req.query.date || new Date().toISOString().slice(0, 10);
+  const fixtureId = req.query.fixture;
+  // 1) ⭐ api-football 확정 라인업 우선 (fixture id 기준, Mega 플랜 커버) — 경기 시작~종료 시 확정 라인업 제공
+  if (fixtureId && APISPORTS_KEY) {
+    try {
+      const j = await asRaw('football', `/fixtures/lineups?fixture=${encodeURIComponent(fixtureId)}`, 45000);
+      const arr = j.response || [];
+      if (arr.length >= 2 && (arr[0].startXI || []).length) {
+        const mkP = x => ({ id: x.player && x.player.id, name: (x.player && x.player.name) || '', number: (x.player && x.player.number != null) ? x.player.number : '', pos: (x.player && x.player.pos) || '', grid: (x.player && x.player.grid) || '', photo: '' });
+        const mkT = a => ({ team: (a.team && a.team.name) || '', logo: (a.team && a.team.logo) || '', formation: a.formation || '', coach: (a.coach && a.coach.name) || '', startXI: (a.startXI || []).map(mkP), subs: (a.substitutes || []).map(mkP) });
+        return res.json({ teams: [mkT(arr[0]), mkT(arr[1])], src: 'apifootball' });
+      }
+    } catch (e) {}
+  }
+  // 2) TheSports 폴백 (구독 시)
+  if (!TS_ON) return res.json({ teams: [] });
   const norm = s => String(s || '').toLowerCase().replace(/[^a-z0-9]/g, '');
   const nh = norm(home), na = norm(away);
   const fit = (a, b) => a && b && (a.includes(b) || b.includes(a));
@@ -1730,6 +2527,8 @@ async function mlbScoreMap(date, sportId = 1, tz = 'Asia/Seoul') {
       const gYmd = g.gameDate ? ymdInTz(g.gameDate, tz) : d;
       const key = [hN, aN].sort().join('|') + '|' + gYmd;
       const st = (g.status && g.status.abstractGameState) || '';
+      const dt = (g.status && g.status.detailedState) || '';
+      const isLive = st === 'Live' && !/warmup|pre-?game|delayed start|scheduled|postponed/i.test(dt);
       const ls = g.linescore || {}, lt = ls.teams || {};
       const side = who => ({
         r: g.teams[who].score != null ? g.teams[who].score : (lt[who] && lt[who].runs != null ? lt[who].runs : null),
@@ -1742,7 +2541,7 @@ async function mlbScoreMap(date, sportId = 1, tz = 'Asia/Seoul') {
       });
       const hs = side('home'), as = side('away');
       // 사사구(BB)·안타 보정은 boxscore에서 (진행/종료 경기만 — 비용 절약)
-      if (st === 'Live' || st === 'Final') {
+      if (isLive || st === 'Final') {
         try {
           const box = await mlbFetch(`/api/v1/game/${g.gamePk}/boxscore`, 30000);
           const bt = who => (box.teams[who] && box.teams[who].teamStats && box.teams[who].teamStats.batting) || {};
@@ -1752,8 +2551,9 @@ async function mlbScoreMap(date, sportId = 1, tz = 'Asia/Seoul') {
         } catch {}
       }
       // 진행 중 경기: 볼/스트라이크/아웃 + 주자(1·2·3루) — 카드(바깥)에서 바로 보이도록
-      let bso = null;
-      if (st === 'Live') {
+      // 🔑 라이브일 땐 여기서 부른 최신 /linescore의 이닝/초말을 카드에도 사용 → 상세보기(=같은 /linescore)와 100% 일치 + 지연 없음
+      let bso = null, liveInning = null, liveHalf = null;
+      if (isLive) {
         try {
           const fl = await mlbFetch(`/api/v1/game/${g.gamePk}/linescore`, 8000);
           const off = fl.offense || {};
@@ -1762,12 +2562,14 @@ async function mlbScoreMap(date, sportId = 1, tz = 'Asia/Seoul') {
             bases: { first: !!off.first, second: !!off.second, third: !!off.third },
             batter: off.batter ? off.batter.fullName : null
           };
+          if (fl.currentInning != null) liveInning = fl.currentInning;
+          if (fl.inningHalf) liveHalf = fl.inningHalf;
         } catch {}
       }
       const entry = {
-        state: st === 'Final' ? 'finished' : st === 'Live' ? 'live' : 'scheduled',
-        inning: ls.currentInning != null ? ls.currentInning : null,
-        half: ls.inningHalf || null,
+        state: st === 'Final' ? 'finished' : isLive ? 'live' : 'scheduled',
+        inning: liveInning != null ? liveInning : (ls.currentInning != null ? ls.currentInning : null),
+        half: liveHalf || ls.inningHalf || null,
         byNick: { [hN]: hs, [aN]: as },
         bso
       };
@@ -1829,6 +2631,18 @@ app.get('/api/mlb/pbp', async (req, res) => {
     if (!f) return res.json({ found: false });
     const pbp = await mlbFetch(`/api/v1/game/${f.gamePk}/playByPlay`, 10000);
     const plays = pbp.allPlays || [];
+    // 선수 타순 맵(id → 타순 1~9) — boxscore battingOrder에서 (at-bat에 타순 표시용)
+    const numById = {};
+    try {
+      const bx = await mlbFetch(`/api/v1/game/${f.gamePk}/boxscore`, 60000);
+      for (const side of ['home', 'away']) {
+        const players = (bx.teams && bx.teams[side] && bx.teams[side].players) || {};
+        for (const k in players) {
+          const p = players[k];
+          if (p && p.person && p.battingOrder) { const bo = parseInt(p.battingOrder, 10); if (bo) numById[p.person.id] = Math.floor(bo / 100) || Math.round(bo / 100); }
+        }
+      }
+    } catch (e) { /* 타순 없어도 진행 */ }
     const innMap = {};
     for (const p of plays) {
       const ab = p.about || {};
@@ -1844,6 +2658,7 @@ app.get('/api/mlb/pbp', async (req, res) => {
       const r = p.result || {}, mu = p.matchup || {};
       (innMap[key] = innMap[key] || []).push({
         batter: mu.batter ? mu.batter.fullName : '', pitcher: mu.pitcher ? mu.pitcher.fullName : '',
+        num: (mu.batter && numById[mu.batter.id]) ? numById[mu.batter.id] : '',   // 타자 타순(1~9)
         event: r.event || '', desc: r.description || '', rbi: r.rbi || 0,
         np: pitches.length, pitches, complete: ab.isComplete !== false
       });
@@ -2026,10 +2841,7 @@ app.get('/api/youtube', async (req, res) => {
 const BOARDS = ['free', 'profit', 'loss'];
 const posts = { free: [], profit: [], loss: [] };
 let postSeq = 1;
-// 시작 시 예시 글 몇 개
-posts.free.push({ id: postSeq++, name: '운영자', title: '커뮤니티가 열렸습니다 🎉', text: '자유롭게 이야기 나눠주세요. 서로 존중하는 매너 채팅 부탁드립니다.', ts: Date.now(), up: 3 });
-posts.profit.push({ id: postSeq++, name: '고수픽', title: '오늘 야구 3연승 인증', text: 'AI 답픽 그대로 따라가서 수익 봤습니다. 다들 성투하세요!', ts: Date.now(), up: 12 });
-posts.loss.push({ id: postSeq++, name: '초보', title: '막판 역전패 손실…', text: '다 이긴 경기였는데 9회에 뒤집혔네요. 다음엔 언더로 갑니다.', ts: Date.now(), up: 5 });
+// 샘플 시드 글 없음 — 언어 혼선 방지(각 언어 UI에서 하드코딩 한국어가 보이지 않도록). 첫 글은 사용자가 작성.
 
 app.get('/api/posts', (req, res) => {
   const b = BOARDS.includes(req.query.board) ? req.query.board : 'free';
@@ -2072,9 +2884,10 @@ function sendPresence(room) {
   broadcast(room, { type: 'presence', room, count: presence(room), total: totalOnline() });
 }
 
-const ADJ = ['축구', '야구', '농구', '열혈', '냉정', '분석', '고수', '초보', '행운', '전설'];
-const NOUN = ['팬', '유저', '관중', '분석가', '픽마', '중립러', '해설가', '서포터'];
-function guestName() { return ADJ[Math.random()*ADJ.length|0] + NOUN[Math.random()*NOUN.length|0] + (Math.random()*900+100|0); }
+// 게스트 닉네임: 영어 단어 + 숫자 (한글 랜덤 사용 안 함)
+const ADJ = ['Cool', 'Lucky', 'Sharp', 'Bold', 'Swift', 'Prime', 'Star', 'Ace', 'Mega', 'Epic', 'Pro', 'Neo'];
+const NOUN = ['Fan', 'Picker', 'Scout', 'Analyst', 'Watcher', 'Bettor', 'Player', 'Fanatic', 'Supporter', 'Guru'];
+function guestName() { return ADJ[Math.random()*ADJ.length|0] + NOUN[Math.random()*NOUN.length|0] + (Math.random()*9000+1000|0); }
 
 wss.on('connection', (ws) => {
   ws.room = 'all';
@@ -2150,10 +2963,12 @@ app.post('/api/push/subscribe', (req, res) => {
   const { subscription, fav, prefs, lang } = req.body || {};
   if (!subscription || !subscription.endpoint) return res.status(400).json({ ok: false });
   subs.set(subscription.endpoint, { sub: subscription, fav: fav || [], prefs: prefs || {}, lang: lang || 'en' });
+  if (subsCol) subsCol.updateOne({ endpoint: subscription.endpoint }, { $set: { endpoint: subscription.endpoint, sub: subscription, fav: fav || [], prefs: prefs || {}, lang: lang || 'en', at: new Date() } }, { upsert: true }).catch(e => console.error('[DB] sub 저장 실패:', e.message));
   res.json({ ok: true, count: subs.size });
 });
 app.post('/api/push/unsubscribe', (req, res) => {
   const ep = req.body && req.body.endpoint; if (ep) subs.delete(ep);
+  if (subsCol && ep) subsCol.deleteOne({ endpoint: ep }).catch(() => {});
   res.json({ ok: true });
 });
 app.get('/api/push/status', (req, res) => res.json({ enabled: PUSH_ON, subscribers: subs.size, publicKey: VAPID_PUBLIC.slice(0, 12) + '…' }));
@@ -2183,7 +2998,7 @@ async function sendPushEvent(type, prefKey, sport, g) {
       gameId: g.id, sport
     });
     try { await webpush.sendNotification(rec.sub, payload); }
-    catch (err) { if (err && (err.statusCode === 404 || err.statusCode === 410)) subs.delete(ep); }
+    catch (err) { if (err && (err.statusCode === 404 || err.statusCode === 410)) { subs.delete(ep); if (subsCol) subsCol.deleteOne({ endpoint: ep }).catch(() => {}); } }
   }
 }
 
