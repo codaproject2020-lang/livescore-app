@@ -50,6 +50,40 @@ let subsCol = null;             // 웹푸시 구독(재시작·재배포 시 유
 const VISITORS = new Map();
 const ONLINE_WIN = 5 * 60 * 1000;   // 최근 5분 이내 활동 = "접속중"
 let visitorsCol = null;             // 방문자 영속 컬렉션(연결 시)
+
+// ============================================================
+//  🛠️ 운영 관리자: 에러 모니터링 + 관리자 폰 알림 + 기능 토글(라이브 config)
+// ============================================================
+const ERRLOG = [];                 // 최근 에러 링버퍼(관리자 화면 표시)
+const ERR_MAX = 300;
+let errorsCol = null, configCol = null, adminSubsCol = null;
+const adminSubs = new Map();        // 관리자 알림 구독: endpoint -> subscription
+let _lastErrPush = 0;
+// 기능 토글/메인터넌스 (관리자가 바꾸면 전체 유저에 즉시 반영, 코드/배포 불필요)
+const CFG = { flags: {}, maint: '', bskSrc: 'auto', updatedAt: 0 };
+function logError(src, type, msg, extra) {
+  try {
+    const e = { ts: Date.now(), src: src || 'server', type: type || 'error', msg: String((msg && msg.message) || msg || '').slice(0, 600), extra: extra || null };
+    ERRLOG.push(e); if (ERRLOG.length > ERR_MAX) ERRLOG.splice(0, ERRLOG.length - ERR_MAX);
+    if (errorsCol) errorsCol.insertOne({ ts: e.ts, at: new Date(e.ts), src: e.src, type: e.type, msg: e.msg, extra: e.extra }).catch(() => {});
+    adminAlert(e);
+  } catch (_) {}
+}
+function adminAlert(e, force) {
+  try {
+    if (typeof PUSH_ON === 'undefined' || !PUSH_ON || !adminSubs.size) return;
+    const now = Date.now();
+    if (!force && now - _lastErrPush < 120000) return;   // 2분 쓰로틀(스팸 방지)
+    _lastErrPush = now;
+    const payload = JSON.stringify({ title: '⚠️ LIVE UP 오류 감지', body: `[${e.src}/${e.type}] ${e.msg}`.slice(0, 140), admin: true, url: '/admin' });
+    for (const [ep, sub] of adminSubs) {
+      webpush.sendNotification(sub, payload).catch(err => { if (err && (err.statusCode === 404 || err.statusCode === 410)) { adminSubs.delete(ep); if (adminSubsCol) adminSubsCol.deleteOne({ endpoint: ep }).catch(() => {}); } });
+    }
+  } catch (_) {}
+}
+process.on('uncaughtException', (e) => { logError('server', 'uncaughtException', e, { stack: String((e && e.stack) || '').slice(0, 400) }); });
+process.on('unhandledRejection', (e) => { logError('server', 'unhandledRejection', e, { stack: String((e && e.stack) || '').slice(0, 400) }); });
+
 function maskKey(k) {
   k = String(k || '');
   if (k.startsWith('u:')) return '회원';
@@ -162,6 +196,17 @@ async function initDB() {
       for (const s of allSubs) { if (s.endpoint && s.sub) subs.set(s.endpoint, { sub: s.sub, fav: s.fav || [], prefs: s.prefs || {}, lang: s.lang || 'en' }); }
       console.log(`[DB] 푸시 구독 ${allSubs.length}건 로드`);
     } catch (e) { console.error('[DB] push_subs 초기화 실패:', e.message); }
+    // 🛠️ 운영: 에러로그·기능토글·관리자알림 컬렉션
+    try {
+      errorsCol = db.collection('errors'); await errorsCol.createIndex({ ts: -1 }).catch(() => {});
+      configCol = db.collection('config');
+      const c = await configCol.findOne({ _id: 'main' });
+      if (c) { CFG.flags = c.flags || {}; CFG.maint = c.maint || ''; CFG.bskSrc = c.bskSrc || 'auto'; CFG.updatedAt = c.updatedAt || 0; }
+      adminSubsCol = db.collection('admin_subs');
+      const asList = await adminSubsCol.find({}).toArray();
+      for (const s of asList) { if (s.endpoint && s.sub) adminSubs.set(s.endpoint, s.sub); }
+      console.log(`[DB] 운영 config/에러/관리자알림 로드 (관리자구독 ${asList.length})`);
+    } catch (e) { console.error('[DB] 운영 컬렉션 초기화 실패:', e.message); }
     const all = await usersCol.find({}).toArray();   // 기존 회원 메모리에 로드
     for (const u of all) {
       USERS.set(u.id, { id: u.id, email: u.email, name: u.name, picture: u.picture, verified: u.verified, first: u.first, last: u.last, token: u.token });
@@ -213,7 +258,7 @@ async function sendWelcomeMail(to, name) {
   try { await mailer.sendMail({ from: MAIL_FROM, to, subject: 'LIVE UP 가입을 환영합니다 🎉', html }); }
   catch (e) { console.error('welcome mail failed:', e.message); }
 }
-app.get('/api/config', (req, res) => res.json({ googleClientId: GOOGLE_CLIENT_ID }));
+app.get('/api/config', (req, res) => res.json({ googleClientId: GOOGLE_CLIENT_ID, flags: CFG.flags || {}, maint: CFG.maint || '', bskSrc: CFG.bskSrc || 'auto' }));
 app.post('/api/auth/google', async (req, res) => {
   const cred = req.body && req.body.credential;
   if (!GOOGLE_CLIENT_ID) return res.json({ ok: false, error: '서버에 GOOGLE_CLIENT_ID 미설정' });
@@ -389,6 +434,55 @@ app.get('/api/admin/analytics', async (req, res) => {
     // 어떤 이유로든 집계 실패해도 500(비JSON)이 아니라 JSON으로 안전 응답 → 관리자 "-"/에러 방지
     res.json({ ok: true, degraded: true, err: String((e && e.message) || e), stored: EVENTS.length, online: (typeof totalOnline === 'function') ? totalOnline() : 0, todayVisits: 0, uniqIPToday: 0, totalVisits: 0, totalClicks: 0, onlineVisitors: 0, returningOnline: 0, returningTotal: 0, uniqueVisitors: VISITORS.size, byHour: [], topClicks: [], topCountries: [], trend: [], recent: [], visitors: [] });
   }
+});
+
+// ============================================================
+//  🛠️ 운영 관리자 API — 에러 모니터링 / 기능 토글 / 관리자 폰 알림 / 캐시
+// ============================================================
+// (공개 config는 위의 /api/config 에 병합됨 — flags/maint/bskSrc 포함)
+// 클라이언트 JS 에러 수집 (window.onerror 등)
+app.post('/api/clienterror', (req, res) => {
+  const b = req.body || {};
+  logError('client', String(b.type || 'js').slice(0, 30), b.msg, { url: String(b.url || '').slice(0, 200), line: b.line, ua: String(req.headers['user-agent'] || '').slice(0, 140) });
+  res.json({ ok: true });
+});
+// 관리자: 에러 목록 / 비우기
+app.get('/api/admin/errors', (req, res) => { if (!adminOK(req)) return res.status(401).json({ ok: false }); res.json({ ok: true, count: ERRLOG.length, errors: ERRLOG.slice(-150).reverse() }); });
+app.post('/api/admin/errors/clear', (req, res) => { if (!adminOK(req)) return res.status(401).json({ ok: false }); ERRLOG.length = 0; res.json({ ok: true }); });
+// 관리자: 기능 토글 / 메인터넌스 / 농구소스 저장 (전체 유저 즉시 반영)
+app.get('/api/admin/config', (req, res) => { if (!adminOK(req)) return res.status(401).json({ ok: false }); res.json({ ok: true, flags: CFG.flags, maint: CFG.maint, bskSrc: CFG.bskSrc, updatedAt: CFG.updatedAt }); });
+app.post('/api/admin/config', (req, res) => {
+  if (!adminOK(req)) return res.status(401).json({ ok: false });
+  const b = req.body || {};
+  if (b.flags && typeof b.flags === 'object') CFG.flags = b.flags;
+  if (typeof b.maint === 'string') CFG.maint = b.maint.slice(0, 300);
+  if (typeof b.bskSrc === 'string') CFG.bskSrc = b.bskSrc;
+  CFG.updatedAt = Date.now();
+  if (configCol) configCol.updateOne({ _id: 'main' }, { $set: { flags: CFG.flags, maint: CFG.maint, bskSrc: CFG.bskSrc, updatedAt: CFG.updatedAt } }, { upsert: true }).catch(() => {});
+  res.json({ ok: true, flags: CFG.flags, maint: CFG.maint, bskSrc: CFG.bskSrc });
+});
+// 관리자: 폰 알림 구독 / 테스트
+app.post('/api/admin/push/subscribe', (req, res) => {
+  if (!adminOK(req)) return res.status(401).json({ ok: false });
+  const s = req.body && req.body.subscription;
+  if (!s || !s.endpoint) return res.status(400).json({ ok: false, error: 'no subscription' });
+  adminSubs.set(s.endpoint, s);
+  if (adminSubsCol) adminSubsCol.updateOne({ endpoint: s.endpoint }, { $set: { endpoint: s.endpoint, sub: s, at: new Date() } }, { upsert: true }).catch(() => {});
+  res.json({ ok: true, count: adminSubs.size });
+});
+app.post('/api/admin/push/test', (req, res) => {
+  if (!adminOK(req)) return res.status(401).json({ ok: false });
+  adminAlert({ src: 'admin', type: 'test', msg: '테스트 알림 — 정상 작동합니다 ✅' }, true);
+  res.json({ ok: true, admins: adminSubs.size });
+});
+// 관리자: 서버 캐시 비우기 (스코어 지연·오염 즉시 해소)
+app.post('/api/admin/cache/clear', (req, res) => {
+  if (!adminOK(req)) return res.status(401).json({ ok: false });
+  let cleared = [];
+  try { if (typeof cache !== 'undefined' && cache.clear) { cache.clear(); cleared.push('raw'); } } catch {}
+  try { if (typeof gamesCoreCache !== 'undefined') { gamesCoreCache.clear(); cleared.push('core'); } } catch {}
+  try { if (typeof fullGamesCache !== 'undefined') { fullGamesCache.clear(); cleared.push('full'); } } catch {}
+  res.json({ ok: true, cleared });
 });
 
 // 📰 스포츠 뉴스 (ESPN RSS 프록시) — 전체/축구/MLB/NBA/NFL/NHL
@@ -1787,10 +1881,12 @@ async function buildGamesCore(sport, date, tz) {
   const cfg = AS[sport]; if (!cfg) return { games: [], j: {} };
   tz = canonTz(tz);
   // 🏀 농구 = Goalserve 우선(라이브 쿼터+시계). 비어있으면(테스트키 만료/장애) API-Sports로 자동 폴백.
-  if (sport === 'basketball') {
+  //    관리자 설정(CFG.bskSrc): 'auto'(기본) / 'goalserve'(강제) / 'apisports'(강제 폴백)
+  if (sport === 'basketball' && CFG.bskSrc !== 'apisports') {
     let games = [];
     try { games = await gsBasketballGames(date, tz); } catch {}
     const gk = 'GS|basketball|' + date + '|' + (tz || '');
+    if (!games.length && CFG.bskSrc === 'goalserve') return { games: [], j: { results: 0, src: 'goalserve-forced' } };
     if (games.length) {   // Goalserve 정상
       _lastGoodMinor.set(gk, { t: Date.now(), list: games.slice() });
       for (const [k, v] of _lastGoodMinor) { if (Date.now() - v.t > 1800000) _lastGoodMinor.delete(k); }
@@ -3133,6 +3229,12 @@ setInterval(() => { castTick().catch(() => {}); }, 10000);
 
 // 접속인원 주기적 브로드캐스트(집계 정확도)
 setInterval(() => { for (const room of rooms.keys()) sendPresence(room); }, 15000);
+
+// 🛠️ Express 전역 에러 핸들러(모든 라우트 뒤) — 라우트에서 throw돼도 서버 안 죽고 에러 로그/알림
+app.use((err, req, res, next) => {
+  logError('server', 'express', err, { path: req.path, stack: String((err && err.stack) || '').slice(0, 400) });
+  if (!res.headersSent) res.status(500).json({ error: 'internal' });
+});
 
 server.listen(PORT, () => {
   console.log(`✅ LiveScore AI 서버 실행 · http://localhost:${PORT}  (TheSportsDB key=${TSDB_KEY})`);
