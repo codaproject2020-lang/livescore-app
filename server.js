@@ -308,6 +308,7 @@ app.post('/api/track', async (req, res) => {
 // 📊 관리자 접속자 추적 통계
 app.get('/api/admin/analytics', async (req, res) => {
   if (!adminOK(req)) return res.status(401).json({ ok: false, error: 'unauthorized' });
+  try {
   const now = Date.now();
   const t0 = new Date(); t0.setHours(0, 0, 0, 0);
   const todayStart = t0.getTime();
@@ -327,7 +328,8 @@ app.get('/api/admin/analytics', async (req, res) => {
   let totalVisits, totalClicks, topClicks, topCountries = [], trend = [];
   if (statsCol) {
     try {
-      const docs = await statsCol.find({}).toArray();
+      // ⚡ ips 배열(대용량)은 제외하고 로드 → analytics 응답 빠르게(타임아웃·에러 방지)
+      const docs = await statsCol.find({}, { projection: { ips: 0 } }).toArray();
       const todayKey = kstParts(now).day;
       let tv = 0, tc = 0; const bmap = {}, cmap = {};
       docs.forEach(d => {
@@ -340,7 +342,8 @@ app.get('/api/admin/analytics', async (req, res) => {
       topCountries = Object.entries(cmap).map(([cc, count]) => ({ cc, count })).sort((a, b) => b.count - a.count).slice(0, 12);
       const td = docs.find(d => d._id === todayKey);
       todayVisits = td ? (td.visits || 0) : 0;
-      uniqIPToday = td && td.ips ? td.ips.length : 0;
+      // 오늘 순방문 IP 수는 today 문서만 따로(가볍게) 조회
+      try { const tdoc = await statsCol.findOne({ _id: todayKey }, { projection: { ips: 1 } }); uniqIPToday = tdoc && tdoc.ips ? tdoc.ips.length : 0; } catch { uniqIPToday = 0; }
       trend = docs.map(d => ({ day: d._id, visits: d.visits || 0 })).filter(x => x.day).sort((a, b) => a.day < b.day ? -1 : 1).slice(-14);
     } catch (e) { totalVisits = undefined; }
   }
@@ -382,6 +385,10 @@ app.get('/api/admin/analytics', async (req, res) => {
     onlineVisitors, returningOnline, returningTotal, uniqueVisitors: VISITORS.size,
     byHour, topClicks, topCountries, trend, recent, visitors
   });
+  } catch (e) {
+    // 어떤 이유로든 집계 실패해도 500(비JSON)이 아니라 JSON으로 안전 응답 → 관리자 "-"/에러 방지
+    res.json({ ok: true, degraded: true, err: String((e && e.message) || e), stored: EVENTS.length, online: (typeof totalOnline === 'function') ? totalOnline() : 0, todayVisits: 0, uniqIPToday: 0, totalVisits: 0, totalClicks: 0, onlineVisitors: 0, returningOnline: 0, returningTotal: 0, uniqueVisitors: VISITORS.size, byHour: [], topClicks: [], topCountries: [], trend: [], recent: [], visitors: [] });
+  }
 });
 
 // 📰 스포츠 뉴스 (ESPN RSS 프록시) — 전체/축구/MLB/NBA/NFL/NHL
