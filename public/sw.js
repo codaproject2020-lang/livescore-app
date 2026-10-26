@@ -1,5 +1,5 @@
 // LIVE UP · 최소 서비스워커 (PWA 설치 가능 조건 충족)
-const CACHE = 'liveup-v339';
+const CACHE = 'liveup-v340';
 const CORE = ['/', '/index.html', '/logo.png.jpg', '/manifest.json'];
 
 self.addEventListener('install', (e) => {
@@ -11,10 +11,18 @@ self.addEventListener('activate', (e) => {
   self.clients.claim();
 });
 // 네트워크 우선 + 오프라인 시 캐시 폴백
+//  ⚠️ 중요: 네트워크 실패 시 app.js/styles.css 같은 리소스에 index.html(HTML)을 돌려주면 JS가 깨져 "자꾸 오류"가 남.
+//      → 페이지(navigate)만 index 폴백, 스크립트/스타일/이미지는 폴백 금지. API는 항상 네트워크(캐시 오염 방지).
 self.addEventListener('fetch', (e) => {
   if (e.request.method !== 'GET') return;
+  let url; try { url = new URL(e.request.url); } catch (_) { return; }
+  if (url.pathname.indexOf('/api/') === 0) { e.respondWith(fetch(e.request)); return; }
   e.respondWith(
-    fetch(e.request).catch(() => caches.match(e.request).then(r => r || caches.match('/')))
+    fetch(e.request).catch(() => caches.match(e.request).then(r => {
+      if (r) return r;
+      if (e.request.mode === 'navigate') return caches.match('/');
+      return new Response('', { status: 504, statusText: 'offline' });
+    }))
   );
 });
 

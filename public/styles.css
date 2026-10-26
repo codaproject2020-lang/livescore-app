@@ -148,5 +148,7 @@
 .gclock b{font-weight:800}
 
 /* 리그 맨위 고정 핀 버튼 (접기 화살표 옆) */
-.lghd .pinbtn{cursor:pointer;font-size:13px;color:#aab2c0;margin:0 5px;user-select:none;line-height:1;display:inline-block;transition:transform .12s,color .12s}
-.lghd .pinbtn:hover{color:#2b3a67;transform:scale(1.18)}
+.lghd .pinbtn{cursor:pointer;margin-left:auto;user-select:none;display:inline-flex;align-items:center;justify-content:center;width:30px;height:30px;border-radius:9px;background:#3f4550;color:#fff;font-size:17px;font-weight:900;line-height:1;box-shadow:0 1px 3px rgba(0,0,0,.22);transition:background .12s,transform .12s}
+.lghd .pinbtn:hover{background:#2b3038;transform:scale(1.07)}
+.lghd .pinbtn:active{transform:scale(.93)}
+.lghd .pinbtn + .up{margin-left:10px}
