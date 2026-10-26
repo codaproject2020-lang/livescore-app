@@ -61,12 +61,23 @@ const adminSubs = new Map();        // 관리자 알림 구독: endpoint -> subs
 let _lastErrPush = 0;
 // 기능 토글/메인터넌스 (관리자가 바꾸면 전체 유저에 즉시 반영, 코드/배포 불필요)
 const CFG = { flags: {}, maint: '', bskSrc: 'auto', updatedAt: 0 };
-function logError(src, type, msg, extra) {
+function logError(src, type, msg, extra, force) {
   try {
     const e = { ts: Date.now(), src: src || 'server', type: type || 'error', msg: String((msg && msg.message) || msg || '').slice(0, 600), extra: extra || null };
     ERRLOG.push(e); if (ERRLOG.length > ERR_MAX) ERRLOG.splice(0, ERRLOG.length - ERR_MAX);
     if (errorsCol) errorsCol.insertOne({ ts: e.ts, at: new Date(e.ts), src: e.src, type: e.type, msg: e.msg, extra: e.extra }).catch(() => {});
-    adminAlert(e);
+    adminAlert(e, force);
+  } catch (_) {}
+}
+// 📡 운영 경보: API 소진·연속 실패처럼 '조용히 처리되던' 장애를 관리자 폰으로 알림.
+// 2분 글로벌 쓰로틀을 우회(force)하는 대신, 경보 종류별 쿨다운으로 스팸을 막는다.
+const _opAlertAt = new Map();   // key -> 마지막 발송 ts
+function opAlert(key, body, gapMs) {
+  try {
+    const now = Date.now();
+    if (now - (_opAlertAt.get(key) || 0) < (gapMs || 1800000)) return;   // 기본 30분 쿨다운
+    _opAlertAt.set(key, now);
+    logError('api', key, body, { op: true }, true);   // 오류 로그에도 남기고 + 폰 알림 강제 발송
   } catch (_) {}
 }
 function adminAlert(e, force) {
@@ -834,18 +845,35 @@ function canonTz(tz) {
   catch { return 'Asia/Seoul'; }   // 인식 못 하는 타임존은 안전하게 서울로
 }
 let _asCalls = 0, _asUsage = null, _bootAt = Date.now();   // 📊 API-Sports 호출량 추적
+let _asFailStreak = 0;   // 🔴 API-Sports 연속 실패(네트워크/429/5xx/한도초과) 카운트 — 성공 시 0으로 리셋
 async function asRaw(sport, path, ttl = 30000) {
   const cfg = AS[sport]; if (!cfg) throw new Error('bad sport');
   const url = `https://${cfg.host}${path}`;
   const hit = cache.get(url), now = Date.now();
   if (hit && now - hit.t < ttl) return hit.v;
   _asCalls++;   // 📊 실제 API-Sports 호출 1건 (캐시 miss)
-  const r = await fetch(url, { headers: { 'x-apisports-key': APISPORTS_KEY } });
+  let r;
+  try {
+    r = await fetch(url, { headers: { 'x-apisports-key': APISPORTS_KEY } });
+  } catch (netErr) {   // 네트워크 자체 실패(연결 끊김 등)
+    _asFailStreak++;
+    if (_asFailStreak >= 5) opAlert('apisports-down', `API-Sports 연속 실패 ${_asFailStreak}회(연결 불가): ${String((netErr && netErr.message) || netErr).slice(0, 80)}`, 600000);
+    if (hit) { hit.t = now; return hit.v; }
+    throw netErr;
+  }
   try {   // 응답 헤더에서 하루 한도/남은 횟수 캡처
     const lim = r.headers.get('x-ratelimit-requests-limit'), rem = r.headers.get('x-ratelimit-requests-remaining');
-    if (lim != null || rem != null) _asUsage = { limit: lim != null ? Number(lim) : null, remaining: rem != null ? Number(rem) : null, used: (lim != null && rem != null) ? (Number(lim) - Number(rem)) : null, at: new Date().toISOString() };
+    if (lim != null || rem != null) {
+      _asUsage = { limit: lim != null ? Number(lim) : null, remaining: rem != null ? Number(rem) : null, used: (lim != null && rem != null) ? (Number(lim) - Number(rem)) : null, at: new Date().toISOString() };
+      // 🔴 하루 한도의 5% 이하만 남으면 경보 (곧 데이터 멈춤 위험) — 30분 쿨다운
+      if (_asUsage.limit && _asUsage.remaining != null && _asUsage.remaining <= Math.max(1, _asUsage.limit * 0.05)) {
+        opAlert('apisports-quota', `API-Sports 하루 한도 임박 — ${_asUsage.remaining}/${_asUsage.limit}건만 남음(5% 이하). 곧 스코어 갱신이 멈출 수 있습니다.`, 1800000);
+      }
+    }
   } catch {}
   if (!r.ok) {
+    _asFailStreak++;
+    if (_asFailStreak >= 5) opAlert('apisports-fail', `API-Sports 오류 연속 ${_asFailStreak}회 (HTTP ${r.status}). 쿼터 소진 또는 서버 장애 가능성.`, 600000);
     if (hit) { hit.t = now; return hit.v; }   // ⚡ 429/5xx: 이전 정상 데이터 유지 + 백오프(빈 화면·예상라인업 방지)
     throw new Error('upstream ' + r.status);
   }
@@ -854,9 +882,14 @@ async function asRaw(sport, path, ttl = 30000) {
   const errObj = v && v.errors;
   const hasErr = errObj && (Array.isArray(errObj) ? errObj.length > 0 : Object.keys(errObj).length > 0);
   if (hasErr && (v.results === 0 || v.results == null)) {
+    _asFailStreak++;
+    const emsg = Array.isArray(errObj) ? errObj.join('; ') : Object.values(errObj).join('; ');
+    if (/limit|quota|subscription|plan|exceed/i.test(emsg)) opAlert('apisports-quota', `API-Sports 한도 초과 응답: ${String(emsg).slice(0, 110)}`, 1800000);   // 한도 메시지면 즉시 경보
+    else if (_asFailStreak >= 5) opAlert('apisports-fail', `API-Sports 오류 연속 ${_asFailStreak}회: ${String(emsg).slice(0, 90)}`, 600000);
     if (hit) return hit.v;   // 이전 정상 캐시가 있으면 그걸 유지(빈 화면 방지)
     return v;                 // 없으면 그대로 반환(캐시는 안 함)
   }
+  _asFailStreak = 0;   // ✅ 정상 응답 → 연속 실패 리셋
   cache.set(url, { t: now, v });
   return v;
 }
@@ -1787,8 +1820,9 @@ async function gsBasketballGames(date, tz) {
   const feeds = ['d-1', 'home', 'd1'];   // 전날/오늘/다음날(UTC) → 기기 타임존 날짜로 필터
   const out = []; const seen = new Set();
   const numOrNull = v => (v === '' || v == null) ? null : (isNaN(+v) ? null : +v);
+  let _feedFail = 0;   // 이번 호출에서 실패한 피드 수
   for (const f of feeds) {
-    let j; try { j = await cachedJSON(`${base}/${f}?json=1`, 9000); } catch { continue; }
+    let j; try { j = await cachedJSON(`${base}/${f}?json=1`, 9000); } catch { _feedFail++; continue; }
     const cats = GSARR(j && j.scores && j.scores.category);
     for (const c of cats) {
       const rawName = GSA(c, 'name') || '';
@@ -1839,8 +1873,12 @@ async function gsBasketballGames(date, tz) {
       .filter(id => { const h = _gsLogoCache.get(id); return !(h && h.exp > now); });
     if (uncached.length && !_gsLogoFetching) { _gsLogoFetching = true; gsTeamLogos(uncached).catch(() => {}).finally(() => { _gsLogoFetching = false; }); }
   } catch {}
+  // 🔴 Goalserve 농구 피드 연속 실패 감지 — 3개 피드 전부 실패하면 스트릭++, 하나라도 성공하면 0으로 리셋
+  if (_feedFail >= feeds.length) { _gsFailStreak++; if (_gsFailStreak >= 3) opAlert('goalserve-down', `Goalserve 농구 피드 연속 실패 ${_gsFailStreak}회 — 농구 데이터 공급 중단 가능성(테스트키 만료/장애). 관리자 페이지에서 농구 소스를 API-Sports로 전환하세요.`, 1800000); }
+  else _gsFailStreak = 0;
   return out;
 }
+let _gsFailStreak = 0;   // 🔴 Goalserve 농구 피드 연속 실패 카운트
 let _gsLogoFetching = false;
 
 // 🏀 Goalserve 팀 로고 — 팀 ID로 조회. 응답은 [{id, base64}] 형태(PNG base64). URL 형태도 대비해 수용. 장기 캐시.
