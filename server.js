@@ -49,6 +49,9 @@ let subsCol = null;             // 웹푸시 구독(재시작·재배포 시 유
 // 👥 재방문자 추적: 방문자키 → {key,name,count(방문횟수),first,last,ip,cc}
 const VISITORS = new Map();
 const ONLINE_WIN = 5 * 60 * 1000;   // 최근 5분 이내 활동 = "접속중"
+// 📡 재배포(재시작) 직후 접속자 숫자가 0으로 꺼졌다 다시 차오르는 현상 방지용 '바닥값'.
+// 직전 접속수를 DB에 저장해두고, 부팅 후 잠깐 동안 그 값을 바닥으로 깔아 끊김 없이 실제 수치로 넘겨준다.
+let _presenceFloor = 0;
 let visitorsCol = null;             // 방문자 영속 컬렉션(연결 시)
 
 // ============================================================
@@ -213,6 +216,8 @@ async function initDB() {
       configCol = db.collection('config');
       const c = await configCol.findOne({ _id: 'main' });
       if (c) { CFG.flags = c.flags || {}; CFG.maint = c.maint || ''; CFG.bskSrc = c.bskSrc || 'auto'; CFG.updatedAt = c.updatedAt || 0; }
+      // 📡 직전 접속수 복원 — 10분 이내에 저장된 값만 바닥값으로 사용(오래된 값은 무시)
+      try { const pdoc = await configCol.findOne({ _id: 'presence' }); if (pdoc && pdoc.n > 0 && (Date.now() - (pdoc.at || 0) < 10 * 60 * 1000)) { _presenceFloor = pdoc.n; console.log(`[DB] 접속수 바닥값 복원: ${_presenceFloor}`); } } catch (_) {}
       adminSubsCol = db.collection('admin_subs');
       const asList = await adminSubsCol.find({}).toArray();
       for (const s of asList) { if (s.endpoint && s.sub) adminSubs.set(s.endpoint, s.sub); }
@@ -321,7 +326,7 @@ app.get('/api/admin/stats', (req, res) => {
     total: arr.length,
     todayNew: arr.filter(u => (u.first || 0) >= todayStart).length,
     weekNew: arr.filter(u => (u.first || 0) >= weekAgo).length,
-    online: (typeof totalOnline === 'function') ? totalOnline() : 0,
+    online: (typeof livePresence === 'function') ? livePresence() : 0,
     persist: !!usersCol
   });
 });
@@ -434,7 +439,7 @@ app.get('/api/admin/analytics', async (req, res) => {
     ok: true,
     persist: !!statsCol,
     stored: EVENTS.length,
-    online: (typeof totalOnline === 'function') ? totalOnline() : 0,
+    online: (typeof livePresence === 'function') ? livePresence() : 0,
     todayVisits, uniqIPToday,
     visits24h: visits.filter(e => e.ts >= dayAgo).length,
     totalVisits, totalClicks,
@@ -443,7 +448,7 @@ app.get('/api/admin/analytics', async (req, res) => {
   });
   } catch (e) {
     // 어떤 이유로든 집계 실패해도 500(비JSON)이 아니라 JSON으로 안전 응답 → 관리자 "-"/에러 방지
-    res.json({ ok: true, degraded: true, err: String((e && e.message) || e), stored: EVENTS.length, online: (typeof totalOnline === 'function') ? totalOnline() : 0, todayVisits: 0, uniqIPToday: 0, totalVisits: 0, totalClicks: 0, onlineVisitors: 0, returningOnline: 0, returningTotal: 0, uniqueVisitors: VISITORS.size, byHour: [], topClicks: [], topCountries: [], trend: [], recent: [], visitors: [] });
+    res.json({ ok: true, degraded: true, err: String((e && e.message) || e), stored: EVENTS.length, online: (typeof livePresence === 'function') ? livePresence() : 0, todayVisits: 0, uniqIPToday: 0, totalVisits: 0, totalClicks: 0, onlineVisitors: 0, returningOnline: 0, returningTotal: 0, uniqueVisitors: VISITORS.size, byHour: [], topClicks: [], topCountries: [], trend: [], recent: [], visitors: [] });
   }
 });
 
@@ -1820,9 +1825,8 @@ async function gsBasketballGames(date, tz) {
   const feeds = ['d-1', 'home', 'd1'];   // 전날/오늘/다음날(UTC) → 기기 타임존 날짜로 필터
   const out = []; const seen = new Set();
   const numOrNull = v => (v === '' || v == null) ? null : (isNaN(+v) ? null : +v);
-  let _feedFail = 0;   // 이번 호출에서 실패한 피드 수
   for (const f of feeds) {
-    let j; try { j = await cachedJSON(`${base}/${f}?json=1`, 9000); } catch { _feedFail++; continue; }
+    let j; try { j = await cachedJSON(`${base}/${f}?json=1`, 9000); } catch { continue; }
     const cats = GSARR(j && j.scores && j.scores.category);
     for (const c of cats) {
       const rawName = GSA(c, 'name') || '';
@@ -1873,12 +1877,8 @@ async function gsBasketballGames(date, tz) {
       .filter(id => { const h = _gsLogoCache.get(id); return !(h && h.exp > now); });
     if (uncached.length && !_gsLogoFetching) { _gsLogoFetching = true; gsTeamLogos(uncached).catch(() => {}).finally(() => { _gsLogoFetching = false; }); }
   } catch {}
-  // 🔴 Goalserve 농구 피드 연속 실패 감지 — 3개 피드 전부 실패하면 스트릭++, 하나라도 성공하면 0으로 리셋
-  if (_feedFail >= feeds.length) { _gsFailStreak++; if (_gsFailStreak >= 3) opAlert('goalserve-down', `Goalserve 농구 피드 연속 실패 ${_gsFailStreak}회 — 농구 데이터 공급 중단 가능성(테스트키 만료/장애). 관리자 페이지에서 농구 소스를 API-Sports로 전환하세요.`, 1800000); }
-  else _gsFailStreak = 0;
   return out;
 }
-let _gsFailStreak = 0;   // 🔴 Goalserve 농구 피드 연속 실패 카운트
 let _gsLogoFetching = false;
 
 // 🏀 Goalserve 팀 로고 — 팀 ID로 조회. 응답은 [{id, base64}] 형태(PNG base64). URL 형태도 대비해 수용. 장기 캐시.
@@ -3010,13 +3010,26 @@ const HISTORY = new Map(); // room -> 최근 메시지 배열(최대 30)
 function roomSet(room) { if (!rooms.has(room)) rooms.set(room, new Set()); return rooms.get(room); }
 function presence(room) { return roomSet(room).size; }
 function totalOnline() { let n = 0; for (const s of rooms.values()) n += s.size; return n; }
+// 📡 재배포 직후 숫자가 꺼지지 않게: 부팅 후 3분 동안은 '직전 접속수(바닥값)'를 선형 감쇠시키며 깔아준다.
+//    실제 소켓이 재연결되며 raw가 차오르면 max로 자연스럽게 실수치로 넘어간다. 3분 지나면 순수 raw.
+function livePresence() {
+  const raw = totalOnline();
+  if (_presenceFloor > 0) {
+    const age = Date.now() - _bootAt, DECAY = 180000;
+    if (age < DECAY) { const floor = Math.round(_presenceFloor * (1 - age / DECAY)); if (floor > raw) return floor; }
+  }
+  return raw;
+}
 function broadcast(room, obj) {
   const msg = JSON.stringify(obj);
   for (const c of roomSet(room)) { if (c.readyState === 1) c.send(msg); }
 }
 function sendPresence(room) {
-  broadcast(room, { type: 'presence', room, count: presence(room), total: totalOnline() });
+  broadcast(room, { type: 'presence', room, count: presence(room), total: livePresence() });
 }
+// 접속수 주기 저장(재시작 시 바닥값으로 복원) + 전체방 주기 브로드캐스트(숫자가 매끄럽게 실수치로 수렴)
+setInterval(() => { try { const n = totalOnline(); if (n > 0 && configCol) configCol.updateOne({ _id: 'presence' }, { $set: { n, at: Date.now() } }, { upsert: true }).catch(() => {}); } catch (_) {} }, 30000);
+setInterval(() => { try { sendPresence('all'); } catch (_) {} }, 30000);
 
 // 게스트 닉네임: 영어 단어 + 숫자 (한글 랜덤 사용 안 함)
 const ADJ = ['Cool', 'Lucky', 'Sharp', 'Bold', 'Swift', 'Prime', 'Star', 'Ace', 'Mega', 'Epic', 'Pro', 'Neo'];
