@@ -146,3 +146,7 @@
 /* 라이브 경기 시계 줄 (AI 멘트 위, ⏰ + 현재 타임) */
 .gclock{grid-column:2;display:block;text-align:center;font-size:13.5px;font-weight:800;color:#c0392b;margin:7px 0 2px;letter-spacing:.2px}
 .gclock b{font-weight:800}
+
+/* 리그 맨위 고정 핀 버튼 (접기 화살표 옆) */
+.lghd .pinbtn{cursor:pointer;font-size:13px;color:#aab2c0;margin:0 5px;user-select:none;line-height:1;display:inline-block;transition:transform .12s,color .12s}
+.lghd .pinbtn:hover{color:#2b3a67;transform:scale(1.18)}
