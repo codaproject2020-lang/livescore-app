@@ -63,7 +63,7 @@ let errorsCol = null, configCol = null, adminSubsCol = null;
 const adminSubs = new Map();        // 관리자 알림 구독: endpoint -> subscription
 let _lastErrPush = 0;
 // 기능 토글/메인터넌스 (관리자가 바꾸면 전체 유저에 즉시 반영, 코드/배포 불필요)
-const CFG = { flags: {}, maint: '', bskSrc: 'auto', updatedAt: 0 };
+const CFG = { flags: {}, maint: '', bskSrc: 'auto', alertsOff: false, alertsNight: false, updatedAt: 0 };
 function logError(src, type, msg, extra, force) {
   try {
     const e = { ts: Date.now(), src: src || 'server', type: type || 'error', msg: String((msg && msg.message) || msg || '').slice(0, 600), extra: extra || null };
@@ -83,13 +83,28 @@ function opAlert(key, body, gapMs) {
     logError('api', key, body, { op: true }, true);   // 오류 로그에도 남기고 + 폰 알림 강제 발송
   } catch (_) {}
 }
+const _alertDedup = new Map();   // 'src/type' -> 마지막 폰알림 발송 ts (동일 유형 반복 억제)
+function inQuietHours() {   // 야간(KST 0~8시) = 폰 알림 억제 시간대. 로그에는 계속 쌓임.
+  const h = (new Date().getUTCHours() + 9) % 24;
+  return h >= 0 && h < 8;
+}
 function adminAlert(e, force) {
   try {
     if (typeof PUSH_ON === 'undefined' || !PUSH_ON || !adminSubs.size) return;
-    const now = Date.now();
-    if (!force && now - _lastErrPush < 120000) return;   // 2분 쓰로틀(스팸 방지)
-    _lastErrPush = now;
-    const payload = JSON.stringify({ title: '⚠️ LIVE UP 오류 감지', body: `[${e.src}/${e.type}] ${e.msg}`.slice(0, 140), admin: true, url: '/admin' });
+    const isTest = e && e.src === 'admin' && e.type === 'test';   // 관리자 '테스트 알림' 버튼은 항상 발송
+    if (!isTest) {
+      if (CFG.alertsOff) return;                       // 🔕 관리자페이지에서 알림 완전 OFF
+      if (e && e.src === 'client') return;             // 브라우저(사용자) JS 에러는 폰 알림 X — 너무 잦음. 로그만.
+      if (inQuietHours() && !CFG.alertsNight) return;  // 🌙 야간 억제(기본 ON). 에러는 로그에 남아 아침에 확인 가능.
+      const now = Date.now();
+      const sig = (e && (e.src + '/' + e.type)) || 'x';
+      if (now - (_alertDedup.get(sig) || 0) < 3600000) return;   // 동일 유형은 60분에 한 번만
+      if (!force && now - _lastErrPush < 120000) return;         // 전체 최소 간격 2분
+      _alertDedup.set(sig, now);
+      _lastErrPush = now;
+    }
+    const title = isTest ? '🔔 LIVE UP 테스트' : (e && e.src === 'api') ? '📡 LIVE UP 데이터 경보' : '⚠️ LIVE UP 오류 감지';
+    const payload = JSON.stringify({ title, body: `[${e.src}/${e.type}] ${e.msg}`.slice(0, 140), admin: true, url: '/admin' });
     for (const [ep, sub] of adminSubs) {
       webpush.sendNotification(sub, payload).catch(err => { if (err && (err.statusCode === 404 || err.statusCode === 410)) { adminSubs.delete(ep); if (adminSubsCol) adminSubsCol.deleteOne({ endpoint: ep }).catch(() => {}); } });
     }
@@ -215,7 +230,7 @@ async function initDB() {
       errorsCol = db.collection('errors'); await errorsCol.createIndex({ ts: -1 }).catch(() => {});
       configCol = db.collection('config');
       const c = await configCol.findOne({ _id: 'main' });
-      if (c) { CFG.flags = c.flags || {}; CFG.maint = c.maint || ''; CFG.bskSrc = c.bskSrc || 'auto'; CFG.updatedAt = c.updatedAt || 0; }
+      if (c) { CFG.flags = c.flags || {}; CFG.maint = c.maint || ''; CFG.bskSrc = c.bskSrc || 'auto'; CFG.alertsOff = !!c.alertsOff; CFG.alertsNight = !!c.alertsNight; CFG.updatedAt = c.updatedAt || 0; }
       // 📡 직전 접속수 복원 — 10분 이내에 저장된 값만 바닥값으로 사용(오래된 값은 무시)
       try { const pdoc = await configCol.findOne({ _id: 'presence' }); if (pdoc && pdoc.n > 0 && (Date.now() - (pdoc.at || 0) < 10 * 60 * 1000)) { _presenceFloor = pdoc.n; console.log(`[DB] 접속수 바닥값 복원: ${_presenceFloor}`); } } catch (_) {}
       adminSubsCol = db.collection('admin_subs');
@@ -466,16 +481,18 @@ app.post('/api/clienterror', (req, res) => {
 app.get('/api/admin/errors', (req, res) => { if (!adminOK(req)) return res.status(401).json({ ok: false }); res.json({ ok: true, count: ERRLOG.length, errors: ERRLOG.slice(-150).reverse() }); });
 app.post('/api/admin/errors/clear', (req, res) => { if (!adminOK(req)) return res.status(401).json({ ok: false }); ERRLOG.length = 0; res.json({ ok: true }); });
 // 관리자: 기능 토글 / 메인터넌스 / 농구소스 저장 (전체 유저 즉시 반영)
-app.get('/api/admin/config', (req, res) => { if (!adminOK(req)) return res.status(401).json({ ok: false }); res.json({ ok: true, flags: CFG.flags, maint: CFG.maint, bskSrc: CFG.bskSrc, updatedAt: CFG.updatedAt }); });
+app.get('/api/admin/config', (req, res) => { if (!adminOK(req)) return res.status(401).json({ ok: false }); res.json({ ok: true, flags: CFG.flags, maint: CFG.maint, bskSrc: CFG.bskSrc, alertsOff: CFG.alertsOff, alertsNight: CFG.alertsNight, updatedAt: CFG.updatedAt }); });
 app.post('/api/admin/config', (req, res) => {
   if (!adminOK(req)) return res.status(401).json({ ok: false });
   const b = req.body || {};
   if (b.flags && typeof b.flags === 'object') CFG.flags = b.flags;
   if (typeof b.maint === 'string') CFG.maint = b.maint.slice(0, 300);
   if (typeof b.bskSrc === 'string') CFG.bskSrc = b.bskSrc;
+  if (typeof b.alertsOff === 'boolean') CFG.alertsOff = b.alertsOff;
+  if (typeof b.alertsNight === 'boolean') CFG.alertsNight = b.alertsNight;
   CFG.updatedAt = Date.now();
-  if (configCol) configCol.updateOne({ _id: 'main' }, { $set: { flags: CFG.flags, maint: CFG.maint, bskSrc: CFG.bskSrc, updatedAt: CFG.updatedAt } }, { upsert: true }).catch(() => {});
-  res.json({ ok: true, flags: CFG.flags, maint: CFG.maint, bskSrc: CFG.bskSrc });
+  if (configCol) configCol.updateOne({ _id: 'main' }, { $set: { flags: CFG.flags, maint: CFG.maint, bskSrc: CFG.bskSrc, alertsOff: CFG.alertsOff, alertsNight: CFG.alertsNight, updatedAt: CFG.updatedAt } }, { upsert: true }).catch(() => {});
+  res.json({ ok: true, flags: CFG.flags, maint: CFG.maint, bskSrc: CFG.bskSrc, alertsOff: CFG.alertsOff, alertsNight: CFG.alertsNight });
 });
 // 관리자: 폰 알림 구독 / 테스트
 app.post('/api/admin/push/subscribe', (req, res) => {
