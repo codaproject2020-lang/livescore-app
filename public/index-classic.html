@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="theme-color" content="#16243d">
+<title>LIVE UP · 실시간 스코어</title>
+<link rel="manifest" href="/manifest.json">
+<link rel="apple-touch-icon" href="/icon-512.png?v=313">
+<link rel="icon" type="image/svg+xml" href="/favicon.svg?v=313">
+<link rel="icon" href="/icon-192.png?v=313">
+<link rel="stylesheet" href="styles.css?v=342">
+</head>
+<body>
+<!-- ===== 첫 진입 부팅 스플래시 (회전 공) ===== -->
+<div id="bootSplash" class="bootsplash">
+  <img src="/install-spin.gif?v=313" alt="LIVE UP" class="bootball">
+  <div class="bootwm"><span class="mw-live">LIVE</span><span class="mw-up">UP</span></div>
+</div>
+<div class="shell">
+
+  <!-- ================= 좌측 사이드(PC 전용) ================= -->
+  <aside class="side-l">
+    <a class="brand-logo mword" href="/" aria-label="LIVE UP">
+      <span class="mw-live">LIVE</span><span class="mw-up">UP</span>
+    </a>
+    <button class="dlbtn" id="btnDownload">⬇ <span data-i18n="download">바탕화면 설치</span></button>
+    <button class="dlbtn share" id="btnShare">📤 <span data-i18n="share">공유</span></button>
+    <button class="loginbtn" id="btnLogin">🔑 <span data-i18n="login">로그인</span></button>
+    <select id="langSel" class="langsel"></select>
+    <div class="sidenav topnav">
+      <a data-tab="live" class="on"><span class="em"><img class="navic" src="/live-ic.gif?v=313" alt=""></span><span data-i18n="live">라이브</span></a>
+      <a data-tab="home"><span class="em">🏠</span><span data-i18n="homeTab">홈</span></a>
+      <a data-tab="info"><span class="em">📊</span><span data-i18n="info">경기 정보방</span></a>
+      <a data-tab="mkt2"><span class="em">📈</span><span>MATCH INSIGHTS</span></a>
+      <a data-tab="table"><span class="em">🏆</span><span data-i18n="rank">순위</span></a>
+    </div>
+    <div class="side-hd" data-i18n="sportsHd">종목</div>
+    <div id="sportNav" class="sidenav"></div>
+    <div class="side-hd" data-i18n="interest">관심 리그</div>
+    <div id="leagueNav" class="sidenav"></div>
+    <div class="side-note" data-i18n="dataNote">데이터: API-Sports · 실시간 연동</div>
+  </aside>
+
+  <!-- ================= 중앙(경기 피드) ================= -->
+  <main class="center">
+    <!-- 모바일 브랜드 바 (로고 + 다운로드) -->
+    <div class="mbrand">
+      <a href="/" class="mbrand-logo mword" aria-label="LIVE UP">
+        <span class="mw-live">LIVE</span><span class="mw-up">UP</span>
+      </a>
+      <div class="mbrand-btns">
+        <button class="dlbtn sm" id="btnDownloadM">⬇ <span data-i18n="download">바탕화면 설치</span></button>
+        <select id="langSelM" class="langsel langsel-m"></select>
+        <button class="dlbtn sm share" id="btnShareM">📤 <span data-i18n="share">공유</span></button>
+      </div>
+    </div>
+    <!-- 상단 아이콘 탭바 (모바일) -->
+    <div class="topbar">
+      <div class="tt" id="btnMenu"><span class="tt-ic">☰</span><span class="tt-lb" data-i18n="navMenu">메뉴</span></div>
+      <div class="tt on" data-tab="live"><span class="tt-ic"><img class="navic" src="/live-ic.gif?v=313" alt=""></span><span class="tt-lb" data-i18n="live">라이브</span></div>
+      <div class="tt" data-tab="home"><span class="tt-ic">🏠</span><span class="tt-lb" data-i18n="navHome">홈</span></div>
+      <div class="tt" data-tab="info"><span class="tt-ic">📊</span><span class="tt-lb" data-i18n="navInfo">정보방</span></div>
+      <div class="tt" data-tab="mkt2"><span class="tt-ic">📈</span><span class="tt-lb">Insights</span></div>
+      <div class="tt" id="btnUser"><span class="tt-ic" id="btnUserIc">👤</span><span class="tt-lb" data-i18n="navMy">MY</span></div>
+    </div>
+
+    <!-- 종목 아이콘 줄 (모바일) -->
+    <div class="sportrow" id="sportRow"></div>
+
+    <!-- 하이라이트 (한눈에) -->
+    <div class="higrid" id="higrid"></div>
+
+    <!-- 리그 선택 바 (전체/KBO/MLB/… · 종목별) -->
+    <div class="leaguerow" id="leagueRow" style="display:none"></div>
+
+    <!-- 날짜 이동 -->
+    <div class="datenav">
+      <div class="arw" id="datePrev">‹</div>
+      <input type="date" id="dateSel" class="datesel">
+      <div class="today" id="dateToday">오늘</div>
+      <div class="arw" id="dateNext">›</div>
+      <div class="refresh" id="btnRefresh">↻ <span data-i18n="refresh">새로고침</span></div>
+    </div>
+
+    <!-- 스포츠 뉴스 (버튼 → ESPN) -->
+    <div class="news">
+      <div class="news-hd"><span class="news-ic">📰</span><span id="newsTitle">스포츠 뉴스</span><span class="news-new">NEW</span><span class="news-src">ESPN ↗</span></div>
+      <div class="news-cats" id="newsCats"></div>
+    </div>
+
+    <!-- 현재 접속자수 -->
+    <div class="onlinebar"><span class="odot">🟢</span> <span data-i18n="online">접속</span> <b id="onlineAll">1,759</b><button type="button" id="golCta" class="golcta"><span class="gc-arw">👉</span><span class="gc-t">골 알림설정 간편로그인</span></button></div>
+
+
+    <!-- ===== 홈(추천) 뷰 ===== -->
+    <section class="view hidden" id="view-home">
+      <div id="homeBody"><div class="loading" data-i18n="loading">불러오는 중…</div></div>
+    </section>
+
+    <!-- ===== LIVE 뷰 ===== -->
+    <section class="view hidden" id="view-live">
+      <div id="feed" class="feed"><div class="loading" data-i18n="loadingGames">경기 불러오는 중…</div></div>
+    </section>
+
+    <!-- ===== 순위 뷰 ===== -->
+    <section class="view hidden" id="view-table">
+      <div class="filterchips" id="tblSport"></div>
+      <div class="tblhead">
+        <select id="tblLeague"></select>
+        <input type="text" id="tblSeason" placeholder="시즌 (예: 2026 / 2025-2026)" data-i18n-ph="seasonPh">
+        <button id="tblLoad" data-i18n="query">조회</button>
+      </div>
+      <div id="tableWrap" class="tablewrap"><div class="loading" data-i18n="selectLeague">리그를 선택하세요.</div></div>
+    </section>
+
+
+    <!-- ===== 경기 정보방 뷰 ===== -->
+    <section class="view hidden" id="view-info">
+      <div class="infohd"><span data-i18n="info">경기 정보방</span></div>
+      <div class="infonote" data-i18n="infoNote">경기를 누르면 <b>최근 전적·상대전적·AI 코멘트</b>가 한눈에 나와요. 아래 종목 버튼으로 축구·야구·농구 등 종목을 바꿀 수 있어요.</div>
+      <div class="filterchips" id="infoChips"></div>
+      <div class="infowrap">
+        <div id="infoList" class="infolist"></div>
+        <div id="infoGate" class="infogate hidden">
+          <div class="ig-card">
+            <div class="ig-lock">🔒</div>
+            <div class="ig-title" data-i18n="loginToUse">로그인 후 이용 가능합니다</div>
+            <div class="ig-sub" data-i18n="gateSub">구글 로그인하면 경기 정보방을 볼 수 있어요</div>
+            <button class="ig-btn" id="igLogin">🔑 <span data-i18n="login">로그인</span></button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== MATCH INSIGHTS 뷰 ===== -->
+    <section class="view hidden" id="view-mkt2">
+      <div class="infohd">📈 MATCH INSIGHTS <span class="obk" id="mkt2Sub"></span></div>
+      <div class="filterchips" id="mkt2Chips"></div>
+      <div id="mkt2Board" class="malist"><div class="loading" data-i18n="loading">불러오는 중…</div></div>
+    </section>
+
+    <p class="foot"><span data-i18n="footNote">스코어·엠블럼·순위는 실제 API 데이터입니다. AI 코멘트는 참고용입니다.</span><br>
+      <span data-i18n="supportLbl">고객지원 서비스</span>: <a href="mailto:support@liveup.fans">support@liveup.fans</a></p>
+  </main>
+
+  <!-- ================= 우측(채팅/상세, PC 전용) ================= -->
+  <aside class="side-r">
+    <div class="side-hd">💬 <span data-i18n="liveChat">전경기 실시간 채팅</span> <span class="online-pill">🟢 <b id="onlineR">1,759</b></span></div>
+    <div id="chatDesk" class="chatpane"></div>
+  </aside>
+</div>
+
+<!-- ===== 경기 상세 모달 ===== -->
+<div class="scrim" id="scrim"></div>
+<div class="modal" id="modal">
+  <div class="mhd"><span id="mTitle" data-i18n="scoreDetail">경기 상세</span><span class="mhd-r"><span class="mshare" id="mShare" data-i18n-title="share" title="공유">📤</span><span class="x" id="mClose">✕</span></span></div>
+  <div class="mbody" id="mBody"></div>
+</div>
+
+<!-- ===== 로그인 모달 ===== -->
+<div class="scrim" id="scrimL"></div>
+<div class="loginmodal" id="loginModal">
+  <div class="lm-x" id="lmClose">✕</div>
+  <img src="/favicon.svg?v=315" width="60" height="60" class="lm-logo" alt="LIVE UP">
+
+  <div class="lm-title" data-i18n="login">로그인</div>
+  <div class="lm-sub" data-i18n="loginSub">단 한번 클릭으로 3초만에 로그인해보세요!</div>
+  <div id="gSignIn" class="gsi-wrap"></div>
+  <div class="lm-note" id="lmNote" data-i18n="loginNote">구글 계정으로 안전하게 로그인 · 실시간 채팅 참여</div>
+</div>
+
+<!-- ===== 드로어(모바일 메뉴) ===== -->
+<div class="scrim" id="scrimD"></div>
+<aside class="drawer" id="drawer">
+  <div class="dprof"><div class="av">👤</div><div><div class="who" id="drawerName" data-i18n="guest">손님</div><div class="blog"><span data-i18n="online">접속</span> <b id="onlineD">0</b></div></div></div>
+  <div class="sidenav dmenu">
+    <a data-tab="live"><span class="em"><img class="navic" src="/live-ic.gif?v=313" alt=""></span><span data-i18n="live">라이브</span></a>
+    <a data-tab="home"><span class="em">🏠</span><span data-i18n="homeTab">홈</span></a>
+    <a data-tab="info"><span class="em">📊</span><span data-i18n="info">경기 정보방</span></a>
+    <a data-tab="mkt2"><span class="em">📈</span><span>MATCH INSIGHTS</span></a>
+    <a data-tab="table"><span class="em">🏆</span><span data-i18n="rank">순위</span></a>
+    <a id="drawerLogin"><span class="em">🔑</span><span data-i18n="login">로그인</span></a>
+  </div>
+  <div class="side-hd" style="padding:12px 16px 6px" data-i18n="langLabel">언어</div>
+  <select id="langSelD" class="langsel" style="margin:0 16px 8px"></select>
+  <div class="side-hd" style="padding:12px 16px 6px" data-i18n="sportsHd">종목</div>
+  <div id="sportNavD" class="sidenav"></div>
+  <div class="side-hd" style="padding:12px 16px 6px" data-i18n="interest">관심 리그</div>
+  <div id="leagueNavD" class="sidenav"></div>
+</aside>
+
+<!-- 채팅 입력 템플릿 -->
+<template id="chatTpl">
+  <div class="chat-msgs"></div>
+  <div class="chat-input">
+    <input type="text" class="ci" placeholder="메시지 입력…" data-i18n-ph="chatPh" maxlength="300">
+    <button class="cs" data-i18n="send">전송</button>
+  </div>
+</template>
+
+<!-- ===== 앱 다운로드 로딩 오버레이 ===== -->
+<div class="dloverlay" id="dlOverlay">
+  <div class="dlbox">
+    <div class="dl-glow"></div>
+    <img src="/install-spin.gif?v=313" alt="LIVE UP" class="dllogo dlball" onerror="this.style.display='none'">
+    <div class="dltitle" id="dlTitle" data-i18n="installing">LIVE UP 설치 중…</div>
+    <div class="dlbar"><div class="dlfill" id="dlFill"></div></div>
+    <div class="dlrow"><span class="dlpct" id="dlPct">0%</span><span class="dlmsg" id="dlMsg" data-i18n="dlPrep">다운로드 준비 중…</span></div>
+    <div class="dlguide" id="dlGuide"></div>
+    <button class="dlx" id="dlClose" data-i18n="close">닫기</button>
+  </div>
+</div>
+
+<script>
+  // PWA 서비스워커 등록
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => navigator.serviceWorker.register('/sw.js').catch(() => {}));
+  }
+  // 첫 진입 부팅 스플래시(회전 공) 숨김
+  (function(){
+    function hideBoot(){var b=document.getElementById('bootSplash');if(b){b.classList.add('hide');setTimeout(function(){b&&b.parentNode&&b.parentNode.removeChild(b);},600);}}
+    if(document.readyState==='complete'){setTimeout(hideBoot,800);}
+    else{window.addEventListener('load',function(){setTimeout(hideBoot,800);});}
+    setTimeout(hideBoot,4500);
+  })();
+</script>
+<button id="scrollTopBtn" class="scrolltop" aria-label="맨 위로">↑</button>
+<script src="app.js?v=342"></script>
+</body>
+</html>

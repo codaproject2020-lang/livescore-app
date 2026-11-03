@@ -139,6 +139,12 @@
         <button class="btn" id="opCache">🧹 서버 캐시 비우기</button>
         <span class="muted" id="opMsg"></span>
       </div>
+      <div class="sub2">🔔 알림 설정 <span class="muted" style="font-weight:600">(과도한 폰 알림 방지)</span></div>
+      <div style="display:flex;gap:18px;flex-wrap:wrap;align-items:center;margin:10px 0 8px">
+        <label style="cursor:pointer"><input type="checkbox" id="fAlertOff"> 🔕 폰 알림 전체 끄기</label>
+        <label style="cursor:pointer"><input type="checkbox" id="fAlertNight"> 🌙 야간(밤 0~8시)에도 알림 받기</label>
+        <span class="muted" style="font-size:12px">· 기본: 야간 알림 꺼짐 · 사용자 브라우저 오류는 알림 안 옴(로그만) · 같은 오류는 1시간에 1번</span>
+      </div>
       <div class="sub2">⚙️ 기능 제어 <span class="muted" style="font-weight:600">(저장 시 전체 유저에게 즉시 반영 · 배포 불필요)</span></div>
       <div style="display:flex;gap:18px;flex-wrap:wrap;align-items:center;margin:10px 0 8px">
         <label style="cursor:pointer"><input type="checkbox" id="fShorts" checked> 숏츠 메뉴 표시</label>
@@ -311,12 +317,12 @@
         if(!(e.errors||[]).length) b.innerHTML='<tr><td colspan="3" class="muted" style="padding:12px">오류 없음 👍</td></tr>';
       }
       const c=await api('/api/admin/config');
-      if(c&&c.ok){ const f=c.flags||{}; $('#fShorts').checked=f.shorts!==false; $('#fNews').checked=f.news!==false; $('#fBsk').value=c.bskSrc||'auto'; $('#fMaint').value=c.maint||''; }
+      if(c&&c.ok){ const f=c.flags||{}; $('#fShorts').checked=f.shorts!==false; $('#fNews').checked=f.news!==false; $('#fBsk').value=c.bskSrc||'auto'; $('#fMaint').value=c.maint||''; $('#fAlertOff').checked=!!c.alertsOff; $('#fAlertNight').checked=!!c.alertsNight; }
     }catch(e){ if(String(e.message)==='unauthorized') logout(); }
   }
   async function saveOps(){
     const flags={ shorts:$('#fShorts').checked, news:$('#fNews').checked };
-    try{ const r=await apiPost('/api/admin/config',{ flags, bskSrc:$('#fBsk').value, maint:$('#fMaint').value.trim() });
+    try{ const r=await apiPost('/api/admin/config',{ flags, bskSrc:$('#fBsk').value, maint:$('#fMaint').value.trim(), alertsOff:$('#fAlertOff').checked, alertsNight:$('#fAlertNight').checked });
       $('#opSaveMsg').textContent = r&&r.ok ? '✅ 저장됨 (전체 유저 반영 중)' : '저장 실패';
       setTimeout(()=>{$('#opSaveMsg').textContent='';},4000);
     }catch(e){ $('#opSaveMsg').textContent='실패'; }
