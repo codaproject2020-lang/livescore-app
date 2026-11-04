@@ -1960,11 +1960,90 @@ async function gsTeamLogos(ids) {
   return have;
 }
 
+// 🏀 TheSports 농구 — 초단위 시계(detail_live) + 쿼터별 점수 + 라인업. (KBL/NBA/NCAA 등 커버)
+//   상태코드: 1=예정, 2/4/6/8=1~4쿼터 진행, 3/5/7=쿼터 종료(휴식), 9=연장, 10=종료, 12=취소
+const TS_BSK_PER = { 2: 1, 3: 1, 4: 2, 5: 2, 6: 3, 7: 3, 8: 4, 9: 5, 13: 5 };
+function tsBskState(st) { if (st === 1 || st === 15 || st === 0) return 'scheduled'; if (st === 10 || st === 12) return 'finished'; return 'live'; }
+function fmtClockSec(sec) { sec = Math.max(0, Math.round(+sec || 0)); const m = Math.floor(sec / 60), s = sec % 60; return m + ':' + (s < 10 ? '0' : '') + s; }
+async function tsBasketballGames(date, tz) {
+  tz = canonTz(tz);
+  const toYmd = d => String(d).replace(/-/g, '');
+  const prev = new Date(Date.parse(date + 'T12:00:00Z') - 864e5).toISOString().slice(0, 10);
+  const next = new Date(Date.parse(date + 'T12:00:00Z') + 864e5).toISOString().slice(0, 10);
+  const comp = {}, team = {}, out = [], seen = new Set();
+  let liveMap = {};
+  try { const lv = await tsFetch('/basketball/match/detail_live', {}, 3000); ((lv && lv.results) || []).forEach(r => { const id = r.id || (r.score && r.score[0]); if (id) liveMap[id] = r; }); } catch (e) {}
+  for (const dt of [prev, date, next]) {
+    let d; try { d = await tsFetch('/basketball/match/diary', { date: toYmd(dt) }, 8000); } catch { continue; }
+    const ex = (d && d.results_extra) || {};
+    (ex.competition || []).forEach(c => { comp[c.id] = { name: c.name, logo: c.logo || '' }; });
+    (ex.team || []).forEach(t => { team[t.id] = { name: t.name, logo: t.logo || '' }; });
+    for (const m of (d && d.results) || []) {
+      const id = m.id; if (!id || seen.has(id)) continue;
+      const iso = m.match_time ? new Date(m.match_time * 1000).toISOString() : null;
+      if (iso && ymdInTz(iso, tz) !== date) continue;
+      seen.add(id);
+      const hc = comp[m.competition_id] || {}, ht = team[m.home_team_id] || {}, at = team[m.away_team_id] || {};
+      let st = m.status_id;
+      let hsArr = m.home_scores || [], asArr = m.away_scores || [];
+      let hs = hsArr.reduce((a, b) => a + (+b || 0), 0), as = asArr.reduce((a, b) => a + (+b || 0), 0);
+      let timerSec = null, timerRun = 0, timerUpd = 0;
+      const lv = liveMap[id];
+      if (lv) {
+        if (lv.score) { if (lv.score[1] != null) st = lv.score[1]; const hq = lv.score[3] || [], aq = lv.score[4] || []; if (hq.length) { hsArr = hq; asArr = aq; hs = hq.reduce((a, b) => a + (+b || 0), 0); as = aq.reduce((a, b) => a + (+b || 0), 0); } }
+        if (lv.timer) { timerRun = lv.timer[0]; timerUpd = lv.timer[2]; timerSec = lv.timer[3]; }
+      }
+      const setScores = [];
+      for (let i = 0; i < Math.max(hsArr.length, asArr.length); i++) { const h = hsArr[i], a = asArr[i]; if ((h != null && h !== '') || (a != null && a !== '')) setScores.push({ home: (h != null ? +h : null), away: (a != null ? +a : null) }); }
+      const per = TS_BSK_PER[st] || null;
+      out.push({
+        id: 'ts' + id, tsid: id, league: hc.name || 'Basketball', leagueLogo: hc.logo || '', country: '',
+        home: ht.name || '', homeLogo: ht.logo || '', away: at.name || '', awayLogo: at.logo || '',
+        homeTid: m.home_team_id, awayTid: m.away_team_id,
+        hs, as, status: per ? ('Q' + per) : '', statusLong: String(st),
+        period: per, timer: (timerSec != null && tsBskState(st) === 'live') ? fmtClockSec(timerSec) : null,
+        timerSec: (tsBskState(st) === 'live') ? timerSec : null, timerRun, timerUpd,
+        livePts: null, setScores: setScores.length ? setScores : null, box: null, curInning: null, inningHalf: null,
+        date: iso, state: tsBskState(st), _src: 'thesports'
+      });
+    }
+  }
+  return out;
+}
+function tsBskPlayer(p) {
+  const s = String(p[4] || '').split('^');
+  const pair = x => { const v = String(x || '0-0').split('-'); return (+v[0] || 0) + '-' + (+v[1] || 0); };
+  return { id: p[0], name: String(p[1] || '').trim(), photo: p[2] || '', number: p[3] || '',
+    pts: +s[0] || 0, fg: pair(s[1]), p3: pair(s[2]), ft: pair(s[3]), reb: +s[6] || 0, ast: +s[7] || 0, stl: +s[8] || 0, blk: +s[9] || 0, pf: +s[11] || 0 };
+}
+async function tsBasketballLineup(tsid) {
+  const r = await tsFetch('/basketball/match/lineup_live', { uuid: tsid }, 8000).catch(() => null);
+  const res = r && r.results; if (!res) return null;
+  const item = Array.isArray(res) ? res[0] : res;
+  const pl = item && item.players; if (!pl || !pl.length) return null;
+  const mk = arr => (arr || []).filter(x => Array.isArray(x)).map(tsBskPlayer);
+  return { home: mk(pl[0]), away: mk(pl[1]) };
+}
+app.get('/api/basketball/lineup', async (req, res) => {
+  const id = String(req.query.id || '').replace(/^ts/, '');
+  if (!id) return res.status(400).json({ error: 'need id' });
+  try { const lu = await tsBasketballLineup(id); res.json(lu || { home: [], away: [] }); }
+  catch (e) { res.json({ home: [], away: [], error: String(e.message || e) }); }
+});
 async function buildGamesCore(sport, date, tz) {
   const cfg = AS[sport]; if (!cfg) return { games: [], j: {} };
   tz = canonTz(tz);
+  // 🏀 농구 = 더스포츠(초단위 시계+라인업) 강제 옵션
+  if (sport === 'basketball' && CFG.bskSrc === 'thesports') {
+    let games = []; try { games = await tsBasketballGames(date, tz); } catch (e) {}
+    const gk = 'TS|basketball|' + date + '|' + (tz || '');
+    if (games.length) { _lastGoodMinor.set(gk, { t: Date.now(), list: games.slice() }); return { games, j: { results: games.length, src: 'thesports' } }; }
+    const prev = _lastGoodMinor.get(gk);
+    if (prev && prev.list && prev.list.length && Date.now() - prev.t < 90000) return { games: prev.list.slice(), j: { results: prev.list.length, src: 'thesports-cache' } };
+    return { games: [], j: { results: 0, src: 'thesports-empty' } };
+  }
   // 🏀 농구 = Goalserve 우선(라이브 쿼터+시계). 비어있으면(테스트키 만료/장애) API-Sports로 자동 폴백.
-  //    관리자 설정(CFG.bskSrc): 'auto'(기본) / 'goalserve'(강제) / 'apisports'(강제 폴백)
+  //    관리자 설정(CFG.bskSrc): 'auto'(기본) / 'goalserve'(강제) / 'apisports'(강제 폴백) / 'thesports'(초단위)
   if (sport === 'basketball' && CFG.bskSrc !== 'apisports') {
     let games = [];
     try { games = await gsBasketballGames(date, tz); } catch {}
