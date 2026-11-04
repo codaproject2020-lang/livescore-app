@@ -311,6 +311,7 @@ for(var _k in SUP){STR[_k]=SUP[_k];}
 var LANG=(function(){try{return localStorage.getItem('liveup_lang_user')||localStorage.getItem('liveup_lang')||'en';}catch(e){return 'en';}})();
 function setLangV(l){LANG=l;try{localStorage.setItem('liveup_lang_user',l);localStorage.setItem('liveup_lang',l);}catch(e){}}
 function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
+  var MSG={"m_loadfail":["Failed to load data.<br>Please try again shortly.","데이터를 불러오지 못했습니다.<br>잠시 후 다시 시도해 주세요.","データを読み込めませんでした。","数据加载失败，请稍后重试。","Error al cargar. Inténtalo de nuevo.","डेटा लोड विफल। पुनः प्रयास करें।","Tải dữ liệu thất bại. Thử lại.","โหลดข้อมูลไม่สำเร็จ ลองใหม่","Не удалось загрузить. Повторите.","Laden fehlgeschlagen. Erneut versuchen.","Échec du chargement. Réessayez.","Caricamento fallito. Riprova."],"m_noSched":["No matches scheduled today.","오늘 예정된 경기가 없습니다.","本日の予定試合はありません。","今天没有赛事。","No hay partidos hoy.","आज कोई मैच नहीं।","Không có trận nào hôm nay.","วันนี้ไม่มีแมตช์","Сегодня матчей нет.","Heute keine Spiele.","Aucun match aujourd'hui.","Nessuna partita oggi."],"m_noLive":["No live matches.","진행 중인 경기가 없습니다.","進行中の試合はありません。","暂无进行中的比赛。","No hay partidos en vivo.","कोई लाइव मैच नहीं।","Không có trận trực tiếp.","ไม่มีแมตช์สด","Нет матчей вживую.","Keine Live-Spiele.","Aucun match en direct.","Nessuna partita in diretta."],"m_noFavG":["No favorite matches yet.","관심 등록한 경기가 없습니다.","お気に入りの試合はありません。","暂无关注比赛。","Sin partidos favoritos.","कोई पसंदीदा मैच नहीं।","Chưa có trận yêu thích.","ยังไม่มีแมตช์ที่สนใจ","Избранных матчей нет.","Keine Favoriten.","Aucun match favori.","Nessun preferito."],"m_prep":["This section is being prepared.","준비 중인 항목입니다.","準備中の項目です。","该项正在准备中。","Sección en preparación.","यह अनुभाग तैयार हो रहा है।","Mục này đang được chuẩn bị.","กำลังเตรียมส่วนนี้","Раздел готовится.","Wird vorbereitet.","Section en préparation.","Sezione in preparazione."],"m_luFail":["Failed to load lineup.","라인업을 불러오지 못했습니다.","ラインナップを読み込めませんでした。","无法加载阵容。","Error al cargar alineación.","लाइनअप लोड विफल।","Không tải được đội hình.","โหลดรายชื่อไม่สำเร็จ","Не удалось загрузить состав.","Aufstellung konnte nicht geladen werden.","Échec du chargement de la compo.","Formazione non caricata."],"m_evFail":["Failed to load events.","이벤트를 불러오지 못했습니다.","イベントを読み込めませんでした。","无法加载事件。","Error al cargar eventos.","इवेंट लोड विफल।","Không tải được sự kiện.","โหลดเหตุการณ์ไม่สำเร็จ","Не удалось загрузить события.","Ereignisse nicht geladen.","Échec du chargement des événements.","Eventi non caricati."],"m_boxNone":["Box score not available yet.","박스스코어가 아직 없습니다.","ボックススコアはまだありません。","暂无技术统计。","Marcador aún no disponible.","बॉक्स स्कोर अभी नहीं।","Chưa có bảng điểm.","ยังไม่มีบ็อกซ์สกอร์","Бокс-скор пока недоступен.","Boxscore noch nicht verfügbar.","Feuille indisponible.","Tabellino non disponibile."],"m_teamNoRec":["No recent match data.","최근 경기 데이터가 없습니다.","最近の試合データがありません。","暂无近期比赛数据。","Sin datos recientes.","हालिया मैच डेटा नहीं।","Không có dữ liệu trận gần đây.","ไม่มีข้อมูลแมตช์ล่าสุด","Нет недавних данных.","Keine aktuellen Daten.","Aucune donnée récente.","Nessun dato recente."],"m_teamFail":["Failed to load team info.","팀 정보를 불러오지 못했습니다.","チーム情報を読み込めませんでした。","无法加载球队信息。","Error al cargar el equipo.","टीम जानकारी लोड विफल।","Không tải được thông tin đội.","โหลดข้อมูลทีมไม่สำเร็จ","Не удалось загрузить команду.","Team-Infos nicht geladen.","Échec du chargement de l'équipe.","Info squadra non caricate."],"m_noNews":["No news available.","뉴스가 없습니다.","ニュースはありません。","暂无新闻。","Sin noticias.","कोई समाचार नहीं।","Không có tin tức.","ไม่มีข่าว","Новостей нет.","Keine Nachrichten.","Aucune actualité.","Nessuna notizia."],"m_newsFail":["Failed to load news.","뉴스를 불러오지 못했습니다.","ニュースを読み込めませんでした。","无法加载新闻。","Error al cargar noticias.","समाचार लोड विफल।","Không tải được tin.","โหลดข่าวไม่สำเร็จ","Не удалось загрузить новости.","Nachrichten nicht geladen.","Échec du chargement des actus.","Notizie non caricate."],"m_chatPh":["Type a message (login recommended)","메시지 입력 (로그인 권장)","メッセージを入力（ログイン推奨）","输入消息（建议登录）","Escribe un mensaje","संदेश लिखें","Nhập tin nhắn","พิมพ์ข้อความ","Введите сообщение","Nachricht eingeben","Écrire un message","Scrivi un messaggio"],"m_chatClosed":["Connection closed.","연결이 종료되었습니다.","接続が終了しました。","连接已关闭。","Conexión cerrada.","कनेक्शन बंद।","Đã đóng kết nối.","การเชื่อมต่อถูกปิด","Соединение закрыто.","Verbindung geschlossen.","Connexion fermée.","Connessione chiusa."],"m_anon":["Guest","익명","ゲスト","访客","Invitado","अतिथि","Khách","ผู้เยี่ยมชม","Гость","Gast","Invité","Ospite"],"m_chatNA":["Chat is unavailable.","채팅을 사용할 수 없습니다.","チャットを利用できません。","聊天不可用。","Chat no disponible.","चैट उपलब्ध नहीं।","Chat không khả dụng.","แชทไม่พร้อมใช้งาน","Чат недоступен.","Chat nicht verfügbar.","Chat indisponible.","Chat non disponibile."],"m_batSoon":["Batting order & pitcher details are not available for this match yet.","타순·투수 상세는 이 경기 공급사에서 제공되지 않거나 아직 발표되지 않았습니다.","打順・投手の詳細は未提供または未発表です。","本场不提供打序·投手详情或尚未公布。","Orden al bate y lanzadores no disponibles.","बैटिंग क्रम·पिचर विवरण उपलब्ध नहीं।","Chưa có thứ tự đánh & người ném.","ยังไม่มีลำดับตี·ผู้ขว้าง","Порядок и питчеры недоступны.","Schlagreihenfolge & Pitcher nicht verfügbar.","Ordre des frappeurs et lanceurs indisponibles.","Ordine di battuta e lanciatori non disponibili."],"th_batter":["Batter","타자","打者","打者","Bateador","बल्लेबाज","Người đánh","ผู้ตี","Беттер","Batter","Frappeur","Battitore"],"th_ab":["AB","타수","打数","打数","VB","AB","Số lần","ครั้งตี","ПБ","AB","PA","AB"],"th_h":["H","안타","安","安","H","H","Cú","ฮิต","Х","H","CS","V"],"th_rbi":["RBI","타점","打点","打点","CI","RBI","Điểm","ตีเข้า","RBI","RBI","PP","RBI"],"th_avg":["AVG","타율","打率","打率","AVG","औसत","TB","เฉลี่ย","AVG","AVG","MOY","MB"],"th_pitcher":["Pitcher","투수","投手","投手","Lanzador","पिचर","Người ném","ผู้ขว้าง","Питчер","Pitcher","Lanceur","Lanciatore"],"th_ip":["IP","이닝","回","局","IP","पारी","Hiệp","อินนิง","IP","IP","MJ","IP"],"th_k":["K","탈삼진","奪三振","三振","K","K","Loại","สไตรค์","K","K","K","K"],"th_er":["ER","자책","自責","自责","CL","ER","Tự trách","เสีย","ER","ER","PM","PGM"]}; for(var _m in MSG){STR[_m]=MSG[_m];} var STAT={"Ball Possession":["Possession","점유율","ポゼッション","控球率","Posesión","पजेशन","Kiểm soát bóng","ครองบอล","Владение","Ballbesitz","Possession","Possesso"],"Total Shots":["Total Shots","전체 슈팅","シュート数","射门","Tiros totales","कुल शॉट","Tổng dứt điểm","ยิงทั้งหมด","Удары","Schüsse","Tirs","Tiri"],"Shots on Goal":["Shots on Target","유효 슈팅","枠内シュート","射正","Tiros a puerta","ऑन टारगेट","Trúng đích","ยิงตรงกรอบ","В створ","Auf das Tor","Tirs cadrés","Tiri in porta"],"Shots off Goal":["Shots off Target","빗나간 슈팅","枠外シュート","射偏","Tiros fuera","ऑफ टारगेट","Chệch","ยิงออก","Мимо","Neben das Tor","Tirs non cadrés","Tiri fuori"],"Blocked Shots":["Blocked Shots","막힌 슈팅","ブロック","被封堵","Tiros bloqueados","ब्लॉक्ड","Bị chặn","ถูกบล็อก","Заблок.","Geblockt","Tirs bloqués","Tiri bloccati"],"Shots insidebox":["Shots Inside Box","박스 안 슈팅","ボックス内","禁区内射门","Tiros en área","बॉक्स अंदर","Trong vòng cấm","ในกรอบ","В штрафной","Im Strafraum","Tirs dans la surface","Tiri in area"],"Shots outsidebox":["Shots Outside Box","박스 밖 슈팅","ボックス外","禁区外射门","Tiros fuera área","बॉक्स बाहर","Ngoài vòng cấm","นอกกรอบ","Вне штрафной","Außerhalb","Tirs hors surface","Tiri fuori area"],"Corner Kicks":["Corners","코너킥","コーナー","角球","Córners","कॉर्नर","Phạt góc","เตะมุม","Угловые","Ecken","Corners","Calci d'angolo"],"Offsides":["Offsides","오프사이드","オフサイド","越位","Fueras de juego","ऑफसाइड","Việt vị","ล้ำหน้า","Офсайды","Abseits","Hors-jeu","Fuorigioco"],"Fouls":["Fouls","파울","ファウル","犯规","Faltas","फाउल","Phạm lỗi","ฟาวล์","Фолы","Fouls","Fautes","Falli"],"Yellow Cards":["Yellow Cards","경고","イエロー","黄牌","Amarillas","पीले कार्ड","Thẻ vàng","ใบเหลือง","Жёлтые","Gelbe Karten","Cartons jaunes","Cartellini gialli"],"Red Cards":["Red Cards","퇴장","レッド","红牌","Rojas","लाल कार्ड","Thẻ đỏ","ใบแดง","Красные","Rote Karten","Cartons rouges","Cartellini rossi"],"Goalkeeper Saves":["Saves","선방","セーブ","扑救","Paradas","सेव","Cứu thua","เซฟ","Сейвы","Paraden","Arrêts","Parate"],"Total passes":["Total Passes","전체 패스","パス数","传球","Pases totales","कुल पास","Tổng chuyền","จ่ายบอล","Передачи","Pässe","Passes","Passaggi"],"Passes accurate":["Accurate Passes","정확한 패스","成功パス","成功传球","Pases precisos","सटीक पास","Chuyền chính xác","จ่ายสำเร็จ","Точные пас.","Genaue Pässe","Passes réussies","Passaggi riusciti"],"Passes %":["Pass Accuracy","패스 성공률","パス成功率","传球成功率","Precisión de pase","पास सटीकता","Tỷ lệ chuyền","ความแม่นจ่าย","Точность пас.","Passquote","Précision passes","Precisione passaggi"],"expected_goals":["Expected Goals (xG)","기대 득점(xG)","期待得点(xG)","预期进球(xG)","Goles esperados (xG)","अपेक्षित गोल (xG)","Bàn kỳ vọng (xG)","คาดการณ์ประตู (xG)","Ожид. голы (xG)","Erwartete Tore (xG)","Buts attendus (xG)","Gol attesi (xG)"],"goals_prevented":["Goals Prevented","실점 억제","失点阻止","阻止失球","Goles evitados","गोल रोके","Ngăn bàn thua","ป้องกันเสียประตู","Предотвр. голы","Verhinderte Tore","Buts évités","Gol evitati"]};
 
   // ====== 설정 ======
   var SPORTS=[
@@ -427,8 +428,8 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
 
     if(d&&d.delayed) v.appendChild(el("div","delay","⚠️ "+tl({en:"Showing last known data due to update delay.",ko:"최신 데이터 수신이 지연되어 마지막 정상 데이터를 표시 중입니다.",ja:"更新遅延のため直近のデータを表示中。",zh:"更新延迟，显示最近数据。",es:"Mostrando últimos datos por retraso.",hi:"अपडेट देरी के कारण पिछला डेटा।",vi:"Hiển thị dữ liệu gần nhất do trễ cập nhật.",th:"แสดงข้อมูลล่าสุดเนื่องจากอัปเดตช้า",ru:"Показаны последние данные из-за задержки.",de:"Zeige letzte Daten wegen Verzögerung.",fr:"Dernières données affichées (délai).",it:"Mostro ultimi dati per ritardo."})));
 
-    if(!d){ v.appendChild(el("div","msg",'<div class="big">⏳</div>불러오는 중…')); return; }
-    if(d.error){ v.appendChild(el("div","msg",'<div class="big">⚠️</div>데이터를 불러오지 못했습니다.<br>잠시 후 다시 시도해 주세요.')); return; }
+    if(!d){ v.appendChild(el("div","msg",'<div class="big">⏳</div>'+t("loading"))); return; }
+    if(d.error){ v.appendChild(el("div","msg",'<div class="big">⚠️</div>'+t("m_loadfail"))); return; }
 
     // 필터 적용
     var list=games||[];
@@ -437,7 +438,7 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
     if(eff==="fav") list=list.filter(function(g){return S.favs.has(gid(g))});
 
     if(!list.length){
-      var emptyMsg = eff==="live"?"진행 중인 경기가 없습니다.":(eff==="fav"?"관심 등록한 경기가 없습니다.":"오늘 예정된 경기가 없습니다.");
+      var emptyMsg = eff==="live"?t("m_noLive"):(eff==="fav"?t("m_noFavG"):t("m_noSched"));
       v.appendChild(el("div","msg",'<div class="big">📭</div>'+emptyMsg));
       return;
     }
@@ -511,7 +512,7 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
   // ====== 리그 블록 ======
   function groupByLeague(list){
     var m={},order=[];
-    list.forEach(function(g){ var k=(g.country?g.country+" · ":"")+(g.league||"기타"); if(!m[k]){m[k]={name:k,logo:g.leagueLogo,games:[]};order.push(k);} m[k].games.push(g); });
+    list.forEach(function(g){ var k=(g.country?g.country+" · ":"")+(g.league||tl({en:"Other",ko:"기타",ja:"その他",zh:"其他",es:"Otros",hi:"अन्य",vi:"Khác",th:"อื่นๆ",ru:"Другое",de:"Sonstige",fr:"Autres",it:"Altro"})); if(!m[k]){m[k]={name:k,logo:g.leagueLogo,games:[]};order.push(k);} m[k].games.push(g); });
     return order.map(function(k){return m[k]});
   }
   function leagueBlock(grp){
@@ -620,7 +621,7 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
       '<div class="dt-head"><div class="dt-lg">'+leagueIcon(g)+esc((g.country?g.country+" · ":"")+(g.league||""))+'</div>'+
         '<div class="dt-sc">'+
           '<div class="tcol">'+(g.homeLogo?'<img src="'+esc(g.homeLogo)+'" onerror="this.outerHTML=\'<div class=ph>🛡️</div>\'">':'<div class="ph">🛡️</div>')+'<div class="nm">'+esc(g.home||"")+'</div></div>'+
-          '<div class="mid">'+(stateOf(g)==="scheduled"?('<div class="big t">'+hhmm(g.date)+'</div><div class="stt">시작 예정</div>'):('<div class="big">'+fmtScore(g)+'</div><div class="stt'+(live?" live":"")+'">'+esc(statusText(g))+'</div>'))+'</div>'+
+          '<div class="mid">'+(stateOf(g)==="scheduled"?('<div class="big t">'+hhmm(g.date)+'</div><div class="stt">'+t("startSoon")+'</div>'):('<div class="big">'+fmtScore(g)+'</div><div class="stt'+(live?" live":"")+'">'+esc(statusText(g))+'</div>'))+'</div>'+
           '<div class="tcol">'+(g.awayLogo?'<img src="'+esc(g.awayLogo)+'" onerror="this.outerHTML=\'<div class=ph>🛡️</div>\'">':'<div class="ph">🛡️</div>')+'<div class="nm">'+esc(g.away||"")+'</div></div>'+
         '</div></div>';
     var tabs='<div class="dt-tabs">'+detailTabs(sport).map(function(t){return '<button class="dt-tab'+(_dt.tab===t[0]?" on":"")+'" data-dt="'+t[0]+'">'+t[1]+'</button>'}).join("")+'</div>';
@@ -631,7 +632,7 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
     renderDetailBody();
   }
   function dtBody(h){ var b=$("#dtBody"); if(b)b.innerHTML=h; }
-  function dtLoading(){ dtBody('<div class="msg"><div class="big">⏳</div>불러오는 중…</div>'); }
+  function dtLoading(){ dtBody('<div class="msg"><div class="big">⏳</div>'+t("loading")+'</div>'); }
   function renderDetailBody(){
     _dtTok++;   // 새 탭/경기 렌더마다 토큰 증가 → 이전 요청 응답 무시
     var g=_dt.g, sport=_dt.sport, tab=_dt.tab;
@@ -643,7 +644,7 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
       if(tab==="stats") return loadFootballStats(g);
     }
     if(sport==="baseball"&&tab==="box"){ return renderBaseballBox(g); }
-    dtBody('<div class="msg">준비 중인 항목입니다.</div>');
+    dtBody('<div class="msg">'+t("m_prep")+'</div>');
   }
   function renderOverview(g,sport){
     var h='';
@@ -664,7 +665,7 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
     var gr=$("#goRank"); if(gr)gr.onclick=function(){ openStandings(sport,g.league,g); };
     loadForm(g,sport);
   }
-  function wdl(win,draw){ return win?'<span style="color:#1a8a44;font-weight:900">승</span>':(draw?'<span style="color:#b07500;font-weight:900">무</span>':'<span style="color:#b3261e;font-weight:900">패</span>'); }
+  function wdl(win,draw){ return win?'<span style="color:#1a8a44;font-weight:900">'+t("win")+'</span>':(draw?'<span style="color:#b07500;font-weight:900">'+t("draw")+'</span>':'<span style="color:#b3261e;font-weight:900">'+t("lose")+'</span>'); }
   function recentRows(list,noDraw){
     return list.slice(0,5).map(function(r){
       return '<div style="display:flex;gap:8px;align-items:center;padding:7px 2px;border-bottom:1px solid var(--line);font-size:13px">'+
@@ -689,13 +690,13 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
           h+='<div class="dt-sec-t" style="margin-top:16px">🤝 '+t("h2hTitle")+' <span style="font-weight:600;color:#8a93a3;font-size:12px">('+esc(g.home)+' '+hw+t("win")+' '+dr+t("draw")+' '+aw+t("lose")+')</span></div>';
           h+=h2h.slice(0,5).map(function(m){ return '<div style="display:flex;gap:8px;align-items:center;padding:7px 2px;border-bottom:1px solid var(--line);font-size:13px"><span style="flex:1;text-align:right;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(m.hName)+'</span><span style="font-weight:900;color:var(--navy)">'+esc(String(m.hs))+" : "+esc(String(m.as))+'</span><span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(m.aName)+'</span><span style="color:#8a93a3;font-size:11px;width:56px;text-align:right;flex:0 0 auto">'+esc(String(m.date||"").slice(0,10))+'</span></div>'; }).join("");
         }
-        if(!h) h='<p style="color:#8a93a3;font-size:13px;margin-top:16px">확인 가능한 최근 전적 기록이 없습니다.</p>';
+        if(!h) h='<p style="color:#8a93a3;font-size:13px;margin-top:16px">'+t("noRecentRec")+'</p>';
         box.innerHTML=h;
       }).catch(function(){ box.innerHTML=''; });
     } else {
       // 비축구: 양 팀 최근 경기(TheSportsDB 팀명 검색) — 되는 경우만 표시
       var out={h:null,a:null};
-      function draw(){ if(out.h===null||out.a===null)return; if(tk!==_dtTok||!$("#ovForm"))return; var h=''; if(out.h&&out.h.length){ h+='<div class="dt-sec-t" style="margin-top:20px">📈 '+esc(g.home)+' 최근 경기</div>'+teamRecentRows(out.h); } if(out.a&&out.a.length){ h+='<div class="dt-sec-t" style="margin-top:16px">📈 '+esc(g.away)+' 최근 경기</div>'+teamRecentRows(out.a); } box.innerHTML=h; }
+      function draw(){ if(out.h===null||out.a===null)return; if(tk!==_dtTok||!$("#ovForm"))return; var h=''; if(out.h&&out.h.length){ h+='<div class="dt-sec-t" style="margin-top:20px">📈 '+esc(g.home)+' · '+t("recentMatches")+'</div>'+teamRecentRows(out.h); } if(out.a&&out.a.length){ h+='<div class="dt-sec-t" style="margin-top:16px">📈 '+esc(g.away)+' · '+t("recentMatches")+'</div>'+teamRecentRows(out.a); } box.innerHTML=h; }
       fetch("/api/team/recent?name="+encodeURIComponent(g.home)).then(function(r){return r.json()}).then(function(j){ out.h=(j&&j.events)||[]; draw(); }).catch(function(){ out.h=[]; draw(); });
       fetch("/api/team/recent?name="+encodeURIComponent(g.away)).then(function(r){return r.json()}).then(function(j){ out.a=(j&&j.events)||[]; draw(); }).catch(function(){ out.a=[]; draw(); });
     }
@@ -710,17 +711,17 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
       var teams=(j&&j.teams)||[];
       if(!teams.length||!(teams[0].startXI&&teams[0].startXI.length)){
         // 예정 경기 = 아직 미발표 / 진행·종료 경기 = 이 경기는 라인업 미제공 (조회실패와 구분)
-        var msg = stateOf(g)==="scheduled" ? "라인업이 아직 발표되지 않았습니다." : "이 경기의 라인업 정보가 제공되지 않습니다.";
+        var msg = stateOf(g)==="scheduled" ? t("notAnnounced") : t("notProvided");
         dtBody('<div class="msg"><div class="big">📋</div>'+msg+'</div>'); return;
       }
       var h="";
-      teams.forEach(function(t){
-        h+='<div class="dt-sec-t">'+esc(t.team)+(t.formation?' · '+esc(t.formation):'')+(t.coach?' · 감독 '+esc(t.coach):'')+'</div>';
-        h+=pitchHtml(t.startXI);
-        if(t.subs&&t.subs.length){ h+='<div style="font-size:12px;font-weight:800;color:#8a93a3;margin:6px 0 4px">교체 선수</div><div class="subs">'+t.subs.map(function(p){return '<span class="subchip">'+(p.number!==""?p.number+" ":"")+esc(p.name)+'</span>'}).join("")+'</div>'; }
+      teams.forEach(function(tm){
+        h+='<div class="dt-sec-t">'+esc(tm.team)+(tm.formation?' · '+esc(tm.formation):'')+(tm.coach?' · '+t("coach")+' '+esc(tm.coach):'')+'</div>';
+        h+=pitchHtml(tm.startXI);
+        if(tm.subs&&tm.subs.length){ h+='<div style="font-size:12px;font-weight:800;color:#8a93a3;margin:6px 0 4px">'+t("subsPlayers")+'</div><div class="subs">'+tm.subs.map(function(p){return '<span class="subchip">'+(p.number!==""?p.number+" ":"")+esc(p.name)+'</span>'}).join("")+'</div>'; }
       });
       dtBody(h);
-    }).catch(function(){ dtBody('<div class="msg"><div class="big">⚠️</div>라인업을 불러오지 못했습니다.</div>'); });
+    }).catch(function(){ dtBody('<div class="msg"><div class="big">⚠️</div>'+t("m_luFail")+'</div>'); });
   }
   function pitchHtml(xi){
     // grid "row:col" 있으면 행별 배치, 없으면 4줄 균등
@@ -741,23 +742,23 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
       if(!dtFresh(tk))return;
       if(j&&j.error) throw 0;
       var ev=(j&&j.events)||[];
-      if(!ev.length){ var m=stateOf(g)==="scheduled"?"경기 시작 후 이벤트가 표시됩니다.":"제공된 이벤트가 없습니다."; dtBody('<div class="msg"><div class="big">⚽</div>'+m+'</div>'); return; }
+      if(!ev.length){ var m=stateOf(g)==="scheduled"?t("eventsAfterStart"):t("noEventsLive"); dtBody('<div class="msg"><div class="big">⚽</div>'+m+'</div>'); return; }
       var ic={Goal:"⚽",Card:"🟨",subst:"🔄",Var:"📺"};
       var h=ev.map(function(e){
         var isHome=e.team===g.home; var emo=e.type==="Goal"?"⚽":(e.type==="Card"?(/red/i.test(e.detail)?"🟥":"🟨"):(e.type==="subst"?"🔄":"•"));
         return '<div class="evt'+(isHome?"":" away")+'"><span class="min">'+(e.minute!=null?e.minute+"'":"")+'</span><span class="ic">'+emo+'</span><span style="flex:1"><span class="who">'+esc(e.player||"")+'</span>'+(e.assist?' <span class="ass">('+esc(e.assist)+')</span>':'')+'</span></div>';
       }).join("");
       dtBody(h);
-    }).catch(function(){ dtBody('<div class="msg"><div class="big">⚠️</div>이벤트를 불러오지 못했습니다.</div>'); });
+    }).catch(function(){ dtBody('<div class="msg"><div class="big">⚠️</div>'+t("m_evFail")+'</div>'); });
   }
   // 축구 기록(스탯)
   function loadFootballStats(g){
     dtLoading(); var tk=_dtTok;
     fetch("/api/asports/fbstats?fixture="+encodeURIComponent(g.id)).then(function(r){return r.json()}).then(function(j){
       if(!dtFresh(tk))return;
-      var t=(j&&j.teams)||[];
-      if(t.length<2){ dtBody('<div class="msg"><div class="big">📊</div>기록이 아직 없습니다.</div>'); return; }
-      var hm=t[0].stats||[], aw=t[1].stats||[];
+      var tms=(j&&j.teams)||[];
+      if(tms.length<2){ dtBody('<div class="msg"><div class="big">📊</div>'+t("noStatsShow")+'</div>'); return; }
+      var hm=tms[0].stats||[], aw=tms[1].stats||[];
       var h='<div style="display:flex;justify-content:space-between;font-weight:800;margin-bottom:6px"><span>'+esc(g.home)+'</span><span>'+esc(g.away)+'</span></div>';
       var shown=0;
       hm.forEach(function(s,i){
@@ -769,15 +770,14 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
         var hn=parseFloat(String(hv).replace("%",""))||0, an=parseFloat(String(av).replace("%",""))||0, tot=hn+an||1;
         h+='<div class="stbar"><div class="lab"><span>'+esc(hv==null?"-":String(hv))+'</span><span style="color:#8a93a3">'+esc(statLabel(s.type))+'</span><span>'+esc(av==null?"-":String(av))+'</span></div><div class="tr"><div class="h" style="width:'+(hn/tot*100)+'%"></div><div class="a" style="width:'+(an/tot*100)+'%"></div></div></div>';
       });
-      if(!shown){ dtBody('<div class="msg"><div class="big">📊</div>표시할 기록이 없습니다.</div>'); return; }
+      if(!shown){ dtBody('<div class="msg"><div class="big">📊</div>'+t("noStatsShow")+'</div>'); return; }
       dtBody(h);
-    }).catch(function(){ dtBody('<div class="msg"><div class="big">⚠️</div>기록을 불러오지 못했습니다.<br>잠시 후 다시 시도해 주세요.</div>'); });
+    }).catch(function(){ dtBody('<div class="msg"><div class="big">⚠️</div>'+t("loadFailRetry")+'</div>'); });
   }
-  function statLabel(t){
-    var m={"Ball Possession":"점유율","Total Shots":"전체 슈팅","Shots on Goal":"유효 슈팅","Shots off Goal":"빗나간 슈팅","Blocked Shots":"막힌 슈팅","Shots insidebox":"박스 안 슈팅","Shots outsidebox":"박스 밖 슈팅","Corner Kicks":"코너킥","Offsides":"오프사이드","Fouls":"파울","Yellow Cards":"경고","Red Cards":"퇴장","Goalkeeper Saves":"선방","Total passes":"전체 패스","Passes accurate":"정확한 패스","Passes %":"패스 성공률","expected_goals":"기대 득점(xG)","expected_goals_against":"기대 실점","goals_prevented":"실점 억제","Ball possession":"점유율"};
-    if(m[t]) return m[t];
-    // 알 수 없는 원본 필드명(expected_xxx 등)은 사람이 읽을 수 있게 정리(원본 코드 노출 방지)
-    return String(t||"").replace(/_/g," ").replace(/\b\w/g,function(c){return c.toUpperCase()});
+  function statLabel(x){
+    var a=STAT[x]||STAT[String(x).replace("Ball possession","Ball Possession")];
+    if(a) return a[LANGS.indexOf(LANG)]||a[0];
+    return String(x||"").replace(/_/g," ").replace(/\b\w/g,function(c){return c.toUpperCase()});
   }
   // 야구 박스(라인스코어 + 타순 + 투수)
   function renderBaseballBox(g){
@@ -790,20 +790,20 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
     // 타순·투수 (KBO/NPB/CPBL = TheSports) — MLB(StatsAPI)는 g.id가 달라 라인스코어만
     fetch("/api/baseball/box?id="+encodeURIComponent(g.id)+"&live=1").then(function(r){return r.json()}).then(function(j){
       if(!dtFresh(tk))return;
-      if(!j||!j.available||!j.players){ var p=el("p",null,'<p style="color:#8a93a3;font-size:13px;margin-top:14px">타순·투수 상세는 이 경기 공급사에서 제공되지 않거나 아직 발표되지 않았습니다.</p>'); if($("#dtBody"))$("#dtBody").appendChild(p); return; }
+      if(!j||!j.available||!j.players){ var p=el("p",null,'<p style="color:#8a93a3;font-size:13px;margin-top:14px">'+t("m_batSoon")+'</p>'); if($("#dtBody"))$("#dtBody").appendChild(p); return; }
       var b=$("#dtBody"); if(!b)return;
       [["away",g.away],["home",g.home]].forEach(function(side){
         var arr=j.players[side[0]]||[]; if(!arr.length)return;
         var batters=arr.filter(function(p){return !p.pitcher}), pitchers=arr.filter(function(p){return p.pitcher});
-        var sec=el("div"); sec.innerHTML='<div class="dt-sec-t">'+esc(side[1])+' 타순</div>';
+        var sec=el("div"); sec.innerHTML='<div class="dt-sec-t">'+esc(side[1])+' · '+t("batOrderT")+'</div>';
         if(batters.length){
-          var t='<table class="rank"><thead><tr><th style="text-align:left">타자</th><th>타수</th><th>안타</th><th>타점</th><th>타율</th></tr></thead><tbody>';
-          batters.forEach(function(p){ t+='<tr><td class="tm">'+esc(p.name_ko||p.name||"-")+(p.position?' <span style="color:#8a93a3;font-size:11px">'+esc(p.position)+'</span>':'')+'</td><td>'+(p.ab!=null?p.ab:"-")+'</td><td>'+(p.h!=null?p.h:"-")+'</td><td>'+(p.rbi!=null?p.rbi:"-")+'</td><td>'+(p.avg!=null?p.avg:"-")+'</td></tr>'; });
-          t+='</tbody></table>'; sec.innerHTML+=t;
+          var tbl='<table class="rank"><thead><tr><th style="text-align:left">'+STR.th_batter[LANGS.indexOf(LANG)]+'</th><th>'+STR.th_ab[LANGS.indexOf(LANG)]+'</th><th>'+STR.th_h[LANGS.indexOf(LANG)]+'</th><th>'+STR.th_rbi[LANGS.indexOf(LANG)]+'</th><th>'+STR.th_avg[LANGS.indexOf(LANG)]+'</th></tr></thead><tbody>';
+          batters.forEach(function(p){ tbl+='<tr><td class="tm">'+esc(p.name_ko||p.name||"-")+(p.position?' <span style="color:#8a93a3;font-size:11px">'+esc(p.position)+'</span>':'')+'</td><td>'+(p.ab!=null?p.ab:"-")+'</td><td>'+(p.h!=null?p.h:"-")+'</td><td>'+(p.rbi!=null?p.rbi:"-")+'</td><td>'+(p.avg!=null?p.avg:"-")+'</td></tr>'; });
+          tbl+='</tbody></table>'; sec.innerHTML+=tbl;
         }
         if(pitchers.length){
-          sec.innerHTML+='<div class="dt-sec-t">'+esc(side[1])+' 투수</div>';
-          var pt='<table class="rank"><thead><tr><th style="text-align:left">투수</th><th>이닝</th><th>탈삼진</th><th>자책</th><th>ERA</th></tr></thead><tbody>';
+          sec.innerHTML+='<div class="dt-sec-t">'+esc(side[1])+' · '+t("pitchers")+'</div>';
+          var pt='<table class="rank"><thead><tr><th style="text-align:left">'+STR.th_pitcher[LANGS.indexOf(LANG)]+'</th><th>'+STR.th_ip[LANGS.indexOf(LANG)]+'</th><th>'+STR.th_k[LANGS.indexOf(LANG)]+'</th><th>'+STR.th_er[LANGS.indexOf(LANG)]+'</th><th>ERA</th></tr></thead><tbody>';
           pitchers.forEach(function(p){ pt+='<tr><td class="tm">'+esc(p.name_ko||p.name||"-")+'</td><td>'+(p.ip!=null?p.ip:"-")+'</td><td>'+(p.pk!=null?p.pk:(p.k!=null?p.k:"-"))+'</td><td>'+(p.er!=null?p.er:"-")+'</td><td>'+(p.era!=null?p.era:"-")+'</td></tr>'; });
           pt+='</tbody></table>'; sec.innerHTML+=pt;
         }
@@ -813,18 +813,18 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
   }
   // 채팅 (WebSocket /ws, 경기방 event:<id>)
   function renderChat(g){
-    dtBody('<div class="chatbox"><div class="chatlog" id="clog"></div><div class="chatin"><input id="cin" placeholder="메시지 입력 (로그인 권장)" maxlength="300"><button id="csend">전송</button></div></div>');
+    dtBody('<div class="chatbox"><div class="chatlog" id="clog"></div><div class="chatin"><input id="cin" placeholder="'+esc(t("m_chatPh"))+'" maxlength="300"><button id="csend">전송</button></div></div>');
     var log=$("#clog");
-    function add(m){ var d=el("div","cmsg"+(m.type==="sys"||m.type==="bot"?" sys":"")); if(m.type==="sys"||m.type==="bot")d.textContent=m.text; else d.innerHTML='<span class="cn">'+esc(m.name||"익명")+'</span>'+esc(m.text||""); log.appendChild(d); log.scrollTop=log.scrollHeight; }
+    function add(m){ var d=el("div","cmsg"+(m.type==="sys"||m.type==="bot"?" sys":"")); if(m.type==="sys"||m.type==="bot")d.textContent=m.text; else d.innerHTML='<span class="cn">'+esc(m.name||t("m_anon"))+'</span>'+esc(m.text||""); log.appendChild(d); log.scrollTop=log.scrollHeight; }
     try{
       var proto=location.protocol==="https:"?"wss:":"ws:";
       var ws=new WebSocket(proto+"//"+location.host+"/ws"); _dt.ws=ws;
       ws.onopen=function(){ ws.send(JSON.stringify({type:"join",room:"event:"+g.id})); };
       ws.onmessage=function(e){ var m; try{m=JSON.parse(e.data)}catch(_){return} if(m.type==="joined"&&m.history){ (m.history||[]).forEach(add); } else if(m.type==="chat"||m.type==="bot"||m.type==="sys"){ add(m); } };
-      ws.onclose=function(){ add({type:"sys",text:"연결이 종료되었습니다."}); };
+      ws.onclose=function(){ add({type:"sys",text:t("m_chatClosed")}); };
       $("#csend").onclick=function(){ var v=$("#cin").value.trim(); if(!v)return; ws.send(JSON.stringify({type:"chat",text:v})); $("#cin").value=""; };
       $("#cin").addEventListener("keydown",function(e){ if(e.key==="Enter")$("#csend").click(); });
-    }catch(e){ dtBody('<div class="msg">채팅을 사용할 수 없습니다.</div>'); }
+    }catch(e){ dtBody('<div class="msg">'+t("m_chatNA")+'</div>'); }
   }
 
   // ====== 전체 메뉴 ======
@@ -937,32 +937,32 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
   function openTeam(name){
     if(!name)return;
     var o=overlay("ovTeam");
-    o.innerHTML='<div class="dt-bar"><button class="bk" id="tmBack">‹</button><div class="ti">'+esc(name)+'</div></div><div class="dt-body" id="tmBody"><div class="msg"><div class="big">⏳</div>불러오는 중…</div></div>';
+    o.innerHTML='<div class="dt-bar"><button class="bk" id="tmBack">‹</button><div class="ti">'+esc(name)+'</div></div><div class="dt-body" id="tmBody"><div class="msg"><div class="big">⏳</div>'+t("loading")+'</div></div>';
     $("#tmBack").onclick=function(){ closeOverlay("ovTeam"); };
     fetch("/api/team/recent?name="+encodeURIComponent(name)).then(function(r){return r.json()}).then(function(j){
       var ev=(j&&j.events)||[]; var tm=j&&j.team;
       var h='';
       if(tm&&tm.badge) h+='<div style="text-align:center;margin:6px 0 14px"><img src="'+esc(tm.badge)+'" style="width:64px;height:64px;object-fit:contain" onerror="this.remove()"><div style="font-weight:800;margin-top:6px">'+esc(tm.name||name)+'</div></div>';
-      h+='<div class="dt-sec-t">최근 경기</div>';
-      if(!ev.length){ h+='<div class="msg"><div class="big">📅</div>최근 경기 데이터가 없습니다.</div>'; }
+      h+='<div class="dt-sec-t">'+t("recentMatches")+'</div>';
+      if(!ev.length){ h+='<div class="msg"><div class="big">📅</div>'+t("m_teamNoRec")+'</div>'; }
       else { h+=ev.map(function(e){ return '<div class="gm" style="grid-template-columns:1fr auto 1fr"><div class="side"><span class="tn">'+esc(e.home)+'</span></div><div class="mid"><div class="sc">'+(e.hs==null?"-":e.hs)+" : "+(e.as==null?"-":e.as)+'</div><div class="subt">'+esc(String(e.date||"").slice(0,10))+'</div></div><div class="side away"><span class="tn">'+esc(e.away)+'</span></div></div>'; }).join(""); }
       $("#tmBody").innerHTML=h;
-    }).catch(function(){ $("#tmBody").innerHTML='<div class="msg"><div class="big">⚠️</div>팀 정보를 불러오지 못했습니다.</div>'; });
+    }).catch(function(){ $("#tmBody").innerHTML='<div class="msg"><div class="big">⚠️</div>'+t("m_teamFail")+'</div>'; });
   }
   // ====== 뉴스 화면 ======
   function openNews(){
     var o=overlay("ovNews");
-    o.innerHTML='<div class="dt-bar"><button class="bk" id="nwBack">‹</button><div class="ti">스포츠 뉴스</div></div><div class="dt-body" id="nwBody"><div class="msg"><div class="big">⏳</div>불러오는 중…</div></div>';
+    o.innerHTML='<div class="dt-bar"><button class="bk" id="nwBack">‹</button><div class="ti">'+t("news")+'</div></div><div class="dt-body" id="nwBody"><div class="msg"><div class="big">⏳</div>'+t("loading")+'</div></div>';
     $("#nwBack").onclick=function(){ closeOverlay("ovNews"); };
     fetch("/api/news").then(function(r){return r.json()}).then(function(j){
       var items=(j&&(j.items||j.news||j.articles))||(Array.isArray(j)?j:[]);
-      if(!items.length){ $("#nwBody").innerHTML='<div class="msg"><div class="big">📰</div>뉴스가 없습니다.</div>'; return; }
+      if(!items.length){ $("#nwBody").innerHTML='<div class="msg"><div class="big">📰</div>'+t("m_noNews")+'</div>'; return; }
       $("#nwBody").innerHTML=items.slice(0,40).map(function(n){
         var t=n.title||n.headline||""; var src=n.source||n.author||""; var when=n.pubDate||n.published||n.date||"";
         var link=n.link||n.url||"#";
         return '<a class="news-item" href="'+esc(link)+'" target="_blank" rel="noopener"><div class="nt">'+esc(t)+'</div><div class="nm2">'+esc(src)+(when?' · '+esc(String(when).slice(0,16)):'')+'</div></a>';
       }).join("");
-    }).catch(function(){ $("#nwBody").innerHTML='<div class="msg"><div class="big">⚠️</div>뉴스를 불러오지 못했습니다.</div>'; });
+    }).catch(function(){ $("#nwBody").innerHTML='<div class="msg"><div class="big">⚠️</div>'+t("m_newsFail")+'</div>'; });
   }
   // ====== 로그인 (구글 · 기존 /api/auth/google) ======
   function tl(map){ return map[LANG]||map.en; }
@@ -1098,7 +1098,7 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
     $("#dPrev").onclick=function(){ S.date=addDays(S.date,-1); load(); };
     $("#dNext").onclick=function(){ S.date=addDays(S.date,1); load(); };
     $("#dToday").onclick=function(){ S.date=todayStr(); load(); };
-    $("#dCalL").onclick=function(){ var v=prompt("날짜 선택 (YYYY-MM-DD)",S.date); if(v&&/^\d{4}-\d{2}-\d{2}$/.test(v)){S.date=v;load();} };
+    $("#dCalL").onclick=function(){ var v=prompt(tl({en:"Select date (YYYY-MM-DD)",ko:"날짜 선택 (YYYY-MM-DD)",ja:"日付選択 (YYYY-MM-DD)",zh:"选择日期 (YYYY-MM-DD)",es:"Elegir fecha (YYYY-MM-DD)",hi:"तारीख चुनें (YYYY-MM-DD)",vi:"Chọn ngày (YYYY-MM-DD)",th:"เลือกวันที่ (YYYY-MM-DD)",ru:"Выберите дату (YYYY-MM-DD)",de:"Datum wählen (YYYY-MM-DD)",fr:"Choisir la date (YYYY-MM-DD)",it:"Scegli data (YYYY-MM-DD)"}),S.date); if(v&&/^\d{4}-\d{2}-\d{2}$/.test(v)){S.date=v;load();} };
     $("#btnSearch").onclick=openSearch;
     $("#btnBell").onclick=function(){ menuGo("alarm"); };
     document.querySelectorAll(".bn").forEach(function(b){
