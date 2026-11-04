@@ -762,6 +762,17 @@ async function rankVolleyball(league, season) {
   }
   return { table: [], kind: 'volleyball' };
 }
+async function rankHockey(league, season) {
+  let lid = /^\d+$/.test(league) ? league : await asLeagueId('hockey', league);
+  if (!lid) return { table: [], note: 'unmapped' };
+  const m = String(season || '').match(/\d{4}/); const y = m ? +m[0] : new Date().getFullYear();
+  for (const sy of [String(y), String(y - 1)]) {
+    const j = await asRaw('hockey', `/standings?league=${lid}&season=${encodeURIComponent(sy)}`, 3600000).catch(() => null);
+    const table = parseHoopStandings(j);
+    if (table.length) return { table, kind: 'hockey', season: sy };
+  }
+  return { table: [], kind: 'hockey' };
+}
 app.get('/api/rank', async (req, res) => {
   const sport = req.query.sport || 'football', league = req.query.league || '', season = req.query.season || '';
   try {
@@ -773,6 +784,7 @@ app.get('/api/rank', async (req, res) => {
     }
     else if (sport === 'basketball') out = await rankBasketball(league, season);
     else if (sport === 'volleyball') out = await rankVolleyball(league, season);
+    else if (sport === 'hockey') out = await rankHockey(league, season);
     res.json(out);
   } catch (e) { res.status(502).json({ table: [], error: String(e.message || e) }); }
 });
@@ -927,7 +939,7 @@ function normAS(sport, g) {
     if (sport === 'football') {
       const f = g.fixture, l = g.league, t = g.teams, go = g.goals;
       return {
-        id: f.id, league: l.name, leagueLogo: l.logo, country: l.country, round: l.round,
+        id: f.id, league: l.name, leagueId: l.id, leagueLogo: l.logo, country: l.country, round: l.round,
         home: t.home.name, homeLogo: t.home.logo, away: t.away.name, awayLogo: t.away.logo,
         homeId: t.home.id, awayId: t.away.id,
         hs: go.home, as: go.away, status: f.status.short, statusLong: f.status.long, elapsed: f.status.elapsed,
@@ -974,7 +986,7 @@ function normAS(sport, g) {
       };
     }
     return {
-      id: g.id, league: l ? l.name : '', leagueLogo: l ? l.logo : '', country: l ? (l.country ? (l.country.name || l.country) : '') : '',
+      id: g.id, league: l ? l.name : '', leagueId: l ? l.id : null, leagueLogo: l ? l.logo : '', country: l ? (l.country ? (l.country.name || l.country) : '') : '',
       home: t.home.name, homeLogo: t.home.logo, away: t.away.name, awayLogo: t.away.logo,
       hs, as, status: short || long, statusLong: long,
       period: g.period || g.inning || curInning || null, timer: g.timer || (g.status && g.status.timer) || null,
