@@ -1259,6 +1259,34 @@ app.get('/api/ts/volley', async (req, res) => {
     });
   } catch (e) { res.json({ on: true, error: String((e && e.message) || e) }); }
 });
+// 🏀 진단: TheSports 농구 활성화/커버리지 + 초단위 timer + 라인업 확인
+app.get('/api/ts/bsktest', async (req, res) => {
+  if (!TS_ON) return res.json({ on: false, msg: 'TheSports 키 미설정' });
+  const ymd = String(req.query.date || new Date().toISOString().slice(0, 10)).replace(/-/g, '');
+  var out = { on: true, date: ymd };
+  try {
+    const d = await tsFetch('/basketball/match/diary', { date: ymd }, 5000).catch(e => ({ err: String((e && e.message) || e) }));
+    out.diaryErr = (d && d.err) || null;
+    out.diaryCount = ((d && d.results) || []).length;
+    const ex = (d && d.results_extra) || {};
+    out.comps = ((ex.competition) || []).slice(0, 30).map(c => c.name);
+    out.diarySample = ((d && d.results) || []).slice(0, 2);
+  } catch (e) { out.diaryErr = String((e && e.message) || e); }
+  try {
+    const lv = await tsFetch('/basketball/match/detail_live', {}, 4000);
+    const list = (lv && lv.results) || [];
+    out.liveCount = list.length;
+    out.liveSample = list.slice(0, 3);   // score/timer/stats 실제 구조 확인용
+    // timer 있는(진행중) 경기 하나로 라인업도 호출
+    const firstId = (list[0] && (list[0].id || (list[0].score && list[0].score[0]))) || null;
+    out.firstId = firstId;
+    if (firstId) {
+      try { const lu = await tsFetch('/basketball/match/lineup_live', { uuid: firstId }, 4000); out.lineupSample = (lu && lu.results) || lu; }
+      catch (e) { out.lineupErr = String((e && e.message) || e); }
+    }
+  } catch (e) { out.liveErr = String((e && e.message) || e); }
+  res.json(out);
+});
 // 🏟️ 진단: TheSports 야구가 아시안게임을 갖고 있는지 + 점수가 올바른지 확인
 app.get('/api/ts/baseball', async (req, res) => {
   if (!TS_ON) return res.json({ on: false });
