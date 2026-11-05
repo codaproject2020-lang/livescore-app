@@ -2247,8 +2247,31 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
 
   // 최근 수신 라벨 주기 갱신
   setInterval(function(){ if((S.screen==="home"||S.screen==="live"||S.screen==="fav")&&!S.demo[key()]){ var r=document.querySelector(".recvt"); if(r)r.textContent=recvText(); } },10000);
-  // 실데이터 주기 갱신
-  setInterval(function(){ if(document.visibilityState==="visible"&&(S.screen==="home"||S.screen==="live"||S.screen==="fav")){ var k=key(); fetchGames(S.sport,S.date).then(function(res){ if(res&&!res.error){ S.data[k]=res; S.recvAt[k]=Date.now(); S.demo[k]=!!res._demo; if(S.screen!=="menu")renderHome(); loadLiveStats(); } }).catch(function(){}); } },15000);
+  // 변경 감지용 경량 시그니처(경기수+id+점수+상태). 바뀐 게 없으면 재렌더 생략 → 화면 튐·스크롤 리셋 방지
+  function gamesSig(list){ if(!list)return ""; var s=list.length+"|"; for(var i=0;i<list.length;i++){ var g=list[i]; s+=g.id+":"+(g.hs==null?"-":g.hs)+","+(g.as==null?"-":g.as)+","+(g.state||"")+","+(g.period||"")+";"; } return s; }
+  // 폴링 동기화: 데이터가 실제로 바뀐 경우에만, 스크롤 위치를 보존하며 홈 재렌더
+  function pollSync(){
+    if(!(S.screen==="home"||S.screen==="live"||S.screen==="fav"))return;
+    if($("#detail"))return;   // 상세 보는 중엔 홈 재렌더 안 함(상세는 별도 오버레이, 방해 금지)
+    var k=key();
+    fetchGames(S.sport,S.date).then(function(res){
+      if(!res||res.error)return;
+      var prevSig=S._sig&&S._sig[k];
+      S.data[k]=res; S.recvAt[k]=Date.now(); S.demo[k]=!!res._demo;
+      if(!S._sig)S._sig={}; var newSig=gamesSig(res.games); S._sig[k]=newSig;
+      // 라벨만 갱신(항상)
+      var rv=document.querySelector(".recvt"); if(rv&&!S.demo[k])rv.textContent=recvText();
+      if(newSig===prevSig){ loadLiveStats(); return; }   // 변경 없음 → 재렌더 생략(스크롤·선택 유지)
+      var sy=window.scrollY||document.documentElement.scrollTop||0;   // 스크롤 보존
+      renderHome();
+      window.scrollTo(0,sy);   // 재렌더 후 보던 위치 복원 → 갑자기 위로 튀지 않음
+      loadLiveStats();
+    }).catch(function(){});
+  }
+  // 실데이터 주기 갱신 (탭이 보일 때만 — 백그라운드에선 폴링 중단)
+  setInterval(function(){ if(document.visibilityState==="visible")pollSync(); },15000);
+  // 복귀(백그라운드→전면) 시 즉시 1회 동기화
+  document.addEventListener("visibilitychange",function(){ if(document.visibilityState==="visible")pollSync(); });
 
   // 경기 공유 딥링크 ?ev=<sport>:<id> — 종목 먼저 설정 후 로드, 경기 로드되면 상세 자동 오픈
   var _evDeep=(function(){ try{ var m=(location.search.match(/[?&]ev=([^&]+)/)||[])[1]; if(!m)return null; m=decodeURIComponent(m); var p=m.split(":"); var sp=p[0], id=p.slice(1).join(":"); if(!sp||!id)return null; var SPK={football:1,baseball:1,basketball:1,volleyball:1,hockey:1,esports:1}; if(!SPK[sp])return null; S.sport=sp; S.date=todayStr(); return {sp:sp,id:id}; }catch(e){ return null; } })();

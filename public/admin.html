@@ -182,6 +182,18 @@
     </div>
   </div>
 
+  <!-- 📏 성능 지표 (실측) -->
+  <div class="panel">
+    <div class="hd"><span>📏 성능 지표 <span class="muted" style="font-weight:600">(실측 · 30초 자동 갱신)</span></span><span class="cnt" id="mtVer"></span></div>
+    <div style="padding:14px">
+      <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px" id="mtCards"></div>
+      <div class="sub2">엔드포인트별 지연·오류율 (요청 많은 순)</div>
+      <div style="overflow-x:auto;margin-top:6px">
+        <table class="tbl"><thead><tr><th>엔드포인트</th><th>요청수</th><th>p50</th><th>p95</th><th>p99</th><th>최대</th><th>오류율</th></tr></thead><tbody id="mtRows"></tbody></table>
+      </div>
+    </div>
+  </div>
+
   <!-- 🎬 경기 하이라이트 (관리자 수동 등록) -->
   <div class="panel">
     <div class="hd"><span>🎬 경기 하이라이트 <span class="muted" style="font-weight:600">(공식 영상 수동 등록 · 수정/삭제)</span></span><span class="cnt" id="hlCnt"></span></div>
@@ -457,7 +469,26 @@
     }catch(e){ if(String(e.message)==='unauthorized')logout(); }
   }
 
-  function showDash(){ $('#gate').style.display='none'; $('#wrap').style.display='block'; load(); loadAnalytics(); loadOps(); try{ if(!$('#hlDate').value)$('#hlDate').value=hlTodayStr(); }catch(e){} loadHighlights(); }
+  async function loadMetrics(){
+    try{
+      const m=await api('/api/admin/metrics'); if(!m||!m.ok)return;
+      $('#mtVer').textContent=m.version+' · node '+(m.process.node||'?');
+      const cards=[
+        ['가동', Math.floor(m.process.uptimeSec/3600)+'시간 '+Math.floor(m.process.uptimeSec%3600/60)+'분'],
+        ['메모리', m.process.rssMB+' MB (heap '+m.process.heapUsedMB+')'],
+        ['이벤트루프 지연', m.process.elLagMs+' ms'],
+        ['DB', m.db.connected?'🟢 MongoDB':'⚠️ 메모리'],
+        ['접속 추정 / 채팅', (m.presence.online접속추정??'-')+' / '+(m.presence.ws채팅연결??'-')],
+        ['캐시 적중/미스/병합', m.cache.hit+' / '+m.cache.miss+' / '+m.cache.merge],
+        ['API-Sports 호출/429/실패', m.supplier.asCall+' / '+m.supplier.as429+' / '+m.supplier.asFail],
+        ['TheSports 호출/실패', m.supplier.tsCall+' / '+m.supplier.tsFail],
+        ['API-Sports 오늘 남음', (m.supplier.apiSports오늘남음??'-')+' / '+(m.supplier.apiSports하루한도??'-')]
+      ];
+      $('#mtCards').innerHTML=cards.map(c=>`<div style="background:rgba(255,255,255,.04);border:1px solid var(--line);border-radius:10px;padding:10px 13px;min-width:120px"><div class="muted" style="font-size:11px">${esc(c[0])}</div><div style="font-weight:800;margin-top:3px">${esc(String(c[1]))}</div></div>`).join('');
+      $('#mtRows').innerHTML=(m.endpoints||[]).map(e=>`<tr><td style="font-size:12px">${esc(e.ep)}</td><td>${e.n}</td><td>${e.p50??'-'}</td><td>${e.p95??'-'}</td><td>${e.p99??'-'}</td><td>${e.max??'-'}</td><td class="${e.errRate>1?'':'muted'}">${e.errRate}%</td></tr>`).join('');
+    }catch(e){ if(String(e.message)==='unauthorized')logout(); }
+  }
+  function showDash(){ $('#gate').style.display='none'; $('#wrap').style.display='block'; load(); loadAnalytics(); loadOps(); try{ if(!$('#hlDate').value)$('#hlDate').value=hlTodayStr(); }catch(e){} loadHighlights(); loadMetrics(); }
   function logout(){ sessionStorage.removeItem('liveup_admin_key'); KEY=''; $('#wrap').style.display='none'; $('#gate').style.display='flex'; $('#pw').value=''; }
 
   async function login(){
@@ -474,13 +505,13 @@
 
   $('#loginBtn').addEventListener('click', login);
   $('#pw').addEventListener('keydown', e=>{ if(e.key==='Enter') login(); });
-  $('#refresh').addEventListener('click', ()=>{ load(); loadAnalytics(); loadOps(); });
+  $('#refresh').addEventListener('click', ()=>{ load(); loadAnalytics(); loadOps(); loadMetrics(); });
   $('#logout').addEventListener('click', logout);
 
   // 저장된 키가 있으면 자동 검증 후 대시보드
   if(KEY){ api('/api/admin/stats').then(j=>{ if(j&&j.ok) showDash(); else logout(); }).catch(()=>logout()); }
   // 30초마다 자동 새로고침
-  setInterval(()=>{ if($('#wrap').style.display==='block'){ load(); loadAnalytics(); loadOps(); } }, 30000);
+  setInterval(()=>{ if($('#wrap').style.display==='block'){ load(); loadAnalytics(); loadOps(); loadMetrics(); } }, 30000);
 </script>
 </body>
 </html>
