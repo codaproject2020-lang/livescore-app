@@ -262,6 +262,12 @@ img{display:block}
 .rank.bsk td{vertical-align:top}
 .bsx{color:var(--muted);font-size:10px;font-weight:600;margin-top:2px;line-height:1.3}
 .foulq{font-size:11px;font-weight:800;color:var(--red);background:#fff1f1;border:1px solid #ffd7d7;border-radius:6px;padding:2px 8px}
+.rank.bsk .bskrow{cursor:pointer}
+.rank.bsk .plink{color:var(--navy);font-weight:700;border-bottom:1px dotted var(--line)}
+.pstats{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+.pst{background:var(--soft);border-radius:10px;padding:9px 4px;text-align:center}
+.pst .v{display:block;font-size:17px;font-weight:900;color:var(--navy)}
+.pst .l{display:block;font-size:10.5px;color:var(--muted);font-weight:700;margin-top:2px}
 .rosterw{display:grid;grid-template-columns:1fr 1fr;gap:5px 10px;margin:4px 0 12px}
 .rosterp{display:flex;align-items:center;gap:7px;font-size:13px;padding:5px 2px;border-bottom:1px solid var(--line)}
 .rosterp .no{min-width:22px;text-align:center;font-weight:800;color:var(--muted);font-size:11px;background:var(--soft);border-radius:5px;padding:1px 0}
@@ -1091,8 +1097,11 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
       var LPTS=tl({en:"PTS",ko:"득점",ja:"得点",zh:"得分",es:"PTS",hi:"अंक",vi:"Điểm",th:"แต้ม",ru:"Очк",de:"PKT",fr:"PTS",it:"PTI"});
       var LREB=tl({en:"REB",ko:"리바",ja:"リバ",zh:"篮板",es:"REB",hi:"रिब",vi:"Bật",th:"รีบ",ru:"Подб",de:"REB",fr:"REB",it:"RIM"});
       var LAST=tl({en:"AST",ko:"어시",ja:"アシ",zh:"助攻",es:"AST",hi:"असि",vi:"KT",th:"แอส",ru:"Пас",de:"AST",fr:"PD",it:"AST"});
+      _bskPlayers={};  // 선수 클릭 상세용 저장
+      (j.home||[]).forEach(function(p){ _bskPlayers[p.id]={p:p,team:g.home}; });
+      (j.away||[]).forEach(function(p){ _bskPlayers[p.id]={p:p,team:g.away}; });
       function sub(p){ return '<div class="bsx">'+LMIN+' '+p.min+"' · FG "+esc(p.fg)+' · 3P '+esc(p.p3)+' · FT '+esc(p.ft)+' · OREB '+p.oreb+' DREB '+p.dreb+' · STL '+p.stl+' BLK '+p.blk+' TO '+p.to+' PF '+p.pf+'</div>'; }
-      function row(p){ return '<tr><td class="tm" style="text-align:left">'+(p.number?('<span style="color:#8a93a3;font-size:11px">#'+esc(String(p.number))+'</span> '):'')+esc(p.name||"-")+sub(p)+'</td><td style="font-weight:800">'+p.pts+'</td><td>'+p.reb+'</td><td>'+p.ast+'</td></tr>'; }
+      function row(p){ return '<tr class="bskrow" data-pid="'+esc(String(p.id||""))+'"><td class="tm" style="text-align:left">'+(p.number?('<span style="color:#8a93a3;font-size:11px">#'+esc(String(p.number))+'</span> '):'')+'<span class="plink">'+esc(p.name||"-")+'</span>'+sub(p)+'</td><td style="font-weight:800">'+p.pts+'</td><td>'+p.reb+'</td><td>'+p.ast+'</td></tr>'; }
       function tot(arr){ var o={pts:0,reb:0,ast:0}; arr.forEach(function(p){o.pts+=p.pts;o.reb+=p.reb;o.ast+=p.ast;}); return o; }
       function tbl(arr,teamName){ if(!arr.length)return '';
         var T=tot(arr);
@@ -1102,7 +1111,25 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
         return h+'</tbody></table>';
       }
       dtBody(tbl(j.home,g.home)+tbl(j.away,g.away));
+      var db=$("#dtBody"); if(db){ db.querySelectorAll(".bskrow").forEach(function(tr){ tr.onclick=function(){ var e=_bskPlayers[tr.dataset.pid]; if(e)openBskPlayer(e.p,e.team); }; }); }
     });
+  }
+  // 농구 선수 상세(현재 경기 기록 기반) — 시즌 누적은 공급사 시즌 API 확인 필요
+  var _bskPlayers={};
+  function openBskPlayer(p,team){
+    if(!p)return;
+    var o=overlay("ovPlayer");
+    var LPROF=tl({en:"Season/profile data is being prepared.",ko:"시즌 누적·프로필 데이터는 준비 중입니다.",ja:"シーズン・プロフィールは準備中です。",zh:"赛季/资料数据准备中。",es:"Datos de temporada/perfil en preparación.",hi:"सीज़न/प्रोफ़ाइल डेटा तैयार हो रहा है।",vi:"Dữ liệu mùa giải/hồ sơ đang chuẩn bị.",th:"กำลังเตรียมข้อมูลฤดูกาล/โปรไฟล์",ru:"Данные сезона/профиля готовятся.",de:"Saison-/Profildaten werden vorbereitet.",fr:"Données de saison/profil en préparation.",it:"Dati stagione/profilo in preparazione."});
+    var cg=tl({en:"This game",ko:"이 경기 기록",ja:"この試合",zh:"本场",es:"Este partido",hi:"इस मैच",vi:"Trận này",th:"เกมนี้",ru:"Эта игра",de:"Dieses Spiel",fr:"Ce match",it:"Questa gara"});
+    var photo=p.photo?'<img src="'+esc(p.photo)+'" style="width:64px;height:64px;border-radius:50%;object-fit:cover" onerror="this.outerHTML=\'<div class=ph style=\\\'width:64px;height:64px\\\'>👤</div>\'">':'<div class="ph" style="width:64px;height:64px">👤</div>';
+    function st(lbl,v){ return '<div class="pst"><span class="v">'+v+'</span><span class="l">'+lbl+'</span></div>'; }
+    o.innerHTML='<div class="dt-bar"><button class="bk" id="plBack">‹</button><div class="ti">'+esc(p.name||"")+'</div></div>'+
+      '<div class="dt-body"><div style="display:flex;align-items:center;gap:12px;margin:6px 0 14px">'+photo+'<div><div style="font-weight:800;font-size:16px">'+esc(p.name||"")+'</div><div style="color:var(--muted);font-size:13px">'+(p.number?("#"+esc(String(p.number))+" · "):"")+esc(team||"")+'</div></div></div>'+
+      '<div class="dt-sec-t">📊 '+cg+'</div>'+
+      '<div class="pstats">'+st("PTS",p.pts)+st("REB",p.reb)+st("AST",p.ast)+st("STL",p.stl)+st("BLK",p.blk)+st("TO",p.to)+st("PF",p.pf)+st("MIN",p.min)+'</div>'+
+      '<div style="display:flex;gap:10px;margin-top:10px;font-size:12.5px;color:var(--navy);font-weight:700"><span>FG '+esc(p.fg)+'</span><span>3P '+esc(p.p3)+'</span><span>FT '+esc(p.ft)+'</span></div>'+
+      '<p style="color:#8a93a3;font-size:12px;margin-top:16px">ℹ️ '+LPROF+'</p></div>';
+    $("#plBack").onclick=function(){ closeOverlay("ovPlayer"); };
   }
   // 라인업(명단) — 선발 구분 미제공 안내
   function loadBasketballRoster(g){
@@ -1545,7 +1572,7 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
   // 열려있는 가장 위 레이어 하나만 닫고 true, 닫을 게 없으면 false
   function topClose(){
     if($("#detail")){ closeDetail(); return true; }
-    var ids=["ovLang","ovShare","ovSearch","ovTeam","ovRank","ovNews","ovLogin"];
+    var ids=["ovLang","ovShare","ovPlayer","ovSearch","ovTeam","ovRank","ovNews","ovLogin"];
     for(var i=0;i<ids.length;i++){ if($("#"+ids[i])){ closeOverlay(ids[i]); return true; } }
     if(S.screen==="menu"||S.screen==="insight"){ document.body.style.overflow=""; S.screen=(S.base||"home"); render(); window.scrollTo(0,S.scroll||0); return true; }
     return false;
