@@ -1992,21 +1992,32 @@ function tsBskParseEvents(lv) {
     const s = String(L).split('^');
     const text = s[5] || ''; if (!text) return;
     const sc = String(s[4] || '').split('-');   // "원정-홈"
-    evs.push({ period: +s[0] || 0, clock: s[1] || '', team: +s[2] || 0, away: (sc[0] !== undefined ? +sc[0] : null), home: (sc[1] !== undefined ? +sc[1] : null), text });
+    // 시계 필드는 두 형태: "MM:SS"(1분 이상) 또는 "SS.t"(1분 미만 남은 초, 예: 33.1 = 33초). 표시용 MM:SS 로 정규화.
+    let raw = String(s[1] || '').trim(), clk = raw;
+    if (/^\d{1,2}:\d{2}$/.test(raw)) { clk = raw; }
+    else if (/^\d+(\.\d+)?$/.test(raw)) { const sec = Math.min(59, Math.round(parseFloat(raw))); clk = '0:' + (sec < 10 ? '0' : '') + sec; }
+    evs.push({ clock: clk, rawClock: raw, team: +s[2] || 0, away: (sc[0] !== undefined ? +sc[0] : null), home: (sc[1] !== undefined ? +sc[1] : null), text });
   });
-  return evs;
+  return evs;   // 오래된→최신 순
 }
 function tsBskLiveInfo(lv) {
   const evs = tsBskParseEvents(lv);
   if (!evs.length) return null;
-  let curP = 0, maxMin = 0;
-  evs.forEach(e => { if (e.period > curP) curP = e.period; const mm = parseInt(String(e.clock).split(':')[0], 10); if (!isNaN(mm) && mm > maxMin) maxMin = mm; });
-  const periodMin = maxMin >= 19 ? 20 : (maxMin >= 11 ? 12 : (maxMin >= 9 ? 10 : (maxMin || 12)));
-  const isHalves = periodMin >= 19;
-  const foulRe = /foul on|foul by/i;
+  // 쿼터/하프 판별: play-by-play 경계 텍스트 기준(임의 시간 해석 금지)
+  let sawQuarter = false, sawHalf = false;
+  evs.forEach(e => { if (/quarter/i.test(e.text)) sawQuarter = true; if (/\bhalf\b/i.test(e.text) && /(end|start|of the|time)/i.test(e.text)) sawHalf = true; });
+  const isHalves = sawHalf && !sawQuarter;
+  // 현재 기간 번호: 마지막 "End of the Nth Quarter/Half" → N+1, 연장은 그 뒤로
+  const boundRe = /end of the (\d+)(?:st|nd|rd|th)?\s+(quarter|half|period)/i;
+  const reg = isHalves ? 2 : 4;
+  let curP = null, otCount = 0;
+  evs.forEach(e => { const m = e.text.match(boundRe); if (m) curP = parseInt(m[1], 10) + 1; if (/end of (?:overtime|ot)/i.test(e.text)) { otCount++; curP = reg + otCount + 1; } });
+  // 현재 기간 팀파울: 기간 경계에서 리셋 후, 팀파울에 포함되는 파울만 팀 필드(1=홈/2=원정)로 집계
+  const foulRe = /\b(personal|shooting|loose ball|offensive)\s+foul\b|\bfoul\s+(?:on|by)\b/i;
+  const resetRe = /end of the .*\b(quarter|half|period)\b|end of (?:overtime|ot)/i;
   let hf = 0, af = 0;
-  evs.forEach(e => { if (e.period !== curP) return; if (!foulRe.test(e.text)) return; if (e.team === 1) hf++; else if (e.team === 2) af++; });
-  return { curP, periodMin, isHalves, hf, af, events: evs };
+  evs.forEach(e => { if (resetRe.test(e.text)) { hf = 0; af = 0; return; } if (foulRe.test(e.text)) { if (e.team === 1) hf++; else if (e.team === 2) af++; } });
+  return { curP, isHalves, hf, af, events: evs };
 }
 async function tsBasketballGames(date, tz) {
   tz = canonTz(tz);
@@ -2038,9 +2049,10 @@ async function tsBasketballGames(date, tz) {
       }
       // 진행 경기: detail_live 의 tlive(플레이바이플레이)로 현재기간·전후반/쿼터·현재기간 팀파울을 산출(추가 호출 없음)
       const info = (lv && tsBskState(st) === 'live') ? tsBskLiveInfo(lv) : null;
-      const statePer = TS_BSK_PER[st] || null;            // status_id 추정 기간(폴백)
-      const curPeriod = (info && info.curP != null) ? (info.curP + 1) : statePer;   // 1-base 현재 기간
+      const statePer = TS_BSK_PER[st] || null;            // status_id → 현재 기간(가장 신뢰, 쿼터제 기준)
       const isHalves = info ? info.isHalves : false;
+      // 기간 번호: 쿼터제는 status_id 우선, 하프제(대학 등)는 play-by-play 경계 우선
+      const curPeriod = isHalves ? (info && info.curP != null ? info.curP : statePer) : (statePer || (info && info.curP != null ? info.curP : null));
       // 시작된 기간까지만 쿼터표시(미시작 기간의 0:0 제거). curPeriod 모르면 '득점 있는 마지막 기간'까지.
       let lastPlayed = 0;
       for (let i = 0; i < Math.max(hsArr.length, asArr.length); i++) { if ((+hsArr[i] || 0) > 0 || (+asArr[i] || 0) > 0) lastPlayed = i + 1; }
@@ -2048,13 +2060,16 @@ async function tsBasketballGames(date, tz) {
       const setScores = [];
       for (let i = 0; i < showN; i++) { const h = hsArr[i], a = asArr[i]; setScores.push({ home: (h != null && h !== '') ? +h : null, away: (a != null && a !== '') ? +a : null }); }
       const periodLabel = curPeriod ? (isHalves ? (curPeriod <= 2 ? 'H' + curPeriod : 'OT' + (curPeriod - 2)) : (curPeriod <= 4 ? 'Q' + curPeriod : 'OT' + (curPeriod - 4))) : '';
+      // 팀파울: play-by-play가 '현재 기간'까지 도달했을 때만 신뢰(더스포츠 NBA tlive가 점수보다 지연될 수 있어, 지연 시 0으로 단정하지 않고 null)
+      let foulsOk = false;
+      if (info) { if (isHalves) foulsOk = info.curP != null; else foulsOk = (info.curP != null && (statePer ? info.curP >= statePer : true)); }
       out.push({
         id: 'ts' + id, tsid: id, league: hc.name || 'Basketball', leagueLogo: hc.logo || '', country: '',
         home: ht.name || '', homeLogo: ht.logo || '', away: at.name || '', awayLogo: at.logo || '',
         homeTid: m.home_team_id, awayTid: m.away_team_id,
         hs, as, status: periodLabel, statusLong: String(st),
         period: curPeriod, periodLabel, isHalves,
-        homeFouls: info ? info.hf : null, awayFouls: info ? info.af : null,   // 현재 기간 팀파울(미제공이면 null)
+        homeFouls: foulsOk ? info.hf : null, awayFouls: foulsOk ? info.af : null,   // 현재 기간 팀파울(확인 가능할 때만, 아니면 null=미표시)
         timer: (timerSec != null && tsBskState(st) === 'live') ? fmtClockSec(timerSec) : null,
         timerSec: (tsBskState(st) === 'live') ? timerSec : null, timerRun, timerUpd,
         livePts: null, setScores: setScores.length ? setScores : null, box: null, curInning: null, inningHalf: null,
@@ -2112,10 +2127,13 @@ app.get('/api/basketball/live', async (req, res) => {
     if (!item) return res.json({ found: false, events: [] });
     const info = tsBskLiveInfo(item);
     const sc = item.score || [];
+    const statePer = TS_BSK_PER[sc[1]] || null;
+    let foulsOk = false;
+    if (info) { if (info.isHalves) foulsOk = info.curP != null; else foulsOk = (info.curP != null && (statePer ? info.curP >= statePer : true)); }
     res.json({
       found: true,
-      period: info ? info.curP + 1 : null, isHalves: info ? info.isHalves : false,
-      homeFouls: info ? info.hf : null, awayFouls: info ? info.af : null,
+      period: (statePer && !info.isHalves) ? statePer : (info ? info.curP : null), isHalves: info ? info.isHalves : false,
+      homeFouls: foulsOk ? info.hf : null, awayFouls: foulsOk ? info.af : null,
       quarters: { home: sc[3] || [], away: sc[4] || [] },
       // 최신순, 최대 150개. 점수는 "홈-원정"으로 정렬해 전달
       events: (info ? info.events : []).slice(-150).reverse().map(e => ({ period: e.period, clock: e.clock, team: e.team, home: e.home, away: e.away, text: e.text }))
