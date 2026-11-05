@@ -506,6 +506,12 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
     if(eff==="live") list=list.slice().sort(function(a,b){return (isStaleLive(a)?1:0)-(isStaleLive(b)?1:0);});
 
     if(!list.length){
+      // 🏀 농구: 진행 경기 0건이 '정상 조회'로 확인되고 예정/종료 경기가 있으면 자동으로 '전체' 전환
+      //   (로딩·오류·데모·국가필터 때문인 경우는 제외 → 전환하지 않음)
+      if(eff==="live"&&S.sport==="basketball"&&!S.country&&d&&!d.error&&!isDemo&&(games&&games.length>0)){
+        if(S.screen==="live"){S.base="home";S.screen="home";}
+        S.filter="all"; renderHome(); return;
+      }
       var em, btn;
       if(eff==="live"){
         // 진행 중 비어있음: 국가·리그 필터 때문인지 구분
@@ -1300,7 +1306,9 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
     var o=overlay("ovNews");
     o.innerHTML='<div class="dt-bar"><button class="bk" id="nwBack">‹</button><div class="ti">'+t("news")+'</div></div><div class="dt-body" id="nwBody"><div class="msg"><div class="big">⏳</div>'+t("loading")+'</div></div>';
     $("#nwBack").onclick=function(){ closeOverlay("ovNews"); };
-    fetch("/api/news").then(function(r){return r.json()}).then(function(j){
+    // 종목별 ESPN 피드(농구=NBA). 다른 종목 기존 동작 유지.
+    var newsCat=({basketball:"nba",football:"soccer",baseball:"mlb",hockey:"nhl"})[S.sport]||"all";
+    fetch("/api/news?cat="+encodeURIComponent(newsCat)).then(function(r){return r.json()}).then(function(j){
       var items=(j&&(j.items||j.news||j.articles))||(Array.isArray(j)?j:[]);
       if(!items.length){ $("#nwBody").innerHTML='<div class="msg"><div class="big">📰</div>'+t("m_noNews")+'</div>'; return; }
       $("#nwBody").innerHTML=items.slice(0,40).map(function(n){
