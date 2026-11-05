@@ -552,9 +552,32 @@ function parseRss(xml) {
     const end = b.search(/<\/item>/i); const seg = end >= 0 ? b.slice(0, end) : b;
     const pick = (tag) => { const m = seg.match(new RegExp('<' + tag + '[^>]*>([\\s\\S]*?)<\\/' + tag + '>', 'i')); if (!m) return ''; let v = m[1].trim(); v = v.replace(/^<!\[CDATA\[/, '').replace(/\]\]>$/, '').trim(); return v; };
     const title = pick('title'); const link = pick('link'); const pub = pick('pubDate'); const desc = pick('description');
-    if (title) items.push({ title: decodeEnt(title), link: link || '', desc: decodeEnt(desc).replace(/<[^>]+>/g, '').slice(0, 140), ts: pub ? (Date.parse(pub) || 0) : 0 });
+    // RSS 자체에 이미지가 있으면 사용(media:thumbnail/content, enclosure)
+    let img = '';
+    const mm = seg.match(/<media:(?:thumbnail|content)[^>]*url=["']([^"']+)["']/i) || seg.match(/<enclosure[^>]*url=["']([^"']+)["']/i);
+    if (mm) img = mm[1];
+    if (title) items.push({ title: decodeEnt(title), link: link || '', desc: decodeEnt(desc).replace(/<[^>]+>/g, '').slice(0, 140), ts: pub ? (Date.parse(pub) || 0) : 0, image: img });
   }
   return items;
+}
+// 기사 자체의 대표 이미지(og:image) 추출 — RSS에 이미지가 없을 때 실데이터 썸네일 확보
+const ogCache = new Map();
+async function fetchOgImage(url) {
+  if (!url) return '';
+  const c = ogCache.get(url);
+  if (c && Date.now() - c.t < 86400000) return c.img;   // 1일 캐시
+  try {
+    const ctrl = new AbortController(); const to = setTimeout(() => ctrl.abort(), 4500);
+    const r = await fetch(url, { headers: { 'User-Agent': 'Mozilla/5.0 (LiveUp News)' }, signal: ctrl.signal });
+    clearTimeout(to);
+    const html = (await r.text()).slice(0, 60000);   // head 영역만 보면 충분
+    const m = html.match(/<meta[^>]+property=["']og:image(?::url)?["'][^>]*content=["']([^"']+)["']/i)
+      || html.match(/<meta[^>]+content=["']([^"']+)["'][^>]*property=["']og:image(?::url)?["']/i)
+      || html.match(/<meta[^>]+name=["']twitter:image["'][^>]*content=["']([^"']+)["']/i);
+    const img = m ? decodeEnt(m[1]) : '';
+    ogCache.set(url, { t: Date.now(), img });
+    return img;
+  } catch (e) { ogCache.set(url, { t: Date.now(), img: '' }); return ''; }
 }
 app.get('/api/news', async (req, res) => {
   const cat = String(req.query.cat || 'all').toLowerCase();
@@ -565,6 +588,9 @@ app.get('/api/news', async (req, res) => {
     const r = await fetch(url, { headers: { 'User-Agent': 'Mozilla/5.0 (LiveUp News)' } });
     const xml = await r.text();
     const items = parseRss(xml).slice(0, 15);
+    // 이미지 없는 항목은 기사 og:image로 보강(상위 12개, 병렬·타임아웃·캐시)
+    const need = items.slice(0, 12).filter(it => !it.image && it.link);
+    await Promise.all(need.map(async it => { it.image = await fetchOgImage(it.link); }));
     if (items.length) newsCache.set(cat, { t: now, items });
     res.json({ ok: true, cat, items: items.length ? items : (hit ? hit.items : []) });
   } catch (e) {
