@@ -182,6 +182,40 @@
     </div>
   </div>
 
+  <!-- 🎬 경기 하이라이트 (관리자 수동 등록) -->
+  <div class="panel">
+    <div class="hd"><span>🎬 경기 하이라이트 <span class="muted" style="font-weight:600">(공식 영상 수동 등록 · 수정/삭제)</span></span><span class="cnt" id="hlCnt"></span></div>
+    <div style="padding:14px">
+      <div class="sub2">1) 경기 선택</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:6px 0 10px">
+        <select id="hlSport" style="padding:7px;border:1px solid var(--line);border-radius:8px">
+          <option value="basketball">🏀 농구</option><option value="football">⚽ 축구</option>
+          <option value="baseball">⚾ 야구</option><option value="volleyball">🏐 배구</option><option value="hockey">🏒 하키</option>
+        </select>
+        <input type="date" id="hlDate" style="padding:7px;border:1px solid var(--line);border-radius:8px">
+        <button class="btn" id="hlLoadMatches">경기 불러오기</button>
+        <span class="muted" id="hlMatchMsg" style="font-size:12px"></span>
+      </div>
+      <div id="hlMatchList" style="max-height:220px;overflow:auto;margin-bottom:12px"></div>
+
+      <div class="sub2">2) 선택한 경기 + YouTube 공식 영상</div>
+      <div id="hlPick" class="muted" style="font-size:13px;margin:6px 0">아직 선택한 경기가 없습니다. 위에서 경기를 선택하세요.</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:8px 0">
+        <input id="hlUrl" placeholder="https://www.youtube.com/watch?v=... (공식 채널 영상)" style="flex:1;min-width:280px;padding:9px;border:1px solid var(--line);border-radius:9px;font-size:13px">
+        <button class="btn g" id="hlSave" disabled>등록 / 수정</button>
+      </div>
+      <span class="muted" id="hlSaveMsg" style="font-size:12px"></span>
+      <div class="muted" style="font-size:11.5px;margin-top:8px">※ 공식 채널 영상만 등록하세요. 공식 채널이 아니면 저장은 되지만 ‘공식’ 배지는 붙지 않습니다.<br>
+        확인된 공식 채널 — NBA: UCWJ2lWNubArHWmf3FIHbfcQ (youtube.com/@NBA) · KBL TV: UCoki0B1g_yItdxRWRxe_syg (youtube.com/@onkbl)</div>
+
+      <div class="sub2" style="margin-top:18px">등록된 하이라이트</div>
+      <div style="overflow-x:auto;margin-top:6px">
+        <table class="tbl"><thead><tr><th>썸네일</th><th>경기</th><th>영상 제목 / 채널</th><th>공식</th><th>관리</th></tr></thead><tbody id="hlRows"></tbody></table>
+      </div>
+      <div class="empty" id="hlEmpty" style="display:none">아직 등록된 하이라이트가 없습니다.</div>
+    </div>
+  </div>
+
   <div class="panel">
     <div class="hd"><span>👥 회원 목록 <span class="muted" style="font-weight:600">(최신 가입순)</span></span><span class="cnt" id="uCnt"></span></div>
     <div style="overflow-x:auto">
@@ -362,8 +396,68 @@
   $('#opCache')&&$('#opCache').addEventListener('click',clearCache);
   $('#opSave')&&$('#opSave').addEventListener('click',saveOps);
   $('#opErrClear')&&$('#opErrClear').addEventListener('click',clearErrs);
+  $('#hlLoadMatches')&&$('#hlLoadMatches').addEventListener('click',hlLoadMatches);
+  $('#hlSave')&&$('#hlSave').addEventListener('click',hlSave);
 
-  function showDash(){ $('#gate').style.display='none'; $('#wrap').style.display='block'; load(); loadAnalytics(); loadOps(); }
+  // 🎬 하이라이트 관리
+  let hlPick = null;   // {sport,matchId,home,away,league}
+  function hlTodayStr(){ const d=new Date(); const p=n=>String(n).padStart(2,'0'); return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}`; }
+  async function hlLoadMatches(){
+    const sport=$('#hlSport').value, date=$('#hlDate').value||hlTodayStr();
+    $('#hlMatchMsg').textContent='불러오는 중…';
+    try{
+      const r=await fetch(`/api/asports/games?sport=${encodeURIComponent(sport)}&date=${encodeURIComponent(date)}&tz=Asia/Seoul`);
+      const j=await r.json(); const games=(j&&j.games)||[];
+      const box=$('#hlMatchList');
+      if(!games.length){ box.innerHTML='<div class="muted" style="font-size:13px">해당 날짜에 경기가 없습니다.</div>'; $('#hlMatchMsg').textContent=''; return; }
+      box.innerHTML=games.map(g=>{
+        const sc=(g.hs==null?'-':g.hs)+':'+(g.as==null?'-':g.as);
+        return `<div style="display:flex;align-items:center;gap:8px;padding:7px 4px;border-bottom:1px solid var(--line);font-size:13px">
+          <button class="btn" data-pick='${esc(JSON.stringify({sport,matchId:String(g.id),home:g.home||'',away:g.away||'',league:g.league||''}))}' style="font-size:11px;padding:4px 10px">선택</button>
+          <span style="flex:1">${esc(g.home||'')} <b>${sc}</b> ${esc(g.away||'')}</span>
+          <span class="muted" style="font-size:11px">${esc(g.league||'')}</span></div>`;
+      }).join('');
+      box.querySelectorAll('[data-pick]').forEach(b=>b.addEventListener('click',()=>{ hlSetPick(JSON.parse(b.dataset.pick)); }));
+      $('#hlMatchMsg').textContent=`${games.length}경기`;
+    }catch(e){ $('#hlMatchMsg').textContent='불러오기 실패'; }
+  }
+  function hlSetPick(p){
+    hlPick=p; const existing=(window._hlItems||[]).find(x=>x.sport===p.sport&&String(x.matchId)===String(p.matchId));
+    $('#hlPick').innerHTML=`<b style="color:#e7ecf3">${esc(p.home)} vs ${esc(p.away)}</b> <span class="muted">· ${esc(p.league||'')} · ${esc(p.sport)}:${esc(p.matchId)}</span>`;
+    $('#hlUrl').value=existing?existing.url:''; $('#hlSave').disabled=false; $('#hlSaveMsg').textContent=existing?'이미 등록됨 — 수정하려면 새 URL 입력':'';
+  }
+  async function hlSave(){
+    if(!hlPick){ return; }
+    const url=$('#hlUrl').value.trim(); if(!url){ $('#hlSaveMsg').textContent='YouTube URL을 입력하세요.'; return; }
+    $('#hlSaveMsg').textContent='등록 중…';
+    try{
+      const j=await apiPost('/api/admin/highlight',{ sport:hlPick.sport, matchId:hlPick.matchId, url, home:hlPick.home, away:hlPick.away, league:hlPick.league });
+      if(!j.ok){ $('#hlSaveMsg').textContent='실패: '+(j.error||''); return; }
+      $('#hlSaveMsg').innerHTML = j.warnOfficial ? '⚠️ 저장됨 (공식 채널 아님 — 확인 필요)' : '✅ 등록됨 (공식 채널)';
+      loadHighlights();
+    }catch(e){ $('#hlSaveMsg').textContent='오류'; }
+  }
+  async function hlDel(sport,matchId){
+    if(!confirm('이 하이라이트를 삭제할까요?'))return;
+    try{ await apiPost('/api/admin/highlight/delete',{sport,matchId}); loadHighlights(); }catch(e){}
+  }
+  async function loadHighlights(){
+    try{
+      const j=await api('/api/admin/highlights'); const items=j.items||[]; window._hlItems=items;
+      $('#hlCnt').textContent=items.length+'건';
+      $('#hlEmpty').style.display=items.length?'none':'block';
+      const rows=$('#hlRows'); rows.innerHTML=items.map(h=>`<tr>
+        <td><img src="${esc(h.thumb)}" style="width:80px;height:46px;object-fit:cover;border-radius:5px" onerror="this.style.visibility='hidden'"></td>
+        <td style="font-size:12px">${esc(h.home||'')} vs ${esc(h.away||'')}<br><span class="muted">${esc(h.league||'')} · ${esc(h.sport)}</span></td>
+        <td style="font-size:12px;max-width:260px">${esc(h.title||'(제목 미확인)')}<br><span class="muted">${esc(h.channel||'')}</span></td>
+        <td>${h.official?('<span class="badge-v">✓ '+esc(h.officialName||'공식')+'</span>'):'<span class="badge-nv">비공식</span>'}</td>
+        <td style="white-space:nowrap"><a class="btn" href="${esc(h.url)}" target="_blank" style="font-size:11px;padding:3px 8px">열기</a>
+          <button class="btn" data-del='${esc(JSON.stringify({sport:h.sport,matchId:h.matchId}))}' style="font-size:11px;padding:3px 8px">삭제</button></td></tr>`).join('');
+      rows.querySelectorAll('[data-del]').forEach(b=>b.addEventListener('click',()=>{ const d=JSON.parse(b.dataset.del); hlDel(d.sport,d.matchId); }));
+    }catch(e){ if(String(e.message)==='unauthorized')logout(); }
+  }
+
+  function showDash(){ $('#gate').style.display='none'; $('#wrap').style.display='block'; load(); loadAnalytics(); loadOps(); try{ if(!$('#hlDate').value)$('#hlDate').value=hlTodayStr(); }catch(e){} loadHighlights(); }
   function logout(){ sessionStorage.removeItem('liveup_admin_key'); KEY=''; $('#wrap').style.display='none'; $('#gate').style.display='flex'; $('#pw').value=''; }
 
   async function login(){
