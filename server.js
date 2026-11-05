@@ -21,7 +21,7 @@ const app = express();
 const server = http.createServer(app);
 
 const PORT = process.env.PORT || 3000;
-const APP_VERSION = 'v366';
+const APP_VERSION = 'v367';
 
 // ============================================================
 //  📏 성능 계측(instrumentation) — 엔드포인트 지연·캐시·공급사·WS·이벤트루프
@@ -897,7 +897,7 @@ async function rankFootball(league, season) {
     const resp = j && j.response && j.response[0];
     const st = resp && resp.league && resp.league.standings;
     const rows = (st && (st[0] || [])) || [];
-    return rows.map(r => ({ rank: r.rank, team: r.team.name, logo: r.team.logo, played: r.all.played, win: r.all.win, draw: r.all.draw, loss: r.all.lose, points: r.points, gd: r.goalsDiff, form: r.form || '' }));
+    return rows.map(r => ({ rank: r.rank, teamId: r.team.id, team: r.team.name, logo: r.team.logo, played: r.all.played, win: r.all.win, draw: r.all.draw, loss: r.all.lose, points: r.points, gd: r.goalsDiff, form: r.form || '' }));
   };
   // 요청 시즌 → 비어있으면(새 시즌 시작 전 등) 직전 시즌으로 폴백
   for (const s of [sy, sy - 1]) {
@@ -951,7 +951,7 @@ function parseHoopStandings(j) {
     const gname = (r.group && (r.group.name || r.group)) || (r.stage || '');
     const key = r.team.id || r.team.name;
     const row = {
-      rank: r.position || null, team: r.team.name, logo: r.team.logo, group: gname,
+      rank: r.position || null, teamId: r.team.id, team: r.team.name, logo: r.team.logo, group: gname,
       played: r.games && r.games.played,
       win: r.games && r.games.win && (r.games.win.total ?? r.games.win),
       loss: r.games && (r.games.lose ? (r.games.lose.total ?? r.games.lose) : (r.games.loss && (r.games.loss.total ?? r.games.loss))),
@@ -1054,18 +1054,71 @@ app.get('/api/team/recent', async (req, res) => {
   try {
     const name = req.query.name;
     if (!name) return res.status(400).json({ error: 'name' });
-    const s = await cachedJSON(`${TSDB}/searchteams.php?t=${encodeURIComponent(name)}`, 86400000);
-    const team = (s.teams || [])[0];
-    if (!team) return res.json({ team: null, events: [] });
-    const d = await cachedJSON(`${TSDB}/eventslast.php?id=${team.idTeam}`, 300000);
-    const events = (d.results || []).slice(0, 6).map(e => ({
-      date: e.dateEvent, home: e.strHomeTeam, away: e.strAwayTeam,
-      hs: e.intHomeScore, as: e.intAwayScore, league: e.strLeague
-    }));
-    res.json({ team: { id: team.idTeam, name: team.strTeam, badge: team.strTeamBadge }, events });
+    const s = await cachedJSON(`${TSDB}/searchteams.php?t=${encodeURIComponent(name)}`, 86400000).catch(() => ({ teams: [] }));
+    // 종목 힌트가 오면 동명이인(여자팀·유소년 등) 구분: 이름 정확일치 + (가능하면)종목 일치 우선
+    const wantSport = (req.query.sport || '').toLowerCase();
+    const SP_MAP = { football: 'soccer', basketball: 'basketball', baseball: 'baseball', volleyball: 'volleyball', hockey: 'ice hockey' };
+    const arr = (s.teams || []);
+    const nl = String(name).toLowerCase().trim();
+    let team = arr.find(t => String(t.strTeam || '').toLowerCase() === nl && (!wantSport || String(t.strSport || '').toLowerCase() === (SP_MAP[wantSport] || wantSport)))
+      || arr.find(t => (!wantSport || String(t.strSport || '').toLowerCase() === (SP_MAP[wantSport] || wantSport)))
+      || arr[0];
+    if (!team) return res.json({ team: null, events: [], next: [] });
+    const [last, next] = await Promise.all([
+      cachedJSON(`${TSDB}/eventslast.php?id=${team.idTeam}`, 300000).catch(() => ({ results: [] })),
+      cachedJSON(`${TSDB}/eventsnext.php?id=${team.idTeam}`, 600000).catch(() => ({ events: [] }))
+    ]);
+    const mapEv = e => ({ id: e.idEvent, date: e.dateEvent, time: e.strTime, home: e.strHomeTeam, away: e.strAwayTeam, hs: e.intHomeScore, as: e.intAwayScore, league: e.strLeague });
+    const events = (last.results || []).slice(0, 8).map(mapEv);
+    const nextEvents = (next.events || []).slice(0, 6).map(mapEv);
+    res.json({
+      team: { id: team.idTeam, name: team.strTeam, badge: team.strTeamBadge || team.strBadge || '',
+        country: team.strCountry || '', league: team.strLeague || '', sport: team.strSport || '',
+        stadium: team.strStadium || '', formed: team.intFormedYear || '', manager: team.strManager || '',
+        desc: (team.strDescriptionEN || '').slice(0, 320) },
+      events, next: nextEvents
+    });
   } catch (e) {
-    res.json({ team: null, events: [] });
+    res.json({ team: null, events: [], next: [] });
   }
+});
+
+// 🏟️ 팀 상세(API-Sports team_id 기반) — 이름검색이 아닌 정확한 ID로 조회(동명·여자팀 혼입 방지)
+//    TheSportsDB 무료키(3)가 searchteams에 403을 반환하므로, 순위표에서 넘어온 team_id를 사용.
+app.get('/api/team/as', async (req, res) => {
+  const sport = String(req.query.sport || 'football').toLowerCase();
+  const id = req.query.id;
+  if (!APISPORTS_KEY) return res.json({ team: null, events: [], next: [], note: 'needKey' });
+  if (!id) return res.json({ team: null, events: [], next: [], note: 'noId' });
+  try {
+    if (sport === 'football') {
+      const [tj, last, next] = await Promise.all([
+        asRaw('football', `/teams?id=${encodeURIComponent(id)}`, 86400000).catch(() => null),
+        asRaw('football', `/fixtures?team=${encodeURIComponent(id)}&last=8`, 300000).catch(() => null),
+        asRaw('football', `/fixtures?team=${encodeURIComponent(id)}&next=6`, 600000).catch(() => null)
+      ]);
+      const t = tj && tj.response && tj.response[0];
+      const team = t ? { id, name: t.team.name, badge: t.team.logo, country: t.team.country, formed: t.team.founded, stadium: t.venue && t.venue.name, city: t.venue && t.venue.city } : null;
+      const mapF = f => ({ id: f.fixture.id, date: f.fixture.date, home: f.teams.home.name, away: f.teams.away.name, hs: f.goals.home, as: f.goals.away, league: f.league.name });
+      return res.json({ team, events: ((last && last.response) || []).map(mapF), next: ((next && next.response) || []).map(mapF) });
+    }
+    if (sport === 'basketball') {
+      const seasonTry = hoopSeason();
+      const [tj, games] = await Promise.all([
+        asRaw('basketball', `/teams?id=${encodeURIComponent(id)}`, 86400000).catch(() => null),
+        asRaw('basketball', `/games?team=${encodeURIComponent(id)}&season=${encodeURIComponent(seasonTry)}`, 600000).catch(() => null)
+      ]);
+      const t = tj && tj.response && tj.response[0];
+      const team = t ? { id, name: t.name, badge: t.logo, country: t.country && t.country.name } : null;
+      const g = (games && games.response) || [];
+      const mapB = x => ({ id: x.id, date: x.date, home: x.teams.home.name, away: x.teams.away.name, hs: x.scores && x.scores.home && x.scores.home.total, as: x.scores && x.scores.away && x.scores.away.total, league: x.league && x.league.name, done: (x.status && /finished|FT|AOT/i.test(x.status.short || x.status.long || '')) });
+      const all = g.map(mapB);
+      const events = all.filter(x => x.done).slice(-8).reverse();
+      const next = all.filter(x => !x.done).slice(0, 6);
+      return res.json({ team, events, next });
+    }
+    return res.json({ team: null, events: [], next: [], note: 'sport-todo' });
+  } catch (e) { return res.json({ team: null, events: [], next: [], error: String(e.message || e) }); }
 });
 
 // ============================================================
