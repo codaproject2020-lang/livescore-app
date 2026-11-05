@@ -1288,6 +1288,32 @@ app.get('/api/ts/volley', async (req, res) => {
   } catch (e) { res.json({ on: true, error: String((e && e.message) || e) }); }
 });
 // 🏀 진단: TheSports 농구 활성화/커버리지 + 초단위 timer + 라인업 확인
+// 🔎 진단: 더스포츠 농구 팀/선수/시즌/순위/종료박스 후보 엔드포인트 탐색(구조 확인용, 최소 호출)
+app.get('/api/ts/bskdiag', async (req, res) => {
+  if (!TS_ON) return res.json({ on: false });
+  const out = { on: true, ids: {}, probes: {} };
+  try {
+    // 샘플 id 확보: 오늘 diary에서 경기/팀/대회, detail_live에서 선수
+    const ymd = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+    const d = await tsFetch('/basketball/match/diary', { date: ymd }, 5000).catch(() => null);
+    const m = ((d && d.results) || [])[0] || {};
+    const matchId = m.id, teamId = m.home_team_id, compId = m.competition_id, seasonId = m.season_id;
+    out.ids = { matchId, teamId, compId, seasonId };
+    let playerId = null;
+    try { const lu = await tsFetch('/basketball/match/lineup_live', {}, 4000); const it = ((lu && lu.results) || [])[0]; const pl = it && it.players && it.players[0] && it.players[0][0]; playerId = pl && pl[0]; out.ids.playerId = playerId; } catch (e) {}
+    const probe = async (name, path, params) => {
+      try { const r = await tsFetch(path, params, 4000); const res0 = r && r.results; out.probes[name] = { ok: !!(res0 && (Array.isArray(res0) ? res0.length : Object.keys(res0).length)), type: Array.isArray(res0) ? ('array ' + res0.length) : typeof res0, sampleKeys: res0 ? (Array.isArray(res0) ? (res0[0] && typeof res0[0] === 'object' ? Object.keys(res0[0]).slice(0, 14) : typeof res0[0]) : Object.keys(res0).slice(0, 14)) : null }; }
+      catch (e) { out.probes[name] = { err: String((e && e.message) || e).slice(0, 60) }; }
+    };
+    if (teamId) { await probe('team.list', '/basketball/team/list', { uuid: teamId }); await probe('team.additional', '/basketball/team/additional/list', { uuid: teamId }); }
+    if (playerId) { await probe('player.list', '/basketball/player/list', { uuid: playerId }); }
+    if (compId) { await probe('season.list', '/basketball/season/list', { uuid: compId }); await probe('competition.list', '/basketball/competition/list', { uuid: compId }); }
+    if (seasonId) { await probe('standing.detail', '/basketball/standing/detail', { uuid: seasonId }); await probe('season.player_stats', '/basketball/season/player_stats/list', { uuid: seasonId }); await probe('season.team_stats', '/basketball/season/team_stats/list', { uuid: seasonId }); }
+    if (teamId && seasonId) { await probe('player.list_byteam', '/basketball/player/list', { team_id: teamId, season_id: seasonId }); }
+    if (matchId) { await probe('match.live_history', '/basketball/match/live/history', { uuid: matchId }); await probe('match.trend', '/basketball/match/trend/detail', { uuid: matchId }); await probe('match.recent_byteam', '/basketball/match/recent/list', { team_id: teamId }); }
+  } catch (e) { out.error = String((e && e.message) || e); }
+  res.json(out);
+});
 app.get('/api/ts/bsktest', async (req, res) => {
   if (!TS_ON) return res.json({ on: false, msg: 'TheSports 키 미설정' });
   const ymd = String(req.query.date || new Date().toISOString().slice(0, 10)).replace(/-/g, '');
