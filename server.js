@@ -21,7 +21,7 @@ const app = express();
 const server = http.createServer(app);
 
 const PORT = process.env.PORT || 3000;
-const APP_VERSION = 'v367';
+const APP_VERSION = 'v368';
 
 // ============================================================
 //  📏 성능 계측(instrumentation) — 엔드포인트 지연·캐시·공급사·WS·이벤트루프
@@ -2858,6 +2858,11 @@ function warmFeeds() {
     const tz = 'Asia/Seoul';
     const d = (typeof ymdInTz === 'function') ? ymdInTz(new Date(), tz) : new Date().toISOString().slice(0, 10);
     fullGamesCached('basketball', d, tz).catch(() => {});         // 🏀 농구(Goalserve) 워밍 — API-Sports 키 불필요
+    // 🏐🏒 배구·하키도 워밍(더스포츠) — 캐시가 식어 콜드 요청이 타임아웃되는 현상 방지(배구 빈화면 수정)
+    if (TS_ON) {
+      if (_warmN % 2 === 0) fullGamesCached('volleyball', d, tz).catch(() => {});   // 40초마다
+      if (_warmN % 2 === 1) fullGamesCached('hockey', d, tz).catch(() => {});       // 40초마다(엇갈려서)
+    }
     if (APISPORTS_KEY) {
       fullGamesCached('football', d, tz).catch(() => {});         // 축구는 매 사이클 워밍 → 항상 뜨겁게
       if (_warmN % 2 === 0) fullGamesCached('baseball', d, tz).catch(() => {}); // 야구는 40초마다

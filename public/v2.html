@@ -2248,7 +2248,14 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
     if(S.data[k]&&!S.data[k].error){ render(); loadLiveStats(); return; }
     fetchGames(S.sport,S.date).then(function(res){
       S.data[k]=res; S.recvAt[k]=Date.now(); S.demo[k]=!!res._demo; render(); loadLiveStats();
-    }).catch(function(){ S.data[k]={error:true,games:[]}; render(); });
+    }).catch(function(){
+      S.data[k]={error:true,games:[]}; render();
+      // 일시적 실패(콜드 캐시·네트워크 blip) → 조용히 자동 재시도(최대 2회). 성공 시 화면 복구.
+      var tries=(S._retry&&S._retry[k])||0;
+      if(tries<2){ if(!S._retry)S._retry={}; S._retry[k]=tries+1;
+        setTimeout(function(){ if(key()!==k)return; fetchGames(S.sport,S.date).then(function(res){ if(res&&!res.error){ S.data[k]=res; S.recvAt[k]=Date.now(); S.demo[k]=!!res._demo; S._retry[k]=0; if(key()===k)render(); loadLiveStats(); } }).catch(function(){}); }, 2500*(tries+1));
+      }
+    });
   }
   // 축구 메인카드용 라이브 요약 통계(서버가 진행 중 경기만 묶어서 1회 응답). 오늘·축구만.
   function loadLiveStats(){
