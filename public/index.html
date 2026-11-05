@@ -580,6 +580,7 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
     return (i+1)+"";
   }
   function _statusText(g,sp){
+    var ko=(LANG==="ko");
     if(sp==="basketball"){ var pre=g.periodLabel||(g.period?("Q"+g.period):""); if(g.timerSec!=null){ var span='<span class="lc" data-s="'+g.timerSec+'" data-u="'+(g.timerUpd||0)+'" data-r="'+(g.timerRun?1:0)+'">'+liveClockStr(g.timerSec,g.timerUpd,g.timerRun)+'</span>'; return (pre?pre+" ":"")+span; } return (pre?pre+(g.timer?(" "+g.timer):""):t("inplay")); }
     if(sp==="hockey"){ var q=g.period; var pre2=q?(q+"P"):""; if(g.timerSec!=null){ var span2='<span class="lc" data-s="'+g.timerSec+'" data-u="'+(g.timerUpd||0)+'" data-r="'+(g.timerRun?1:0)+'">'+liveClockStr(g.timerSec,g.timerUpd,g.timerRun)+'</span>'; return (pre2?pre2+" ":"")+span2; } var tmr=g.timer?(" "+g.timer):""; return q?(pre2+tmr):t("inplay"); }
     if(sp==="volleyball"){ var s=g.period||(g.setScores?g.setScores.length:0); return s?(ko?(s+"세트"):("Set "+s)):t("inplay"); }
