@@ -396,7 +396,7 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
     if(stateOf(g)==="finished") return (st==="PEN"?t("finished")+" ("+t("penalties")+")":t("finished"));
     if(isStaleLive(g)) return t("checking");   // 오래된 0:0 의심 → 가짜 시계 대신 '정보 확인 중'
     if(st==="HT") return t("halftime");
-    if(sp==="football"){ var e=g.elapsed; var half=(e!=null&&e<=45)?t("fh"):t("sh"); return (e!=null)?(half+" "+e+"'"):t("inplay"); }
+    if(sp==="football"){ var e=g.elapsed; if(e!=null){ var half=(e<=45)?t("fh"):t("sh"); return half+" "+e+"'"; } var fs=String(g.status||"").toUpperCase(); if(fs==="1H")return t("fh"); if(fs==="2H")return t("sh"); if(fs==="ET")return tl({en:"Extra Time",ko:"연장",ja:"延長",zh:"加时",es:"Prórroga",hi:"अतिरिक्त समय",vi:"Hiệp phụ",th:"ต่อเวลา",ru:"Доп. время",de:"Verlängerung",fr:"Prolongation",it:"Supplementari"}); return t("inplay"); }
     if(sp==="baseball"){ var inn=g.curInning; if(!inn)return t("inplay"); var h=g.inningHalf==="top"?t("topShort"):(g.inningHalf==="bottom"?t("botShort"):""); return ko?(inn+"회"+h):((h?h+" ":"")+inn); }
     if(sp==="basketball"){ var pre=g.periodLabel||(g.period?("Q"+g.period):""); if(g.timerSec!=null){ var span='<span class="lc" data-s="'+g.timerSec+'" data-u="'+(g.timerUpd||0)+'" data-r="'+(g.timerRun?1:0)+'">'+liveClockStr(g.timerSec,g.timerUpd,g.timerRun)+'</span>'; return (pre?pre+" ":"")+span; } return (pre?pre+(g.timer?(" "+g.timer):""):t("inplay")); }
     if(sp==="hockey"){ var q=g.period; var pre2=q?(q+"P"):""; if(g.timerSec!=null){ var span2='<span class="lc" data-s="'+g.timerSec+'" data-u="'+(g.timerUpd||0)+'" data-r="'+(g.timerRun?1:0)+'">'+liveClockStr(g.timerSec,g.timerUpd,g.timerRun)+'</span>'; return (pre2?pre2+" ":"")+span2; } var tmr=g.timer?(" "+g.timer):""; return q?(pre2+tmr):t("inplay"); }
@@ -981,6 +981,17 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
   // 축구 이벤트
   function loadFootballEvents(g){
     dtLoading(); var tk=_dtTok;
+    // 더스포츠 경기(ts) → 경기 흐름(play-by-play) 사용
+    if(String(g.id).indexOf("ts")===0){
+      fetch("/api/football/live?id="+encodeURIComponent(g.id)).then(function(r){return r.json()}).then(function(j){
+        if(!dtFresh(tk))return;
+        var ev=(j&&j.events)||[];
+        if(!ev.length){ var m=stateOf(g)==="scheduled"?t("eventsAfterStart"):t("noEventsLive"); dtBody('<div class="msg"><div class="big">⚽</div>'+m+'</div>'); return; }
+        var h='<div class="flow">'+ev.map(function(e){ var who=e.team===1?"h":(e.team===2?"a":""); return '<div class="fe '+who+'"><span class="fcl">'+esc(e.minute?(e.minute+"'"):"")+'</span><span class="ftx">'+esc(e.text||"")+'</span></div>'; }).join("")+'</div>';
+        dtBody(h);
+      }).catch(function(){ dtBody('<div class="msg"><div class="big">⚠️</div>'+t("m_evFail")+'</div>'); });
+      return;
+    }
     fetch("/api/asports/events?fixture="+encodeURIComponent(g.id)).then(function(r){ if(!r.ok)throw 0; return r.json()}).then(function(j){
       if(!dtFresh(tk))return;
       if(j&&j.error) throw 0;

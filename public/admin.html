@@ -157,6 +157,18 @@
             <option value="thesports">더스포츠 (초단위 시계+라인업) ⭐</option>
           </select>
         </label>
+        <label style="margin-left:14px">축구 데이터 소스:
+          <select id="fFtb" style="padding:6px;border:1px solid var(--line);border-radius:8px">
+            <option value="thesports">더스포츠 (라인업+경기흐름) ⭐</option>
+            <option value="apisports">API-Sports</option>
+          </select>
+        </label>
+        <label style="margin-left:14px">배구 데이터 소스:
+          <select id="fVol" style="padding:6px;border:1px solid var(--line);border-radius:8px">
+            <option value="thesports">더스포츠 (세트·현재세트) ⭐</option>
+            <option value="apisports">API-Sports</option>
+          </select>
+        </label>
       </div>
       <div style="margin:8px 0">
         <input id="fMaint" placeholder="⚠️ 메인터넌스 배너 문구 (비우면 안 보임 · 예: 농구 점검 중입니다)" style="width:100%;max-width:600px;padding:9px;border:1px solid var(--line);border-radius:9px;font-size:13px">
@@ -318,12 +330,12 @@
         if(!(e.errors||[]).length) b.innerHTML='<tr><td colspan="3" class="muted" style="padding:12px">오류 없음 👍</td></tr>';
       }
       const c=await api('/api/admin/config');
-      if(c&&c.ok){ const f=c.flags||{}; $('#fShorts').checked=f.shorts!==false; $('#fNews').checked=f.news!==false; $('#fBsk').value=c.bskSrc||'auto'; $('#fMaint').value=c.maint||''; $('#fAlertOff').checked=!!c.alertsOff; $('#fAlertNight').checked=!!c.alertsNight; }
+      if(c&&c.ok){ const f=c.flags||{}; $('#fShorts').checked=f.shorts!==false; $('#fNews').checked=f.news!==false; $('#fBsk').value=c.bskSrc||'auto'; $('#fFtb').value=c.ftbSrc||'thesports'; $('#fVol').value=c.volSrc||'thesports'; $('#fMaint').value=c.maint||''; $('#fAlertOff').checked=!!c.alertsOff; $('#fAlertNight').checked=!!c.alertsNight; }
     }catch(e){ if(String(e.message)==='unauthorized') logout(); }
   }
   async function saveOps(){
     const flags={ shorts:$('#fShorts').checked, news:$('#fNews').checked };
-    try{ const r=await apiPost('/api/admin/config',{ flags, bskSrc:$('#fBsk').value, maint:$('#fMaint').value.trim(), alertsOff:$('#fAlertOff').checked, alertsNight:$('#fAlertNight').checked });
+    try{ const r=await apiPost('/api/admin/config',{ flags, bskSrc:$('#fBsk').value, ftbSrc:$('#fFtb').value, volSrc:$('#fVol').value, maint:$('#fMaint').value.trim(), alertsOff:$('#fAlertOff').checked, alertsNight:$('#fAlertNight').checked });
       $('#opSaveMsg').textContent = r&&r.ok ? '✅ 저장됨 (전체 유저 반영 중)' : '저장 실패';
       setTimeout(()=>{$('#opSaveMsg').textContent='';},4000);
     }catch(e){ $('#opSaveMsg').textContent='실패'; }
