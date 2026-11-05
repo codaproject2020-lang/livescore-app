@@ -2022,24 +2022,40 @@ async function tsBasketballGames(date, tz) {
   }
   return out;
 }
+// TheSports 농구 선수 기록 디코드. stat 문자열(^ 구분) 인덱스는 실데이터로 검증:
+//  0=출전분, 1=야투(성공-시도), 2=3점, 3=자유투, 4=공격리바, 5=수비리바, 6=리바운드,
+//  7=어시스트, 8=스틸, 9=블록, 10=턴오버, 11=개인파울, 13=득점  (득점 합 = 팀 점수로 검증 완료)
 function tsBskPlayer(p) {
   const s = String(p[4] || '').split('^');
   const pair = x => { const v = String(x || '0-0').split('-'); return (+v[0] || 0) + '-' + (+v[1] || 0); };
+  const n = i => +s[i] || 0;
   return { id: p[0], name: String(p[1] || '').trim(), photo: p[2] || '', number: p[3] || '',
-    pts: +s[0] || 0, fg: pair(s[1]), p3: pair(s[2]), ft: pair(s[3]), reb: +s[6] || 0, ast: +s[7] || 0, stl: +s[8] || 0, blk: +s[9] || 0, pf: +s[11] || 0 };
+    min: n(0), fg: pair(s[1]), p3: pair(s[2]), ft: pair(s[3]),
+    oreb: n(4), dreb: n(5), reb: n(6), ast: n(7), stl: n(8), blk: n(9), to: n(10), pf: n(11), pts: n(13) };
 }
 async function tsBasketballLineup(tsid) {
+  // lineup_live 는 (uuid 를 줘도) 여러 경기를 배열로 반환 → 반드시 요청한 경기 id 와 일치하는 항목만 사용.
+  //  일치 항목이 없으면 null(= 이 경기 라인업 미제공). 절대 res[0](다른 경기)로 대체하지 않음.
   const r = await tsFetch('/basketball/match/lineup_live', { uuid: tsid }, 8000).catch(() => null);
   const res = r && r.results; if (!res) return null;
-  const item = Array.isArray(res) ? res[0] : res;
-  const pl = item && item.players; if (!pl || !pl.length) return null;
+  const list = Array.isArray(res) ? res : [res];
+  const item = list.find(x => x && String(x.id) === String(tsid));
+  if (!item) return null;
+  const pl = item.players; if (!pl || !pl.length) return null;
   const mk = arr => (arr || []).filter(x => Array.isArray(x)).map(tsBskPlayer);
-  return { home: mk(pl[0]), away: mk(pl[1]) };
+  const home = mk(pl[0]), away = mk(pl[1]);
+  if (!home.length && !away.length) return null;
+  const byPts = (a, b) => (b.pts - a.pts) || (b.min - a.min);   // 득점순(공급사 선발 플래그 미제공 → 임의 선발분류 안 함)
+  return { id: item.id, home: home.sort(byPts), away: away.sort(byPts),
+    homePts: home.reduce((a, b) => a + b.pts, 0), awayPts: away.reduce((a, b) => a + b.pts, 0) };
 }
 app.get('/api/basketball/lineup', async (req, res) => {
-  const id = String(req.query.id || '').replace(/^ts/, '');
-  if (!id) return res.status(400).json({ error: 'need id' });
-  try { const lu = await tsBasketballLineup(id); res.json(lu || { home: [], away: [] }); }
+  const raw = String(req.query.id || '');
+  if (!raw) return res.status(400).json({ error: 'need id' });
+  // 박스스코어/라인업은 더스포츠(초단위) 경기(id 가 'ts' 접두)만 제공. 타 공급사 경기에 다른 경기 데이터를 대신 표시하지 않음.
+  if (!/^ts/.test(raw)) return res.json({ home: [], away: [], note: 'not-thesports' });
+  const id = raw.replace(/^ts/, '');
+  try { const lu = await tsBasketballLineup(id); res.json(lu || { home: [], away: [], note: 'no-lineup' }); }
   catch (e) { res.json({ home: [], away: [], error: String(e.message || e) }); }
 });
 async function buildGamesCore(sport, date, tz) {
