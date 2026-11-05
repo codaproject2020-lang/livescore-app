@@ -63,7 +63,7 @@ let errorsCol = null, configCol = null, adminSubsCol = null;
 const adminSubs = new Map();        // 관리자 알림 구독: endpoint -> subscription
 let _lastErrPush = 0;
 // 기능 토글/메인터넌스 (관리자가 바꾸면 전체 유저에 즉시 반영, 코드/배포 불필요)
-const CFG = { flags: {}, maint: '', bskSrc: 'auto', alertsOff: false, alertsNight: false, updatedAt: 0 };
+const CFG = { flags: {}, maint: '', bskSrc: 'auto', ftbSrc: 'thesports', volSrc: 'thesports', alertsOff: false, alertsNight: false, updatedAt: 0 };
 function logError(src, type, msg, extra, force) {
   try {
     const e = { ts: Date.now(), src: src || 'server', type: type || 'error', msg: String((msg && msg.message) || msg || '').slice(0, 600), extra: extra || null };
@@ -230,7 +230,7 @@ async function initDB() {
       errorsCol = db.collection('errors'); await errorsCol.createIndex({ ts: -1 }).catch(() => {});
       configCol = db.collection('config');
       const c = await configCol.findOne({ _id: 'main' });
-      if (c) { CFG.flags = c.flags || {}; CFG.maint = c.maint || ''; CFG.bskSrc = c.bskSrc || 'auto'; CFG.alertsOff = !!c.alertsOff; CFG.alertsNight = !!c.alertsNight; CFG.updatedAt = c.updatedAt || 0; }
+      if (c) { CFG.flags = c.flags || {}; CFG.maint = c.maint || ''; CFG.bskSrc = c.bskSrc || 'auto'; CFG.ftbSrc = c.ftbSrc || 'thesports'; CFG.volSrc = c.volSrc || 'thesports'; CFG.alertsOff = !!c.alertsOff; CFG.alertsNight = !!c.alertsNight; CFG.updatedAt = c.updatedAt || 0; }
       // 📡 직전 접속수 복원 — 10분 이내에 저장된 값만 바닥값으로 사용(오래된 값은 무시)
       try { const pdoc = await configCol.findOne({ _id: 'presence' }); if (pdoc && pdoc.n > 0 && (Date.now() - (pdoc.at || 0) < 10 * 60 * 1000)) { _presenceFloor = pdoc.n; console.log(`[DB] 접속수 바닥값 복원: ${_presenceFloor}`); } } catch (_) {}
       adminSubsCol = db.collection('admin_subs');
@@ -289,7 +289,7 @@ async function sendWelcomeMail(to, name) {
   try { await mailer.sendMail({ from: MAIL_FROM, to, subject: 'LIVE UP 가입을 환영합니다 🎉', html }); }
   catch (e) { console.error('welcome mail failed:', e.message); }
 }
-app.get('/api/config', (req, res) => res.json({ googleClientId: GOOGLE_CLIENT_ID, flags: CFG.flags || {}, maint: CFG.maint || '', bskSrc: CFG.bskSrc || 'auto' }));
+app.get('/api/config', (req, res) => res.json({ googleClientId: GOOGLE_CLIENT_ID, flags: CFG.flags || {}, maint: CFG.maint || '', bskSrc: CFG.bskSrc || 'auto', ftbSrc: CFG.ftbSrc || 'thesports', volSrc: CFG.volSrc || 'thesports' }));
 app.post('/api/auth/google', async (req, res) => {
   const cred = req.body && req.body.credential;
   if (!GOOGLE_CLIENT_ID) return res.json({ ok: false, error: '서버에 GOOGLE_CLIENT_ID 미설정' });
@@ -481,18 +481,20 @@ app.post('/api/clienterror', (req, res) => {
 app.get('/api/admin/errors', (req, res) => { if (!adminOK(req)) return res.status(401).json({ ok: false }); res.json({ ok: true, count: ERRLOG.length, errors: ERRLOG.slice(-150).reverse() }); });
 app.post('/api/admin/errors/clear', (req, res) => { if (!adminOK(req)) return res.status(401).json({ ok: false }); ERRLOG.length = 0; res.json({ ok: true }); });
 // 관리자: 기능 토글 / 메인터넌스 / 농구소스 저장 (전체 유저 즉시 반영)
-app.get('/api/admin/config', (req, res) => { if (!adminOK(req)) return res.status(401).json({ ok: false }); res.json({ ok: true, flags: CFG.flags, maint: CFG.maint, bskSrc: CFG.bskSrc, alertsOff: CFG.alertsOff, alertsNight: CFG.alertsNight, updatedAt: CFG.updatedAt }); });
+app.get('/api/admin/config', (req, res) => { if (!adminOK(req)) return res.status(401).json({ ok: false }); res.json({ ok: true, flags: CFG.flags, maint: CFG.maint, bskSrc: CFG.bskSrc, ftbSrc: CFG.ftbSrc, volSrc: CFG.volSrc, alertsOff: CFG.alertsOff, alertsNight: CFG.alertsNight, updatedAt: CFG.updatedAt }); });
 app.post('/api/admin/config', (req, res) => {
   if (!adminOK(req)) return res.status(401).json({ ok: false });
   const b = req.body || {};
   if (b.flags && typeof b.flags === 'object') CFG.flags = b.flags;
   if (typeof b.maint === 'string') CFG.maint = b.maint.slice(0, 300);
   if (typeof b.bskSrc === 'string') CFG.bskSrc = b.bskSrc;
+  if (typeof b.ftbSrc === 'string') CFG.ftbSrc = b.ftbSrc;
+  if (typeof b.volSrc === 'string') CFG.volSrc = b.volSrc;
   if (typeof b.alertsOff === 'boolean') CFG.alertsOff = b.alertsOff;
   if (typeof b.alertsNight === 'boolean') CFG.alertsNight = b.alertsNight;
   CFG.updatedAt = Date.now();
-  if (configCol) configCol.updateOne({ _id: 'main' }, { $set: { flags: CFG.flags, maint: CFG.maint, bskSrc: CFG.bskSrc, alertsOff: CFG.alertsOff, alertsNight: CFG.alertsNight, updatedAt: CFG.updatedAt } }, { upsert: true }).catch(() => {});
-  res.json({ ok: true, flags: CFG.flags, maint: CFG.maint, bskSrc: CFG.bskSrc, alertsOff: CFG.alertsOff, alertsNight: CFG.alertsNight });
+  if (configCol) configCol.updateOne({ _id: 'main' }, { $set: { flags: CFG.flags, maint: CFG.maint, bskSrc: CFG.bskSrc, ftbSrc: CFG.ftbSrc, volSrc: CFG.volSrc, alertsOff: CFG.alertsOff, alertsNight: CFG.alertsNight, updatedAt: CFG.updatedAt } }, { upsert: true }).catch(() => {});
+  res.json({ ok: true, flags: CFG.flags, maint: CFG.maint, bskSrc: CFG.bskSrc, ftbSrc: CFG.ftbSrc, volSrc: CFG.volSrc, alertsOff: CFG.alertsOff, alertsNight: CFG.alertsNight });
 });
 // 관리자: 폰 알림 구독 / 테스트
 app.post('/api/admin/push/subscribe', (req, res) => {
@@ -1319,9 +1321,10 @@ async function tsFootballGames(date) {
   const ymd = String(date).replace(/-/g, '');
   const d = await tsFetch('/football/match/diary', { date: ymd }, 6000);
   const ex = d.results_extra || {};
-  const teams = {}, comps = {};
+  const teams = {}, comps = {}, countries = {};
+  (ex.country || []).forEach(c => countries[c.id] = c.name);
   (ex.team || []).forEach(t => teams[t.id] = { name: t.name, logo: t.logo });
-  (ex.competition || []).forEach(c => comps[c.id] = { name: c.name, logo: c.logo });
+  (ex.competition || []).forEach(c => comps[c.id] = { name: c.name, logo: c.logo, country: countries[c.country_id] || '' });
   // 실시간 오버레이 (진행 경기)
   const live = {};
   try {
@@ -1335,10 +1338,11 @@ async function tsFootballGames(date) {
     let hs = m.home_scores ? m.home_scores[0] : null, as = m.away_scores ? m.away_scores[0] : null;
     if (lvm) { if (lvm.h != null) hs = lvm.h; if (lvm.a != null) as = lvm.a; }
     return {
-      id: m.id, sport: 'football',
+      id: m.id, sport: 'football', tsid: m.id,
       home: ht.name || m.home_team_id, away: at.name || m.away_team_id,
       homeLogo: ht.logo || '', awayLogo: at.logo || '',
-      league: cp.name || '', leagueLogo: cp.logo || '',
+      homeTid: m.home_team_id, awayTid: m.away_team_id,
+      league: cp.name || '', leagueLogo: cp.logo || '', leagueId: m.competition_id || '', country: cp.country || '',
       hs, as, state: tsFootState(sid), status: tsFootStatus(sid), statusLong: '',
       date: m.match_time ? new Date(m.match_time * 1000).toISOString() : null, elapsed: null
     };
@@ -2118,9 +2122,76 @@ app.get('/api/basketball/live', async (req, res) => {
     });
   } catch (e) { res.json({ error: String(e.message || e), events: [] }); }
 });
+// 🏐 TheSports 배구 경기목록(diary) → 세트 승수(ft) + 세트별 점수(p1~p5)
+function tsVolState(s) { s = Number(s); if (s === 1 || s === 0) return 'scheduled'; if (s === 100 || s < 0) return 'finished'; return 'live'; }
+async function tsVolleyballGames(date, tz) {
+  tz = canonTz(tz);
+  const toYmd = d => String(d).replace(/-/g, '');
+  const prev = new Date(Date.parse(date + 'T12:00:00Z') - 864e5).toISOString().slice(0, 10);
+  const next = new Date(Date.parse(date + 'T12:00:00Z') + 864e5).toISOString().slice(0, 10);
+  const team = {}, comp = {}, countries = {}, out = [], seen = new Set();
+  for (const dt of [prev, date, next]) {
+    let d; try { d = await tsFetch('/volleyball/match/diary', { date: toYmd(dt) }, 8000); } catch { continue; }
+    const ex = (d && d.results_extra) || {};
+    (ex.country || []).forEach(c => countries[c.id] = c.name);
+    (ex.competition || []).forEach(c => comp[c.id] = { name: c.name, logo: c.logo || '', country: countries[c.country_id] || '' });
+    (ex.team || []).forEach(t => team[t.id] = { name: t.name, logo: t.logo || '' });
+    for (const m of (d && d.results) || []) {
+      const id = m.id; if (!id || seen.has(id)) continue;
+      const iso = m.match_time ? new Date(m.match_time * 1000).toISOString() : null;
+      if (iso && ymdInTz(iso, tz) !== date) continue;
+      seen.add(id);
+      const ht = team[m.home_team_id] || {}, at = team[m.away_team_id] || {}, cp = comp[m.unique_tournament_id] || comp[m.tournament_id] || {};
+      const sc = m.scores || {}; const ft = sc.ft || [];
+      const setScores = [];
+      ['p1', 'p2', 'p3', 'p4', 'p5'].forEach(k => { const p = sc[k]; if (Array.isArray(p) && (p[0] != null || p[1] != null)) setScores.push({ home: (p[0] != null ? +p[0] : null), away: (p[1] != null ? +p[1] : null) }); });
+      const st = m.status_id, state = tsVolState(st);
+      out.push({
+        id: 'ts' + id, tsid: id, sport: 'volleyball',
+        league: cp.name || '', leagueLogo: cp.logo || '', leagueId: m.unique_tournament_id || m.tournament_id || '', country: cp.country || '',
+        home: ht.name || '', homeLogo: ht.logo || '', away: at.name || '', awayLogo: at.logo || '',
+        homeTid: m.home_team_id, awayTid: m.away_team_id,
+        hs: (ft[0] != null ? +ft[0] : null), as: (ft[1] != null ? +ft[1] : null),   // 세트 승수
+        status: '', statusLong: String(st), period: setScores.length,
+        setScores: setScores.length ? setScores : null,
+        livePts: (state === 'live' && setScores.length) ? setScores[setScores.length - 1] : null,
+        box: null, curInning: null, inningHalf: null,
+        date: iso, state: state, _src: 'thesports'
+      });
+    }
+  }
+  return out;
+}
 async function buildGamesCore(sport, date, tz) {
   const cfg = AS[sport]; if (!cfg) return { games: [], j: {} };
   tz = canonTz(tz);
+  // ⚽ 축구 = 더스포츠 (CFG.ftbSrc). 비면 아래 API-Sports 폴백.
+  if (sport === 'football' && CFG.ftbSrc === 'thesports') {
+    let games = [];
+    try {
+      const prev = new Date(Date.parse(date + 'T12:00:00Z') - 864e5).toISOString().slice(0, 10);
+      const next = new Date(Date.parse(date + 'T12:00:00Z') + 864e5).toISOString().slice(0, 10);
+      let all = [];
+      for (const dt of [prev, date, next]) { try { all = all.concat(await tsFootballGames(dt)); } catch (e) {} }
+      const seen = new Set();
+      games = all.filter(g => { if (!g.date || ymdInTz(g.date, tz) !== date) return false; if (seen.has(g.tsid)) return false; seen.add(g.tsid); return true; })
+        .map(g => Object.assign({}, g, { id: 'ts' + g.tsid }));
+    } catch (e) {}
+    const gk = 'TS|football|' + date + '|' + (tz || '');
+    if (games.length) { _lastGoodMinor.set(gk, { t: Date.now(), list: games.slice() }); return { games, j: { results: games.length, src: 'thesports' } }; }
+    const prev = _lastGoodMinor.get(gk);
+    if (prev && prev.list && prev.list.length && Date.now() - prev.t < 90000) return { games: prev.list.slice(), j: { results: prev.list.length, src: 'thesports-cache' } };
+    // 폴백: 아래 API-Sports 축구
+  }
+  // 🏐 배구 = 더스포츠 (CFG.volSrc). 비면 아래 API-Sports 폴백.
+  if (sport === 'volleyball' && CFG.volSrc === 'thesports') {
+    let games = []; try { games = await tsVolleyballGames(date, tz); } catch (e) {}
+    const gk = 'TS|volleyball|' + date + '|' + (tz || '');
+    if (games.length) { _lastGoodMinor.set(gk, { t: Date.now(), list: games.slice() }); return { games, j: { results: games.length, src: 'thesports' } }; }
+    const prev = _lastGoodMinor.get(gk);
+    if (prev && prev.list && prev.list.length && Date.now() - prev.t < 90000) return { games: prev.list.slice(), j: { results: prev.list.length, src: 'thesports-cache' } };
+    // 폴백: 아래 API-Sports 배구
+  }
   // 🏀 농구 = 더스포츠(초단위 시계+라인업) 강제 옵션
   if (sport === 'basketball' && CFG.bskSrc === 'thesports') {
     let games = []; try { games = await tsBasketballGames(date, tz); } catch (e) {}
@@ -2587,10 +2658,34 @@ async function tsFbPlayer(pid) {
   try { const r = await tsFetch('/football/player/list', { uuid: pid }, 5000); const p = (r.results || [])[0]; if (p) v = { name: p.name || '', logo: p.logo || '' }; } catch (e) {}
   FB_PLAYER.set(pid, v); return v;
 }
+const tsFbIsStarter = p => p.first === 1 || p.first === true || p.first === '1' || p.type === 1 || p.on_bench === 0;
+async function tsFbBuildSide(arr) {
+  if (!Array.isArray(arr)) return { xi: [], subs: [] };
+  const mk = async p => { const pid = p.id || p.player_id || p.uuid; const info = await tsFbPlayer(pid); return { id: pid, name: p.name || info.name || '', number: (p.shirt_number != null ? p.shirt_number : (p.number != null ? p.number : '')), pos: p.position || p.pos || '', grid: '', photo: p.logo || info.logo || '' }; };
+  const st = arr.filter(tsFbIsStarter), sb = arr.filter(p => !tsFbIsStarter(p));
+  return { xi: await Promise.all(st.slice(0, 11).map(mk)), subs: await Promise.all(sb.slice(0, 12).map(mk)) };
+}
 app.get('/api/football/lineup', async (req, res) => {
   const home = req.query.home, away = req.query.away, debug = req.query.debug;
   const date = req.query.date || new Date().toISOString().slice(0, 10);
   const fixtureId = req.query.fixture;
+  // ⭐ 더스포츠 경기(id 'ts' 접두): 이름검색 없이 경기 id로 라인업 직접 조회(확정 선발 first 플래그 사용)
+  if (/^ts/.test(String(fixtureId || ''))) {
+    if (!TS_ON) return res.json({ teams: [] });
+    try {
+      const tsid = String(fixtureId).replace(/^ts/, '');
+      const lu = await tsFetch('/football/match/lineup', { uuid: tsid }, 8000).catch(() => null);
+      const r = (lu && lu.results) ? lu.results : (lu || {});
+      const homeArr = (r.lineup && r.lineup.home) || r.home || r.home_players || [];
+      const awayArr = (r.lineup && r.lineup.away) || r.away || r.away_players || [];
+      if (!homeArr.length && !awayArr.length) return res.json({ teams: [], note: 'no-lineup' });
+      const H = await tsFbBuildSide(homeArr), A = await tsFbBuildSide(awayArr);
+      return res.json({ teams: [
+        { team: home || '', logo: '', formation: r.home_formation || (r.home && r.home.formation) || '', coach: (r.home_coach && r.home_coach.name) || '', startXI: H.xi, subs: H.subs },
+        { team: away || '', logo: '', formation: r.away_formation || (r.away && r.away.formation) || '', coach: (r.away_coach && r.away_coach.name) || '', startXI: A.xi, subs: A.subs }
+      ], src: 'thesports-id' });
+    } catch (e) { return res.json({ teams: [], error: String(e.message || e) }); }
+  }
   // 1) ⭐ api-football 확정 라인업 우선 (fixture id 기준, Mega 플랜 커버) — 경기 시작~종료 시 확정 라인업 제공
   if (fixtureId && APISPORTS_KEY) {
     try {
@@ -2646,6 +2741,31 @@ app.get('/api/football/lineup', async (req, res) => {
     const t2 = { team: match.away, logo: match.awayLogo, formation: aForm, coach: (r.away_coach && r.away_coach.name) || '', startXI: A.xi, subs: A.subs };
     res.json({ teams: [t1, t2], src: 'thesports', swap });
   } catch (e) { res.json({ teams: [], error: String(e.message || e) }); }
+});
+// ⚽ 축구 경기 흐름/이벤트 (더스포츠 경기) — detail_live 1회에서 해당 경기 tlive 추출
+app.get('/api/football/live', async (req, res) => {
+  const raw = String(req.query.id || '');
+  if (!/^ts/.test(raw)) return res.json({ note: 'not-thesports', events: [] });
+  const id = raw.replace(/^ts/, '');
+  try {
+    const lv = await tsFetch('/football/match/detail_live', {}, 5000).catch(() => null);
+    const list = (lv && lv.results) || [];
+    const item = list.find(x => x && String(x.id || (x.score && x.score[0])) === String(id));
+    if (!item) return res.json({ found: false, events: [] });
+    let lines = []; const tl = item.tlive || item.incidents;
+    if (Array.isArray(tl) && tl.length) lines = Array.isArray(tl[0]) ? tl[0] : tl;
+    const evs = [];
+    lines.forEach(L => {
+      if (Array.isArray(L)) {
+        // 배열형: [type, minute, team, ...] 또는 [period, "mm:ss", team, ?, score, text]
+        const txt = L[5] || L[4] || '';
+        evs.push({ minute: (typeof L[1] === 'number' ? L[1] : (String(L[1] || '').match(/\d+/) || [''])[0]), team: +L[2] || 0, text: String(txt), type: L[0] });
+      } else if (L && typeof L === 'object') {
+        evs.push({ minute: L.minute != null ? L.minute : (L.time || ''), team: (L.position || L.team || 0), text: L.text || L.detail || '', type: L.type });
+      }
+    });
+    res.json({ found: true, events: evs.slice(-120).reverse() });
+  } catch (e) { res.json({ error: String(e.message || e), events: [] }); }
 });
 
 // ⚽ 축구 상대전적(H2H) + 최근 10경기 — API-Football (팀 ID 기준)
