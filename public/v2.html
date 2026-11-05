@@ -259,6 +259,8 @@ img{display:block}
 .rank th{background:var(--soft);font-weight:800;color:var(--muted);font-size:11.5px}
 .rank td.tm{text-align:left;font-weight:700}
 .rank td.rk{font-weight:900;color:var(--navy)}
+.rank.bsk td{vertical-align:top}
+.bsx{color:var(--muted);font-size:10px;font-weight:600;margin-top:2px;line-height:1.3}
 /* 뉴스 */
 .news-item{display:block;padding:12px 2px;border-bottom:1px solid var(--line);color:inherit;text-decoration:none}
 .news-item .nt{font-weight:800;font-size:14px}.news-item .nm2{font-size:12px;color:var(--muted);margin-top:3px}
@@ -1023,23 +1025,26 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
     fetch("/api/basketball/lineup?id="+encodeURIComponent(g.id)).then(function(r){return r.json()}).then(function(j){
       if(!dtFresh(tk))return;
       var home=(j&&j.home)||[], away=(j&&j.away)||[];
-      if(!home.length&&!away.length){ dtBody('<div class="msg"><div class="big">📋</div>'+t("notProvided")+'</div>'); return; }
+      if(!home.length&&!away.length){
+        // 더스포츠 경기가 아니거나(타 공급사) 아직 라인업 미제공 — 다른 경기 데이터로 대체하지 않음
+        var m=(j&&j.note==="not-thesports")?tl({en:"Box score is available for supported live matches.",ko:"박스스코어는 지원되는 실시간 경기에서 제공됩니다.",ja:"ボックススコアは対応するライブ試合で提供されます。",zh:"支持的实时比赛提供技术统计。",es:"Marcador disponible en partidos en vivo compatibles.",hi:"समर्थित लाइव मैच में बॉक्स स्कोर उपलब्ध।",vi:"Bảng điểm có ở các trận trực tiếp được hỗ trợ.",th:"บ็อกซ์สกอร์มีในแมตช์สดที่รองรับ",ru:"Бокс-скор доступен для поддерживаемых матчей.",de:"Boxscore für unterstützte Live-Spiele.",fr:"Feuille de match pour les matchs en direct pris en charge.",it:"Tabellino disponibile per le partite dal vivo supportate."}):t("notProvided");
+        dtBody('<div class="msg"><div class="big">📋</div>'+m+'</div>'); return;
+      }
       var LPLR=tl({en:"Player",ko:"선수",ja:"選手",zh:"球员",es:"Jugador",hi:"खिलाड़ी",vi:"Cầu thủ",th:"นักกีฬา",ru:"Игрок",de:"Spieler",fr:"Joueur",it:"Giocatore"});
+      var LMIN=tl({en:"MIN",ko:"분",ja:"分",zh:"时间",es:"MIN",hi:"मिन",vi:"Phút",th:"นาที",ru:"Мин",de:"MIN",fr:"MIN",it:"MIN"});
       var LPTS=tl({en:"PTS",ko:"득점",ja:"得点",zh:"得分",es:"PTS",hi:"अंक",vi:"Điểm",th:"แต้ม",ru:"Очк",de:"PKT",fr:"PTS",it:"PTI"});
       var LREB=tl({en:"REB",ko:"리바",ja:"リバ",zh:"篮板",es:"REB",hi:"रिब",vi:"Bật",th:"รีบ",ru:"Подб",de:"REB",fr:"REB",it:"RIM"});
       var LAST=tl({en:"AST",ko:"어시",ja:"アシ",zh:"助攻",es:"AST",hi:"असि",vi:"KT",th:"แอส",ru:"Пас",de:"AST",fr:"PD",it:"AST"});
-      var LST=tl({en:"Starters",ko:"선발",ja:"スタメン",zh:"首发",es:"Titulares",hi:"स्टार्टर",vi:"Đá chính",th:"ตัวจริง",ru:"Старт",de:"Starter",fr:"Titulaires",it:"Titolari"});
-      var LBN=tl({en:"Bench",ko:"벤치",ja:"ベンチ",zh:"替补",es:"Banca",hi:"बेंच",vi:"Dự bị",th:"สำรอง",ru:"Запас",de:"Bank",fr:"Banc",it:"Panchina"});
-      function row(p){ return '<tr><td class="tm">'+(p.number?('<span style="color:#8a93a3;font-size:11px">'+esc(String(p.number))+'</span> '):'')+esc(p.name||"-")+'</td><td style="font-weight:800">'+p.pts+'</td><td>'+p.reb+'</td><td>'+p.ast+'</td><td style="color:#8a93a3;font-size:11px">'+esc(p.fg||"-")+'</td></tr>'; }
-      function tbl(arr,teamName){
+      var LERR=tl({en:"Lineup from live box score (starters not flagged by feed).",ko:"실시간 박스스코어 기준 명단 (선발 구분은 피드 미제공).",ja:"ライブBOXスコアに基づく名簿（先発区分は未提供）。",zh:"基于实时技术统计的名单（首发未标注）。",es:"Lista según el marcador en vivo (titulares no indicados).",hi:"लाइव बॉक्स स्कोर से सूची (स्टार्टर चिह्नित नहीं)।",vi:"Danh sách từ bảng điểm trực tiếp (không đánh dấu đá chính).",th:"รายชื่อจากบ็อกซ์สกอร์สด (ไม่ระบุตัวจริง)",ru:"Состав по лайв-бокс-скору (стартовые не отмечены).",de:"Kader aus Live-Boxscore (Starter nicht markiert).",fr:"Liste du tableau en direct (titulaires non indiqués).",it:"Elenco dal tabellino dal vivo (titolari non indicati)."});
+      function sub(p){ return '<div class="bsx">'+LMIN+' '+p.min+"' · FG "+esc(p.fg)+' · 3P '+esc(p.p3)+' · FT '+esc(p.ft)+' · STL '+p.stl+' BLK '+p.blk+' TO '+p.to+' PF '+p.pf+'</div>'; }
+      function row(p){ return '<tr><td class="tm" style="text-align:left">'+(p.number?('<span style="color:#8a93a3;font-size:11px">#'+esc(String(p.number))+'</span> '):'')+esc(p.name||"-")+sub(p)+'</td><td style="font-weight:800">'+p.pts+'</td><td>'+p.reb+'</td><td>'+p.ast+'</td></tr>'; }
+      function tbl(arr,teamName,pts){
         if(!arr.length)return '';
-        var st=arr.slice(0,5), bn=arr.slice(5);
-        var h='<div class="dt-sec-t">'+esc(teamName)+'</div><table class="rank"><thead><tr><th style="text-align:left">'+LPLR+'</th><th>'+LPTS+'</th><th>'+LREB+'</th><th>'+LAST+'</th><th>FG</th></tr></thead><tbody>';
-        h+='<tr><td colspan="5" style="background:var(--soft);text-align:left;font-weight:800;font-size:11px;color:var(--muted)">'+LST+'</td></tr>'+st.map(row).join("");
-        if(bn.length) h+='<tr><td colspan="5" style="background:var(--soft);text-align:left;font-weight:800;font-size:11px;color:var(--muted)">'+LBN+'</td></tr>'+bn.map(row).join("");
+        var h='<div class="dt-sec-t">'+esc(teamName)+(pts!=null?' · '+pts:'')+'</div><table class="rank bsk"><thead><tr><th style="text-align:left">'+LPLR+'</th><th>'+LPTS+'</th><th>'+LREB+'</th><th>'+LAST+'</th></tr></thead><tbody>';
+        h+=arr.map(row).join("");
         return h+'</tbody></table>';
       }
-      dtBody(tbl(home,g.home)+tbl(away,g.away));
+      dtBody(tbl(home,g.home,j.homePts)+tbl(away,g.away,j.awayPts)+'<p style="color:#8a93a3;font-size:11px;margin-top:10px">'+LERR+'</p>');
     }).catch(function(){ dtBody('<div class="msg"><div class="big">⚠️</div>'+t("m_luFail")+'</div>'); });
   }
   // 채팅 (WebSocket /ws, 경기방 event:<id>)
