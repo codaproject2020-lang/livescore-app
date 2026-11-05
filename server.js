@@ -2670,6 +2670,61 @@ app.get('/api/asports/fbstats', async (req, res) => {
   } catch (e) { res.status(502).json({ error: String(e.message || e), teams: [] }); }
 });
 
+// ⚽ 축구 메인카드용 라이브 요약 통계 — 진행 중 경기만 서버에서 묶어서 1회 응답(개별 호출 금지 규칙 준수)
+//    각 경기 stats 는 asRaw 캐시(60s) + 전체 응답 45s 캐시로 호출 제한을 지킴. 미제공은 null(0으로 채우지 않음).
+const _liveStatsCache = new Map();
+function _pickStat(arr, re) { for (const s of (arr || [])) { if (re.test(String(s.type))) { const v = s.value; return (v == null || v === '') ? null : v; } } return null; }
+function _numOrNull(v) { if (v == null || v === '') return null; const n = parseInt(String(v).replace(/[^\d-]/g, ''), 10); return isNaN(n) ? null : n; }
+async function _fbStatSide(fixture) {
+  const j = await asRaw('football', `/fixtures/statistics?fixture=${encodeURIComponent(fixture)}`, 60000).catch(() => null);
+  const resp = (j && j.response) || [];
+  if (resp.length < 2) return null;
+  const side = t => {
+    const st = t.statistics || [];
+    return {
+      poss: _pickStat(st, /possession/i),                 // "55%" 형태 유지
+      shots: _numOrNull(_pickStat(st, /total shots/i)),
+      sot: _numOrNull(_pickStat(st, /shots on goal|on target/i)),
+      yc: _numOrNull(_pickStat(st, /yellow/i)),
+      rc: _numOrNull(_pickStat(st, /red/i))
+    };
+  };
+  return { team0: resp[0].team ? resp[0].team.name : '', a: side(resp[0]), team1: resp[1].team ? resp[1].team.name : '', b: side(resp[1]) };
+}
+app.get('/api/asports/livestats', async (req, res) => {
+  if (!APISPORTS_KEY) return res.json({ needKey: true, stats: {} });
+  if (CFG.liveStatsOff) return res.json({ stats: {}, off: true });   // 쿼터 절약용 관리자 스위치
+  const sport = req.query.sport || 'football';
+  if (sport !== 'football') return res.json({ stats: {} });   // 현재 축구만 집계(타 종목은 상세에서 제공)
+  const date = req.query.date || new Date().toISOString().slice(0, 10);
+  const tz = req.query.tz || 'Asia/Seoul';
+  const ck = 'ls|' + sport + '|' + date + '|' + tz;
+  const hit = _liveStatsCache.get(ck), now = Date.now();
+  if (hit && now - hit.t < 45000) return res.json(hit.v);
+  try {
+    const { games } = await buildGamesCoreCached(sport, date, tz).catch(() => ({ games: [] }));
+    const live = (games || []).filter(g => g.state === 'live').slice(0, 40);   // 진행 중만, 최대 40경기
+    const out = {};
+    // 순차가 아니라 병렬이되 캐시로 대부분 즉시 반환
+    await Promise.all(live.map(async g => {
+      try {
+        const s = await _fbStatSide(g.id);
+        if (!s) return;
+        // 응답 팀순서를 홈/원정에 매핑(이름 매칭, 실패 시 0=홈 가정)
+        const norm = x => String(x || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+        let home = s.a, away = s.b;
+        if (norm(s.team1) === norm(g.home) || norm(s.team0) === norm(g.away)) { home = s.b; away = s.a; }
+        // 전부 null 이면 수록하지 않음(미제공)
+        const any = o => o && (o.poss != null || o.shots != null || o.sot != null || o.yc != null || o.rc != null);
+        if (any(home) || any(away)) out['' + g.id] = { home, away };
+      } catch (_) { }
+    }));
+    const payload = { stats: out, at: now };
+    _liveStatsCache.set(ck, { t: now, v: payload });
+    res.json(payload);
+  } catch (e) { res.status(502).json({ error: String(e.message || e), stats: {} }); }
+});
+
 // ⚽ 축구 선수별 경기 기록·평점 — API-Sports /fixtures/players
 app.get('/api/asports/fbplayers', async (req, res) => {
   if (!APISPORTS_KEY) return res.json({ needKey: true, teams: [] });
