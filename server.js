@@ -21,6 +21,44 @@ const app = express();
 const server = http.createServer(app);
 
 const PORT = process.env.PORT || 3000;
+const APP_VERSION = 'v366';
+
+// ============================================================
+//  📏 성능 계측(instrumentation) — 엔드포인트 지연·캐시·공급사·WS·이벤트루프
+//     개인정보·토큰·비밀키는 절대 기록하지 않음(경로/숫자만)
+// ============================================================
+const METRICS = {
+  startAt: Date.now(), version: APP_VERSION,
+  ep: new Map(),                                  // label -> {n, err, samples:[ms,...] (ring, cap 400)}
+  cache: { hit: 0, miss: 0, refresh: 0, merge: 0 },   // 공용 캐시: 적중/미적중(콜드빌드)/백그라운드갱신/병합(single-flight 공유)
+  supplier: { asCall: 0, as429: 0, asFail: 0, tsCall: 0, tsFail: 0 },  // 공급사 실호출/429/실패
+  ws: { connects: 0, disconnects: 0, fails: 0 },
+  elLagMs: 0
+};
+function epLabelFromPath(p) {
+  // ID·날짜 등 가변 세그먼트를 접어 라벨 폭발 방지
+  if (p.indexOf('/api/') !== 0) return p === '/' ? '/(root)' : 'STATIC';
+  const parts = p.split('/').slice(0, 4).map(s => /^\d/.test(s) || s.length > 24 ? ':v' : s);
+  return parts.join('/');
+}
+function recordEp(label, ms, isErr) {
+  let m = METRICS.ep.get(label);
+  if (!m) { m = { n: 0, err: 0, samples: [] }; METRICS.ep.set(label, m); }
+  m.n++; if (isErr) m.err++;
+  m.samples.push(ms); if (m.samples.length > 400) m.samples.shift();
+}
+function pctl(sorted, p) { if (!sorted.length) return null; const i = Math.min(sorted.length - 1, Math.floor(p / 100 * sorted.length)); return Math.round(sorted[i]); }
+// 이벤트 루프 지연: 1초 타이머의 실제 지연을 측정
+let _elTick = Date.now();
+setInterval(() => { const now = Date.now(); METRICS.elLagMs = Math.max(0, now - _elTick - 1000); _elTick = now; }, 1000).unref?.();
+// 요청 지연 미들웨어(가장 먼저 — 정적 포함 전체 측정)
+app.use((req, res, next) => {
+  const t = process.hrtime.bigint();
+  res.on('finish', () => {
+    try { const ms = Number(process.hrtime.bigint() - t) / 1e6; recordEp(req.method + ' ' + epLabelFromPath(req.path), ms, res.statusCode >= 500); } catch (e) {}
+  });
+  next();
+});
 // TheSportsDB 무료 테스트 키("3"/"123"). 유료 키가 있으면 환경변수로 교체.
 const TSDB_KEY = process.env.THESPORTSDB_KEY || '3';
 const TSDB = `https://www.thesportsdb.com/api/v1/json/${TSDB_KEY}`;
@@ -142,8 +180,26 @@ function adminAlert(e, force) {
     }
   } catch (_) {}
 }
-process.on('uncaughtException', (e) => { logError('server', 'uncaughtException', e, { stack: String((e && e.stack) || '').slice(0, 400) }); });
+// ⚠️ 복구 불가능한 프로세스 오류(uncaughtException)는 상태가 불확정 → 로그 남기고 '깨끗하게 재시작'
+//    (요청별 오류는 각 라우트의 try/catch에서 처리됨. 여기는 그 바깥에서 샌 '프로세스 레벨' 오류만 도달)
+//    unhandledRejection은 대부분 요청-스코프라 로그만 남기고 계속 실행.
+let _shuttingDown = false;
+function gracefulExit(code, reason) {
+  if (_shuttingDown) return; _shuttingDown = true;
+  logError('server', 'shutdown', reason || 'graceful', {}, true);
+  try { wss && wss.clients && wss.clients.forEach(c => { try { c.close(1012, 'restart'); } catch (_) {} }); } catch (_) {}
+  try { server.close(() => process.exit(code)); } catch (_) { process.exit(code); }
+  setTimeout(() => process.exit(code), 3000).unref?.();   // 드레인 타임아웃
+}
+process.on('uncaughtException', (e) => {
+  logError('server', 'uncaughtException', e, { stack: String((e && e.stack) || '').slice(0, 400) }, true);
+  opAlert('server-fatal', `치명 오류(uncaughtException) — 프로세스 재시작: ${String((e && e.message) || e).slice(0, 100)}`, 300000);
+  gracefulExit(1, 'uncaughtException');   // 재시작은 플랫폼(Render)이 담당
+});
 process.on('unhandledRejection', (e) => { logError('server', 'unhandledRejection', e, { stack: String((e && e.stack) || '').slice(0, 400) }); });
+// Render 배포/재시작 시 SIGTERM → 안전 종료(연결 드레인)
+process.on('SIGTERM', () => gracefulExit(0, 'SIGTERM'));
+process.on('SIGINT', () => gracefulExit(0, 'SIGINT'));
 
 function maskKey(k) {
   k = String(k || '');
@@ -683,6 +739,35 @@ app.post('/api/admin/highlight/delete', (req, res) => {
   res.json({ ok: true });
 });
 
+// 🩺 헬스체크(공개·경량) — Render 헬스체크 경로로 지정하면 장애 시 자동재시작/롤백에 활용
+app.get('/healthz', (req, res) => {
+  const mem = process.memoryUsage();
+  res.json({ ok: true, version: APP_VERSION, uptimeSec: Math.round((Date.now() - METRICS.startAt) / 1000),
+    db: usersCol ? 'connected' : 'memory', rssMB: Math.round(mem.rss / 1048576), elLagMs: METRICS.elLagMs });
+});
+// 📏 성능 지표(관리자 전용) — 개인정보·토큰·비밀키 미포함, 경로/숫자만
+app.get('/api/admin/metrics', (req, res) => {
+  if (!adminOK(req)) return res.status(401).json({ ok: false });
+  const mem = process.memoryUsage();
+  const eps = [];
+  for (const [label, m] of METRICS.ep) {
+    const s = m.samples.slice().sort((a, b) => a - b);
+    eps.push({ ep: label, n: m.n, errRate: m.n ? +(m.err / m.n * 100).toFixed(2) : 0,
+      p50: pctl(s, 50), p95: pctl(s, 95), p99: pctl(s, 99), max: s.length ? Math.round(s[s.length - 1]) : null });
+  }
+  eps.sort((a, b) => b.n - a.n);
+  res.json({
+    ok: true, version: APP_VERSION,
+    process: { startAt: new Date(METRICS.startAt).toISOString(), uptimeSec: Math.round((Date.now() - METRICS.startAt) / 1000), node: process.version,
+      rssMB: +(mem.rss / 1048576).toFixed(1), heapUsedMB: +(mem.heapUsed / 1048576).toFixed(1), elLagMs: METRICS.elLagMs },
+    db: { connected: !!usersCol, mode: usersCol ? 'mongodb' : 'memory' },
+    presence: { online접속추정: (typeof livePresence === 'function') ? livePresence() : null, ws채팅연결: (wss && wss.clients) ? wss.clients.size : null },
+    ws: METRICS.ws,
+    cache: METRICS.cache,
+    supplier: { ...METRICS.supplier, apiSports오늘남음: _asUsage ? _asUsage.remaining : null, apiSports하루한도: _asUsage ? _asUsage.limit : null },
+    endpoints: eps.slice(0, 40)
+  });
+});
 // 관리자 페이지
 app.get('/admin', (req, res) => res.sendFile(path.join(__dirname, 'public', 'admin.html')));
 
@@ -692,8 +777,12 @@ async function cachedJSON(url, ttlMs = 30000) {
   const hit = cache.get(url);
   const now = Date.now();
   if (hit && now - hit.t < ttlMs) return hit.v;
-  const r = await fetch(url, { headers: { 'User-Agent': 'livescore-ai/1.0' } });
-  if (!r.ok) throw new Error(`upstream ${r.status}`);
+  const isTs = /thesports|\/ts\/v1/i.test(url);   // 공급사 실호출 계측(캐시 미스만)
+  if (isTs) METRICS.supplier.tsCall++;
+  let r;
+  try { r = await fetch(url, { headers: { 'User-Agent': 'livescore-ai/1.0' } }); }
+  catch (e) { if (isTs) METRICS.supplier.tsFail++; throw e; }
+  if (!r.ok) { if (isTs) METRICS.supplier.tsFail++; throw new Error(`upstream ${r.status}`); }
   const v = await r.json();
   cache.set(url, { t: now, v });
   return v;
@@ -1025,12 +1114,12 @@ async function asRaw(sport, path, ttl = 30000) {
   const url = `https://${cfg.host}${path}`;
   const hit = cache.get(url), now = Date.now();
   if (hit && now - hit.t < ttl) return hit.v;
-  _asCalls++;   // 📊 실제 API-Sports 호출 1건 (캐시 miss)
+  _asCalls++; METRICS.supplier.asCall++;   // 📊 실제 API-Sports 호출 1건 (캐시 miss)
   let r;
   try {
     r = await fetch(url, { headers: { 'x-apisports-key': APISPORTS_KEY } });
   } catch (netErr) {   // 네트워크 자체 실패(연결 끊김 등)
-    _asFailStreak++;
+    _asFailStreak++; METRICS.supplier.asFail++;
     if (_asFailStreak >= 5) opAlert('apisports-down', `API-Sports 연속 실패 ${_asFailStreak}회(연결 불가): ${String((netErr && netErr.message) || netErr).slice(0, 80)}`, 600000);
     if (hit) { hit.t = now; return hit.v; }
     throw netErr;
@@ -1046,7 +1135,7 @@ async function asRaw(sport, path, ttl = 30000) {
     }
   } catch {}
   if (!r.ok) {
-    _asFailStreak++;
+    _asFailStreak++; METRICS.supplier.asFail++; if (r.status === 429) METRICS.supplier.as429++;
     if (_asFailStreak >= 5) opAlert('apisports-fail', `API-Sports 오류 연속 ${_asFailStreak}회 (HTTP ${r.status}). 쿼터 소진 또는 서버 장애 가능성.`, 600000);
     if (hit) { hit.t = now; return hit.v; }   // ⚡ 429/5xx: 이전 정상 데이터 유지 + 백오프(빈 화면·예상라인업 방지)
     throw new Error('upstream ' + r.status);
@@ -2642,26 +2731,37 @@ async function buildGamesCore(sport, date, tz) {
 // 단일 타임존 버킷(전 지역 공유)이라 TTL을 당겨도 API 호출이 적음 → 업데이트 체감 속도 개선
 function sportTtl(sport){ return sport==='football' ? 7000 : sport==='baseball' ? 8000 : 8000; }
 const gamesCoreCache = new Map();
+// 🔗 single-flight: 같은 키의 동시 빌드를 1건으로 병합(콜드·30초초과·오류복구 경로 모두)
+const _coreInflight = new Map();
+function coreBuildOnce(k, sport, date, tz) {
+  const ex = _coreInflight.get(k);
+  if (ex) { METRICS.cache.merge++; return ex; }   // 진행 중 빌드에 합류 → 원본 API 중복 호출 방지
+  const p = buildGamesCore(sport, date, tz)
+    .finally(() => { _coreInflight.delete(k); });   // 성공·실패·타임아웃 모두 정리
+  _coreInflight.set(k, p);
+  return p;
+}
 async function buildGamesCoreCached(sport, date, tz, ttl = sportTtl(sport)) {
   const k = sport + '|' + date + '|' + (tz || '');
   const hit = gamesCoreCache.get(k), now = Date.now();
   if (hit) {
     const age = now - hit.t;
-    // 🕒 아주 오래된 캐시(복귀 유저 등, 30초 초과)면 옛 값 대신 새로 받아서 반환 → "옛 점수 먼저 보임" 방지
+    // 🕒 아주 오래된 캐시(복귀 유저 등, 30초 초과)면 새로 받아서 반환 — single-flight로 동시요청 1건만 원본 호출
     if (age > 30000) {
-      try { const v = await buildGamesCore(sport, date, tz); gamesCoreCache.set(k, { t: Date.now(), v }); return v; }
-      catch { return hit.v; }
+      METRICS.cache.miss++;
+      try { const v = await coreBuildOnce(k, sport, date, tz); gamesCoreCache.set(k, { t: Date.now(), v }); return v; }
+      catch { return hit.v; }   // 실패 시 마지막 정상값 유지
     }
-    // ⚡ stale-while-revalidate: 보통의 만료는 이전 값 즉시 반환 + 뒤에서 갱신 (활성 유저 빠른 응답)
-    if (age >= ttl && !hit.refreshing) {
-      hit.refreshing = true;
-      buildGamesCore(sport, date, tz)
-        .then(v => gamesCoreCache.set(k, { t: Date.now(), v }))
-        .catch(() => { hit.refreshing = false; });
+    // ⚡ stale-while-revalidate: 보통의 만료는 이전 값 즉시 반환 + 뒤에서 1건만 갱신
+    if (age >= ttl && !_coreInflight.has(k)) {
+      METRICS.cache.refresh++;
+      coreBuildOnce(k, sport, date, tz).then(v => gamesCoreCache.set(k, { t: Date.now(), v })).catch(() => {});
     }
+    METRICS.cache.hit++;
     return hit.v;
   }
-  const v = await buildGamesCore(sport, date, tz);   // 최초 1회만 대기
+  METRICS.cache.miss++;
+  const v = await coreBuildOnce(k, sport, date, tz);   // 콜드: 동시 요청 전부 이 1건을 공유
   gamesCoreCache.set(k, { t: now, v });
   if (gamesCoreCache.size > 40) { for (const [key, val] of gamesCoreCache) { if (now - val.t > 120000) gamesCoreCache.delete(key); } }
   return v;
@@ -2673,19 +2773,30 @@ async function buildFullGames(sport, date, tz) {
     games.sort((a, b) => (b.state === 'live') - (a.state === 'live'));
   return { sport, date, count: games.length, apiErrors: j.errors || null, results: j.results, games };
 }
+const _fullInflight = new Map();
+function fullBuildOnce(k, sport, date, tz) {
+  const ex = _fullInflight.get(k);
+  if (ex) { METRICS.cache.merge++; return ex; }
+  const p = buildFullGames(sport, date, tz).finally(() => { _fullInflight.delete(k); });
+  _fullInflight.set(k, p);
+  return p;
+}
 async function fullGamesCached(sport, date, tz, ttl = sportTtl(sport)) {
   const k = sport + '|' + date + '|' + (tz || ''); const hit = fullGamesCache.get(k), now = Date.now();
   if (hit) {
     const age = now - hit.t;
-    // 🕒 아주 오래된 캐시(복귀 유저, 30초 초과)면 옛 값 대신 새로 받아서 반환 → 현재 점수 즉시 표시
+    // 🕒 아주 오래된 캐시(복귀 유저, 30초 초과)면 새로 받아서 반환 — single-flight로 동시요청 1건만
     if (age > 30000) {
-      try { const v = await buildFullGames(sport, date, tz); const keepPrev = v && v.apiErrors && (!v.games || v.games.length === 0) && hit.v && hit.v.games && hit.v.games.length > 0; if (!keepPrev) fullGamesCache.set(k, { t: Date.now(), v }); else hit.t = Date.now(); return keepPrev ? hit.v : v; }
+      METRICS.cache.miss++;
+      try { const v = await fullBuildOnce(k, sport, date, tz); const keepPrev = v && v.apiErrors && (!v.games || v.games.length === 0) && hit.v && hit.v.games && hit.v.games.length > 0; if (!keepPrev) fullGamesCache.set(k, { t: Date.now(), v }); else hit.t = Date.now(); return keepPrev ? hit.v : v; }
       catch { return hit.v; }
     }
-    if (age >= ttl && !hit.refreshing) { hit.refreshing = true; buildFullGames(sport, date, tz).then(v => { const cur = fullGamesCache.get(k); const keepPrev = v && v.apiErrors && (!v.games || v.games.length === 0) && cur && cur.v && cur.v.games && cur.v.games.length > 0; if (keepPrev) { cur.t = Date.now(); cur.refreshing = false; } else { fullGamesCache.set(k, { t: Date.now(), v }); } }).catch(() => { hit.refreshing = false; }); }
+    if (age >= ttl && !_fullInflight.has(k)) { METRICS.cache.refresh++; fullBuildOnce(k, sport, date, tz).then(v => { const cur = fullGamesCache.get(k); const keepPrev = v && v.apiErrors && (!v.games || v.games.length === 0) && cur && cur.v && cur.v.games && cur.v.games.length > 0; if (keepPrev) { cur.t = Date.now(); } else { fullGamesCache.set(k, { t: Date.now(), v }); } }).catch(() => {}); }
+    METRICS.cache.hit++;
     return hit.v;
   }
-  const v = await buildFullGames(sport, date, tz); fullGamesCache.set(k, { t: Date.now(), v }); return v;
+  METRICS.cache.miss++;
+  const v = await fullBuildOnce(k, sport, date, tz); fullGamesCache.set(k, { t: Date.now(), v }); return v;
 }
 // 🔥 기본 피드 백그라운드 워머 (항상 캐시를 데워둬 첫 로드 즉시 응답)
 let _warmN = 0;
@@ -3605,7 +3716,10 @@ const ADJ = ['Cool', 'Lucky', 'Sharp', 'Bold', 'Swift', 'Prime', 'Star', 'Ace', 
 const NOUN = ['Fan', 'Picker', 'Scout', 'Analyst', 'Watcher', 'Bettor', 'Player', 'Fanatic', 'Supporter', 'Guru'];
 function guestName() { return ADJ[Math.random()*ADJ.length|0] + NOUN[Math.random()*NOUN.length|0] + (Math.random()*9000+1000|0); }
 
+wss.on('error', () => { METRICS.ws.fails++; });
 wss.on('connection', (ws) => {
+  METRICS.ws.connects++;
+  ws.on('error', () => { METRICS.ws.fails++; });
   ws.room = 'all';
   ws.name = guestName();
   roomSet(ws.room).add(ws);
@@ -3651,6 +3765,7 @@ wss.on('connection', (ws) => {
   });
 
   ws.on('close', () => {
+    METRICS.ws.disconnects++;
     roomSet(ws.room).delete(ws);
     sendPresence(ws.room);
   });
