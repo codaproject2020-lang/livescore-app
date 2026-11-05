@@ -59,7 +59,39 @@ let visitorsCol = null;             // 방문자 영속 컬렉션(연결 시)
 // ============================================================
 const ERRLOG = [];                 // 최근 에러 링버퍼(관리자 화면 표시)
 const ERR_MAX = 300;
-let errorsCol = null, configCol = null, adminSubsCol = null;
+let errorsCol = null, configCol = null, adminSubsCol = null, highlightsCol = null;
+// 🎬 경기 하이라이트(관리자 수동 등록) — key: "sport:matchId"
+const HIGHLIGHTS = new Map();
+// 공식 채널 허용목록(채널ID·핸들). 자동수집·공식 배지 판정에 사용. 수동 등록은 경고만.
+const OFFICIAL_CHANNELS = [
+  { league: 'NBA', name: 'NBA', channelId: 'UCWJ2lWNubArHWmf3FIHbfcQ', handle: '@nba' },
+  { league: 'KBL', name: 'KBL TV', channelId: 'UCoki0B1g_yItdxRWRxe_syg', handle: '@onkbl' }
+];
+function ytVideoId(url) {
+  if (!url) return '';
+  const s = String(url).trim();
+  const m = s.match(/(?:youtu\.be\/|youtube\.com\/(?:watch\?(?:[^&]*&)*v=|embed\/|shorts\/|live\/|v\/))([0-9A-Za-z_-]{11})/)
+    || s.match(/^([0-9A-Za-z_-]{11})$/);
+  return m ? m[1] : '';
+}
+function officialMatch(channelId, authorUrl) {
+  const cid = String(channelId || '');
+  const au = String(authorUrl || '').toLowerCase();
+  return OFFICIAL_CHANNELS.find(o => (cid && cid === o.channelId) || (au && au.indexOf(o.handle) >= 0)) || null;
+}
+// oEmbed로 제목·채널명·썸네일 확보(+가능하면 채널ID). 실패해도 videoId만으로 등록 가능.
+async function ytMeta(videoId) {
+  const out = { title: '', channel: '', authorUrl: '', channelId: '', thumb: `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg` };
+  try {
+    const ctrl = new AbortController(); const to = setTimeout(() => ctrl.abort(), 4500);
+    const r = await fetch(`https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v=${videoId}&format=json`, { signal: ctrl.signal });
+    clearTimeout(to);
+    if (r.ok) { const j = await r.json(); out.title = j.title || ''; out.channel = j.author_name || ''; out.authorUrl = j.author_url || ''; if (j.thumbnail_url) out.thumb = j.thumbnail_url; }
+  } catch (e) { }
+  // authorUrl이 /channel/UC... 형태면 채널ID 추출
+  const cm = String(out.authorUrl).match(/channel\/(UC[0-9A-Za-z_-]{22})/); if (cm) out.channelId = cm[1];
+  return out;
+}
 const adminSubs = new Map();        // 관리자 알림 구독: endpoint -> subscription
 let _lastErrPush = 0;
 // 기능 토글/메인터넌스 (관리자가 바꾸면 전체 유저에 즉시 반영, 코드/배포 불필요)
@@ -237,6 +269,8 @@ async function initDB() {
       const asList = await adminSubsCol.find({}).toArray();
       for (const s of asList) { if (s.endpoint && s.sub) adminSubs.set(s.endpoint, s.sub); }
       console.log(`[DB] 운영 config/에러/관리자알림 로드 (관리자구독 ${asList.length})`);
+      // 🎬 하이라이트 로드
+      try { highlightsCol = db.collection('highlights'); await highlightsCol.createIndex({ key: 1 }, { unique: true }).catch(() => {}); const hls = await highlightsCol.find({}).toArray(); for (const h of hls) { if (h.key) HIGHLIGHTS.set(h.key, h); } console.log(`[DB] 하이라이트 ${hls.length}건 로드`); } catch (e) { console.error('[DB] highlights 로드 실패:', e.message); }
     } catch (e) { console.error('[DB] 운영 컬렉션 초기화 실패:', e.message); }
     const all = await usersCol.find({}).toArray();   // 기존 회원 메모리에 로드
     for (const u of all) {
@@ -597,6 +631,56 @@ app.get('/api/news', async (req, res) => {
     if (hit) return res.json({ ok: true, cat, items: hit.items });
     res.json({ ok: false, cat, items: [] });
   }
+});
+
+// ============================================================
+//  🎬 경기 하이라이트 (관리자 수동 등록 CRUD + 공개 조회)
+// ============================================================
+function hlKey(sport, matchId) { return String(sport || '').toLowerCase() + ':' + String(matchId || ''); }
+function hlPublic(h) { return h ? { sport: h.sport, matchId: h.matchId, videoId: h.videoId, url: h.url, title: h.title || '', channel: h.channel || '', channelId: h.channelId || '', authorUrl: h.authorUrl || '', thumb: h.thumb || (h.videoId ? `https://i.ytimg.com/vi/${h.videoId}/hqdefault.jpg` : ''), official: !!h.official, officialName: h.officialName || '', home: h.home || '', away: h.away || '', league: h.league || '', updatedAt: h.updatedAt || 0 } : null; }
+// 공개: 해당 경기의 하이라이트 1건
+app.get('/api/highlight', (req, res) => {
+  const k = hlKey(req.query.sport, req.query.id);
+  res.json({ ok: true, highlight: hlPublic(HIGHLIGHTS.get(k)) });
+});
+// 관리자: 전체 목록
+app.get('/api/admin/highlights', (req, res) => {
+  if (!adminOK(req)) return res.status(401).json({ ok: false });
+  const list = Array.from(HIGHLIGHTS.values()).sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0)).map(hlPublic);
+  res.json({ ok: true, count: list.length, items: list, officialChannels: OFFICIAL_CHANNELS });
+});
+// 관리자: 등록·수정(업서트) — {sport, matchId, url, home, away, league}
+app.post('/api/admin/highlight', async (req, res) => {
+  if (!adminOK(req)) return res.status(401).json({ ok: false });
+  const b = req.body || {};
+  const sport = String(b.sport || '').toLowerCase(), matchId = String(b.matchId || '').trim();
+  if (!sport || !matchId) return res.json({ ok: false, error: '경기(sport·matchId)를 지정하세요.' });
+  const vid = ytVideoId(b.url);
+  if (!vid) return res.json({ ok: false, error: '유효한 YouTube 링크가 아닙니다.' });
+  const meta = await ytMeta(vid);
+  const off = officialMatch(meta.channelId, meta.authorUrl);
+  const key = hlKey(sport, matchId);
+  const prev = HIGHLIGHTS.get(key) || {};
+  const doc = {
+    key, sport, matchId,
+    url: 'https://www.youtube.com/watch?v=' + vid, videoId: vid,
+    title: meta.title, channel: meta.channel, channelId: meta.channelId, authorUrl: meta.authorUrl, thumb: meta.thumb,
+    official: !!off, officialName: off ? off.name : '',
+    home: b.home != null ? String(b.home) : (prev.home || ''), away: b.away != null ? String(b.away) : (prev.away || ''),
+    league: b.league != null ? String(b.league) : (prev.league || ''),
+    addedAt: prev.addedAt || Date.now(), updatedAt: Date.now()
+  };
+  HIGHLIGHTS.set(key, doc);
+  if (highlightsCol) highlightsCol.updateOne({ key }, { $set: doc }, { upsert: true }).catch(e => console.error('[HL] 저장 실패', e.message));
+  res.json({ ok: true, highlight: hlPublic(doc), warnOfficial: !off });
+});
+// 관리자: 삭제 — {sport, matchId}
+app.post('/api/admin/highlight/delete', (req, res) => {
+  if (!adminOK(req)) return res.status(401).json({ ok: false });
+  const key = hlKey((req.body || {}).sport, (req.body || {}).matchId);
+  HIGHLIGHTS.delete(key);
+  if (highlightsCol) highlightsCol.deleteOne({ key }).catch(() => {});
+  res.json({ ok: true });
 });
 
 // 관리자 페이지
