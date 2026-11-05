@@ -731,22 +731,36 @@ async function asLeagueId(sport, name) {
 }
 function parseHoopStandings(j) {
   const groups = (j && j.response) || [];
-  const flat = [];
-  groups.forEach(g => (Array.isArray(g) ? g : [g]).forEach(r => { if (r && r.team) flat.push(r); }));
-  flat.sort((a, b) => (a.position || 99) - (b.position || 99));
-  return flat.map((r, i) => ({
-    rank: r.position || i + 1, team: r.team.name, logo: r.team.logo,
-    played: r.games && r.games.played,
-    win: r.games && r.games.win && (r.games.win.total ?? r.games.win),
-    loss: r.games && (r.games.lose ? (r.games.lose.total ?? r.games.lose) : (r.games.loss && (r.games.loss.total ?? r.games.loss))),
-    points: r.points != null ? r.points : ''
+  // 팀별 1행만(콘퍼런스/디비전/전체 중복 제거). 콘퍼런스 레벨 그룹을 우선 보존.
+  const byTeam = new Map();
+  groups.forEach(g => (Array.isArray(g) ? g : [g]).forEach(r => {
+    if (!r || !r.team) return;
+    const gname = (r.group && (r.group.name || r.group)) || (r.stage || '');
+    const key = r.team.id || r.team.name;
+    const row = {
+      rank: r.position || null, team: r.team.name, logo: r.team.logo, group: gname,
+      played: r.games && r.games.played,
+      win: r.games && r.games.win && (r.games.win.total ?? r.games.win),
+      loss: r.games && (r.games.lose ? (r.games.lose.total ?? r.games.lose) : (r.games.loss && (r.games.loss.total ?? r.games.loss))),
+      points: r.points != null ? r.points : ''
+    };
+    const prev = byTeam.get(key);
+    const isConf = s => /(conference|east|west)/i.test(s || '');
+    if (!prev || (isConf(gname) && !isConf(prev.group))) byTeam.set(key, row);
   }));
+  const flat = Array.from(byTeam.values());
+  flat.sort((a, b) => String(a.group || '').localeCompare(String(b.group || '')) || (a.rank || 99) - (b.rank || 99));
+  return flat;
 }
+// 현재 농구 시즌(가을 개막 기준). 예: 2026-11 → "2026-2027"
+function hoopSeason(d) { d = d || new Date(); const y = d.getUTCFullYear(), m = d.getUTCMonth() + 1; const s = (m >= 9) ? y : (y - 1); return s + '-' + (s + 1); }
 async function rankBasketball(league, season) {
   let lid = AB_RANK_ID[league] || (/^\d+$/.test(league) ? league : null);
   if (!lid) lid = await asLeagueId('basketball', league);
   if (!lid) return { table: [], note: 'unmapped' };
-  for (const sy of [String(season || '2025-2026'), '2024-2025']) {
+  const cur = hoopSeason();
+  const py = parseInt(cur, 10) - 1;
+  for (const sy of [String(season || cur), cur, py + '-' + (py + 1)]) {
     const j = await asRaw('basketball', `/standings?league=${lid}&season=${encodeURIComponent(sy)}`, 3600000).catch(() => null);
     const table = parseHoopStandings(j);
     if (table.length) return { table, kind: 'basketball', season: sy };
