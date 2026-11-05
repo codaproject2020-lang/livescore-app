@@ -277,7 +277,10 @@ img{display:block}
 .m-label{font-size:12.5px;font-weight:800;color:var(--muted);margin:0 2px 10px}
 .m-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 .m-cell{display:flex;align-items:center;gap:10px;background:#fff;border:1px solid var(--line);border-radius:12px;padding:15px 14px;font-weight:800;font-size:14.5px}
-.m-cell .mi{font-size:19px}
+.m-cell .mi{font-size:19px;display:inline-flex;align-items:center;justify-content:center;color:var(--navy)}
+.mic{width:22px;height:22px;display:block}
+.m-cell .mic{width:23px;height:23px}
+.m-row .mi{color:var(--navy);display:inline-flex;align-items:center;justify-content:center}
 .m-list .m-row{display:flex;align-items:center;gap:11px;padding:14px 4px;border-bottom:1px solid var(--line);font-weight:700;font-size:14.5px}
 .m-list .m-row:last-child{border-bottom:none}
 .m-row .mi{font-size:18px;width:22px;text-align:center}
@@ -1382,6 +1385,26 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
   }
 
   // ====== 전체 메뉴 ======
+  // 메뉴용 라인 아이콘(목업과 동일한 모노톤 스타일) — 이모지 대신 SVG
+  var MENU_ICONS={
+    inforoom:'<circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/>',
+    rank:'<path d="M7 4h10v4a5 5 0 01-10 0V4zM5 5H3v1a3 3 0 003 3M19 5h2v1a3 3 0 01-3 3M9 17h6M8 20h8M12 13v4"/>',
+    insight:'<path d="M5 20V10M12 20V4M19 20v-7"/>',
+    news:'<rect x="3" y="5" width="15" height="14" rx="1.5"/><path d="M18 8h2a1 1 0 011 1v8a2 2 0 01-2 2M6 9h8M6 12h8M6 15h5"/>',
+    chat:'<path d="M4 5h16v11H9l-4 4V5z"/>',
+    favleague:'<path d="M12 3l2.6 5.6 6 .7-4.4 4.1 1.2 6-5.4-3-5.4 3 1.2-6L3.4 9.3l6-.7z"/>',
+    favteam:'<path d="M12 3l2.6 5.6 6 .7-4.4 4.1 1.2 6-5.4-3-5.4 3 1.2-6L3.4 9.3l6-.7z"/>',
+    alarm:'<path d="M18 8a6 6 0 10-12 0c0 7-3 9-3 9h18s-3-2-3-9M13.7 21a2 2 0 01-3.4 0"/>',
+    myact:'<path d="M13 3a2 2 0 11.001 4A2 2 0 0113 3zM7 12l3-2 3 1 2 4M10 10l-2 10M13 11l3 3 3 .5"/>',
+    settings:'<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.6 1.6 0 00.3 1.8l.1.1a2 2 0 11-2.8 2.8l-.1-.1a1.6 1.6 0 00-2.7.7 1.6 1.6 0 01-3.2 0 1.6 1.6 0 00-2.7-.7l-.1.1a2 2 0 11-2.8-2.8l.1-.1a1.6 1.6 0 00-.7-2.7 1.6 1.6 0 010-3.2 1.6 1.6 0 00.7-2.7l-.1-.1A2 2 0 117.9 5.5l.1.1a1.6 1.6 0 002.7-.7 1.6 1.6 0 013.2 0 1.6 1.6 0 002.7.7l.1-.1a2 2 0 112.8 2.8l-.1.1a1.6 1.6 0 00-.7 2.7 1.6 1.6 0 010 3.2z"/>',
+    lang:'<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 000 18M12 3a14 14 0 010 18"/>',
+    tz:'<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
+    share:'<circle cx="18" cy="5" r="2.5"/><circle cx="6" cy="12" r="2.5"/><circle cx="18" cy="19" r="2.5"/><path d="M8.2 10.8l7.6-4.3M8.2 13.2l7.6 4.3"/>',
+    support:'<path d="M4 13a8 8 0 1116 0M4 13v3a2 2 0 002 2h1v-6H6a2 2 0 00-2 1zM20 13v3a2 2 0 01-2 2h-1v-6h1a2 2 0 012 1z"/>',
+    notice:'<path d="M3 11v2a1 1 0 001 1h2l5 4V6L6 10H4a1 1 0 00-1 1zM15 8a5 5 0 010 8M18 5a9 9 0 010 14"/>',
+    install:'<path d="M12 3v12M7 11l5 4 5-4M5 20h14"/>'
+  };
+  function menuIc(name){ return '<svg class="mic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">'+(MENU_ICONS[name]||'')+'</svg>'; }
   function renderMenu(){
     var v=$("#view"); v.innerHTML="";
     var m=el("div","menu-screen");
@@ -1400,31 +1423,31 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
     var g1=el("div","m-group");
     g1.appendChild(el("div","m-label",t("grpAnalysis")));
     var grid=el("div","m-grid");
-    [["⚽",t("infoRoom"),"inforoom"],["🏆",t("standings"),"rank"],["📊",t("insight"),"insight"],["📰",t("news"),"news"],["💬",t("chat"),"chat"],["⭐",t("interest"),"favleague"]].forEach(function(x){
-      var c=el("div","m-cell",'<span class="mi">'+x[0]+'</span>'+x[1]); c.onclick=function(){menuGo(x[2])}; grid.appendChild(c);
+    [[t("infoRoom"),"inforoom"],[t("standings"),"rank"],[t("insight"),"insight"],[t("news"),"news"],[t("chat"),"chat"],[t("interest"),"favleague"]].forEach(function(x){
+      var c=el("div","m-cell",'<span class="mi">'+menuIc(x[1])+'</span>'+x[0]); c.onclick=function(){menuGo(x[1])}; grid.appendChild(c);
     });
     g1.appendChild(grid); m.appendChild(g1);
     // 나의 활동
     var g2=el("div","m-group"); g2.appendChild(el("div","m-label",t("grpActivity")));
     var l2=el("div","m-list");
     var myActLbl=tl({en:"My Sports Activity",ko:"나의 스포츠 활동",ja:"マイスポーツ活動",zh:"我的运动活动",es:"Mi actividad deportiva",hi:"मेरी खेल गतिविधि",vi:"Hoạt động thể thao",th:"กิจกรรมกีฬาของฉัน",ru:"Моя спорт-активность",de:"Meine Sport-Aktivität",fr:"Mon activité sportive",it:"La mia attività"});
-    [["⭐",t("favTeamPlayer"),"favteam"],["🔔",t("alarmSet"),"alarm"],["🏃",myActLbl,"myact"]].forEach(function(x){
-      var r=el("div","m-row",'<span class="mi">'+x[0]+'</span>'+x[1]+'<span class="chev">›</span>'); r.onclick=function(){menuGo(x[2])}; l2.appendChild(r);
+    [[t("favTeamPlayer"),"favteam"],[t("alarmSet"),"alarm"],[myActLbl,"myact"]].forEach(function(x){
+      var r=el("div","m-row",'<span class="mi">'+menuIc(x[1])+'</span>'+x[0]+'<span class="chev">›</span>'); r.onclick=function(){menuGo(x[1])}; l2.appendChild(r);
     });
     g2.appendChild(l2); m.appendChild(g2);
     // 환경 설정
     var g3=el("div","m-group"); g3.appendChild(el("div","m-label",t("grpSettings")));
     var l3=el("div","m-list");
-    var setRow=el("div","m-row",'<span class="mi">⚙️</span>'+t("grpSettings")+'<span class="chev">›</span>'); setRow.onclick=function(){menuGo("settings")};
-    var langRow=el("div","m-row",'<span class="mi">🌐</span>'+t("langLabel")+'<span class="rv">'+esc(LANGNAMES[LANG]||"English")+'</span><span class="chev">›</span>'); langRow.onclick=function(){menuGo("lang")};
-    var tzRow=el("div","m-row",'<span class="mi">🕘</span>'+t("tzMenu")+'<span class="rv">'+tzLabel()+'</span><span class="chev">›</span>'); tzRow.onclick=function(){menuGo("tz")};
+    var setRow=el("div","m-row",'<span class="mi">'+menuIc("settings")+'</span>'+t("grpSettings")+'<span class="chev">›</span>'); setRow.onclick=function(){menuGo("settings")};
+    var langRow=el("div","m-row",'<span class="mi">'+menuIc("lang")+'</span>'+t("langLabel")+'<span class="rv">'+esc(LANGNAMES[LANG]||"English")+'</span><span class="chev">›</span>'); langRow.onclick=function(){menuGo("lang")};
+    var tzRow=el("div","m-row",'<span class="mi">'+menuIc("tz")+'</span>'+t("tzMenu")+'<span class="rv">'+tzLabel()+'</span><span class="chev">›</span>'); tzRow.onclick=function(){menuGo("tz")};
     l3.appendChild(setRow); l3.appendChild(langRow); l3.appendChild(tzRow);
     g3.appendChild(l3); m.appendChild(g3);
     // 이용 안내
     var g4=el("div","m-group"); g4.appendChild(el("div","m-label",t("grpHelp")));
     var l4=el("div","m-list");
-    [["🔗",t("shareApp"),"share"],["🎧",t("supportLbl"),"support"],["📢",t("notice"),"notice"],["⬇️",t("download"),"install"]].forEach(function(x){
-      var r=el("div","m-row",'<span class="mi">'+x[0]+'</span>'+x[1]+'<span class="chev">›</span>'); r.onclick=function(){menuGo(x[2])}; l4.appendChild(r);
+    [[t("shareApp"),"share"],[t("supportLbl"),"support"],[t("notice"),"notice"],[t("download"),"install"]].forEach(function(x){
+      var r=el("div","m-row",'<span class="mi">'+menuIc(x[1])+'</span>'+x[0]+'<span class="chev">›</span>'); r.onclick=function(){menuGo(x[1])}; l4.appendChild(r);
     });
     g4.appendChild(l4); m.appendChild(g4);
     m.appendChild(el("div","menu-foot",'<b>LIVE UP</b> · '+tl({en:"Today's games at a glance",ko:"오늘의 경기를 한눈에",ja:"今日の試合をひと目で",zh:"一览今日比赛",es:"Los partidos de hoy de un vistazo",hi:"आज के मैच एक नज़र में",vi:"Trận đấu hôm nay trong nháy mắt",th:"ดูแมตช์วันนี้ในพริบตา",ru:"Матчи дня с одного взгляда",de:"Die Spiele von heute auf einen Blick",fr:"Les matchs du jour en un coup d'œil",it:"Le partite di oggi a colpo d'occhio"})));
