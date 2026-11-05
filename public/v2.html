@@ -294,6 +294,15 @@ img{display:block}
 .sect-h{display:flex;align-items:center;gap:7px;font-weight:900;font-size:15px;color:var(--navy);margin:18px 0 6px}
 .sect-h::before{content:"";width:4px;height:16px;background:var(--red);border-radius:2px}
 .permbar{display:flex;align-items:center;gap:10px;background:var(--soft);border-radius:12px;padding:12px 14px;font-weight:800;font-size:13.5px}
+.ibrow{padding:12px 4px;border-bottom:1px solid var(--line);cursor:pointer}
+.ibrow.unread{background:rgba(228,0,43,.04)}
+.ibrow .ibt{font-weight:800;font-size:13.5px;color:var(--navy)}
+.ibrow.unread .ibt::before{content:"●";color:var(--red);font-size:9px;margin-right:6px;vertical-align:middle}
+.ibrow .ibb{font-size:12.5px;color:var(--navy2);margin-top:3px}
+.ibrow .ibd{font-size:11px;color:var(--muted);margin-top:3px}
+.news-item .nwimg{width:100%;max-height:160px;object-fit:cover;border-radius:10px;margin-bottom:6px}
+#btnBell{position:relative}
+#btnBell .bdot{position:absolute;top:4px;right:4px;width:8px;height:8px;border-radius:50%;background:var(--red);border:1.5px solid var(--bg)}
 .perm-ok{color:var(--green)}.perm-no{color:var(--red)}
 .rosterw{display:grid;grid-template-columns:1fr 1fr;gap:5px 10px;margin:4px 0 12px}
 .rosterp{display:flex;align-items:center;gap:7px;font-size:13px;padding:5px 2px;border-bottom:1px solid var(--line)}
@@ -863,7 +872,7 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
     var d=$("#detail"); if(!d){ d=el("div","detail"); d.id="detail"; document.body.appendChild(d); }
     var live=stateOf(g)==="live";
     var head=''+
-      '<div class="dt-bar"><button class="bk" id="dtBack">‹</button><div class="ti">'+esc(g.home||"")+' vs '+esc(g.away||"")+'</div></div>'+
+      '<div class="dt-bar"><button class="bk" id="dtBack">‹</button><div class="ti">'+esc(g.home||"")+' vs '+esc(g.away||"")+'</div><button class="bk" id="dtShare" title="'+esc(t("shareApp"))+'" style="margin-left:auto">⤴</button></div>'+
       '<div class="dt-head"><div class="dt-lg">'+leagueIcon(g)+esc((g.country?g.country+" · ":"")+(g.league||""))+'</div>'+
         '<div class="dt-sc">'+
           '<div class="tcol">'+(g.homeLogo?'<img src="'+esc(g.homeLogo)+'" onerror="this.outerHTML=\'<div class=ph>🛡️</div>\'">':'<div class="ph">🛡️</div>')+'<div class="nm">'+esc(g.home||"")+'</div></div>'+
@@ -873,6 +882,7 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
     var tabs='<div class="dt-tabs">'+detailTabs(sport).map(function(t){return '<button class="dt-tab'+(_dt.tab===t[0]?" on":"")+'" data-dt="'+t[0]+'">'+t[1]+'</button>'}).join("")+'</div>';
     d.innerHTML=head+tabs+'<div class="dt-body" id="dtBody"></div>';
     $("#dtBack").onclick=closeDetail;
+    var dsh=$("#dtShare"); if(dsh)dsh.onclick=function(){ shareMatch(g,sport); };
     d.querySelectorAll(".dt-tab").forEach(function(b){ b.onclick=function(){ _dt.tab=b.dataset.dt; renderDetail(); }; });
     var cols=d.querySelectorAll(".dt-head .tcol"); if(cols[0]){cols[0].style.cursor="pointer";cols[0].onclick=function(){openTeam(g.home)};} if(cols[1]){cols[1].style.cursor="pointer";cols[1].onclick=function(){openTeam(g.away)};}
     renderDetailBody();
@@ -1379,25 +1389,72 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
       $("#tmBody").innerHTML=h;
     }).catch(function(){ $("#tmBody").innerHTML='<div class="msg"><div class="big">⚠️</div>'+t("m_teamFail")+'</div>'; });
   }
-  // ====== 뉴스 화면 ======
+  // ====== 뉴스 화면 (종목별 ESPN 피드 탭, 이미지 04) ======
   function openNews(){
     var o=overlay("ovNews");
-    o.innerHTML='<div class="dt-bar"><button class="bk" id="nwBack">‹</button><div class="ti">'+t("news")+'</div></div><div class="dt-body" id="nwBody"><div class="msg"><div class="big">⏳</div>'+t("loading")+'</div></div>';
-    $("#nwBack").onclick=function(){ closeOverlay("ovNews"); };
-    // 종목별 ESPN 피드(농구=NBA). 다른 종목 기존 동작 유지.
-    var newsCat=({basketball:"nba",football:"soccer",baseball:"mlb",hockey:"nhl"})[S.sport]||"all";
-    fetch("/api/news?cat="+encodeURIComponent(newsCat)).then(function(r){return r.json()}).then(function(j){
-      var items=(j&&(j.items||j.news||j.articles))||(Array.isArray(j)?j:[]);
-      if(!items.length){ $("#nwBody").innerHTML='<div class="msg"><div class="big">📰</div>'+t("m_noNews")+'</div>'; return; }
-      $("#nwBody").innerHTML=items.slice(0,40).map(function(n){
-        var t=n.title||n.headline||""; var src=n.source||n.author||""; var when=n.pubDate||n.published||n.date||"";
-        var link=n.link||n.url||"#";
-        return '<a class="news-item" href="'+esc(link)+'" target="_blank" rel="noopener"><div class="nt">'+esc(t)+'</div><div class="nm2">'+esc(src)+(when?' · '+esc(String(when).slice(0,16)):'')+'</div></a>';
-      }).join("");
-    }).catch(function(){ $("#nwBody").innerHTML='<div class="msg"><div class="big">⚠️</div>'+t("m_newsFail")+'</div>'; });
+    // 탭 → ESPN 피드 cat (배구는 ESPN 피드 없음 → 안내)
+    var TABS=[["all","all",t("all")],["soccer","football","⚽"],["nba","basketball","🏀"],["mlb","baseball","⚾"],["nhl","hockey","🏒"]];
+    var cur=({basketball:"nba",football:"soccer",baseball:"mlb",hockey:"nhl"})[S.sport]||"all";
+    function render(){
+      var h='<div class="dt-bar"><button class="bk" id="nwBack">‹</button><div class="ti">'+t("news")+'</div></div>';
+      h+='<div class="dt-tabs" style="position:static">'+TABS.map(function(x){return '<button class="dt-tab'+(cur===x[0]?" on":"")+'" data-nc="'+x[0]+'">'+(x[2].length<=2?x[2]+" "+t(x[1]):x[2])+'</button>';}).join("")+'</div><div class="dt-body" id="nwBody"><div class="msg"><div class="big">⏳</div>'+t("loading")+'</div></div>';
+      o.innerHTML=h;
+      $("#nwBack").onclick=function(){ closeOverlay("ovNews"); };
+      o.querySelectorAll(".dt-tab").forEach(function(b){ b.onclick=function(){ cur=b.dataset.nc; render(); }; });
+      load();
+    }
+    function load(){
+      var tk=cur;
+      fetch("/api/news?cat="+encodeURIComponent(cur)).then(function(r){return r.json()}).then(function(j){
+        if(tk!==cur||!$("#nwBody"))return;   // 늦은 응답이 다른 탭 덮지 않게
+        var items=(j&&(j.items||j.news||j.articles))||(Array.isArray(j)?j:[]);
+        if(!items.length){ $("#nwBody").innerHTML='<div class="msg"><div class="big">📰</div>'+tl({en:"No news for this sport right now.",ko:"이 종목의 뉴스가 지금은 없습니다.",ja:"この種目のニュースはありません。",zh:"该项目暂无新闻。",es:"Sin noticias por ahora.",hi:"अभी कोई समाचार नहीं।",vi:"Chưa có tin.",th:"ยังไม่มีข่าว",ru:"Пока нет новостей.",de:"Keine News.",fr:"Pas d'actus.",it:"Nessuna notizia."})+'</div>'; return; }
+        $("#nwBody").innerHTML=items.slice(0,40).map(function(n){
+          var ti=n.title||n.headline||""; var src=n.source||n.author||"ESPN"; var when=n.pubDate||n.published||n.date||"";
+          var link=n.link||n.url||"#"; var img=n.image||n.thumbnail||"";
+          return '<a class="news-item" href="'+esc(link)+'" target="_blank" rel="noopener">'+(img?'<img src="'+esc(img)+'" class="nwimg" onerror="this.remove()">':'')+'<div class="nt">'+esc(ti)+'</div><div class="nm2">ESPN'+(when?' · '+esc(String(when).slice(0,16)):'')+'</div></a>';
+        }).join("");
+      }).catch(function(){ if(tk!==cur)return; $("#nwBody").innerHTML='<div class="msg"><div class="big">⚠️</div>'+t("m_newsFail")+'</div>'; });
+    }
+    render();
   }
   // ====== 공유 (주소 복사 · 친구에게 공유) ======
   function shareUrl(){ try{ var o=location.origin; if(o&&o.indexOf("http")===0&&o.indexOf("localhost")<0&&o.indexOf("127.0.0.1")<0) return o; }catch(e){} return "https://liveup.fans"; }
+  // 경기별 공유: ?ev=<sport>:<id> 딥링크
+  function matchUrl(g,sport){ return shareUrl()+"/?ev="+encodeURIComponent((sport||S.sport)+":"+g.id); }
+  function shareMatch(g,sport){
+    var url=matchUrl(g,sport), title="LIVE UP · "+(g.home||"")+" vs "+(g.away||"");
+    if(navigator.share){ navigator.share({title:title,text:title,url:url}).catch(function(){}); return; }
+    if(navigator.clipboard&&navigator.clipboard.writeText){ navigator.clipboard.writeText(url).then(function(){ toastMsg(t("linkCopied")); }).catch(function(){ toastMsg(t("copyFail"),1); }); }
+    else toastMsg(url);
+  }
+  // 간단 토스트
+  function toastMsg(m,err){ var e=el("div","luToast",esc(m)); e.style.cssText="position:fixed;left:50%;bottom:90px;transform:translateX(-50%);background:"+(err?"var(--red)":"var(--navy)")+";color:#fff;padding:10px 16px;border-radius:999px;font-weight:800;font-size:13px;z-index:9999;max-width:90%;box-shadow:0 4px 16px rgba(0,0,0,.3)"; document.body.appendChild(e); setTimeout(function(){ e.style.transition="opacity .3s"; e.style.opacity="0"; setTimeout(function(){ if(e.parentNode)e.parentNode.removeChild(e); },300); },1800); }
+  // ====== 알림함 (상단 종, 이미지 07) ======
+  function inboxGet(){ try{ return JSON.parse(localStorage.getItem("lu_inbox")||"[]"); }catch(e){ return []; } }
+  function inboxSet(a){ try{ localStorage.setItem("lu_inbox",JSON.stringify(a.slice(0,60))); }catch(e){} }
+  function addInbox(n){ var a=inboxGet(); a.unshift({title:n.title||"LIVE UP",body:n.body||"",ts:Date.now(),read:false,ev:n.ev||""}); inboxSet(a); updateBellBadge(); }
+  function inboxUnread(){ return inboxGet().filter(function(x){return !x.read;}).length; }
+  function updateBellBadge(){ var b=$("#btnBell"); if(!b)return; var n=inboxUnread(); var dot=b.querySelector(".bdot"); if(n>0){ if(!dot){ dot=el("span","bdot"); b.appendChild(dot); } } else if(dot){ dot.remove(); } }
+  function openInbox(){
+    var tab="all", o=overlay("ovInbox");
+    function render(){
+      var items=inboxGet(); if(tab==="unread")items=items.filter(function(x){return !x.read;});
+      var h='<div class="dt-bar"><button class="bk" id="ibBack">‹</button><div class="ti">'+tl({en:"Notifications",ko:"알림함",ja:"通知一覧",zh:"通知",es:"Notificaciones",hi:"सूचनाएँ",vi:"Thông báo",th:"การแจ้งเตือน",ru:"Уведомления",de:"Mitteilungen",fr:"Notifications",it:"Notifiche"})+'</div><button class="bk" id="ibSet" title="'+esc(t("alarmSet"))+'" style="margin-left:auto">⚙</button></div>';
+      h+='<div class="dt-tabs" style="position:static"><button class="dt-tab'+(tab==="all"?" on":"")+'" data-ib="all">'+tl({en:"All",ko:"전체",ja:"すべて",zh:"全部",es:"Todas",hi:"सभी",vi:"Tất cả",th:"ทั้งหมด",ru:"Все",de:"Alle",fr:"Toutes",it:"Tutte"})+'</button><button class="dt-tab'+(tab==="unread"?" on":"")+'" data-ib="unread">'+tl({en:"Unread",ko:"안 읽음",ja:"未読",zh:"未读",es:"No leídas",hi:"अपठित",vi:"Chưa đọc",th:"ยังไม่อ่าน",ru:"Непрочит.",de:"Ungelesen",fr:"Non lues",it:"Non lette"})+'</button><button class="refbtn" id="ibRead" style="margin-left:auto">'+tl({en:"Mark all read",ko:"모두 읽음",ja:"全部既読",zh:"全部已读",es:"Marcar leídas",hi:"सभी पढ़ी",vi:"Đọc hết",th:"อ่านทั้งหมด",ru:"Прочитать все",de:"Alle gelesen",fr:"Tout lu",it:"Segna lette"})+'</button></div><div class="dt-body" id="ibBody"></div>';
+      o.innerHTML=h;
+      $("#ibBack").onclick=function(){ closeOverlay("ovInbox"); };
+      $("#ibSet").onclick=function(){ closeOverlay("ovInbox"); openAlerts(); };
+      $("#ibRead").onclick=function(){ var a=inboxGet(); a.forEach(function(x){x.read=true;}); inboxSet(a); updateBellBadge(); render(); };
+      o.querySelectorAll(".dt-tab").forEach(function(b){ b.onclick=function(){ tab=b.dataset.ib; render(); }; });
+      var body=$("#ibBody");
+      if(!items.length){ body.innerHTML='<div class="msg"><div class="big">🔕</div>'+tl({en:"No notifications yet.",ko:"받은 알림이 없습니다.",ja:"通知はありません。",zh:"暂无通知。",es:"Sin notificaciones.",hi:"कोई सूचना नहीं।",vi:"Chưa có thông báo.",th:"ยังไม่มีการแจ้งเตือน",ru:"Нет уведомлений.",de:"Keine Mitteilungen.",fr:"Aucune notification.",it:"Nessuna notifica."})+'</div>'; return; }
+      body.innerHTML=items.map(function(x,i){ return '<div class="ibrow'+(x.read?"":" unread")+'" data-i="'+i+'" data-ev="'+esc(x.ev||"")+'"><div class="ibt">'+esc(x.title)+'</div><div class="ibb">'+esc(x.body)+'</div><div class="ibd">'+recvAgo(x.ts)+'</div></div>'; }).join("");
+      body.querySelectorAll(".ibrow").forEach(function(row){ row.onclick=function(){ var all=inboxGet(); var it=items[+row.dataset.i]; all.forEach(function(x){ if(x.ts===it.ts)x.read=true; }); inboxSet(all); updateBellBadge(); var ev=row.dataset.ev; closeOverlay("ovInbox"); if(ev){ var p=ev.split(":"),sp=p[0],id=p.slice(1).join(":"); var d=S.data[sp+"|"+S.date]; var g=d&&d.games&&d.games.filter(function(x){return String(x.id)===String(id);})[0]; if(g){ if(S.sport!==sp)S.sport=sp; openDetail(g); } } }; });
+    }
+    render();
+  }
+  function recvAgo(ts){ var s=Math.max(0,Math.round((Date.now()-ts)/1000)); if(s<60)return s+(LANG==="ko"?"초 전":"s"); var m=Math.round(s/60); if(m<60)return m+(LANG==="ko"?"분 전":"m"); var h=Math.round(m/60); if(h<24)return h+(LANG==="ko"?"시간 전":"h"); return Math.round(h/24)+(LANG==="ko"?"일 전":"d"); }
   function openShare(){
     var o=overlay("ovShare");
     var url=shareUrl();
@@ -1457,7 +1514,7 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
     $("#toTeam").onclick=function(){ closeOverlay("ovAlerts"); openFavTeams("teams"); };
     $("#nTest").onclick=function(){
       if(!window.Notification){ alert(tl({en:"Notifications are not supported on this device.",ko:"이 기기는 알림을 지원하지 않습니다.",ja:"この端末は通知に対応していません。",zh:"本设备不支持通知。",es:"No compatible.",hi:"समर्थित नहीं।",vi:"Không hỗ trợ.",th:"ไม่รองรับ",ru:"Не поддерживается.",de:"Nicht unterstützt.",fr:"Non pris en charge.",it:"Non supportato."})); return; }
-      var send=function(){ try{ new Notification("LIVE UP",{body:tl({en:"Test notification ✓",ko:"테스트 알림입니다 ✓",ja:"テスト通知 ✓",zh:"测试通知 ✓",es:"Prueba ✓",hi:"टेस्ट ✓",vi:"Thử ✓",th:"ทดสอบ ✓",ru:"Тест ✓",de:"Test ✓",fr:"Test ✓",it:"Prova ✓"}),icon:"/logo-t.png"}); }catch(e){ alert("🔔 LIVE UP — OK"); } };
+      var send=function(){ var body=tl({en:"Test notification ✓",ko:"테스트 알림입니다 ✓",ja:"テスト通知 ✓",zh:"测试通知 ✓",es:"Prueba ✓",hi:"टेस्ट ✓",vi:"Thử ✓",th:"ทดสอบ ✓",ru:"Тест ✓",de:"Test ✓",fr:"Test ✓",it:"Prova ✓"}); try{ new Notification("LIVE UP",{body:body,icon:"/logo-t.png"}); }catch(e){} addInbox({title:"LIVE UP",body:body}); toastMsg("🔔 OK"); };
       if(Notification.permission==="granted")send(); else Notification.requestPermission().then(function(p){ if(p==="granted")send(); else openAlerts(); });
     };
   }
@@ -1539,8 +1596,17 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
     var o=overlay("ovLogin");
     var me=null; try{ me=JSON.parse(localStorage.getItem("lu_user")||"null"); }catch(e){}
     if(me&&me.name){
-      o.innerHTML='<div class="dt-bar"><button class="bk" id="lgBack">‹</button><div class="ti">'+t("myPage")+'</div></div><div class="loginbox"><div style="font-size:40px">👤</div><h3>'+esc(me.name)+'</h3><p style="color:#8a93a3">'+esc(me.email||"")+'</p><button class="gbtn" id="logout">'+t("logout")+'</button></div>';
+      var acctTitle=tl({en:"My Account",ko:"내 정보 관리",ja:"アカウント管理",zh:"我的信息",es:"Mi cuenta",hi:"मेरा खाता",vi:"Tài khoản",th:"บัญชีของฉัน",ru:"Мой аккаунт",de:"Mein Konto",fr:"Mon compte",it:"Account"});
+      var provTxt=tl({en:"Signed in with Google",ko:"구글 계정으로 로그인됨",ja:"Googleでログイン中",zh:"已用谷歌登录",es:"Sesión con Google",hi:"Google से लॉगिन",vi:"Đăng nhập Google",th:"เข้าสู่ระบบด้วย Google",ru:"Вход через Google",de:"Mit Google angemeldet",fr:"Connecté avec Google",it:"Accesso con Google"});
+      o.innerHTML='<div class="dt-bar"><button class="bk" id="lgBack">‹</button><div class="ti">'+acctTitle+'</div></div><div class="dt-body"><div style="text-align:center;margin:10px 0 18px"><div style="font-size:48px">👤</div><h3 style="margin:8px 0 2px">'+esc(me.name)+'</h3><p style="color:var(--muted);font-size:13px">'+esc(me.email||"")+'</p><p style="color:var(--muted);font-size:12px">🔒 '+provTxt+'</p></div><button class="gbtn" id="logout">'+t("logout")+'</button><button class="refbtn" id="withdraw" style="margin:14px auto 0;display:block;color:var(--red);border-color:#ffd7d7">'+tl({en:"Delete account",ko:"회원 탈퇴",ja:"退会",zh:"注销账号",es:"Eliminar cuenta",hi:"खाता हटाएँ",vi:"Xóa tài khoản",th:"ลบบัญชี",ru:"Удалить аккаунт",de:"Konto löschen",fr:"Supprimer le compte",it:"Elimina account"})+'</button></div>';
       $("#logout").onclick=function(){ try{localStorage.removeItem("lu_user")}catch(e){} closeOverlay("ovLogin"); if(S.screen==="menu")renderMenu(); };
+      $("#withdraw").onclick=function(){
+        var c=tl({en:"Delete your account? Your saved data on this device will be removed.",ko:"회원 탈퇴하시겠습니까? 이 기기의 저장 데이터가 삭제됩니다.",ja:"退会しますか？この端末の保存データが削除されます。",zh:"确定注销？本设备保存的数据将删除。",es:"¿Eliminar cuenta? Se borrarán los datos de este dispositivo.",hi:"खाता हटाएँ? इस डिवाइस का डेटा हट जाएगा।",vi:"Xóa tài khoản? Dữ liệu trên thiết bị này sẽ bị xóa.",th:"ลบบัญชี? ข้อมูลในเครื่องจะถูกลบ",ru:"Удалить аккаунт? Данные на этом устройстве будут удалены.",de:"Konto löschen? Daten auf diesem Gerät werden entfernt.",fr:"Supprimer le compte ? Les données de cet appareil seront effacées.",it:"Eliminare l'account? I dati su questo dispositivo verranno rimossi."});
+        if(!confirm(c))return;
+        fetch("/api/auth/delete",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({token:me.token||""})}).catch(function(){});
+        try{ localStorage.removeItem("lu_user"); localStorage.removeItem("lu_favteams"); }catch(e){}
+        closeOverlay("ovLogin"); toastMsg(tl({en:"Account deletion requested.",ko:"탈퇴 처리되었습니다.",ja:"退会しました。",zh:"已注销。",es:"Cuenta eliminada.",hi:"खाता हटाया गया।",vi:"Đã xóa tài khoản.",th:"ลบบัญชีแล้ว",ru:"Аккаунт удалён.",de:"Konto gelöscht.",fr:"Compte supprimé.",it:"Account eliminato."})); if(S.screen==="menu")renderMenu();
+      };
     }else{
       var sub=tl({en:"Sign in with Google to save your favorite matches & teams and get match alerts.",ko:"구글 계정으로 로그인하면 관심 경기·팀 저장과 경기 알림을 사용할 수 있습니다.",ja:"Googleでログインすると、お気に入りの試合・チームの保存や試合通知が使えます。",zh:"使用谷歌账号登录可保存关注比赛、球队并接收比赛提醒。",es:"Inicia sesión con Google para guardar tus partidos y equipos y recibir alertas.",hi:"पसंदीदा मैच·टीम सेव करने और अलर्ट पाने के लिए Google से लॉगिन करें।",vi:"Đăng nhập Google để lưu trận đấu, đội yêu thích và nhận thông báo.",th:"เข้าสู่ระบบด้วย Google เพื่อบันทึกแมตช์/ทีมโปรดและรับการแจ้งเตือน",ru:"Войдите через Google, чтобы сохранять матчи и команды и получать уведомления.",de:"Mit Google anmelden, um Favoriten zu speichern und Benachrichtigungen zu erhalten.",fr:"Connectez-vous avec Google pour enregistrer vos favoris et recevoir des alertes.",it:"Accedi con Google per salvare preferiti e ricevere avvisi."});
       var note=tl({en:"You can browse matches without logging in.",ko:"일반 경기 열람은 로그인 없이도 가능합니다.",ja:"ログインなしでも試合を閲覧できます。",zh:"无需登录也可浏览比赛。",es:"Puedes ver partidos sin iniciar sesión.",hi:"बिना लॉगिन के भी मैच देख सकते हैं।",vi:"Bạn có thể xem trận đấu mà không cần đăng nhập.",th:"ดูแมตช์ได้โดยไม่ต้องเข้าสู่ระบบ",ru:"Матчи можно смотреть без входа.",de:"Spiele sind auch ohne Anmeldung sichtbar.",fr:"Vous pouvez consulter les matchs sans vous connecter.",it:"Puoi vedere le partite senza accedere."});
@@ -1714,7 +1780,7 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
     $("#dToday").onclick=function(){ S.date=todayStr(); load(); };
     $("#dCalL").onclick=function(){ var v=prompt(tl({en:"Select date (YYYY-MM-DD)",ko:"날짜 선택 (YYYY-MM-DD)",ja:"日付選択 (YYYY-MM-DD)",zh:"选择日期 (YYYY-MM-DD)",es:"Elegir fecha (YYYY-MM-DD)",hi:"तारीख चुनें (YYYY-MM-DD)",vi:"Chọn ngày (YYYY-MM-DD)",th:"เลือกวันที่ (YYYY-MM-DD)",ru:"Выберите дату (YYYY-MM-DD)",de:"Datum wählen (YYYY-MM-DD)",fr:"Choisir la date (YYYY-MM-DD)",it:"Scegli data (YYYY-MM-DD)"}),S.date); if(v&&/^\d{4}-\d{2}-\d{2}$/.test(v)){ onDate(v); } };
     $("#btnSearch").onclick=openSearch;
-    $("#btnBell").onclick=function(){ menuGo("alarm"); };
+    $("#btnBell").onclick=function(){ openInbox(); };
     document.querySelectorAll(".bn").forEach(function(b){
       b.onclick=function(){
         var nv=b.dataset.nav;
@@ -1734,7 +1800,7 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
   // 열려있는 가장 위 레이어 하나만 닫고 true, 닫을 게 없으면 false
   function topClose(){
     if($("#detail")){ closeDetail(); return true; }
-    var ids=["ovLang","ovShare","ovPlayer","ovAlerts","ovFav","ovSet","ovAct","ovSearch","ovTeam","ovRank","ovNews","ovLogin"];
+    var ids=["ovLang","ovShare","ovPlayer","ovAlerts","ovFav","ovSet","ovAct","ovInbox","ovSearch","ovTeam","ovRank","ovNews","ovLogin"];
     for(var i=0;i<ids.length;i++){ if($("#"+ids[i])){ closeOverlay(ids[i]); return true; } }
     if(S.screen==="menu"||S.screen==="insight"){ document.body.style.overflow=""; S.screen=(S.base||"home"); render(); window.scrollTo(0,S.scroll||0); return true; }
     return false;
@@ -1751,9 +1817,13 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
   // 실데이터 주기 갱신
   setInterval(function(){ if(document.visibilityState==="visible"&&(S.screen==="home"||S.screen==="live"||S.screen==="fav")){ var k=key(); fetchGames(S.sport,S.date).then(function(res){ if(res&&!res.error){ S.data[k]=res; S.recvAt[k]=Date.now(); S.demo[k]=!!res._demo; if(S.screen!=="menu")renderHome(); loadLiveStats(); } }).catch(function(){}); } },15000);
 
+  // 경기 공유 딥링크 ?ev=<sport>:<id> — 종목 먼저 설정 후 로드, 경기 로드되면 상세 자동 오픈
+  var _evDeep=(function(){ try{ var m=(location.search.match(/[?&]ev=([^&]+)/)||[])[1]; if(!m)return null; m=decodeURIComponent(m); var p=m.split(":"); var sp=p[0], id=p.slice(1).join(":"); if(!sp||!id)return null; var SPK={football:1,baseball:1,basketball:1,volleyball:1,hockey:1,esports:1}; if(!SPK[sp])return null; S.sport=sp; S.date=todayStr(); return {sp:sp,id:id}; }catch(e){ return null; } })();
   bind(); load();
+  if(_evDeep){ var _tries=0; var _dl=setInterval(function(){ _tries++; var d=S.data[_evDeep.sp+"|"+S.date]; if(d&&d.games){ var g=d.games.filter(function(x){return String(x.id)===String(_evDeep.id);})[0]; clearInterval(_dl); if(g){ openDetail(g); } else { toastMsg(tl({en:"Match not found or already finished.",ko:"경기를 찾지 못했거나 종료되었습니다.",ja:"試合が見つからないか終了しました。",zh:"未找到或已结束。",es:"Partido no encontrado o finalizado.",hi:"मैच नहीं मिला।",vi:"Không tìm thấy trận.",th:"ไม่พบแมตช์",ru:"Матч не найден.",de:"Spiel nicht gefunden.",fr:"Match introuvable.",it:"Partita non trovata."}),1); } } else if(_tries>14){ clearInterval(_dl); } },500); }
   // PWA: 서비스워커 등록(설치형 앱·오프라인 폴백) — 네트워크 우선이라 항상 최신 우선
-  if("serviceWorker" in navigator){ try{ navigator.serviceWorker.register("/sw.js").catch(function(){}); }catch(e){} }
+  if("serviceWorker" in navigator){ try{ navigator.serviceWorker.register("/sw.js").catch(function(){}); navigator.serviceWorker.addEventListener("message",function(e){ var m=e.data||{}; if(m.type==="push"){ addInbox({title:m.title,body:m.body,ev:m.ev||""}); } else if(m.type==="openEvent"&&m.gameId){ /* 알림 클릭 → 경기 열기 */ } }); }catch(e){} }
+  updateBellBadge();
   // 방문 기록(기존 추적과 동일 엔드포인트)
   try{ fetch("/api/track",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({t:"visit",p:"v2",l:"ko"})}).catch(function(){}); }catch(e){}
 })();

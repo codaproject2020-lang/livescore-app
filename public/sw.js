@@ -1,5 +1,5 @@
 // LIVE UP · 최소 서비스워커 (PWA 설치 가능 조건 충족)
-const CACHE = 'liveup-v361';
+const CACHE = 'liveup-v362';
 const CORE = ['/', '/index.html', '/logo.png.jpg', '/manifest.json'];
 
 self.addEventListener('install', (e) => {
@@ -39,7 +39,14 @@ self.addEventListener('push', (e) => {
     renotify: true,
     data: { gameId: d.gameId || '', sport: d.sport || '' }
   };
-  e.waitUntil(self.registration.showNotification(title, opts));
+  e.waitUntil((async () => {
+    await self.registration.showNotification(title, opts);
+    // 열려 있는 앱에 알림함 기록용으로 전달
+    try {
+      const cs = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+      cs.forEach(c => c.postMessage({ type: 'push', title, body: opts.body, ev: (d.sport && d.gameId) ? (d.sport + ':' + d.gameId) : '' }));
+    } catch (err) {}
+  })());
 });
 
 // 알림 클릭 → 앱 열고 해당 경기 상세로
