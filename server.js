@@ -315,6 +315,20 @@ app.post('/api/auth/google', async (req, res) => {
 });
 app.get('/api/auth/count', (req, res) => res.json({ users: USERS.size }));
 
+// 🗑️ 회원 탈퇴 — 토큰으로 본인 확인 후 실제 삭제(메모리 + DB)
+app.post('/api/auth/delete', async (req, res) => {
+  const token = (req.body && req.body.token) || (req.headers.authorization || '').replace(/^Bearer\s+/i, '').trim();
+  const sub = token && TOKENS.get(token);
+  if (!sub) return res.json({ ok: false, error: '인증 필요(토큰 없음)' });
+  const rec = USERS.get(sub);
+  try {
+    USERS.delete(sub);
+    TOKENS.delete(token);
+    if (usersCol) await usersCol.deleteOne({ id: sub });
+    res.json({ ok: true });
+  } catch (e) { res.json({ ok: false, error: String(e.message || e) }); }
+});
+
 // ============================================================
 //  👑 관리자 (비밀번호 인증) — Render 환경변수 ADMIN_KEY 설정
 //     /admin 페이지에서 비밀번호 입력 → 회원 목록·통계 확인
