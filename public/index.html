@@ -17,6 +17,16 @@
   --shadow:0 2px 10px rgba(21,40,77,.06);
   --maxw:720px; --safe-b:env(safe-area-inset-bottom,0px);
 }
+/* 🌙 다크 테마 — 변수만 재정의하면 변수 기반 컴포넌트가 전체 전환 */
+html[data-theme="dark"]{
+  --bg:#121a28; --navy:#e9eef7; --navy2:#c6d1e4;
+  --soft:#1b2639; --soft2:#232f46; --line:#2c3a54; --muted:#95a1b8;
+  --shadow:0 2px 12px rgba(0,0,0,.4);
+}
+html[data-theme="dark"] body{background:#0c111b}
+html[data-theme="dark"] .fbrow .posbar,html[data-theme="dark"] .stbar .tr{background:#2c3a54}
+/* 🔤 글자 크기(비율 확대 — 레이아웃 비례 유지로 잘림 방지) */
+html.fs-large{zoom:1.12} html.fs-xl{zoom:1.24}
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 html,body{margin:0;padding:0}
 body{font-family:'Pretendard',system-ui,-apple-system,'Apple SD Gothic Neo','Malgun Gothic',sans-serif;
@@ -268,6 +278,23 @@ img{display:block}
 .pst{background:var(--soft);border-radius:10px;padding:9px 4px;text-align:center}
 .pst .v{display:block;font-size:17px;font-weight:900;color:var(--navy)}
 .pst .l{display:block;font-size:10.5px;color:var(--muted);font-weight:700;margin-top:2px}
+/* 설정·알림 화면 공통 */
+.setgrp{background:var(--bg);border:1px solid var(--line);border-radius:14px;padding:4px 14px;margin:10px 0}
+.setrow{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:13px 0;border-bottom:1px solid var(--line)}
+.setrow:last-child{border-bottom:none}
+.setrow .lb{font-weight:800;font-size:14px;color:var(--navy)}
+.setrow .sub{font-size:11.5px;color:var(--muted);font-weight:600;margin-top:2px}
+.setrow .rv{color:var(--red);font-weight:800;font-size:13px}
+.sw{width:50px;height:28px;border-radius:999px;background:var(--soft2);position:relative;flex:0 0 auto;transition:background .15s}
+.sw i{position:absolute;top:3px;left:3px;width:22px;height:22px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.25);transition:left .15s}
+.sw.on{background:var(--navy)}.sw.on i{left:25px}
+.seg{display:flex;gap:7px;margin:4px 0 12px}
+.seg button{flex:1;padding:10px 6px;border-radius:10px;border:1px solid var(--line);background:var(--bg);font-weight:800;font-size:13px;color:var(--navy)}
+.seg button.on{background:var(--navy);border-color:var(--navy);color:#fff}
+.sect-h{display:flex;align-items:center;gap:7px;font-weight:900;font-size:15px;color:var(--navy);margin:18px 0 6px}
+.sect-h::before{content:"";width:4px;height:16px;background:var(--red);border-radius:2px}
+.permbar{display:flex;align-items:center;gap:10px;background:var(--soft);border-radius:12px;padding:12px 14px;font-weight:800;font-size:13.5px}
+.perm-ok{color:var(--green)}.perm-no{color:var(--red)}
 .rosterw{display:grid;grid-template-columns:1fr 1fr;gap:5px 10px;margin:4px 0 12px}
 .rosterp{display:flex;align-items:center;gap:7px;font-size:13px;padding:5px 2px;border-bottom:1px solid var(--line)}
 .rosterp .no{min-width:22px;text-align:center;font-weight:800;color:var(--muted);font-size:11px;background:var(--soft);border-radius:5px;padding:1px 0}
@@ -372,8 +399,26 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
     {k:"esports",label:"e스포츠",ic:"🎮"}
   ];
   var TZ=(Intl.DateTimeFormat().resolvedOptions().timeZone)||"Asia/Seoul";
+  // ====== 환경 설정 (테마·글자크기·결과숨기기) ======
+  function lsGet(k,d){ try{ var v=localStorage.getItem(k); return v==null?d:v; }catch(e){ return d; } }
+  function lsSet(k,v){ try{ localStorage.setItem(k,v); }catch(e){} }
+  var SET={ theme:lsGet("lu_theme","light"), font:lsGet("lu_font","base"), hideScores:lsGet("lu_hide","0")==="1" };
+  var _mql=null;
+  function applyTheme(){
+    var dark = SET.theme==="dark" || (SET.theme==="auto" && _mql && _mql.matches);
+    document.documentElement.setAttribute("data-theme", dark?"dark":"light");
+  }
+  function applyFont(){ var h=document.documentElement; h.classList.remove("fs-large","fs-xl"); if(SET.font==="large")h.classList.add("fs-large"); else if(SET.font==="xl")h.classList.add("fs-xl"); }
+  function applySettings(){ applyTheme(); applyFont(); }
+  try{ _mql=window.matchMedia("(prefers-color-scheme: dark)"); if(_mql.addEventListener)_mql.addEventListener("change",function(){ if(SET.theme==="auto")applyTheme(); }); }catch(e){}
+  applySettings();
+  function loadFavTeams(){ try{ return JSON.parse(localStorage.getItem("lu_favteams")||"[]"); }catch(e){ return []; } }
+  function saveFavTeams(a){ try{ localStorage.setItem("lu_favteams",JSON.stringify(a)); }catch(e){} }
+  // 알림 설정(로컬 저장)
+  var NOTIF=(function(){ try{ return Object.assign({on:true,pre:true,preMin:"10",start:false,end:true,otcancel:false,sport:"football",quarterEnd:false,close:false,quiet:false,qStart:"23:00",qEnd:"07:00"}, JSON.parse(localStorage.getItem("lu_notif")||"{}")); }catch(e){ return {on:true,pre:true,preMin:"10",start:false,end:true,otcancel:false,sport:"football",quarterEnd:false,close:false,quiet:false,qStart:"23:00",qEnd:"07:00"}; } })();
+  function saveNotif(){ try{ localStorage.setItem("lu_notif",JSON.stringify(NOTIF)); }catch(e){} }
   var S={ sport:"football", date:todayStr(), filter:"live", screen:"home", base:"home", country:"",
-          favs:loadFavs(), collapsed:{}, scroll:0, data:{}, recvAt:{}, demo:{}, fbLive:{} };
+          favs:loadFavs(), favTeams:loadFavTeams(), collapsed:{}, scroll:0, data:{}, recvAt:{}, demo:{}, fbLive:{} };
 
   // ====== 유틸 ======
   function $(s,r){return (r||document).querySelector(s)}
@@ -703,7 +748,7 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
 
   // ====== 경기 카드 ======
   function gid(g){ return S.sport+":"+g.id; }
-  function fmtScore(g){ return (g.hs==null?"-":g.hs)+" : "+(g.as==null?"-":g.as); }
+  function fmtScore(g){ if(SET.hideScores&&stateOf(g)!=="scheduled") return "· : ·"; return (g.hs==null?"-":g.hs)+" : "+(g.as==null?"-":g.as); }
   function gameCard(g){
     var card=el("div","gm");
     card.appendChild(sideEl(g.home,g.homeLogo,false));
@@ -803,6 +848,7 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
   function openDetail(g,focus){
     _dt={ g:g, sport:S.sport, tab:(focus==="pitchers"?"box":(focus==="lineup"?"lineup":"overview")), cache:{} };
     document.body.style.overflow="hidden";
+    pushRecent(g,S.sport);
     renderDetail();
   }
   function closeDetail(){ if(_dt&&_dt.ws){try{_dt.ws.close()}catch(e){}} _dt=null; document.body.style.overflow=""; var d=$("#detail"); if(d)d.remove(); }
@@ -1231,16 +1277,18 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
     // 나의 활동
     var g2=el("div","m-group"); g2.appendChild(el("div","m-label",t("grpActivity")));
     var l2=el("div","m-list");
-    [["⭐",t("favTeamPlayer"),"favteam"],["🔔",t("alarmSet"),"alarm"],["👤",t("myPage"),"my"]].forEach(function(x){
+    var myActLbl=tl({en:"My Sports Activity",ko:"나의 스포츠 활동",ja:"マイスポーツ活動",zh:"我的运动活动",es:"Mi actividad deportiva",hi:"मेरी खेल गतिविधि",vi:"Hoạt động thể thao",th:"กิจกรรมกีฬาของฉัน",ru:"Моя спорт-активность",de:"Meine Sport-Aktivität",fr:"Mon activité sportive",it:"La mia attività"});
+    [["⭐",t("favTeamPlayer"),"favteam"],["🔔",t("alarmSet"),"alarm"],["🏃",myActLbl,"myact"]].forEach(function(x){
       var r=el("div","m-row",'<span class="mi">'+x[0]+'</span>'+x[1]+'<span class="chev">›</span>'); r.onclick=function(){menuGo(x[2])}; l2.appendChild(r);
     });
     g2.appendChild(l2); m.appendChild(g2);
     // 환경 설정
     var g3=el("div","m-group"); g3.appendChild(el("div","m-label",t("grpSettings")));
     var l3=el("div","m-list");
+    var setRow=el("div","m-row",'<span class="mi">⚙️</span>'+t("grpSettings")+'<span class="chev">›</span>'); setRow.onclick=function(){menuGo("settings")};
     var langRow=el("div","m-row",'<span class="mi">🌐</span>'+t("langLabel")+'<span class="rv">'+esc(LANGNAMES[LANG]||"English")+'</span><span class="chev">›</span>'); langRow.onclick=function(){menuGo("lang")};
     var tzRow=el("div","m-row",'<span class="mi">🕘</span>'+t("tzMenu")+'<span class="rv">'+tzLabel()+'</span><span class="chev">›</span>'); tzRow.onclick=function(){menuGo("tz")};
-    l3.appendChild(langRow); l3.appendChild(tzRow);
+    l3.appendChild(setRow); l3.appendChild(langRow); l3.appendChild(tzRow);
     g3.appendChild(l3); m.appendChild(g3);
     // 이용 안내
     var g4=el("div","m-group"); g4.appendChild(el("div","m-label",t("grpHelp")));
@@ -1262,10 +1310,13 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
     if(k==="login"||k==="my") return openLogin();
     if(k==="inforoom") return openSearch();
     if(k==="chat") { closeMenu(); return alert(tl({en:"Tap a match card, then the 'Chat' tab to join the live chat.",ko:"경기 카드를 눌러 '채팅' 탭에서 실시간 대화에 참여할 수 있습니다.",ja:"試合カードを開き「チャット」タブで参加できます。",zh:"点击比赛卡片，在'聊天'标签参与实时聊天。",es:"Toca un partido y la pestaña 'Chat' para unirte.",hi:"मैच कार्ड खोलकर 'Chat' टैब में शामिल हों।",vi:"Chạm vào trận đấu rồi tab 'Chat' để tham gia.",th:"แตะการ์ดแมตช์แล้วแท็บ 'Chat'",ru:"Откройте матч и вкладку «Chat».",de:"Tippe auf ein Spiel und den 'Chat'-Tab.",fr:"Touchez un match puis l'onglet 'Chat'.",it:"Tocca una partita e la scheda 'Chat'."})); }
-    if(k==="alarm"||k==="favteam") return alert(tl({en:"Add favorite teams with the ★ on a match card to get alerts.",ko:"경기 카드의 ★로 관심 팀을 등록하면 경기 알림을 받을 수 있습니다.",ja:"試合カードの★でお気に入り登録すると通知を受け取れます。",zh:"用比赛卡片的★添加关注即可接收提醒。",es:"Añade favoritos con la ★ para recibir alertas.",hi:"अलर्ट के लिए मैच कार्ड के ★ से टीम जोड़ें।",vi:"Thêm đội yêu thích bằng ★ để nhận thông báo.",th:"เพิ่มทีมโปรดด้วย ★ เพื่อรับแจ้งเตือน",ru:"Добавьте команды через ★ для уведомлений.",de:"Favoriten per ★ hinzufügen für Benachrichtigungen.",fr:"Ajoutez des favoris avec ★ pour les alertes.",it:"Aggiungi preferiti con ★ per gli avvisi."}));
+    if(k==="alarm") return openAlerts();
+    if(k==="favteam") return openFavTeams();
     if(k==="share") return openShare();
     if(k==="lang") return openLangPicker();
-    if(k==="tz") return alert(t("tzMenu")+" — "+tzLabel());
+    if(k==="settings"||k==="tz") return openSettings();
+    if(k==="my") return openLogin();
+    if(k==="myact") return openActivity();
     if(k==="install") return alert(tl({en:"Use your browser's 'Add to Home Screen' to install the app.",ko:"브라우저 메뉴의 '홈 화면에 추가'로 앱처럼 설치할 수 있습니다.",ja:"ブラウザの「ホーム画面に追加」でインストールできます。",zh:"用浏览器的'添加到主屏幕'安装应用。",es:"Usa 'Añadir a pantalla de inicio' del navegador.",hi:"ब्राउज़र के 'होम स्क्रीन में जोड़ें' से इंस्टॉल करें।",vi:"Dùng 'Thêm vào màn hình chính' của trình duyệt.",th:"ใช้ 'เพิ่มลงหน้าจอหลัก' ของเบราว์เซอร์",ru:"Используйте «На главный экран» в браузере.",de:"Nutze 'Zum Startbildschirm' im Browser.",fr:"Utilisez 'Ajouter à l'écran d'accueil'.",it:"Usa 'Aggiungi a Home' del browser."}));
     if(k==="support") return alert("support@liveup.fans");
     if(k==="notice") return alert(t("notice"));
@@ -1370,6 +1421,117 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
         else toast(t("copyFail"),false);
       }
     };
+  }
+  // ====== 알림 설정 (이미지 06) ======
+  function swHtml(id,on){ return '<div class="sw'+(on?" on":"")+'" id="'+id+'"><i></i></div>'; }
+  function openAlerts(){
+    var o=overlay("ovAlerts");
+    var perm=(window.Notification&&Notification.permission)||"default";
+    var permTxt=perm==="granted"?('<span class="perm-ok">'+tl({en:"Allowed",ko:"허용됨",ja:"許可",zh:"已允许",es:"Permitido",hi:"अनुमति",vi:"Đã cho phép",th:"อนุญาต",ru:"Разрешено",de:"Erlaubt",fr:"Autorisé",it:"Consentito"})+'</span>'):('<span class="perm-no">'+tl({en:"Not allowed",ko:"미허용",ja:"未許可",zh:"未允许",es:"No permitido",hi:"अनुमति नहीं",vi:"Chưa cho phép",th:"ยังไม่อนุญาต",ru:"Не разрешено",de:"Nicht erlaubt",fr:"Non autorisé",it:"Non consentito"})+'</span>');
+    var sports=[["football","⚽"],["basketball","🏀"],["volleyball","🏐"],["baseball","⚾"],["hockey","🏒"]];
+    var h='<div class="dt-bar"><button class="bk" id="alBack">‹</button><div class="ti">'+tl({en:"Notifications",ko:"알림 설정",ja:"通知設定",zh:"通知设置",es:"Notificaciones",hi:"सूचनाएँ",vi:"Thông báo",th:"แจ้งเตือน",ru:"Уведомления",de:"Benachrichtigungen",fr:"Notifications",it:"Notifiche"})+'</div></div><div class="dt-body">';
+    h+='<div class="permbar">🔔 <span style="flex:1">'+tl({en:"This device",ko:"이 기기 알림",ja:"この端末の通知",zh:"本设备通知",es:"Este dispositivo",hi:"यह डिवाइस",vi:"Thiết bị này",th:"อุปกรณ์นี้",ru:"Это устройство",de:"Dieses Gerät",fr:"Cet appareil",it:"Questo dispositivo"})+' / '+permTxt+'</span></div>';
+    h+='<div class="setgrp"><div class="setrow"><div><div class="lb">'+tl({en:"All notifications",ko:"전체 알림",ja:"全通知",zh:"全部通知",es:"Todas",hi:"सभी",vi:"Tất cả",th:"ทั้งหมด",ru:"Все",de:"Alle",fr:"Toutes",it:"Tutte"})+'</div><div class="sub">'+tl({en:"Get only the matches you want.",ko:"원하는 경기 소식만 받아보세요.",ja:"必要な試合だけ受け取る。",zh:"只接收想看的比赛。",es:"Solo los partidos que quieras.",hi:"केवल अपनी पसंद।",vi:"Chỉ trận bạn muốn.",th:"รับเฉพาะที่ต้องการ",ru:"Только нужные матчи.",de:"Nur gewünschte Spiele.",fr:"Seulement vos matchs.",it:"Solo le tue partite."})+'</div></div>'+swHtml("nAll",NOTIF.on)+'</div></div>';
+    h+='<div class="sect-h">'+tl({en:"Alert targets",ko:"알림 받을 대상",ja:"通知対象",zh:"通知对象",es:"Objetivos",hi:"लक्ष्य",vi:"Đối tượng",th:"เป้าหมาย",ru:"Цели",de:"Ziele",fr:"Cibles",it:"Obiettivi"})+'</div>';
+    h+='<div class="setgrp"><div class="setrow" id="toFav"><div class="lb">'+t("favGames")+'</div><div class="rv">'+S.favs.size+' ›</div></div><div class="setrow" id="toTeam"><div class="lb">'+tl({en:"Favorite teams",ko:"관심 팀",ja:"お気に入りチーム",zh:"关注球队",es:"Equipos",hi:"टीमें",vi:"Đội",th:"ทีม",ru:"Команды",de:"Teams",fr:"Équipes",it:"Squadre"})+'</div><div class="rv">'+S.favTeams.length+' ›</div></div></div>';
+    h+='<div class="sect-h">'+tl({en:"Match alerts",ko:"경기 알림",ja:"試合通知",zh:"比赛通知",es:"Partidos",hi:"मैच",vi:"Trận đấu",th:"แมตช์",ru:"Матчи",de:"Spiele",fr:"Matchs",it:"Partite"})+'</div>';
+    h+='<div class="setgrp"><div class="setrow"><div class="lb">'+tl({en:"Before start",ko:"경기 시작 전",ja:"開始前",zh:"开赛前",es:"Antes",hi:"शुरू से पहले",vi:"Trước giờ",th:"ก่อนเริ่ม",ru:"Перед началом",de:"Vor Beginn",fr:"Avant",it:"Prima"})+'</div>'+swHtml("nPre",NOTIF.pre)+'</div>';
+    h+='<div class="seg" id="segPre">'+["5","10","30"].map(function(x){return '<button data-m="'+x+'"'+(NOTIF.preMin===x?' class="on"':'')+'>'+x+tl({en:"m",ko:"분 전",ja:"分前",zh:"分钟前",es:"m",hi:"मि",vi:"ph",th:"น",ru:"м",de:"m",fr:"m",it:"m"})+'</button>';}).join("")+'</div>';
+    h+='<div class="setrow"><div class="lb">'+tl({en:"Match start",ko:"경기 시작",ja:"試合開始",zh:"开赛",es:"Inicio",hi:"शुरू",vi:"Bắt đầu",th:"เริ่ม",ru:"Старт",de:"Start",fr:"Début",it:"Inizio"})+'</div>'+swHtml("nStart",NOTIF.start)+'</div>';
+    h+='<div class="setrow"><div class="lb">'+tl({en:"Match end",ko:"경기 종료",ja:"試合終了",zh:"结束",es:"Final",hi:"समाप्त",vi:"Kết thúc",th:"จบ",ru:"Конец",de:"Ende",fr:"Fin",it:"Fine"})+'</div>'+swHtml("nEnd",NOTIF.end)+'</div>';
+    h+='<div class="setrow"><div class="lb">'+tl({en:"OT / Cancel / Postpone",ko:"연장·취소·연기",ja:"延長・中止・延期",zh:"加时·取消·延期",es:"Prórroga/cancel.",hi:"OT/रद्द",vi:"Hiệp phụ/hủy",th:"ต่อเวลา/ยกเลิก",ru:"ОТ/отмена",de:"Verl./Absage",fr:"Prol./annul.",it:"Suppl./annullo"})+'</div>'+swHtml("nOt",NOTIF.otcancel)+'</div></div>';
+    h+='<div class="sect-h">'+tl({en:"Per-sport",ko:"종목별 세부 알림",ja:"種目別",zh:"分项目",es:"Por deporte",hi:"खेल अनुसार",vi:"Theo môn",th:"ตามกีฬา",ru:"По виду",de:"Pro Sportart",fr:"Par sport",it:"Per sport"})+'</div>';
+    h+='<div class="seg" id="segSport" style="flex-wrap:wrap">'+sports.map(function(s){return '<button data-s="'+s[0]+'"'+(NOTIF.sport===s[0]?' class="on"':'')+'>'+s[1]+' '+t(s[0])+'</button>';}).join("")+'</div>';
+    h+='<div class="setgrp"><div class="setrow"><div class="lb">'+tl({en:"Quarter/Set end",ko:"쿼터·세트 종료",ja:"クォーター・セット終了",zh:"节/局结束",es:"Fin de cuarto/set",hi:"क्वार्टर/सेट अंत",vi:"Hết hiệp/set",th:"จบควอเตอร์/เซ็ต",ru:"Конец четв./сета",de:"Viertel/Satz-Ende",fr:"Fin quart/set",it:"Fine quarto/set"})+'</div>'+swHtml("nQe",NOTIF.quarterEnd)+'</div></div>';
+    h+='<div class="sect-h">'+tl({en:"Quiet hours",ko:"방해 금지 시간",ja:"おやすみ時間",zh:"勿扰时段",es:"No molestar",hi:"शांत समय",vi:"Giờ im lặng",th:"ห้ามรบกวน",ru:"Не беспокоить",de:"Ruhezeiten",fr:"Ne pas déranger",it:"Non disturbare"})+'</div>';
+    h+='<div class="setgrp"><div class="setrow"><div><div class="lb">'+NOTIF.qStart+' – '+NOTIF.qEnd+'</div></div>'+swHtml("nQuiet",NOTIF.quiet)+'</div></div>';
+    h+='<button class="gbtn" id="nTest" style="margin-top:14px">🔔 '+tl({en:"Send test notification",ko:"테스트 알림 보내기",ja:"テスト通知を送る",zh:"发送测试通知",es:"Enviar prueba",hi:"टेस्ट भेजें",vi:"Gửi thử",th:"ส่งทดสอบ",ru:"Тестовое уведомление",de:"Testbenachrichtigung",fr:"Test",it:"Prova"})+'</button>';
+    h+='<p style="text-align:center;color:#8a93a3;font-size:12px;margin-top:10px">'+tl({en:"Settings are saved automatically.",ko:"설정은 자동으로 저장됩니다.",ja:"設定は自動保存されます。",zh:"设置自动保存。",es:"Se guarda automáticamente.",hi:"स्वतः सहेजा जाता है।",vi:"Tự động lưu.",th:"บันทึกอัตโนมัติ",ru:"Сохраняется автоматически.",de:"Automatisch gespeichert.",fr:"Enregistré automatiquement.",it:"Salvato automaticamente."})+'</p></div>';
+    o.innerHTML=h;
+    $("#alBack").onclick=function(){ closeOverlay("ovAlerts"); };
+    function tog(id,key){ var e=$("#"+id); if(!e)return; e.onclick=function(){ NOTIF[key]=!NOTIF[key]; e.classList.toggle("on"); saveNotif(); if(key==="on"&&NOTIF.on&&window.Notification&&Notification.permission==="default"){ Notification.requestPermission().then(function(){ openAlerts(); }); } }; }
+    tog("nAll","on"); tog("nPre","pre"); tog("nStart","start"); tog("nEnd","end"); tog("nOt","otcancel"); tog("nQe","quarterEnd"); tog("nQuiet","quiet");
+    o.querySelectorAll("#segPre button").forEach(function(b){ b.onclick=function(){ NOTIF.preMin=b.dataset.m; saveNotif(); o.querySelectorAll("#segPre button").forEach(function(x){x.classList.remove("on");}); b.classList.add("on"); }; });
+    o.querySelectorAll("#segSport button").forEach(function(b){ b.onclick=function(){ NOTIF.sport=b.dataset.s; saveNotif(); o.querySelectorAll("#segSport button").forEach(function(x){x.classList.remove("on");}); b.classList.add("on"); }; });
+    $("#toFav").onclick=function(){ closeOverlay("ovAlerts"); openFavTeams("games"); };
+    $("#toTeam").onclick=function(){ closeOverlay("ovAlerts"); openFavTeams("teams"); };
+    $("#nTest").onclick=function(){
+      if(!window.Notification){ alert(tl({en:"Notifications are not supported on this device.",ko:"이 기기는 알림을 지원하지 않습니다.",ja:"この端末は通知に対応していません。",zh:"本设备不支持通知。",es:"No compatible.",hi:"समर्थित नहीं।",vi:"Không hỗ trợ.",th:"ไม่รองรับ",ru:"Не поддерживается.",de:"Nicht unterstützt.",fr:"Non pris en charge.",it:"Non supportato."})); return; }
+      var send=function(){ try{ new Notification("LIVE UP",{body:tl({en:"Test notification ✓",ko:"테스트 알림입니다 ✓",ja:"テスト通知 ✓",zh:"测试通知 ✓",es:"Prueba ✓",hi:"टेस्ट ✓",vi:"Thử ✓",th:"ทดสอบ ✓",ru:"Тест ✓",de:"Test ✓",fr:"Test ✓",it:"Prova ✓"}),icon:"/logo-t.png"}); }catch(e){ alert("🔔 LIVE UP — OK"); } };
+      if(Notification.permission==="granted")send(); else Notification.requestPermission().then(function(p){ if(p==="granted")send(); else openAlerts(); });
+    };
+  }
+  // ====== 관심 팀·선수 (이미지 05) ======
+  function openFavTeams(tab){
+    tab=tab||"games";
+    var o=overlay("ovFav");
+    function body(){
+      var h='<div class="dt-bar"><button class="bk" id="fvBack">‹</button><div class="ti">'+tl({en:"Favorites",ko:"관심 팀·선수",ja:"お気に入り",zh:"关注",es:"Favoritos",hi:"पसंदीदा",vi:"Yêu thích",th:"รายการโปรด",ru:"Избранное",de:"Favoriten",fr:"Favoris",it:"Preferiti"})+'</div></div>';
+      h+='<div class="dt-tabs" style="position:static">'+[["games",t("favGames")],["teams",tl({en:"Teams",ko:"관심 팀",ja:"チーム",zh:"球队",es:"Equipos",hi:"टीमें",vi:"Đội",th:"ทีม",ru:"Команды",de:"Teams",fr:"Équipes",it:"Squadre"})]].map(function(x){return '<button class="dt-tab'+(tab===x[0]?" on":"")+'" data-ft="'+x[0]+'">'+x[1]+'</button>';}).join("")+'</div><div class="dt-body" id="fvBody"></div>';
+      o.innerHTML=h;
+      $("#fvBack").onclick=function(){ closeOverlay("ovFav"); };
+      o.querySelectorAll(".dt-tab").forEach(function(b){ b.onclick=function(){ tab=b.dataset.ft; body(); }; });
+      render();
+    }
+    function render(){
+      var b=$("#fvBody"); if(!b)return;
+      if(tab==="games"){
+        // S.favs = Set of "sport:id" — 현재 로드된 경기에서 이름 보강
+        var all=[]; Object.keys(S.data).forEach(function(k){ var d=S.data[k]; if(d&&d.games)d.games.forEach(function(g){ var sp=k.split("|")[0]; if(S.favs.has(sp+":"+g.id))all.push({sp:sp,g:g}); }); });
+        var seen={}; all=all.filter(function(x){ var id=x.sp+":"+x.g.id; if(seen[id])return false; seen[id]=1; return true; });
+        if(!S.favs.size){ b.innerHTML=emptyMsg(); return; }
+        if(!all.length){ b.innerHTML='<div class="msg"><div class="big">⭐</div>'+tl({en:"Open the sport/date of your saved matches to see them here.",ko:"저장한 경기의 종목·날짜를 열면 여기 표시됩니다.",ja:"保存した試合の種目・日付を開くと表示されます。",zh:"打开已保存比赛的项目·日期即可查看。",es:"Abre el deporte/fecha para verlos.",hi:"सहेजे मैच का खेल/तारीख खोलें।",vi:"Mở môn/ngày để xem.",th:"เปิดกีฬา/วันที่เพื่อดู",ru:"Откройте вид/дату.",de:"Sportart/Datum öffnen.",fr:"Ouvrez le sport/date.",it:"Apri sport/data."})+'</div>'; return; }
+        b.innerHTML=''; all.forEach(function(x){ var c=gameCardFav(x.g,x.sp); b.appendChild(c); });
+      } else {
+        if(!S.favTeams.length){ b.innerHTML=emptyMsg(); return; }
+        b.innerHTML='<div class="rosterw" style="grid-template-columns:1fr">'+S.favTeams.map(function(tm,i){ return '<div class="rosterp" style="justify-content:space-between"><span class="nm" style="flex:1">'+(tm.logo?'<img src="'+esc(tm.logo)+'" style="width:20px;height:20px;vertical-align:middle;margin-right:6px;object-fit:contain" onerror="this.remove()">':'')+esc(tm.name)+'</span><button class="refbtn fvdel" data-i="'+i+'">✕</button></div>'; }).join("")+'</div>';
+        b.querySelectorAll(".fvdel").forEach(function(btn){ btn.onclick=function(){ S.favTeams.splice(+btn.dataset.i,1); saveFavTeams(S.favTeams); render(); }; });
+      }
+    }
+    function emptyMsg(){ return '<div class="msg"><div class="big">⭐</div>'+tl({en:"No favorites yet. Tap ★ on a match card, or a team name in a match, to add.",ko:"아직 없습니다. 경기 카드의 ★나 경기 속 팀 이름으로 추가하세요.",ja:"まだありません。試合の★やチーム名から追加。",zh:"暂无。用比赛卡★或球队名添加。",es:"Vacío. Usa ★ o el nombre del equipo.",hi:"खाली। ★ या टीम नाम से जोड़ें।",vi:"Trống. Dùng ★ hoặc tên đội.",th:"ว่าง ใช้ ★ หรือชื่อทีม",ru:"Пусто. Нажмите ★ или имя команды.",de:"Leer. ★ oder Teamname nutzen.",fr:"Vide. Utilisez ★ ou le nom.",it:"Vuoto. Usa ★ o il nome."})+'</div>'; }
+    function gameCardFav(g,sp){ var save=S.sport; S.sport=sp; var c=gameCard(g); S.sport=save; return c; }
+    body();
+  }
+  // ====== 환경 설정 (이미지 11) ======
+  function openSettings(){
+    var o=overlay("ovSet");
+    var h='<div class="dt-bar"><button class="bk" id="stBack">‹</button><div class="ti">'+t("grpSettings")+'</div></div><div class="dt-body">';
+    h+='<div class="sect-h">'+tl({en:"Theme",ko:"테마",ja:"テーマ",zh:"主题",es:"Tema",hi:"थीम",vi:"Giao diện",th:"ธีม",ru:"Тема",de:"Design",fr:"Thème",it:"Tema"})+'</div>';
+    h+='<div class="seg" id="segTheme">'+[["light",tl({en:"Light",ko:"밝게",ja:"ライト",zh:"浅色",es:"Claro",hi:"लाइट",vi:"Sáng",th:"สว่าง",ru:"Светлая",de:"Hell",fr:"Clair",it:"Chiaro"})],["dark",tl({en:"Dark",ko:"어둡게",ja:"ダーク",zh:"深色",es:"Oscuro",hi:"डार्क",vi:"Tối",th:"มืด",ru:"Тёмная",de:"Dunkel",fr:"Sombre",it:"Scuro"})],["auto",tl({en:"System",ko:"기기 설정",ja:"端末設定",zh:"跟随系统",es:"Sistema",hi:"सिस्टम",vi:"Hệ thống",th:"ตามระบบ",ru:"Система",de:"System",fr:"Système",it:"Sistema"})]].map(function(x){return '<button data-v="'+x[0]+'"'+(SET.theme===x[0]?' class="on"':'')+'>'+x[1]+'</button>';}).join("")+'</div>';
+    h+='<div class="sect-h">'+tl({en:"Text size",ko:"글자 크기",ja:"文字サイズ",zh:"字体大小",es:"Tamaño",hi:"अक्षर आकार",vi:"Cỡ chữ",th:"ขนาดตัวอักษร",ru:"Размер текста",de:"Textgröße",fr:"Taille",it:"Dimensione"})+'</div>';
+    h+='<div class="seg" id="segFont">'+[["base",tl({en:"Default",ko:"기본",ja:"標準",zh:"默认",es:"Normal",hi:"सामान्य",vi:"Mặc định",th:"ปกติ",ru:"Обычный",de:"Standard",fr:"Normal",it:"Normale"})],["large",tl({en:"Large",ko:"크게",ja:"大",zh:"大",es:"Grande",hi:"बड़ा",vi:"Lớn",th:"ใหญ่",ru:"Крупный",de:"Groß",fr:"Grand",it:"Grande"})],["xl",tl({en:"Larger",ko:"더 크게",ja:"特大",zh:"更大",es:"Más grande",hi:"और बड़ा",vi:"Lớn hơn",th:"ใหญ่ขึ้น",ru:"Больше",de:"Größer",fr:"Plus grand",it:"Più grande"})]].map(function(x){return '<button data-v="'+x[0]+'"'+(SET.font===x[0]?' class="on"':'')+'>'+x[1]+'</button>';}).join("")+'</div>';
+    h+='<div class="sect-h">'+t("grpSettings")+'</div>';
+    h+='<div class="setgrp"><div class="setrow" id="stLang"><div class="lb">🌐 '+t("langLabel")+'</div><div class="rv">'+esc(LANGNAMES[LANG]||"English")+' ›</div></div>';
+    h+='<div class="setrow"><div class="lb">🕘 '+t("tzMenu")+'</div><div class="rv" style="color:var(--muted)">'+tzLabel()+'</div></div>';
+    h+='<div class="setrow"><div><div class="lb">🙈 '+tl({en:"Hide scores",ko:"결과 숨기기",ja:"スコアを隠す",zh:"隐藏比分",es:"Ocultar marcadores",hi:"स्कोर छिपाएँ",vi:"Ẩn tỉ số",th:"ซ่อนสกอร์",ru:"Скрыть счёт",de:"Ergebnisse ausblenden",fr:"Masquer les scores",it:"Nascondi punteggi"})+'</div><div class="sub">'+tl({en:"Hide live scores to avoid spoilers.",ko:"스포일러 방지를 위해 점수를 가립니다.",ja:"ネタバレ防止でスコアを隠す。",zh:"防剧透隐藏比分。",es:"Evita spoilers.",hi:"स्पॉइलर से बचें।",vi:"Tránh lộ kết quả.",th:"กันสปอยล์",ru:"Без спойлеров.",de:"Keine Spoiler.",fr:"Anti-spoiler.",it:"Anti-spoiler."})+'</div></div>'+swHtml("stHide",SET.hideScores)+'</div></div>';
+    h+='<button class="refbtn" id="stReset" style="margin:16px auto 0;display:block">↺ '+tl({en:"Reset settings",ko:"환경 설정 초기화",ja:"設定をリセット",zh:"重置设置",es:"Restablecer",hi:"रीसेट",vi:"Đặt lại",th:"รีเซ็ต",ru:"Сброс",de:"Zurücksetzen",fr:"Réinitialiser",it:"Reimposta"})+'</button>';
+    h+='<p style="text-align:center;color:#8a93a3;font-size:12px;margin-top:10px">'+tl({en:"Settings are saved automatically.",ko:"설정은 자동으로 저장됩니다.",ja:"自動保存されます。",zh:"自动保存。",es:"Guardado automático.",hi:"स्वतः सहेजा।",vi:"Tự động lưu.",th:"บันทึกอัตโนมัติ",ru:"Сохраняется автоматически.",de:"Automatisch gespeichert.",fr:"Enregistré auto.",it:"Salvataggio auto."})+'</p></div>';
+    o.innerHTML=h;
+    $("#stBack").onclick=function(){ closeOverlay("ovSet"); };
+    o.querySelectorAll("#segTheme button").forEach(function(b){ b.onclick=function(){ SET.theme=b.dataset.v; lsSet("lu_theme",SET.theme); applyTheme(); o.querySelectorAll("#segTheme button").forEach(function(x){x.classList.remove("on");}); b.classList.add("on"); }; });
+    o.querySelectorAll("#segFont button").forEach(function(b){ b.onclick=function(){ SET.font=b.dataset.v; lsSet("lu_font",SET.font); applyFont(); o.querySelectorAll("#segFont button").forEach(function(x){x.classList.remove("on");}); b.classList.add("on"); }; });
+    $("#stLang").onclick=function(){ openLangPicker(); };
+    $("#stHide").onclick=function(){ SET.hideScores=!SET.hideScores; lsSet("lu_hide",SET.hideScores?"1":"0"); $("#stHide").classList.toggle("on"); if(S.screen==="home"||S.screen==="live"||S.screen==="fav")renderHome(); };
+    $("#stReset").onclick=function(){ SET.theme="light"; SET.font="base"; SET.hideScores=false; lsSet("lu_theme","light"); lsSet("lu_font","base"); lsSet("lu_hide","0"); applySettings(); openSettings(); if(S.screen==="home")renderHome(); };
+  }
+  // ====== 나의 스포츠 활동 (이미지 09) ======
+  function pushRecent(g,sp){ try{ var r=JSON.parse(localStorage.getItem("lu_recent")||"[]"); r=r.filter(function(x){return !(x.id===g.id&&x.sp===sp);}); r.unshift({id:g.id,sp:sp,home:g.home,away:g.away,league:g.league,hs:g.hs,as:g.as,t:Date.now()}); r=r.slice(0,12); localStorage.setItem("lu_recent",JSON.stringify(r)); }catch(e){} }
+  function openActivity(){
+    var o=overlay("ovAct");
+    var me=null; try{ me=JSON.parse(localStorage.getItem("lu_user")||"null"); }catch(e){}
+    var recent=[]; try{ recent=JSON.parse(localStorage.getItem("lu_recent")||"[]"); }catch(e){}
+    var h='<div class="dt-bar"><button class="bk" id="acBack">‹</button><div class="ti">'+tl({en:"My Sports Activity",ko:"나의 스포츠 활동",ja:"マイスポーツ活動",zh:"我的运动活动",es:"Mi actividad",hi:"मेरी गतिविधि",vi:"Hoạt động của tôi",th:"กิจกรรมของฉัน",ru:"Моя активность",de:"Meine Aktivität",fr:"Mon activité",it:"La mia attività"})+'</div></div><div class="dt-body">';
+    h+='<div class="pstats" style="grid-template-columns:repeat(3,1fr)"><div class="pst" id="acFav"><span class="v">'+S.favs.size+'</span><span class="l">'+t("favGames")+'</span></div><div class="pst" id="acTeam"><span class="v">'+S.favTeams.length+'</span><span class="l">'+tl({en:"Teams",ko:"관심 팀",ja:"チーム",zh:"球队",es:"Equipos",hi:"टीमें",vi:"Đội",th:"ทีม",ru:"Команды",de:"Teams",fr:"Équipes",it:"Squadre"})+'</span></div><div class="pst" id="acAlert"><span class="v">🔔</span><span class="l">'+tl({en:"Alerts",ko:"알림",ja:"通知",zh:"通知",es:"Alertas",hi:"अलर्ट",vi:"Báo",th:"แจ้งเตือน",ru:"Оповещ.",de:"Alerts",fr:"Alertes",it:"Avvisi"})+'</span></div></div>';
+    h+='<div class="sect-h">'+tl({en:"Recently viewed",ko:"최근 본 경기",ja:"最近見た試合",zh:"最近查看",es:"Vistos recientemente",hi:"हाल में देखे",vi:"Xem gần đây",th:"ดูล่าสุด",ru:"Недавние",de:"Zuletzt angesehen",fr:"Vus récemment",it:"Visti di recente"})+'</div>';
+    if(!recent.length){ h+='<div class="msg"><div class="big">🕘</div>'+tl({en:"No matches viewed yet.",ko:"최근 본 경기가 없습니다.",ja:"まだありません。",zh:"暂无。",es:"Nada aún.",hi:"कुछ नहीं।",vi:"Chưa có.",th:"ยังไม่มี",ru:"Пока нет.",de:"Noch nichts.",fr:"Rien encore.",it:"Niente."})+'</div>'; }
+    else { h+='<div id="acRecent">'+recent.map(function(x){ return '<div class="ins-row" data-id="'+esc(x.id)+'" data-sp="'+esc(x.sp)+'"><div class="il">'+esc(x.home||"")+' <b>'+((x.hs==null?"-":x.hs)+":"+(x.as==null?"-":x.as))+'</b> '+esc(x.away||"")+'</div><div class="ir">'+esc(x.league||"")+'</div></div>'; }).join("")+'</div>'; }
+    h+='</div>';
+    o.innerHTML=h;
+    $("#acBack").onclick=function(){ closeOverlay("ovAct"); };
+    $("#acFav").onclick=function(){ closeOverlay("ovAct"); openFavTeams("games"); };
+    $("#acTeam").onclick=function(){ closeOverlay("ovAct"); openFavTeams("teams"); };
+    $("#acAlert").onclick=function(){ closeOverlay("ovAct"); openAlerts(); };
+    o.querySelectorAll("#acRecent .ins-row").forEach(function(row){ row.onclick=function(){ var id=row.dataset.id, sp=row.dataset.sp; var d=S.data[sp+"|"+S.date]; var g=d&&d.games&&d.games.filter(function(x){return String(x.id)===String(id);})[0]; if(g){ closeOverlay("ovAct"); if(S.sport!==sp){S.sport=sp;} openDetail(g); } }; });
   }
   // ====== 로그인 (구글 · 기존 /api/auth/google) ======
   function tl(map){ return map[LANG]||map.en; }
@@ -1572,7 +1734,7 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
   // 열려있는 가장 위 레이어 하나만 닫고 true, 닫을 게 없으면 false
   function topClose(){
     if($("#detail")){ closeDetail(); return true; }
-    var ids=["ovLang","ovShare","ovPlayer","ovSearch","ovTeam","ovRank","ovNews","ovLogin"];
+    var ids=["ovLang","ovShare","ovPlayer","ovAlerts","ovFav","ovSet","ovAct","ovSearch","ovTeam","ovRank","ovNews","ovLogin"];
     for(var i=0;i<ids.length;i++){ if($("#"+ids[i])){ closeOverlay(ids[i]); return true; } }
     if(S.screen==="menu"||S.screen==="insight"){ document.body.style.overflow=""; S.screen=(S.base||"home"); render(); window.scrollTo(0,S.scroll||0); return true; }
     return false;
