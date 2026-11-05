@@ -21,7 +21,7 @@ const app = express();
 const server = http.createServer(app);
 
 const PORT = process.env.PORT || 3000;
-const APP_VERSION = 'v368';
+const APP_VERSION = 'v369';
 
 // ============================================================
 //  📏 성능 계측(instrumentation) — 엔드포인트 지연·캐시·공급사·WS·이벤트루프
@@ -2523,7 +2523,8 @@ async function buildGamesCore(sport, date, tz) {
     if (games.length) { _lastGoodMinor.set(gk, { t: Date.now(), list: games.slice() }); return { games, j: { results: games.length, src: 'thesports' } }; }
     const prev = _lastGoodMinor.get(gk);
     if (prev && prev.list && prev.list.length && Date.now() - prev.t < 90000) return { games: prev.list.slice(), j: { results: prev.list.length, src: 'thesports-cache' } };
-    return { games: [], j: { results: 0, src: 'thesports-empty' } };
+    // ⚠️ TheSports 농구가 비어있으면(플랜 미커버/장애) 하드 리턴하지 않고 아래 Goalserve→API-Sports로 폴백한다.
+    //    (축구·배구와 동일한 폴백 정책. 하드 리턴 시 농구 탭 전체가 빈 화면이 되던 버그 수정)
   }
   // 🏀 농구 = Goalserve 우선(라이브 쿼터+시계). 비어있으면(테스트키 만료/장애) API-Sports로 자동 폴백.
   //    관리자 설정(CFG.bskSrc): 'auto'(기본) / 'goalserve'(강제) / 'apisports'(강제 폴백) / 'thesports'(초단위)
