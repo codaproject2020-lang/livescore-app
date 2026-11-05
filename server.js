@@ -1977,6 +1977,33 @@ async function gsTeamLogos(ids) {
 const TS_BSK_PER = { 2: 1, 3: 1, 4: 2, 5: 2, 6: 3, 7: 3, 8: 4, 9: 5, 13: 5 };
 function tsBskState(st) { if (st === 1 || st === 15 || st === 0) return 'scheduled'; if (st === 10 || st === 12) return 'finished'; return 'live'; }
 function fmtClockSec(sec) { sec = Math.max(0, Math.round(+sec || 0)); const m = Math.floor(sec / 60), s = sec % 60; return m + ':' + (s < 10 ? '0' : '') + s; }
+// detail_live.tlive(플레이바이플레이) 파싱 → 이벤트 배열 + 현재기간 팀파울 + 전후반/쿼터 판별
+//  이벤트 라인 형식(^ 구분): [기간(0-base), "MM:SS", 팀(1=홈·2=원정), ?, "원정-홈 점수", 설명, ...]
+function tsBskParseEvents(lv) {
+  let lines = [];
+  const tl = lv && lv.tlive;
+  if (Array.isArray(tl) && tl.length) lines = Array.isArray(tl[0]) ? tl[0] : tl;
+  const evs = [];
+  lines.forEach(L => {
+    const s = String(L).split('^');
+    const text = s[5] || ''; if (!text) return;
+    const sc = String(s[4] || '').split('-');   // "원정-홈"
+    evs.push({ period: +s[0] || 0, clock: s[1] || '', team: +s[2] || 0, away: (sc[0] !== undefined ? +sc[0] : null), home: (sc[1] !== undefined ? +sc[1] : null), text });
+  });
+  return evs;
+}
+function tsBskLiveInfo(lv) {
+  const evs = tsBskParseEvents(lv);
+  if (!evs.length) return null;
+  let curP = 0, maxMin = 0;
+  evs.forEach(e => { if (e.period > curP) curP = e.period; const mm = parseInt(String(e.clock).split(':')[0], 10); if (!isNaN(mm) && mm > maxMin) maxMin = mm; });
+  const periodMin = maxMin >= 19 ? 20 : (maxMin >= 11 ? 12 : (maxMin >= 9 ? 10 : (maxMin || 12)));
+  const isHalves = periodMin >= 19;
+  const foulRe = /foul on|foul by/i;
+  let hf = 0, af = 0;
+  evs.forEach(e => { if (e.period !== curP) return; if (!foulRe.test(e.text)) return; if (e.team === 1) hf++; else if (e.team === 2) af++; });
+  return { curP, periodMin, isHalves, hf, af, events: evs };
+}
 async function tsBasketballGames(date, tz) {
   tz = canonTz(tz);
   const toYmd = d => String(d).replace(/-/g, '');
@@ -2005,15 +2032,26 @@ async function tsBasketballGames(date, tz) {
         if (lv.score) { if (lv.score[1] != null) st = lv.score[1]; const hq = lv.score[3] || [], aq = lv.score[4] || []; if (hq.length) { hsArr = hq; asArr = aq; hs = hq.reduce((a, b) => a + (+b || 0), 0); as = aq.reduce((a, b) => a + (+b || 0), 0); } }
         if (lv.timer) { timerRun = lv.timer[0]; timerUpd = lv.timer[2]; timerSec = lv.timer[3]; }
       }
+      // 진행 경기: detail_live 의 tlive(플레이바이플레이)로 현재기간·전후반/쿼터·현재기간 팀파울을 산출(추가 호출 없음)
+      const info = (lv && tsBskState(st) === 'live') ? tsBskLiveInfo(lv) : null;
+      const statePer = TS_BSK_PER[st] || null;            // status_id 추정 기간(폴백)
+      const curPeriod = (info && info.curP != null) ? (info.curP + 1) : statePer;   // 1-base 현재 기간
+      const isHalves = info ? info.isHalves : false;
+      // 시작된 기간까지만 쿼터표시(미시작 기간의 0:0 제거). curPeriod 모르면 '득점 있는 마지막 기간'까지.
+      let lastPlayed = 0;
+      for (let i = 0; i < Math.max(hsArr.length, asArr.length); i++) { if ((+hsArr[i] || 0) > 0 || (+asArr[i] || 0) > 0) lastPlayed = i + 1; }
+      const showN = Math.max(lastPlayed, (tsBskState(st) === 'live' && curPeriod) ? curPeriod : 0);
       const setScores = [];
-      for (let i = 0; i < Math.max(hsArr.length, asArr.length); i++) { const h = hsArr[i], a = asArr[i]; if ((h != null && h !== '') || (a != null && a !== '')) setScores.push({ home: (h != null ? +h : null), away: (a != null ? +a : null) }); }
-      const per = TS_BSK_PER[st] || null;
+      for (let i = 0; i < showN; i++) { const h = hsArr[i], a = asArr[i]; setScores.push({ home: (h != null && h !== '') ? +h : null, away: (a != null && a !== '') ? +a : null }); }
+      const periodLabel = curPeriod ? (isHalves ? (curPeriod <= 2 ? 'H' + curPeriod : 'OT' + (curPeriod - 2)) : (curPeriod <= 4 ? 'Q' + curPeriod : 'OT' + (curPeriod - 4))) : '';
       out.push({
         id: 'ts' + id, tsid: id, league: hc.name || 'Basketball', leagueLogo: hc.logo || '', country: '',
         home: ht.name || '', homeLogo: ht.logo || '', away: at.name || '', awayLogo: at.logo || '',
         homeTid: m.home_team_id, awayTid: m.away_team_id,
-        hs, as, status: per ? ('Q' + per) : '', statusLong: String(st),
-        period: per, timer: (timerSec != null && tsBskState(st) === 'live') ? fmtClockSec(timerSec) : null,
+        hs, as, status: periodLabel, statusLong: String(st),
+        period: curPeriod, periodLabel, isHalves,
+        homeFouls: info ? info.hf : null, awayFouls: info ? info.af : null,   // 현재 기간 팀파울(미제공이면 null)
+        timer: (timerSec != null && tsBskState(st) === 'live') ? fmtClockSec(timerSec) : null,
         timerSec: (tsBskState(st) === 'live') ? timerSec : null, timerRun, timerUpd,
         livePts: null, setScores: setScores.length ? setScores : null, box: null, curInning: null, inningHalf: null,
         date: iso, state: tsBskState(st), _src: 'thesports'
@@ -2057,6 +2095,28 @@ app.get('/api/basketball/lineup', async (req, res) => {
   const id = raw.replace(/^ts/, '');
   try { const lu = await tsBasketballLineup(id); res.json(lu || { home: [], away: [], note: 'no-lineup' }); }
   catch (e) { res.json({ home: [], away: [], error: String(e.message || e) }); }
+});
+// 🏀 농구 경기 흐름(플레이바이플레이) + 현재기간 팀파울 — detail_live 1회(전 경기 공용 캐시)에서 해당 경기만 추출
+app.get('/api/basketball/live', async (req, res) => {
+  const raw = String(req.query.id || '');
+  if (!/^ts/.test(raw)) return res.json({ note: 'not-thesports', events: [] });
+  const id = raw.replace(/^ts/, '');
+  try {
+    const lv = await tsFetch('/basketball/match/detail_live', {}, 4000).catch(() => null);
+    const list = (lv && lv.results) || [];
+    const item = list.find(x => x && String(x.id || (x.score && x.score[0])) === String(id));
+    if (!item) return res.json({ found: false, events: [] });
+    const info = tsBskLiveInfo(item);
+    const sc = item.score || [];
+    res.json({
+      found: true,
+      period: info ? info.curP + 1 : null, isHalves: info ? info.isHalves : false,
+      homeFouls: info ? info.hf : null, awayFouls: info ? info.af : null,
+      quarters: { home: sc[3] || [], away: sc[4] || [] },
+      // 최신순, 최대 150개. 점수는 "홈-원정"으로 정렬해 전달
+      events: (info ? info.events : []).slice(-150).reverse().map(e => ({ period: e.period, clock: e.clock, team: e.team, home: e.home, away: e.away, text: e.text }))
+    });
+  } catch (e) { res.json({ error: String(e.message || e), events: [] }); }
 });
 async function buildGamesCore(sport, date, tz) {
   const cfg = AS[sport]; if (!cfg) return { games: [], j: {} };
