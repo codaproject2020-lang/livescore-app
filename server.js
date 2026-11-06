@@ -21,7 +21,7 @@ const app = express();
 const server = http.createServer(app);
 
 const PORT = process.env.PORT || 3000;
-const APP_VERSION = 'v395';
+const APP_VERSION = 'v396';
 
 // ============================================================
 //  📏 성능 계측(instrumentation) — 엔드포인트 지연·캐시·공급사·WS·이벤트루프
@@ -3274,6 +3274,26 @@ async function tsFbBuildSide(arr) {
   const st = arr.filter(tsFbIsStarter), sb = arr.filter(p => !tsFbIsStarter(p));
   return { xi: await Promise.all(st.slice(0, 11).map(mk)), subs: await Promise.all(sb.slice(0, 12).map(mk)) };
 }
+// ③ 직전 경기 선발(참고용) — 팀의 가장 최근 종료 경기에서 그 팀의 선발을 가져온다. 당시 날짜·상대 포함.
+async function lastMatchLineup(teamId) {
+  try {
+    const fj = await asRaw('football', `/fixtures?team=${teamId}&last=1&timezone=Asia/Seoul`, 2 * 3600e3);
+    const fx = (fj.response || [])[0]; if (!fx) return null;
+    const fid = fx.fixture.id;
+    const iAmHome = fx.teams.home && fx.teams.home.id === teamId;
+    const opp = iAmHome ? (fx.teams.away && fx.teams.away.name) : (fx.teams.home && fx.teams.home.name);
+    const lj = await asRaw('football', `/fixtures/lineups?fixture=${fid}`, 24 * 3600e3);
+    const block = (lj.response || []).find(b => b.team && b.team.id === teamId);
+    if (!block || !(block.startXI || []).length) return null;
+    const mkP = x => ({ id: x.player && x.player.id, name: (x.player && x.player.name) || '', number: (x.player && x.player.number != null) ? x.player.number : '', pos: (x.player && x.player.pos) || '', grid: (x.player && x.player.grid) || '', photo: '' });
+    return {
+      team: (block.team && block.team.name) || '', logo: (block.team && block.team.logo) || '',
+      formation: block.formation || '', coach: (block.coach && block.coach.name) || '',
+      startXI: (block.startXI || []).map(mkP), subs: (block.substitutes || []).map(mkP),
+      lastDate: (fx.fixture && fx.fixture.date) || null, lastOpp: opp || ''
+    };
+  } catch (e) { return null; }
+}
 app.get('/api/football/lineup', async (req, res) => {
   const home = req.query.home, away = req.query.away, debug = req.query.debug;
   const date = req.query.date || new Date().toISOString().slice(0, 10);
@@ -3303,9 +3323,23 @@ app.get('/api/football/lineup', async (req, res) => {
       if (arr.length >= 2 && (arr[0].startXI || []).length) {
         const mkP = x => ({ id: x.player && x.player.id, name: (x.player && x.player.name) || '', number: (x.player && x.player.number != null) ? x.player.number : '', pos: (x.player && x.player.pos) || '', grid: (x.player && x.player.grid) || '', photo: '' });
         const mkT = a => ({ team: (a.team && a.team.name) || '', logo: (a.team && a.team.logo) || '', formation: a.formation || '', coach: (a.coach && a.coach.name) || '', startXI: (a.startXI || []).map(mkP), subs: (a.substitutes || []).map(mkP) });
-        return res.json({ teams: [mkT(arr[0]), mkT(arr[1])], src: 'apifootball' });
+        return res.json({ teams: [mkT(arr[0]), mkT(arr[1])], src: 'apifootball', kind: 'confirmed' });  // ① 공식 확정
       }
     } catch (e) {}
+    // ③ 확정 라인업이 아직 없을 때 — 직전 경기 선발(참고용). homeId/awayId 있을 때만. '예상'/'확정'으로 둔갑시키지 않음.
+    const hId = parseInt(req.query.homeId, 10), aId = parseInt(req.query.awayId, 10);
+    if (hId && aId) {
+      try {
+        const side = await lastMatchLineup(hId), side2 = await lastMatchLineup(aId);
+        if ((side && side.startXI.length) || (side2 && side2.startXI.length)) {
+          const nmH = home || (side && side.team) || '', nmA = away || (side2 && side2.team) || '';
+          return res.json({ kind: 'last', src: 'apifootball-last', teams: [
+            side ? Object.assign({ team: nmH }, side) : { team: nmH, startXI: [], subs: [] },
+            side2 ? Object.assign({ team: nmA }, side2) : { team: nmA, startXI: [], subs: [] }
+          ] });
+        }
+      } catch (e) {}
+    }
   }
   // 2) TheSports 폴백 (구독 시)
   if (!TS_ON) return res.json({ teams: [] });
