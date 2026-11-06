@@ -21,7 +21,7 @@ const app = express();
 const server = http.createServer(app);
 
 const PORT = process.env.PORT || 3000;
-const APP_VERSION = 'v382';
+const APP_VERSION = 'v383';
 
 // ============================================================
 //  📏 성능 계측(instrumentation) — 엔드포인트 지연·캐시·공급사·WS·이벤트루프
@@ -1589,6 +1589,19 @@ const TS_SECRET = (process.env.THESPORTS_SECRET || '192924ef77e94e40b7c59cc43d58
 const TS_PROXY = (process.env.THESPORTS_PROXY || '').trim().replace(/\/$/, '');   // 예: http://1.2.3.4:8080
 const TS_RELAY_TOKEN = (process.env.THESPORTS_RELAY_TOKEN || '').trim();
 const TS_ON = !!(TS_USER && TS_SECRET);
+// 🏷️ 공급사 리그 원본명 → 사용자 표시명(원본은 leagueOrig로 보존). 명령서 #4-2·#6.
+function tsLeagueDisplay(sport, name) {
+  const n = String(name || '');
+  if (sport === 'basketball') {
+    if (/^National Basketball Association G League$/i.test(n)) return 'NBA G리그';
+    if (/^National Basketball Association$/i.test(n)) return 'NBA';
+  }
+  if (sport === 'volleyball') {
+    if (/^Volleyball League Women$/i.test(n)) return 'V리그 여자부';   // 한국 KOVO 여자부(IBK·GS칼텍스 등으로 확인)
+    if (/^Volleyball League$/i.test(n)) return 'V리그 남자부';          // 한국 KOVO 남자부(원본명 기준 — 실경기 재확인)
+  }
+  return n;
+}
 async function tsFetch(path, params, ttl = 6000, reqTimeout) {
   if (TS_PROXY) {
     // 릴레이가 user/secret 를 붙여 TheSports로 전달 → 요청 IP = VPS 고정 IP
@@ -2496,7 +2509,7 @@ async function tsBasketballGames(date, tz) {
       let foulsOk = false;
       if (info) { if (isHalves) foulsOk = info.curP != null; else foulsOk = (info.curP != null && (statePer ? info.curP >= statePer : true)); }
       out.push({
-        id: 'ts' + id, tsid: id, league: hc.name || 'Basketball', leagueLogo: hc.logo || '', country: '',
+        id: 'ts' + id, tsid: id, league: tsLeagueDisplay('basketball', hc.name) || 'Basketball', leagueOrig: hc.name || '', leagueLogo: hc.logo || '', country: '',
         home: ht.name || '', homeLogo: ht.logo || '', away: at.name || '', awayLogo: at.logo || '',
         homeTid: m.home_team_id, awayTid: m.away_team_id,
         hs, as, status: periodLabel, statusLong: String(st),
@@ -2601,7 +2614,7 @@ async function tsVolleyballGames(date, tz) {
       const st = m.status_id, state = tsVolState(st);
       out.push({
         id: 'ts' + id, tsid: id, sport: 'volleyball',
-        league: cp.name || '', leagueLogo: cp.logo || '', leagueId: m.unique_tournament_id || m.tournament_id || '', country: cp.country || '',
+        league: tsLeagueDisplay('volleyball', cp.name) || '', leagueOrig: cp.name || '', leagueLogo: cp.logo || '', leagueId: m.unique_tournament_id || m.tournament_id || '', country: cp.country || '',
         home: ht.name || '', homeLogo: ht.logo || '', away: at.name || '', awayLogo: at.logo || '',
         homeTid: m.home_team_id, awayTid: m.away_team_id,
         hs: (ft[0] != null ? +ft[0] : null), as: (ft[1] != null ? +ft[1] : null),   // 세트 승수

@@ -792,7 +792,7 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
   //   후보군: 농구 NBA·KBL / 축구 유럽5대리그·UCL·K리그 / 야구 MLB·KBO / 하키 NHL / 배구 V리그.
   //   '진행 중'이라는 이유만으로 올리지 않음(라이브는 가중치일 뿐). 적합 경기 없으면 null → 영역 숨김(하위리그로 안 채움).
   var BIG_LEAGUES={
-    basketball:[[/\bNBA\b/i,100],[/\bKBL\b|\bKBL리그/i,80]],
+    basketball:[[/^NBA$/i,100],[/national basketball association$/i,100],[/\bKBL\b|\bKBL리그/i,80]],
     football:[[/premier\s*league|프리미어/i,100],[/la\s*liga|라\s*리가/i,96],[/serie\s*a|세리에/i,94],[/bundesliga|분데스리가/i,94],[/ligue\s*1|리그\s*1/i,92],[/champions\s*league|챔피언스|UCL/i,100],[/\bK[\s-]?League|K리그/i,80]],
     baseball:[[/\bMLB\b|메이저리그/i,100],[/\bKBO\b/i,85]],
     hockey:[[/\bNHL\b/i,100]],
