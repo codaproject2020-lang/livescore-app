@@ -810,31 +810,32 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
     var age=Date.now()-new Date(g.date).getTime();
     return age>4*3600*1000;
   }
-  // 🏆 전 종목 리그 우선순위 표(#8/#9) — 리그 이름 + 국가로 정확히 식별(동명 하위·타국 리그 오인 방지).
-  //   배열 순서 = 정렬 우선순위(위일수록 먼저). co(국가)가 있으면 국가까지 일치해야 그 리그로 인정.
-  //   · 몽골 Premier League 등 동명 하위리그가 유럽 빅리그로 둔갑하는 문제 → co 국가 가드로 차단.
-  //   · 목록/버튼 정렬과 상단 메인경기 후보 선정이 같은 표를 공유 → 규칙 일관성.
+  // 🏆 전 종목 리그 우선순위 표(#8/#9).
+  //   ⚠️ 공급사(TheSports)가 축구 country를 비워 보내는 경우가 많아, 국가 가드만으로는 진짜 빅리그도 놓침.
+  //   → 리그 '이름 앵커링'으로 식별: 큰 리그 본명(+자국 접두사 허용)만 매칭하고, "Mongolia Premier League"처럼
+  //      다른 국가 접두사가 붙은 동명 리그는 자동 배제. 국가(co)는 '있을 때만' 모순 확인용(없으면 이름만으로 인정).
+  //   배열 순서 = 정렬 우선순위(위일수록 먼저). 목록·버튼·상단 메인경기 선정이 같은 표를 공유.
   var LEAGUES={
     football:[
-      {re:/premier\s*league/i, co:/england|britain|united kingdom|\buk\b|영[국]|잉글랜드/i},   // EPL (몽골/기타국 Premier League 배제)
-      {re:/la\s*liga|laliga/i, co:/spain|스페인/i},
-      {re:/serie\s*a/i, co:/italy|이탈리아/i},
-      {re:/ligue\s*1/i, co:/france|프랑스/i},
-      {re:/bundesliga/i, co:/germany|독일/i},
-      {re:/u\.?e\.?f\.?a\.?\s*champions|champions\s*league|챔피언스\s*리그|\bUCL\b/i},          // UCL(국제)
-      {re:/u\.?e\.?f\.?a\.?\s*europa|europa\s*league|유로파|\bUEL\b/i},
-      {re:/\bK[\s-]?League\s*1|K리그\s*1|K리그1/i, co:/korea|한국/i},
-      {re:/\bMLS\b|major\s*league\s*soccer/i, co:/usa|united states|america|미국/i},
-      {re:/saudi\s*pro|로슈]?|사우디/i, co:/saudi|사우디/i},
-      {re:/\bJ1\b|j\s*league\s*1|j1\s*league/i, co:/japan|일본/i}
+      {re:/^(eng(land|lish)\s+)?premier\s*league$/i, co:/england|britain|united kingdom|\buk\b|영국|잉글랜드/i},   // EPL (몽골/인도 등 "X Premier League" 배제)
+      {re:/^(spa(in|nish)\s+)?la[\s-]?liga( ea sports| santander)?$/i, co:/spain|스페인/i},
+      {re:/^(ita(ly|lian)\s+)?serie\s*a$/i, co:/italy|이탈리아/i},
+      {re:/^(fra(nce|nch)\s+)?ligue\s*1$/i, co:/france|프랑스/i},
+      {re:/^(ger(many|man)\s+)?bundesliga$/i, co:/germany|독일/i},                         // "2. Bundesliga"·"Austrian Bundesliga" 배제
+      {re:/^(uefa\s+)?champions\s*league$/i},                                              // UCL(국제) — AFC/CONCACAF 등 접두사 있는 건 배제
+      {re:/^(uefa\s+)?europa\s*league$/i},
+      {re:/^(kor(ea|ean)\s+)?k[\s-]?league\s*1$/i, co:/korea|한국/i},
+      {re:/^(usa\s+)?(mls|major\s*league\s*soccer)$/i, co:/usa|united states|america|미국/i},
+      {re:/^(saudi\s+)?(pro|professional)\s*league$|^saudi pro league$/i, co:/saudi|사우디/i},
+      {re:/^(jap(an|anese)\s+)?j1[\s-]?league$|^j1$/i, co:/japan|일본/i}
     ],
     basketball:[
-      {re:/^NBA$|national\s*basketball\s*association/i, co:/usa|united states|america|미국/i},
-      {re:/\bKBL\b/i, co:/korea|한국/i},
-      {re:/euroleague|유로리그/i},
-      {re:/\bWKBL\b/i, co:/korea|한국/i},
-      {re:/\bB\.?\s*League\b/i, co:/japan|일본/i},
-      {re:/\bCBA\b/i, co:/china|중국/i}
+      {re:/^(usa\s+)?NBA$|national\s*basketball\s*association/i, co:/usa|united states|america|미국/i},
+      {re:/^(kor(ea|ean)\s+)?KBL$/i, co:/korea|한국/i},
+      {re:/euroleague/i},
+      {re:/^(kor(ea|ean)\s+)?WKBL$/i, co:/korea|한국/i},
+      {re:/^(jap(an|anese)\s+)?B\.?\s*League$/i, co:/japan|일본/i},
+      {re:/^(china|chinese\s+)?CBA$/i, co:/china|중국/i}
     ],
     baseball:[
       {re:/\bMLB\b|major\s*league\s*baseball|메이저리그/i, co:/usa|united states|america|미국/i},
@@ -867,7 +868,8 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
   function leagueRank(sport,name,country){
     var arr=LEAGUES[sport]||[]; var s=String(name||""); var c=String(country||"");
     if(SUBTIER_RE.test(s)) return 950;                                  // 하위/유소년/리저브 → 기타보다도 뒤
-    for(var i=0;i<arr.length;i++){ var d=arr[i]; if(d.re.test(s)){ if(d.co&&!d.co.test(c)) continue; return i; } }
+    // 이름 매칭 우선. 국가(co)는 '값이 있을 때만' 모순 검사(공급사가 country를 비우면 이름만으로 인정).
+    for(var i=0;i<arr.length;i++){ var d=arr[i]; if(d.re.test(s)){ if(d.co&&c&&!d.co.test(c)) continue; return i; } }
     return 999;
   }
   function isBigLeague(sport,name,country){ return leagueRank(sport,name,country)<900; }
