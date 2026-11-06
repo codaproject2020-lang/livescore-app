@@ -21,7 +21,7 @@ const app = express();
 const server = http.createServer(app);
 
 const PORT = process.env.PORT || 3000;
-const APP_VERSION = 'v373';
+const APP_VERSION = 'v374';
 
 // ============================================================
 //  📏 성능 계측(instrumentation) — 엔드포인트 지연·캐시·공급사·WS·이벤트루프
@@ -2207,6 +2207,16 @@ function nkLast(name) {
 }
 const _lastGoodBB = new Map();   // 야구 간헐적 사라짐 방지용 직전 정상빌드 캐시
 const _lastGoodMinor = new Map();   // 배구·농구·하키 등 간헐적 사라짐 방지용 직전 정상빌드 캐시
+// 🔌 TheSports 서킷브레이커: 특정 종목이 2회 연속 빈응답이면 TS_CB_COOLDOWN 동안 TheSports 시도를 건너뛰고
+//   바로 폴백(API-Sports/Goalserve)로 → "빈응답인데도 매번 6초 시도"하던 지연 제거. 복구되면 자동 재시도.
+const _tsFail = new Map(), _tsOpenUntil = new Map();
+const TS_CB_FAILS = 2, TS_CB_COOLDOWN = 180000;   // 2회 연속 빈응답 → 3분 차단
+function tsCircuitOpen(sport) { const u = _tsOpenUntil.get(sport); return !!(u && Date.now() < u); }
+function tsCircuitNote(sport, gotGames) {
+  if (gotGames) { _tsFail.set(sport, 0); _tsOpenUntil.delete(sport); return; }
+  const n = (_tsFail.get(sport) || 0) + 1; _tsFail.set(sport, n);
+  if (n >= TS_CB_FAILS) { _tsOpenUntil.set(sport, Date.now() + TS_CB_COOLDOWN); METRICS.supplier.tsFail++; }
+}
 
 // ============================================================
 //  🏀 Goalserve 농구 — 라이브 쿼터 + 시계(timer) 제공 (API-Sports 대체)
@@ -2562,7 +2572,7 @@ async function buildGamesCore(sport, date, tz) {
   const cfg = AS[sport]; if (!cfg) return { games: [], j: {} };
   tz = canonTz(tz);
   // ⚽ 축구 = 더스포츠 (CFG.ftbSrc). 비면 아래 API-Sports 폴백.
-  if (sport === 'football' && CFG.ftbSrc === 'thesports') {
+  if (sport === 'football' && CFG.ftbSrc === 'thesports' && !tsCircuitOpen('football')) {
     let games = [];
     try {
       const prev = new Date(Date.parse(date + 'T12:00:00Z') - 864e5).toISOString().slice(0, 10);
@@ -2574,6 +2584,7 @@ async function buildGamesCore(sport, date, tz) {
       games = all.filter(g => { if (!g.date || ymdInTz(g.date, tz) !== date) return false; if (seen.has(g.tsid)) return false; seen.add(g.tsid); return true; })
         .map(g => Object.assign({}, g, { id: 'ts' + g.tsid }));
     } catch (e) {}
+    tsCircuitNote('football', games.length > 0);
     const gk = 'TS|football|' + date + '|' + (tz || '');
     if (games.length) { _lastGoodMinor.set(gk, { t: Date.now(), list: games.slice() }); return { games, j: { results: games.length, src: 'thesports' } }; }
     const prev = _lastGoodMinor.get(gk);
@@ -2581,8 +2592,9 @@ async function buildGamesCore(sport, date, tz) {
     // 폴백: 아래 API-Sports 축구
   }
   // 🏐 배구 = 더스포츠 (CFG.volSrc). 비면 아래 API-Sports 폴백.
-  if (sport === 'volleyball' && CFG.volSrc === 'thesports') {
+  if (sport === 'volleyball' && CFG.volSrc === 'thesports' && !tsCircuitOpen('volleyball')) {
     let games = []; try { games = await tsVolleyballGames(date, tz); } catch (e) {}
+    tsCircuitNote('volleyball', games.length > 0);
     const gk = 'TS|volleyball|' + date + '|' + (tz || '');
     if (games.length) { _lastGoodMinor.set(gk, { t: Date.now(), list: games.slice() }); return { games, j: { results: games.length, src: 'thesports' } }; }
     const prev = _lastGoodMinor.get(gk);
@@ -2590,8 +2602,9 @@ async function buildGamesCore(sport, date, tz) {
     // 폴백: 아래 API-Sports 배구
   }
   // 🏀 농구 = 더스포츠(초단위 시계+라인업) 강제 옵션
-  if (sport === 'basketball' && CFG.bskSrc === 'thesports') {
+  if (sport === 'basketball' && CFG.bskSrc === 'thesports' && !tsCircuitOpen('basketball')) {
     let games = []; try { games = await tsBasketballGames(date, tz); } catch (e) {}
+    tsCircuitNote('basketball', games.length > 0);
     const gk = 'TS|basketball|' + date + '|' + (tz || '');
     if (games.length) { _lastGoodMinor.set(gk, { t: Date.now(), list: games.slice() }); return { games, j: { results: games.length, src: 'thesports' } }; }
     const prev = _lastGoodMinor.get(gk);
@@ -2975,7 +2988,8 @@ app.get('/api/diag/feeds', (req, res) => {
       count: hit && hit.v ? hit.v.count : null,
       ageSec: hit ? Math.round((now - hit.t) / 1000) : null,
       lastGoodAgeSec: lg ? Math.round((now - lg.t) / 1000) : null,
-      building: _fullInflight.has(k)
+      building: _fullInflight.has(k),
+      tsCircuitOpen: tsCircuitOpen(sp)
     };
   }
   res.json({ at: new Date().toISOString(), uptimeSec: Math.round((Date.now() - METRICS.startAt) / 1000), version: APP_VERSION, out });
