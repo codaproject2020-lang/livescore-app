@@ -21,7 +21,7 @@ const app = express();
 const server = http.createServer(app);
 
 const PORT = process.env.PORT || 3000;
-const APP_VERSION = 'v388';
+const APP_VERSION = 'v389';
 
 // ============================================================
 //  📏 성능 계측(instrumentation) — 엔드포인트 지연·캐시·공급사·WS·이벤트루프
@@ -3436,6 +3436,43 @@ app.get('/api/football/info', async (req, res) => {
   } catch (e) { res.json({ found: false, error: String(e.message || e) }); }
 });
 
+// 🔗 TheSports 경기 → API-Football fixture/team id 매핑 (팀명+날짜).
+//    TheSports에서 스코어를 받는 주요리그 경기에 대해 평점·상세통계·H2H(API-Football)를 붙이기 위한 해결자.
+//    결과는 영속 캐시(경기 id는 고정). 이름만 비슷한 다른 경기를 연결하지 않도록 양 팀 모두 일치해야 함.
+const _fixMapCache = new Map();  // key: home|away|date → {fixtureId, homeId, awayId, league} | {found:false}
+async function resolveApiFixture(home, away, date) {
+  const key = String(home).toLowerCase() + '|' + String(away).toLowerCase() + '|' + date;
+  const hit = _fixMapCache.get(key);
+  if (hit && (hit.found || Date.now() - hit.t < 6 * 3600e3)) return hit;
+  const norm = s => String(s || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+  const nh = norm(home), na = norm(away), fit = (a, b) => a && b && (a.includes(b) || b.includes(a));
+  // 당일·전후 1일(타임존 경계) 조회
+  const days = [date,
+    new Date(Date.parse(date + 'T12:00:00Z') - 864e5).toISOString().slice(0, 10),
+    new Date(Date.parse(date + 'T12:00:00Z') + 864e5).toISOString().slice(0, 10)];
+  for (const d of days) {
+    const jj = await asRaw('football', `/fixtures?date=${d}&timezone=Asia/Seoul`, 6 * 3600e3).catch(() => null);
+    const list = (jj && jj.response) || [];
+    let fx = list.find(f => fit(norm(f.teams.home.name), nh) && fit(norm(f.teams.away.name), na));
+    let swap = false;
+    if (!fx) { fx = list.find(f => fit(norm(f.teams.home.name), na) && fit(norm(f.teams.away.name), nh)); if (fx) swap = true; }
+    if (fx) {
+      const val = { found: true, t: Date.now(), fixtureId: fx.fixture.id,
+        homeId: swap ? fx.teams.away.id : fx.teams.home.id, awayId: swap ? fx.teams.home.id : fx.teams.away.id,
+        league: fx.league && fx.league.name, swap };
+      _fixMapCache.set(key, val); return val;
+    }
+  }
+  const miss = { found: false, t: Date.now() };
+  _fixMapCache.set(key, miss); return miss;
+}
+app.get('/api/football/fixmap', async (req, res) => {
+  if (!APISPORTS_KEY) return res.json({ needKey: true, found: false });
+  const { home, away } = req.query, date = req.query.date || new Date().toISOString().slice(0, 10);
+  if (!home || !away) return res.status(400).json({ error: 'need home & away' });
+  try { res.json(await resolveApiFixture(home, away, date)); }
+  catch (e) { res.json({ found: false, error: String(e.message || e) }); }
+});
 // 🔎 진단: 특정 경기(팀명+날짜)의 API-Sports fixture id + 라인업/통계 실제 응답 확인
 app.get('/api/asports/probe', async (req, res) => {
   const { home, away } = req.query, date = req.query.date || new Date().toISOString().slice(0, 10);
@@ -3475,7 +3512,41 @@ app.get('/api/asports/fbstats', async (req, res) => {
   } catch (e) { res.status(502).json({ error: String(e.message || e), teams: [] }); }
 });
 
-// ⚽ 축구 메인카드용 라이브 요약 통계 — 진행 중 경기만 서버에서 묶어서 1회 응답(개별 호출 금지 규칙 준수)
+// ⚽ 경기별 선수 평점/기록 (API-Football /fixtures/players) — 01 '오늘의 주요선수' + 06 최근경기 평점용.
+//    평점은 공급사 제공값만 사용(임의 계산 금지). 미제공 시 rating=null.
+app.get('/api/football/fixplayers', async (req, res) => {
+  if (!APISPORTS_KEY) return res.json({ needKey: true, players: [] });
+  const fixture = req.query.fixture;
+  if (!fixture) return res.status(400).json({ error: 'need fixture' });
+  try {
+    const j = await asRaw('football', `/fixtures/players?fixture=${encodeURIComponent(fixture)}`, 10 * 60 * 1000);
+    const out = [];
+    (j.response || []).forEach(teamBlock => {
+      const teamName = (teamBlock.team && teamBlock.team.name) || '';
+      const teamId = (teamBlock.team && teamBlock.team.id) || null;
+      (teamBlock.players || []).forEach(p => {
+        const st = (p.statistics || [])[0] || {};
+        const games = st.games || {};
+        const goals = st.goals || {};
+        out.push({
+          pid: (p.player && p.player.id) || null,
+          name: (p.player && p.player.name) || '',
+          photo: (p.player && p.player.photo) || '',
+          team: teamName, teamId,
+          number: games.number != null ? games.number : '',
+          pos: games.position || '',
+          minutes: games.minutes != null ? games.minutes : null,
+          rating: games.rating != null ? Number(games.rating) : null,  // 공급사 평점(없으면 null)
+          goals: goals.total != null ? goals.total : 0,
+          assists: goals.assists != null ? goals.assists : 0,
+          captain: !!games.captain
+        });
+      });
+    });
+    res.json({ players: out });
+  } catch (e) { res.status(502).json({ error: String(e.message || e), players: [] }); }
+});
+// ⚽ 메인카드용 라이브 요약 통계 — 진행 중 경기만 서버에서 묶어서 1회 응답(개별 호출 금지 규칙 준수)
 //    각 경기 stats 는 asRaw 캐시(60s) + 전체 응답 45s 캐시로 호출 제한을 지킴. 미제공은 null(0으로 채우지 않음).
 const _liveStatsCache = new Map();
 function _pickStat(arr, re) { for (const s of (arr || [])) { if (re.test(String(s.type))) { const v = s.value; return (v == null || v === '') ? null : v; } } return null; }
