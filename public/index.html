@@ -1185,6 +1185,36 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
     }
     dtBody('<div class="msg">'+t("m_prep")+'</div>');
   }
+  // 경기 개요의 '실제 순위 표'(명령서 ②-1·#7): 링크 대신 양 팀 주변 순위를 직접 표시 + 전체표/팀상세 연결
+  function loadOverviewRank(g,sport){
+    var sec=$("#ovRankTbl"); if(!sec)return;
+    var lg=g.leagueId||g.league||"";
+    if(!lg){ sec.innerHTML='<p style="color:#8a93a3;font-size:13px">'+t("noStatsShow")+'</p>'; return; }
+    fetch("/api/rank?sport="+encodeURIComponent(sport)+"&league="+encodeURIComponent(lg)).then(function(r){return r.json();}).then(function(j){
+      if(!$("#ovRankTbl"))return;
+      var tb=(j&&j.table)||[];
+      if(!tb.length){
+        var reason=(j&&j.note==="unmapped")?tl({en:"Standings not provided for this league yet.",ko:"이 리그 순위는 아직 제공되지 않습니다.",ja:"このリーグの順位は未提供です。",zh:"暂不提供该联赛排名。",es:"Clasificación no disponible.",hi:"स्टैंडिंग उपलब्ध नहीं।",vi:"Chưa có BXH giải này.",th:"ยังไม่มีอันดับลีกนี้",ru:"Таблица недоступна.",de:"Keine Tabelle.",fr:"Classement indisponible.",it:"Classifica non disponibile."}):t("noStatsShow");
+        $("#ovRankTbl").innerHTML='<p style="color:#8a93a3;font-size:13px">'+reason+'</p>';
+        return;
+      }
+      var norm=function(s){return String(s||"").toLowerCase().replace(/[^a-z0-9가-힣]/g,"");};
+      var nh=norm(g.home),na=norm(g.away);
+      var idxH=tb.findIndex(function(r){var tn=norm(r.team||r.name);return tn&&(tn.indexOf(nh)>=0||nh.indexOf(tn)>=0);});
+      var idxA=tb.findIndex(function(r){var tn=norm(r.team||r.name);return tn&&(tn.indexOf(na)>=0||na.indexOf(tn)>=0);});
+      var ids=[idxH,idxA].filter(function(i){return i>=0;});
+      var rows;
+      if(ids.length){ var lo=Math.max(0,Math.min.apply(null,ids)-1), hi=Math.min(tb.length,Math.max.apply(null,ids)+2); rows=tb.slice(lo,hi); }
+      else rows=tb.slice(0,6);
+      var seasonTag=(j&&j.season)?' · '+esc(String(j.season)):'';
+      var warn=ids.length?'':('<div class="rk-note" style="color:#b06a00;font-size:11.5px;margin-bottom:4px">'+tl({en:"(Couldn't match both teams — showing top of table.)",ko:"(두 팀을 찾지 못해 상위 순위를 표시합니다.)",ja:"(2チーム未特定、上位を表示)",zh:"(未匹配两队，显示前排)",es:"(Equipos no hallados; cima.)",hi:"(टीमें नहीं मिलीं; शीर्ष)",vi:"(Không khớp đội; đầu bảng)",th:"(จับคู่ไม่ได้ แสดงบนสุด)",ru:"(Команды не найдены; верх.)",de:"(Teams nicht gefunden; oben.)",fr:"(Équipes introuvables; haut.)",it:"(Squadre non trovate; vertice.)"})+'</div>');
+      var html='<div style="font-size:11.5px;color:var(--muted);margin-bottom:6px">'+esc(g.league||"")+seasonTag+'</div>'+warn+rankTableHtml(sport,rows,[g.home,g.away])+
+        '<div style="text-align:center;margin-top:8px"><button class="refbtn" id="ovRankMore">'+tl({en:"Full table",ko:"전체 순위표 보기",ja:"全順位",zh:"完整排名",es:"Tabla completa",hi:"पूरी तालिका",vi:"BXH đầy đủ",th:"ตารางเต็ม",ru:"Вся таблица",de:"Ganze Tabelle",fr:"Classement complet",it:"Classifica completa"})+' ›</button></div>';
+      $("#ovRankTbl").innerHTML=html;
+      $("#ovRankTbl").querySelectorAll(".rkrow").forEach(function(row){ row.style.cursor="pointer"; row.onclick=function(){ var nm=row.dataset.team; if(nm)openTeam(nm,sport,row.dataset.teamid||null,{league:(g.league||lg),season:(j&&j.season)||""}); }; });
+      var mb=$("#ovRankMore"); if(mb)mb.onclick=function(){ openStandings(sport,lg,g); };
+    }).catch(function(){ if($("#ovRankTbl"))$("#ovRankTbl").innerHTML='<p style="color:#8a93a3;font-size:13px">'+t("loadFailRetry")+'</p>'; });
+  }
   function renderOverview(g,sport){
     var h='';
     if(stateOf(g)==="scheduled"){
@@ -1222,9 +1252,9 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
     }
     // 최근 전적 / 상대전적 (축구=API-Sports 팀ID 기반) + 순위 링크
     h+='<div id="ovForm"></div>';
-    h+='<div class="dt-sec-t" style="margin-top:20px">🏆 '+t("leagueRank")+'</div><p style="color:#2b6cf0;font-weight:700;cursor:pointer" id="goRank">'+esc(g.league||"")+' ›</p>';
+    h+='<div class="dt-sec-t" style="margin-top:20px">🏆 '+t("leagueRank")+'</div><div id="ovRankTbl"><p style="color:#8a93a3;font-size:13px">'+t("loading")+'</p></div>';
     dtBody(h);
-    var gr=$("#goRank"); if(gr)gr.onclick=function(){ openStandings(sport,(g.leagueId||g.league),g); };
+    loadOverviewRank(g,sport);
     // 개요 → 탭 이동 버튼
     var db=$("#dtBody"); if(db){ db.querySelectorAll(".ovj").forEach(function(btn){ btn.onclick=function(){ _dt.tab=btn.dataset.go; renderDetail(); }; }); }
     if(sport==="football"&&stateOf(g)!=="scheduled") loadOverviewStats(g);
@@ -1281,11 +1311,23 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
         box.innerHTML=h;
       }).catch(function(){ box.innerHTML=''; });
     } else {
-      // 비축구: 양 팀 최근 경기(TheSportsDB 팀명 검색) — 되는 경우만 표시
-      var out={h:null,a:null};
-      function draw(){ if(out.h===null||out.a===null)return; if(tk!==_dtTok||!$("#ovForm"))return; var h=''; if(out.h&&out.h.length){ h+='<div class="dt-sec-t" style="margin-top:20px">📈 '+esc(g.home)+' · '+t("recentMatches")+'</div>'+teamRecentRows(out.h); } if(out.a&&out.a.length){ h+='<div class="dt-sec-t" style="margin-top:16px">📈 '+esc(g.away)+' · '+t("recentMatches")+'</div>'+teamRecentRows(out.a); } box.innerHTML=h; }
-      fetch("/api/team/recent?name="+encodeURIComponent(g.home)).then(function(r){return r.json()}).then(function(j){ out.h=(j&&j.events)||[]; draw(); }).catch(function(){ out.h=[]; draw(); });
-      fetch("/api/team/recent?name="+encodeURIComponent(g.away)).then(function(r){return r.json()}).then(function(j){ out.a=(j&&j.events)||[]; draw(); }).catch(function(){ out.a=[]; draw(); });
+      // 최근 경기: 순위표 team_id → API-Sports /api/team/as (TheSportsDB 팀명검색은 무료키 403, TheSports 최근경기는 계약 미포함).
+      //   커버되는 리그(순위표 존재)만 실데이터 표시, 아니면 비움(정직). 축구도 homeId 없을 때(TheSports 소스) 이 경로 사용.
+      var lg=g.leagueId||g.league||"";
+      var nrm=function(s){return String(s||"").toLowerCase().replace(/[^a-z0-9가-힣]/g,"");};
+      fetch("/api/rank?sport="+encodeURIComponent(sport)+"&league="+encodeURIComponent(lg)).then(function(r){return r.json();}).then(function(j){
+        if(tk!==_dtTok)return [null,null];
+        var tbl=(j&&j.table)||[]; var find=function(nm){ var n=nrm(nm); return tbl.find(function(r){ var tn=nrm(r.team||r.name); return tn&&(tn.indexOf(n)>=0||n.indexOf(tn)>=0); }); };
+        var get=function(row){ return (row&&row.teamId!=null)?fetch("/api/team/as?sport="+encodeURIComponent(sport)+"&id="+encodeURIComponent(row.teamId)).then(function(r){return r.json();}).catch(function(){return null;}):Promise.resolve(null); };
+        return Promise.all([get(find(g.home)),get(find(g.away))]);
+      }).catch(function(){return [null,null];}).then(function(res){
+        if(tk!==_dtTok||!$("#ovForm"))return;
+        var eh=(res&&res[0]&&res[0].events)||[], ea=(res&&res[1]&&res[1].events)||[];
+        var h='';
+        if(eh.length){ h+='<div class="dt-sec-t" style="margin-top:20px">📈 '+esc(g.home)+' · '+t("recentMatches")+'</div>'+teamRecentRows(eh); }
+        if(ea.length){ h+='<div class="dt-sec-t" style="margin-top:16px">📈 '+esc(g.away)+' · '+t("recentMatches")+'</div>'+teamRecentRows(ea); }
+        box.innerHTML=h;
+      });
     }
   }
   function teamRecentRows(ev){ return ev.slice(0,5).map(function(e){ return '<div style="display:flex;gap:8px;align-items:center;padding:7px 2px;border-bottom:1px solid var(--line);font-size:12.5px"><span style="flex:1;text-align:right;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(e.home)+'</span><span style="font-weight:800">'+(e.hs==null?"-":e.hs)+":"+(e.as==null?"-":e.as)+'</span><span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(e.away)+'</span><span style="color:#8a93a3;font-size:11px;width:56px;text-align:right;flex:0 0 auto">'+esc(String(e.date||"").slice(0,10))+'</span></div>'; }).join(""); }
