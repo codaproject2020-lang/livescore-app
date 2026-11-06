@@ -21,7 +21,7 @@ const app = express();
 const server = http.createServer(app);
 
 const PORT = process.env.PORT || 3000;
-const APP_VERSION = 'v397';
+const APP_VERSION = 'v398';
 
 // ============================================================
 //  📏 성능 계측(instrumentation) — 엔드포인트 지연·캐시·공급사·WS·이벤트루프
@@ -3276,12 +3276,22 @@ async function tsFbBuildSide(arr) {
 }
 // ⭐ TheSports 축구 라인업 파서(재사용) — uuid로 조회 → 표준 teams 반환. raw=true면 원본 구조도 함께.
 async function tsFootLineup(tsid, wantRaw) {
-  const lu = await tsFetch('/football/match/lineup', { uuid: tsid }, 8000).catch(() => null);
+  // TheSports 라인업 경로 변형 시도(권한/경로 문제 구분). 하나라도 선수 데이터가 오면 사용.
+  const paths = ['/football/match/lineup', '/football/match/lineup/detail', '/football/match/lineup/list'];
+  let lu = null, usedPath = null, tries = [];
+  for (const p of paths) {
+    const resp = await tsFetch(p, { uuid: tsid }, 8000).catch(e => ({ err: String((e && e.message) || e) }));
+    const rr = (resp && resp.results) ? resp.results : (resp || {});
+    const ha = (rr.lineup && rr.lineup.home) || rr.home || rr.home_players || (Array.isArray(rr.lineup) ? rr.lineup[0] : null) || [];
+    tries.push({ path: p, err: resp && resp.err, hasData: (ha || []).length > 0, topKeys: rr && typeof rr === 'object' ? Object.keys(rr).slice(0, 6) : null });
+    if ((ha || []).length) { lu = resp; usedPath = p; break; }
+    if (!lu) lu = resp; // 첫 응답 보관(에러 메시지 표시용)
+  }
   const r = (lu && lu.results) ? lu.results : (lu || {});
   // TheSports 응답 변형 모두 수용: results.lineup.{home,away} / results.{home,away} / results.lineup[0..1]
   let homeArr = (r.lineup && r.lineup.home) || r.home || r.home_players || (Array.isArray(r.lineup) ? r.lineup[0] : null) || [];
   let awayArr = (r.lineup && r.lineup.away) || r.away || r.away_players || (Array.isArray(r.lineup) ? r.lineup[1] : null) || [];
-  const dbg = wantRaw ? { topKeys: r && typeof r === 'object' ? Object.keys(r) : null, lineupKeys: r.lineup && typeof r.lineup === 'object' ? Object.keys(r.lineup) : null, confirmed: r.confirmed, homeLen: (homeArr || []).length, awayLen: (awayArr || []).length, sampleHome: (homeArr || [])[0] || null, raw: lu } : null;
+  const dbg = wantRaw ? { usedPath, tries, topKeys: r && typeof r === 'object' ? Object.keys(r) : null, lineupKeys: r.lineup && typeof r.lineup === 'object' ? Object.keys(r.lineup) : null, confirmed: r.confirmed, homeLen: (homeArr || []).length, awayLen: (awayArr || []).length, sampleHome: (homeArr || [])[0] || null } : null;
   if (!(homeArr || []).length && !(awayArr || []).length) return { teams: null, debug: dbg };
   const H = await tsFbBuildSide(homeArr), A = await tsFbBuildSide(awayArr);
   const teams = [

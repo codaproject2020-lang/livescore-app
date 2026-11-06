@@ -1634,18 +1634,17 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
     html+='</div>';
     return html;
   }
-  // 축구 이벤트
-  function loadFootballEvents(g){
+  // 축구 이벤트 — TheSports(계약 메인) 1순위. 비면 API-Football(평점·사건이후점수 풍부)로 보완.
+  function loadFootballEvents(g,forceApi){
     dtLoading(); var tk=_dtTok;
-    // API-Football fixture가 해석됐으면 그쪽(시간·선수·사건이후점수 풍부) 우선, 없으면 더스포츠 흐름.
-    if(String(g.id).indexOf("ts")===0 && !g.apiFixture){
+    if(!forceApi && String(g.id).indexOf("ts")===0){
       fetch("/api/football/live?id="+encodeURIComponent(g.id)).then(function(r){return r.json()}).then(function(j){
         if(!dtFresh(tk))return;
         var ev=(j&&j.events)||[];
-        if(!ev.length){ var m=stateOf(g)==="scheduled"?t("eventsAfterStart"):t("noEventsLive"); dtBody('<div class="msg"><div class="big">⚽</div>'+m+'</div>'); return; }
+        if(!ev.length){ if(g.apiFixture){ loadFootballEvents(g,true); return; } var m=stateOf(g)==="scheduled"?t("eventsAfterStart"):t("noEventsLive"); dtBody('<div class="msg"><div class="big">⚽</div>'+m+'</div>'); return; }
         var h='<div class="flow">'+ev.map(function(e){ var who=e.team===1?"h":(e.team===2?"a":""); return '<div class="fe '+who+'"><span class="fcl">'+esc(e.minute?(e.minute+"'"):"")+'</span><span class="ftx">'+esc(e.text||"")+'</span></div>'; }).join("")+'</div>';
         dtBody(h);
-      }).catch(function(){ dtBody('<div class="msg"><div class="big">⚠️</div>'+t("m_evFail")+'</div>'); });
+      }).catch(function(){ if(g.apiFixture){ loadFootballEvents(g,true); return; } dtBody('<div class="msg"><div class="big">⚠️</div>'+t("m_evFail")+'</div>'); });
       return;
     }
     fetch("/api/asports/events?fixture="+encodeURIComponent(g.apiFixture||g.id)).then(function(r){ if(!r.ok)throw 0; return r.json()}).then(function(j){
