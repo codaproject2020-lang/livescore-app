@@ -21,7 +21,7 @@ const app = express();
 const server = http.createServer(app);
 
 const PORT = process.env.PORT || 3000;
-const APP_VERSION = 'v384';
+const APP_VERSION = 'v385';
 
 // ============================================================
 //  📏 성능 계측(instrumentation) — 엔드포인트 지연·캐시·공급사·WS·이벤트루프
@@ -1203,7 +1203,11 @@ app.get('/api/player', async (req, res) => {
       }
       const r = j && j.response && j.response[0];
       if (!r) return res.json({ player: null, note: 'empty' });
-      const p = r.player || {}, st = (r.statistics && r.statistics[0]) || {};
+      const p = r.player || {};
+      // 통계 항목이 여러 개(클럽·대표팀)면 출전수 많은 클럽 기록 우선(국가대표 'England' 등이 대표로 뜨는 문제 방지)
+      const stats = (r.statistics || []).slice();
+      stats.sort((a, b) => ((b.games && b.games.appearences) || 0) - ((a.games && a.games.appearences) || 0));
+      const st = stats[0] || {};
       return res.json({
         player: {
           id: p.id, name: p.name, firstname: p.firstname, lastname: p.lastname, photo: p.photo,

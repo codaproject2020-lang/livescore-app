@@ -1661,7 +1661,7 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
     if(k==="favleague") return openFavLeagues();
     if(k==="news") return openNews();
     if(k==="login"||k==="my") return openLogin();
-    if(k==="inforoom") return openSearch();
+    if(k==="inforoom") return openInfoRoom();
     if(k==="chat") return openChatList();
     if(k==="alarm") return openAlerts();
     if(k==="favteam") return openFavTeams();
@@ -2205,6 +2205,49 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
   }
   // ====== 관심 팀·선수 (이미지 05) ======
   // ====== 경기 채팅방 목록(명령서 B-4) ======
+  // 🔎 경기 정보방(명령서 ①-5): 검색창 대신 종목→리그→상태 탐색 + 실제 경기목록 → 경기 상세. 검색은 보조.
+  function openInfoRoom(){
+    var sp=S.sport, tab="all", leagueF="", o=overlay("ovInfo");
+    var L_ALL=t("all"), L_LIVE=t("inplay"),
+        L_SCH=tl({en:"Scheduled",ko:"예정",ja:"予定",zh:"未开始",es:"Programado",hi:"निर्धारित",vi:"Sắp tới",th:"กำหนด",ru:"Запланир.",de:"Geplant",fr:"À venir",it:"In programma"}),
+        L_FIN=tl({en:"Finished",ko:"종료",ja:"終了",zh:"已结束",es:"Finalizado",hi:"समाप्त",vi:"Kết thúc",th:"จบ",ru:"Заверш.",de:"Beendet",fr:"Terminé",it:"Finito"});
+    function render3(){
+      var h='<div class="dt-bar"><button class="bk" id="irBack">‹</button><div class="ti">'+t("infoRoom")+'</div><button id="irSearch" style="margin-left:auto;background:none;border:none;font-size:18px;cursor:pointer">🔍</button></div><div class="sv-wrap">';
+      h+='<div class="news-seg" style="padding-top:12px">'+RK_SPORTS.concat([["esports","🎮"]]).map(function(s){return '<button class="cchip'+(sp===s[0]?" on":"")+'" data-sp="'+s[0]+'"><span>'+(SPORT_ICON[s[0]]||s[1])+' '+esc(t(s[0]))+'</span></button>';}).join("")+'</div>';
+      var k=sp+"|"+S.date; var d=S.data[k]; var games=(d&&d.games)||[];
+      var lgs=[]; var seen={}; games.forEach(function(g){ var n=String(g.league||"").trim(); if(n&&!seen[n]){seen[n]=1;lgs.push(n);} });
+      h+='<div class="iz-sel" style="margin:10px 0 2px"><select id="irLg"><option value="">'+tl({en:"All leagues",ko:"전체 리그",ja:"全リーグ",zh:"全部联赛",es:"Todas",hi:"सभी",vi:"Tất cả",th:"ทุกลีก",ru:"Все",de:"Alle",fr:"Toutes",it:"Tutte"})+'</option>'+lgs.map(function(n){return '<option value="'+esc(n)+'"'+(leagueF===n?" selected":"")+'>'+esc(n)+'</option>';}).join("")+'</select></div>';
+      h+='<div class="ib-tabs" style="margin-top:4px">'+[["all",L_ALL],["live",L_LIVE],["sch",L_SCH],["fin",L_FIN]].map(function(x){return '<button class="ib-tab'+(tab===x[0]?" on":"")+'" data-ir="'+x[0]+'">'+x[1]+'</button>';}).join("")+'</div>';
+      h+='<div id="irBody"><div class="msg"><div class="big">⏳</div>'+t("loading")+'</div></div></div>';
+      o.innerHTML=h;
+      $("#irBack").onclick=function(){ closeOverlay("ovInfo"); };
+      $("#irSearch").onclick=function(){ closeOverlay("ovInfo"); openSearch(); };
+      o.querySelectorAll("[data-sp]").forEach(function(b){ b.onclick=function(){ sp=b.dataset.sp; leagueF=""; render3(); }; });
+      o.querySelectorAll("[data-ir]").forEach(function(b){ b.onclick=function(){ tab=b.dataset.ir; render3(); }; });
+      var ls=$("#irLg"); if(ls)ls.onchange=function(){ leagueF=ls.value; render3(); };
+      fillBody();
+    }
+    function card(g){ var st=stateOf(g); var when=st==="scheduled"?hhmm(g.date):(st==="live"?('<span style="color:var(--red);font-weight:800">● '+t("inplay")+'</span>'):t("finished"));
+      var sc=(st==="scheduled")?'<span style="color:var(--muted)">vs</span>':('<b style="color:var(--navy)">'+fmtScore(g)+'</b>');
+      return '<div class="sv-card ir-g" data-id="'+esc(g.id)+'" style="margin-bottom:9px;cursor:pointer"><div class="sv-row"><div class="sl" style="flex-direction:column;align-items:flex-start;gap:3px;flex:1;min-width:0"><span style="font-size:11.5px;color:var(--muted)">'+(SPORT_ICON[sp]||"")+' '+esc(g.league||"")+'</span><span style="font-weight:800;color:var(--navy)">'+esc(g.home||"")+' '+sc+' '+esc(g.away||"")+'</span></div><div class="sr" style="font-size:12px;color:var(--muted)">'+when+' <span class="chev">›</span></div></div></div>'; }
+    function fillBody(){
+      var body=$("#irBody"); if(!body)return; var k=sp+"|"+S.date;
+      function draw(){ var d=S.data[k]; if(!d){ body.innerHTML='<div class="msg"><div class="big">⚠️</div>'+t("m_loadfail")+'</div>'; return; }
+        if(d.unsupported){ body.innerHTML='<div class="msg"><div class="big">🧩</div>'+tl({en:"This sport isn't available yet.",ko:"이 종목은 아직 제공되지 않습니다.",ja:"未提供です。",zh:"暂未提供。",es:"No disponible.",hi:"उपलब्ध नहीं।",vi:"Chưa hỗ trợ.",th:"ยังไม่รองรับ",ru:"Недоступно.",de:"Nicht verfügbar.",fr:"Indisponible.",it:"Non disponibile."})+'</div>'; return; }
+        if(d.error){ body.innerHTML='<div class="msg"><div class="big">⚠️</div>'+t("m_loadfail")+'</div>'; return; }
+        var games=(d.games)||[];
+        var list=games.filter(function(g){ var s=stateOf(g); return tab==="all"?true:(tab==="live"?s==="live":(tab==="sch"?s==="scheduled":s==="finished")); });
+        if(leagueF)list=list.filter(function(g){return String(g.league||"").trim()===leagueF;});
+        list.sort(function(a,b){ return (stateOf(b)==="live")-(stateOf(a)==="live") || (new Date(a.date||0)-new Date(b.date||0)); });
+        if(!list.length){ body.innerHTML='<div class="msg"><div class="big">📭</div>'+t("m_noSched")+'</div>'; return; }
+        body.innerHTML=list.slice(0,120).map(card).join("");
+        body.querySelectorAll(".ir-g").forEach(function(row){ row.onclick=function(){ var g=list.filter(function(x){return String(x.id)===String(row.dataset.id);})[0]; if(g){ closeOverlay("ovInfo"); closeMenu(); if(S.sport!==sp)S.sport=sp; openDetail(g); } }; });
+      }
+      if(S.data[k]&&!S.data[k].error){ draw(); }
+      else { body.innerHTML='<div class="msg"><div class="big">⏳</div>'+t("loading")+'</div>'; fetchGames(sp,S.date).then(function(res){ S.data[k]=res; if($("#irBody"))draw(); }).catch(function(){ if($("#irBody"))$("#irBody").innerHTML='<div class="msg"><div class="big">⚠️</div>'+t("m_loadfail")+'</div>'; }); }
+    }
+    render3();
+  }
   function openChatRoom(g,sp){ closeOverlay("ovChat"); closeMenu(); if(S.sport!==sp)S.sport=sp; openDetail(g,"chat"); }
   function openChatList(){
     var sp=S.sport, tab="live", o=overlay("ovChat");
