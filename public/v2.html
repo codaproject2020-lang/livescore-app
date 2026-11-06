@@ -1589,7 +1589,7 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
   // 축구 라인업
   function loadFootballLineup(g){
     dtLoading(); var tk=_dtTok;
-    var u="/api/football/lineup?home="+encodeURIComponent(g.home)+"&away="+encodeURIComponent(g.away)+"&fixture="+encodeURIComponent(g.apiFixture||g.id)+"&date="+encodeURIComponent(S.date)+(g.homeId?"&homeId="+encodeURIComponent(g.homeId):"")+(g.awayId?"&awayId="+encodeURIComponent(g.awayId):"");
+    var u="/api/football/lineup?home="+encodeURIComponent(g.home)+"&away="+encodeURIComponent(g.away)+"&fixture="+encodeURIComponent(g.apiFixture||g.id)+"&date="+encodeURIComponent(S.date)+(g.homeId?"&homeId="+encodeURIComponent(g.homeId):"")+(g.awayId?"&awayId="+encodeURIComponent(g.awayId):"")+((g.apiFixture&&/^ts/.test(String(g.id)))?"&tsid="+encodeURIComponent(g.id):"");
     fetch(u).then(function(r){ if(!r.ok)throw 0; return r.json()}).then(function(j){
       if(!dtFresh(tk))return;
       var teams=(j&&j.teams)||[]; var luKind=(j&&j.kind)||"confirmed";
