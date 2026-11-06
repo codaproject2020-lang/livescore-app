@@ -21,7 +21,7 @@ const app = express();
 const server = http.createServer(app);
 
 const PORT = process.env.PORT || 3000;
-const APP_VERSION = 'v374';
+const APP_VERSION = 'v375';
 
 // ============================================================
 //  📏 성능 계측(instrumentation) — 엔드포인트 지연·캐시·공급사·WS·이벤트루프
@@ -1589,15 +1589,15 @@ const TS_SECRET = (process.env.THESPORTS_SECRET || '192924ef77e94e40b7c59cc43d58
 const TS_PROXY = (process.env.THESPORTS_PROXY || '').trim().replace(/\/$/, '');   // 예: http://1.2.3.4:8080
 const TS_RELAY_TOKEN = (process.env.THESPORTS_RELAY_TOKEN || '').trim();
 const TS_ON = !!(TS_USER && TS_SECRET);
-async function tsFetch(path, params, ttl = 6000) {
+async function tsFetch(path, params, ttl = 6000, reqTimeout) {
   if (TS_PROXY) {
     // 릴레이가 user/secret 를 붙여 TheSports로 전달 → 요청 IP = VPS 고정 IP
     // 릴레이 base는 api.thesports.com(버전 없음)이므로 /v1 을 여기서 붙임
     const qs = new URLSearchParams(Object.assign({ token: TS_RELAY_TOKEN }, params || {})).toString();
-    return cachedJSON(`${TS_PROXY}/ts/v1${path}?${qs}`, ttl);
+    return cachedJSON(`${TS_PROXY}/ts/v1${path}?${qs}`, ttl, reqTimeout);
   }
   const qs = new URLSearchParams(Object.assign({ user: TS_USER, secret: TS_SECRET }, params || {})).toString();
-  return cachedJSON(`${TS_BASE}${path}?${qs}`, ttl);
+  return cachedJSON(`${TS_BASE}${path}?${qs}`, ttl, reqTimeout);
 }
 // 🏐 진단: TheSports 배구 커버리지 확인 (현재 플랜에 배구 스케줄/라이브가 포함되는지)
 app.get('/api/ts/volley', async (req, res) => {
@@ -1674,6 +1674,31 @@ app.get('/api/ts/bsktest', async (req, res) => {
     }
   } catch (e) { out.liveErr = String((e && e.message) || e); }
   res.json(out);
+});
+// 🔬 진단: TheSports diary를 '캐시 없이 직접' 호출해 실제 소요시간·응답을 측정(느림 vs 무응답 vs 빈응답 구분).
+//   ?sport=basketball&date=2026-11-06&to=15000  (to = 요청 타임아웃 ms, 최대 25000)
+//   비밀키(user/secret/token)는 응답에 절대 노출하지 않음. 경로 연결 방식만 via로 표기.
+app.get('/api/ts/raw', async (req, res) => {
+  if (!TS_ON) return res.json({ on: false, msg: 'TheSports 키 미설정' });
+  const sport = String(req.query.sport || 'basketball').toLowerCase().replace(/[^a-z]/g, '');
+  const ymd = String(req.query.date || new Date().toISOString().slice(0, 10)).replace(/-/g, '');
+  const toMs = Math.min(25000, Math.max(1000, +req.query.to || 15000));
+  const path = '/' + sport + '/match/diary';
+  let url, via;
+  if (TS_PROXY) { via = 'proxy'; url = `${TS_PROXY}/ts/v1${path}?` + new URLSearchParams({ token: TS_RELAY_TOKEN, date: ymd }).toString(); }
+  else { via = 'direct'; url = `${TS_BASE}${path}?` + new URLSearchParams({ user: TS_USER, secret: TS_SECRET, date: ymd }).toString(); }
+  const t0 = Date.now(); const ctrl = new AbortController(); const timer = setTimeout(() => { try { ctrl.abort(); } catch (_) {} }, toMs);
+  try {
+    const r = await fetch(url, { headers: { 'User-Agent': 'livescore-ai/1.0' }, signal: ctrl.signal });
+    const ms = Date.now() - t0; let body = null; try { body = await r.json(); } catch (e) {}
+    clearTimeout(timer);
+    const results = (body && body.results) || [];
+    res.json({ on: true, sport, date: ymd, via, httpStatus: r.status, ms, toMs,
+      resultCount: Array.isArray(results) ? results.length : null,
+      errField: (body && (body.err || body.msg || body.error)) || null,
+      compCount: ((body && body.results_extra && body.results_extra.competition) || []).length,
+      sample: (Array.isArray(results) ? results.slice(0, 2).map(m => ({ id: m.id, home: m.home_team_id, away: m.away_team_id, comp: m.competition_id, status: m.status_id, match_time: m.match_time })) : null) });
+  } catch (e) { clearTimeout(timer); res.json({ on: true, sport, date: ymd, via, ms: Date.now() - t0, toMs, aborted: String((e && e.message) || e) }); }
 });
 // 🏟️ 진단: TheSports 야구가 아시안게임을 갖고 있는지 + 점수가 올바른지 확인
 app.get('/api/ts/baseball', async (req, res) => {
