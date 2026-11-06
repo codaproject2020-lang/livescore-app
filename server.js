@@ -21,7 +21,7 @@ const app = express();
 const server = http.createServer(app);
 
 const PORT = process.env.PORT || 3000;
-const APP_VERSION = 'v372';
+const APP_VERSION = 'v373';
 
 // ============================================================
 //  📏 성능 계측(instrumentation) — 엔드포인트 지연·캐시·공급사·WS·이벤트루프
@@ -2850,6 +2850,7 @@ async function buildGamesCore(sport, date, tz) {
       }
     });
   }
+  if (j && !j.src) j.src = 'apisports';   // 계측용 출처 표기(원본/캐시 구분)
   return { games, j };
 }
 
@@ -2898,7 +2899,9 @@ const fullGamesCache = new Map();
 async function buildFullGames(sport, date, tz) {
   const { games, j } = await buildGamesCoreCached(sport, date, tz);
     games.sort((a, b) => (b.state === 'live') - (a.state === 'live'));
-  return { sport, date, count: games.length, apiErrors: j.errors || null, results: j.results, games };
+  const src = (j && j.src) || null;
+  return { sport, date, count: games.length, apiErrors: j.errors || null, results: j.results, games,
+    src, origin: src ? !/cache/.test(src) : null, builtAt: Date.now() };   // 계측: 출처·원본여부·생성시각
 }
 const _fullInflight = new Map();
 function fullBuildOnce(k, sport, date, tz) {
@@ -2934,8 +2937,8 @@ function warmFeeds() {
     fullGamesCached('basketball', d, tz).catch(() => {});         // 🏀 농구(Goalserve) 워밍 — API-Sports 키 불필요
     // 🏐🏒 배구·하키도 워밍(더스포츠) — 캐시가 식어 콜드 요청이 타임아웃되는 현상 방지(배구 빈화면 수정)
     if (TS_ON) {
-      if (_warmN % 2 === 0) fullGamesCached('volleyball', d, tz).catch(() => {});   // 40초마다
-      if (_warmN % 2 === 1) fullGamesCached('hockey', d, tz).catch(() => {});       // 40초마다(엇갈려서)
+      fullGamesCached('volleyball', d, tz).catch(() => {});   // 🏐 매 사이클(20초) 워밍 — 콜드 6초 지연 윈도 제거
+      fullGamesCached('hockey', d, tz).catch(() => {});       // 🏒 매 사이클 워밍
     }
     if (APISPORTS_KEY) {
       fullGamesCached('football', d, tz).catch(() => {});         // 축구는 매 사이클 워밍 → 항상 뜨겁게
@@ -2951,8 +2954,31 @@ app.get('/api/asports/games', async (req, res) => {
   const sport = req.query.sport || 'football';
   const date = req.query.date || new Date().toISOString().slice(0, 10);
   const cfg = AS[sport]; if (!cfg) return res.status(400).json({ error: 'bad sport' });
-  try { res.json(await fullGamesCached(sport, date, req.query.tz)); }
+  try { const v = await fullGamesCached(sport, date, req.query.tz); const ageMs = v && v.builtAt ? (Date.now() - v.builtAt) : null; res.json(Object.assign({}, v, { ageMs, ageSec: ageMs != null ? Math.round(ageMs / 1000) : null })); }
   catch (e) { res.status(502).json({ error: String(e.message || e) }); }
+});
+// 🔎 피드 진단(공개·비밀정보 없음): 종목별 출처(원본/캐시)·데이터 나이·마지막 정상수신 시각.
+//    30분 안정성 관찰·'원본조회 성공 vs 타임아웃 후 캐시반환' 구분용. 캐시만 읽고 원본 호출 안 함.
+app.get('/api/diag/feeds', (req, res) => {
+  const tz = 'Asia/Seoul';
+  const d = (typeof ymdInTz === 'function') ? ymdInTz(new Date(), tz) : new Date().toISOString().slice(0, 10);
+  const out = {}; const now = Date.now();
+  for (const sp of ['football', 'basketball', 'volleyball', 'baseball', 'hockey']) {
+    const k = sp + '|' + d + '|' + tz;
+    const hit = fullGamesCache.get(k);
+    const gk1 = 'TS|' + sp + '|' + d + '|' + tz, gk2 = 'GS|' + sp + '|' + d + '|' + tz;
+    const lg = _lastGoodMinor.get(gk1) || _lastGoodMinor.get(gk2);
+    out[sp] = {
+      cached: !!hit,
+      src: hit && hit.v ? hit.v.src : null,
+      origin: hit && hit.v ? hit.v.origin : null,
+      count: hit && hit.v ? hit.v.count : null,
+      ageSec: hit ? Math.round((now - hit.t) / 1000) : null,
+      lastGoodAgeSec: lg ? Math.round((now - lg.t) / 1000) : null,
+      building: _fullInflight.has(k)
+    };
+  }
+  res.json({ at: new Date().toISOString(), uptimeSec: Math.round((Date.now() - METRICS.startAt) / 1000), version: APP_VERSION, out });
 });// 축구 실시간 이벤트 (골·퇴장·경고·교체) — 선수 이름 포함 (API-Sports 축구만 제공)
 app.get('/api/asports/events', async (req, res) => {
   if (!APISPORTS_KEY) return res.json({ needKey: true, events: [] });
