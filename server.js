@@ -21,7 +21,7 @@ const app = express();
 const server = http.createServer(app);
 
 const PORT = process.env.PORT || 3000;
-const APP_VERSION = 'v390';
+const APP_VERSION = 'v391';
 
 // ============================================================
 //  📏 성능 계측(instrumentation) — 엔드포인트 지연·캐시·공급사·WS·이벤트루프
@@ -3554,7 +3554,19 @@ app.get('/api/football/teamanalysis', async (req, res) => {
   let season = req.query.season || '';
   if (!teamId) return res.status(400).json({ error: 'need team' });
   try {
-    const leagueId = await asLeagueId('football', leagueName);
+    // 리그 ID 해석: ① 팀의 현재 리그에서 직접(가장 정확) → ② 이름 검색(국가 접두사 제거 폴백)
+    let leagueId = null;
+    try {
+      const lj = await asRaw('football', `/leagues?team=${teamId}&current=true`, 86400e3);
+      const arr = (lj && lj.response) || [];
+      // 국내 1부리그(type League) 우선, 그다음 아무 리그
+      const pick = arr.find(x => x.league && /league/i.test(x.league.type)) || arr[0];
+      leagueId = pick && pick.league && pick.league.id;
+    } catch (e) {}
+    if (!leagueId && leagueName) {
+      leagueId = await asLeagueId('football', leagueName)
+        || await asLeagueId('football', String(leagueName).replace(/^(english|spanish|italian|french|german|korean|japanese|portuguese|dutch|belgian|turkish|saudi|usa|american)\s+/i, ''));
+    }
     if (!leagueId) return res.json({ found: false, note: 'league-unmapped' });
     if (!season) { const yr = new Date().getFullYear(); season = (new Date().getMonth() >= 6 ? yr : yr - 1); }  // 유럽 시즌: 하반기=당해
     const [stJ, nxJ, stdJ] = await Promise.all([
