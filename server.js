@@ -21,7 +21,7 @@ const app = express();
 const server = http.createServer(app);
 
 const PORT = process.env.PORT || 3000;
-const APP_VERSION = 'v375';
+const APP_VERSION = 'v377';
 
 // ============================================================
 //  📏 성능 계측(instrumentation) — 엔드포인트 지연·캐시·공급사·WS·이벤트루프
@@ -1684,8 +1684,10 @@ app.get('/api/ts/raw', async (req, res) => {
   const ymd = String(req.query.date || new Date().toISOString().slice(0, 10)).replace(/-/g, '');
   const toMs = Math.min(25000, Math.max(1000, +req.query.to || 15000));
   const path = '/' + sport + '/match/diary';
+  const force = String(req.query.via || '').toLowerCase();   // 'direct' | 'proxy' 강제(호환 진단용)
+  const useProxy = force === 'proxy' ? true : force === 'direct' ? false : !!TS_PROXY;
   let url, via;
-  if (TS_PROXY) { via = 'proxy'; url = `${TS_PROXY}/ts/v1${path}?` + new URLSearchParams({ token: TS_RELAY_TOKEN, date: ymd }).toString(); }
+  if (useProxy && TS_PROXY) { via = 'proxy'; url = `${TS_PROXY}/ts/v1${path}?` + new URLSearchParams({ token: TS_RELAY_TOKEN, date: ymd }).toString(); }
   else { via = 'direct'; url = `${TS_BASE}${path}?` + new URLSearchParams({ user: TS_USER, secret: TS_SECRET, date: ymd }).toString(); }
   const t0 = Date.now(); const ctrl = new AbortController(); const timer = setTimeout(() => { try { ctrl.abort(); } catch (_) {} }, toMs);
   try {
