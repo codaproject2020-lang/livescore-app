@@ -21,7 +21,7 @@ const app = express();
 const server = http.createServer(app);
 
 const PORT = process.env.PORT || 3000;
-const APP_VERSION = 'v370';
+const APP_VERSION = 'v371';
 
 // ============================================================
 //  📏 성능 계측(instrumentation) — 엔드포인트 지연·캐시·공급사·WS·이벤트루프
@@ -773,16 +773,22 @@ app.get('/admin', (req, res) => res.sendFile(path.join(__dirname, 'public', 'adm
 
 // ---------- 간단 캐시 (레이트리밋 보호) ----------
 const cache = new Map();
-async function cachedJSON(url, ttlMs = 30000) {
+// 🚑 공급사 호출 요청 타임아웃(장애 복구): fetch에 데드라인이 없으면 느린 공급사(TheSports 등)에서
+//   요청이 무한 대기 → 1,700 동시접속에서 누적 → 이벤트루프/소켓 포화 → 사이트 전체 멈춤.
+//   reqTimeout(기본 6s) 내 응답 없으면 abort. 실패 시 직전 정상 캐시가 있으면 그걸 반환(빈 결과·오류로 뭉뚱그리지 않음).
+async function cachedJSON(url, ttlMs = 30000, reqTimeout = 6000) {
   const hit = cache.get(url);
   const now = Date.now();
   if (hit && now - hit.t < ttlMs) return hit.v;
   const isTs = /thesports|\/ts\/v1/i.test(url);   // 공급사 실호출 계측(캐시 미스만)
   if (isTs) METRICS.supplier.tsCall++;
   let r;
-  try { r = await fetch(url, { headers: { 'User-Agent': 'livescore-ai/1.0' } }); }
-  catch (e) { if (isTs) METRICS.supplier.tsFail++; throw e; }
-  if (!r.ok) { if (isTs) METRICS.supplier.tsFail++; throw new Error(`upstream ${r.status}`); }
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => { try { ctrl.abort(); } catch (_) {} }, reqTimeout);
+  try { r = await fetch(url, { headers: { 'User-Agent': 'livescore-ai/1.0' }, signal: ctrl.signal }); }
+  catch (e) { if (isTs) METRICS.supplier.tsFail++; if (hit) return hit.v; throw e; }   // 타임아웃/네트워크 실패 → 직전 캐시라도 유지
+  finally { clearTimeout(timer); }
+  if (!r.ok) { if (isTs) METRICS.supplier.tsFail++; if (hit) return hit.v; throw new Error(`upstream ${r.status}`); }
   const v = await r.json();
   cache.set(url, { t: now, v });
   return v;
@@ -1228,14 +1234,17 @@ async function asRaw(sport, path, ttl = 30000) {
   if (hit && now - hit.t < ttl) return hit.v;
   _asCalls++; METRICS.supplier.asCall++;   // 📊 실제 API-Sports 호출 1건 (캐시 miss)
   let r;
+  // 🚑 API-Sports 요청 타임아웃(장애 복구): 응답이 7s 내 없으면 abort → 느린 공급사로 요청이 무한 대기하지 않게.
+  const _ctrl = new AbortController();
+  const _timer = setTimeout(() => { try { _ctrl.abort(); } catch (_) {} }, 7000);
   try {
-    r = await fetch(url, { headers: { 'x-apisports-key': APISPORTS_KEY } });
-  } catch (netErr) {   // 네트워크 자체 실패(연결 끊김 등)
+    r = await fetch(url, { headers: { 'x-apisports-key': APISPORTS_KEY }, signal: _ctrl.signal });
+  } catch (netErr) {   // 네트워크 자체 실패(연결 끊김) 또는 타임아웃(abort)
     _asFailStreak++; METRICS.supplier.asFail++;
-    if (_asFailStreak >= 5) opAlert('apisports-down', `API-Sports 연속 실패 ${_asFailStreak}회(연결 불가): ${String((netErr && netErr.message) || netErr).slice(0, 80)}`, 600000);
+    if (_asFailStreak >= 5) opAlert('apisports-down', `API-Sports 연속 실패 ${_asFailStreak}회(연결 불가/지연): ${String((netErr && netErr.message) || netErr).slice(0, 80)}`, 600000);
     if (hit) { hit.t = now; return hit.v; }
     throw netErr;
-  }
+  } finally { clearTimeout(_timer); }
   try {   // 응답 헤더에서 하루 한도/남은 횟수 캡처
     const lim = r.headers.get('x-ratelimit-requests-limit'), rem = r.headers.get('x-ratelimit-requests-remaining');
     if (lim != null || rem != null) {
@@ -2392,8 +2401,10 @@ async function tsBasketballGames(date, tz) {
   const comp = {}, team = {}, out = [], seen = new Set();
   let liveMap = {};
   try { const lv = await tsFetch('/basketball/match/detail_live', {}, 3000); ((lv && lv.results) || []).forEach(r => { const id = r.id || (r.score && r.score[0]); if (id) liveMap[id] = r; }); } catch (e) {}
-  for (const dt of [prev, date, next]) {
-    let d; try { d = await tsFetch('/basketball/match/diary', { date: toYmd(dt) }, 8000); } catch { continue; }
+  // 🚑 3일치 diary를 병렬 조회(순차 시 느린 공급사에서 3배 지연 → 멈춤). 각 호출은 cachedJSON 요청 타임아웃(6s)으로 상한.
+  const _diaries = await Promise.all([prev, date, next].map(dt => tsFetch('/basketball/match/diary', { date: toYmd(dt) }, 8000).catch(() => null)));
+  for (const d of _diaries) {
+    if (!d) continue;
     const ex = (d && d.results_extra) || {};
     (ex.competition || []).forEach(c => { comp[c.id] = { name: c.name, logo: c.logo || '' }; });
     (ex.team || []).forEach(t => { team[t.id] = { name: t.name, logo: t.logo || '' }; });
@@ -2513,8 +2524,10 @@ async function tsVolleyballGames(date, tz) {
   const prev = new Date(Date.parse(date + 'T12:00:00Z') - 864e5).toISOString().slice(0, 10);
   const next = new Date(Date.parse(date + 'T12:00:00Z') + 864e5).toISOString().slice(0, 10);
   const team = {}, comp = {}, countries = {}, out = [], seen = new Set();
-  for (const dt of [prev, date, next]) {
-    let d; try { d = await tsFetch('/volleyball/match/diary', { date: toYmd(dt) }, 8000); } catch { continue; }
+  // 🚑 3일치 diary 병렬 조회(순차 시 느린 공급사에서 지연 누적 → 멈춤). 각 호출은 요청 타임아웃(6s)으로 상한.
+  const _diaries = await Promise.all([prev, date, next].map(dt => tsFetch('/volleyball/match/diary', { date: toYmd(dt) }, 8000).catch(() => null)));
+  for (const d of _diaries) {
+    if (!d) continue;
     const ex = (d && d.results_extra) || {};
     (ex.country || []).forEach(c => countries[c.id] = c.name);
     (ex.competition || []).forEach(c => comp[c.id] = { name: c.name, logo: c.logo || '', country: countries[c.country_id] || '' });
