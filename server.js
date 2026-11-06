@@ -21,7 +21,7 @@ const app = express();
 const server = http.createServer(app);
 
 const PORT = process.env.PORT || 3000;
-const APP_VERSION = 'v379';
+const APP_VERSION = 'v380';
 
 // ============================================================
 //  📏 성능 계측(instrumentation) — 엔드포인트 지연·캐시·공급사·WS·이벤트루프
@@ -1695,12 +1695,31 @@ app.get('/api/ts/raw', async (req, res) => {
     const ms = Date.now() - t0; let body = null; try { body = await r.json(); } catch (e) {}
     clearTimeout(timer);
     const results = (body && body.results) || [];
+    const full = String(req.query.full || '') === '1';
     res.json({ on: true, sport, date: ymd, via, httpStatus: r.status, ms, toMs,
       resultCount: Array.isArray(results) ? results.length : null,
       errField: (body && (body.err || body.msg || body.error)) || null,
       compCount: ((body && body.results_extra && body.results_extra.competition) || []).length,
+      extraKeys: (body && body.results_extra) ? Object.keys(body.results_extra) : null,
+      matchKeys: (full && Array.isArray(results) && results[0]) ? Object.keys(results[0]) : null,
+      rawFirst: (full && Array.isArray(results)) ? results[0] : null,
       sample: (Array.isArray(results) ? results.slice(0, 2).map(m => ({ id: m.id, home: m.home_team_id, away: m.away_team_id, comp: m.competition_id, status: m.status_id, match_time: m.match_time })) : null) });
   } catch (e) { clearTimeout(timer); res.json({ on: true, sport, date: ymd, via, ms: Date.now() - t0, toMs, aborted: String((e && e.message) || e) }); }
+});
+// 🔬 진단: TheSports 팀 최근경기(recent/list) 응답 구조 확인 — 인사이트/팀상세 실데이터 연결용
+app.get('/api/ts/recentprobe', async (req, res) => {
+  if (!TS_ON) return res.json({ on: false });
+  const sport = String(req.query.sport || 'football').toLowerCase().replace(/[^a-z]/g, '');
+  const tid = String(req.query.tid || '');
+  if (!tid) return res.json({ err: 'no tid' });
+  try {
+    const r = await tsFetch('/' + sport + '/match/recent/list', { team_id: tid }, 5000, 9000).catch(e => ({ err: String((e && e.message) || e) }));
+    const results = (r && r.results) || [];
+    res.json({ on: true, sport, tid, count: Array.isArray(results) ? results.length : null,
+      resultsType: Array.isArray(results) ? 'array' : typeof results,
+      firstKeys: (results[0] && typeof results[0] === 'object' && !Array.isArray(results[0])) ? Object.keys(results[0]) : (Array.isArray(results[0]) ? ('array len ' + results[0].length) : typeof results[0]),
+      first: results[0] || null, extraKeys: (r && r.results_extra) ? Object.keys(r.results_extra) : null, err: r && r.err });
+  } catch (e) { res.json({ err: String((e && e.message) || e) }); }
 });
 // 🏟️ 진단: TheSports 야구가 아시안게임을 갖고 있는지 + 점수가 올바른지 확인
 app.get('/api/ts/baseball', async (req, res) => {
