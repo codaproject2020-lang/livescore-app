@@ -21,7 +21,7 @@ const app = express();
 const server = http.createServer(app);
 
 const PORT = process.env.PORT || 3000;
-const APP_VERSION = 'v391';
+const APP_VERSION = 'v392';
 
 // ============================================================
 //  📏 성능 계측(instrumentation) — 엔드포인트 지연·캐시·공급사·WS·이벤트루프
@@ -3555,19 +3555,21 @@ app.get('/api/football/teamanalysis', async (req, res) => {
   if (!teamId) return res.status(400).json({ error: 'need team' });
   try {
     // 리그 ID 해석: ① 팀의 현재 리그에서 직접(가장 정확) → ② 이름 검색(국가 접두사 제거 폴백)
-    let leagueId = null;
+    let leagueId = null, dbg = {};
     try {
       const lj = await asRaw('football', `/leagues?team=${teamId}&current=true`, 86400e3);
       const arr = (lj && lj.response) || [];
-      // 국내 1부리그(type League) 우선, 그다음 아무 리그
+      dbg.leaguesCount = arr.length; dbg.leaguesErr = lj && lj.errors;
+      dbg.sample = arr.slice(0, 5).map(x => x.league && { id: x.league.id, name: x.league.name, type: x.league.type });
       const pick = arr.find(x => x.league && /league/i.test(x.league.type)) || arr[0];
       leagueId = pick && pick.league && pick.league.id;
-    } catch (e) {}
+    } catch (e) { dbg.ex = String(e.message || e); }
     if (!leagueId && leagueName) {
       leagueId = await asLeagueId('football', leagueName)
         || await asLeagueId('football', String(leagueName).replace(/^(english|spanish|italian|french|german|korean|japanese|portuguese|dutch|belgian|turkish|saudi|usa|american)\s+/i, ''));
+      dbg.byName = leagueId;
     }
-    if (!leagueId) return res.json({ found: false, note: 'league-unmapped' });
+    if (!leagueId) return res.json({ found: false, note: 'league-unmapped', debug: req.query.debug ? dbg : undefined });
     if (!season) { const yr = new Date().getFullYear(); season = (new Date().getMonth() >= 6 ? yr : yr - 1); }  // 유럽 시즌: 하반기=당해
     const [stJ, nxJ, stdJ] = await Promise.all([
       asRaw('football', `/teams/statistics?team=${teamId}&league=${leagueId}&season=${season}`, 3600e3).catch(() => null),
