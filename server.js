@@ -21,7 +21,7 @@ const app = express();
 const server = http.createServer(app);
 
 const PORT = process.env.PORT || 3000;
-const APP_VERSION = 'v371';
+const APP_VERSION = 'v372';
 
 // ============================================================
 //  📏 성능 계측(instrumentation) — 엔드포인트 지연·캐시·공급사·WS·이벤트루프
@@ -2567,8 +2567,9 @@ async function buildGamesCore(sport, date, tz) {
     try {
       const prev = new Date(Date.parse(date + 'T12:00:00Z') - 864e5).toISOString().slice(0, 10);
       const next = new Date(Date.parse(date + 'T12:00:00Z') + 864e5).toISOString().slice(0, 10);
-      let all = [];
-      for (const dt of [prev, date, next]) { try { all = all.concat(await tsFootballGames(dt)); } catch (e) {} }
+      // 🚑 3일치 병렬 조회(순차 시 느린 공급사에서 콜드 빌드가 3배 지연 → 멈춤)
+      const _fb = await Promise.all([prev, date, next].map(dt => tsFootballGames(dt).catch(() => [])));
+      let all = [].concat.apply([], _fb);
       const seen = new Set();
       games = all.filter(g => { if (!g.date || ymdInTz(g.date, tz) !== date) return false; if (seen.has(g.tsid)) return false; seen.add(g.tsid); return true; })
         .map(g => Object.assign({}, g, { id: 'ts' + g.tsid }));
