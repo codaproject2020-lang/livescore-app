@@ -21,7 +21,7 @@ const app = express();
 const server = http.createServer(app);
 
 const PORT = process.env.PORT || 3000;
-const APP_VERSION = 'v389';
+const APP_VERSION = 'v390';
 
 // ============================================================
 //  📏 성능 계측(instrumentation) — 엔드포인트 지연·캐시·공급사·WS·이벤트루프
@@ -3545,6 +3545,57 @@ app.get('/api/football/fixplayers', async (req, res) => {
     });
     res.json({ players: out });
   } catch (e) { res.status(502).json({ error: String(e.message || e), players: [] }); }
+});
+// ⚽ 09 팀 분석 — API-Football /teams/statistics(시간대별 득실·폼·경기수) + 다음일정 난이도(상대 순위·홈원정).
+//    선제골 승률 등 per-fixture 이벤트 집계가 필요한 지표는 과도한 호출을 피하려 이 단계에선 미제공(사유 표시).
+app.get('/api/football/teamanalysis', async (req, res) => {
+  if (!APISPORTS_KEY) return res.json({ needKey: true });
+  const teamId = req.query.team, leagueName = req.query.league || '';
+  let season = req.query.season || '';
+  if (!teamId) return res.status(400).json({ error: 'need team' });
+  try {
+    const leagueId = await asLeagueId('football', leagueName);
+    if (!leagueId) return res.json({ found: false, note: 'league-unmapped' });
+    if (!season) { const yr = new Date().getFullYear(); season = (new Date().getMonth() >= 6 ? yr : yr - 1); }  // 유럽 시즌: 하반기=당해
+    const [stJ, nxJ, stdJ] = await Promise.all([
+      asRaw('football', `/teams/statistics?team=${teamId}&league=${leagueId}&season=${season}`, 3600e3).catch(() => null),
+      asRaw('football', `/fixtures?team=${teamId}&next=5&timezone=Asia/Seoul`, 1800e3).catch(() => null),
+      asRaw('football', `/standings?league=${leagueId}&season=${season}`, 3600e3).catch(() => null)
+    ]);
+    const s = stJ && stJ.response;
+    if (!s) return res.json({ found: false, note: 'no-stats', season });
+    // 시간대별 득실(분 구간)
+    const buckets = ['0-15', '16-30', '31-45', '46-60', '61-75', '76-90', '91-105', '106-120'];
+    const gm = (s.goals && s.goals.for && s.goals.for.minute) || {};
+    const ga = (s.goals && s.goals.against && s.goals.against.minute) || {};
+    const byMinute = buckets.map(b => ({ b, f: (gm[b] && gm[b].total) || 0, a: (ga[b] && ga[b].total) || 0 })).filter(x => (gm[x.b] !== undefined || ga[x.b] !== undefined));
+    // 순위맵(상대 난이도용)
+    const stdRows = (() => {
+      const g = (stdJ && stdJ.response && stdJ.response[0] && stdJ.response[0].league && stdJ.response[0].league.standings) || [];
+      const flat = []; (Array.isArray(g) ? g : [g]).forEach(grp => (grp || []).forEach(r => flat.push(r)));
+      return flat;
+    })();
+    const rankOf = id => { const r = stdRows.find(x => x.team && x.team.id === id); return r ? r.rank : null; };
+    const totalTeams = stdRows.length || 20;
+    const myRow = stdRows.find(x => x.team && String(x.team.id) === String(teamId));
+    const next = ((nxJ && nxJ.response) || []).map(fx => {
+      const home = fx.teams.home, away = fx.teams.away;
+      const iAmHome = String(home.id) === String(teamId);
+      const opp = iAmHome ? away : home;
+      const oppRank = rankOf(opp.id);
+      let diff = 'mid';
+      if (oppRank != null) { const top = Math.ceil(totalTeams * 0.3), bot = Math.floor(totalTeams * 0.7); diff = oppRank <= top ? 'hard' : (oppRank > bot ? 'easy' : 'mid'); }
+      if (!iAmHome && diff === 'easy') diff = 'mid'; else if (!iAmHome && diff === 'mid') diff = 'hard';  // 원정 가중
+      return { date: fx.fixture.date, oppName: opp.name, oppLogo: opp.logo, oppRank, home: iAmHome, diff };
+    });
+    res.json({
+      found: true, season, league: leagueName, teamId: Number(teamId),
+      form: s.form || '', rank: myRow ? myRow.rank : null, points: myRow ? myRow.points : null,
+      fixtures: s.fixtures || null, byMinute, next,
+      cleanSheet: s.clean_sheet || null, failedToScore: s.failed_to_score || null,
+      goalsForTotal: s.goals && s.goals.for && s.goals.for.total, goalsAgainstTotal: s.goals && s.goals.against && s.goals.against.total
+    });
+  } catch (e) { res.json({ found: false, error: String(e.message || e) }); }
 });
 // ⚽ 메인카드용 라이브 요약 통계 — 진행 중 경기만 서버에서 묶어서 1회 응답(개별 호출 금지 규칙 준수)
 //    각 경기 stats 는 asRaw 캐시(60s) + 전체 응답 45s 캐시로 호출 제한을 지킴. 미제공은 null(0으로 채우지 않음).
