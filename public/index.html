@@ -1827,6 +1827,41 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
     var opp=(String(e.home||"").toLowerCase().indexOf(String(selfName||"").toLowerCase())>=0)?e.away:e.home;
     if(opp)openTeam(opp,sp);
   }
+  // 👤 선수 상세(명령서 ②-7·#8) — API-Sports player_id로 프로필+시즌기록
+  function openPlayer(sport,pid,pname){
+    if(!pid)return;
+    var o=overlay("ovPlayer");
+    o.innerHTML='<div class="dt-bar"><button class="bk" id="plBack">‹</button><div class="ti">'+esc(pname||"")+'</div></div><div class="dt-body" id="plBody"><div class="msg"><div class="big">⏳</div>'+t("loading")+'</div></div>';
+    $("#plBack").onclick=function(){ closeOverlay("ovPlayer"); };
+    fetch("/api/player?sport="+encodeURIComponent(sport)+"&id="+encodeURIComponent(pid)).then(function(r){return r.json();}).then(function(j){
+      if(!$("#plBody"))return;
+      var p=j&&j.player;
+      if(!p){ $("#plBody").innerHTML='<div class="msg"><div class="big">📭</div>'+tl({en:"Player details aren't available yet.",ko:"선수 상세가 아직 제공되지 않습니다.",ja:"選手詳細は未提供です。",zh:"暂无球员详情。",es:"Sin detalles del jugador.",hi:"खिलाड़ी विवरण नहीं।",vi:"Chưa có chi tiết cầu thủ.",th:"ยังไม่มีรายละเอียด",ru:"Нет данных об игроке.",de:"Keine Spielerdetails.",fr:"Pas de détails joueur.",it:"Nessun dettaglio."})+'<br><span style="font-size:12px;color:#9aa1ad">'+esc(pname||"")+'</span></div>'; return; }
+      var ph=p.photo?'<img src="'+esc(p.photo)+'" style="width:72px;height:72px;border-radius:50%;object-fit:cover" onerror="this.outerHTML=\'<div style=font-size:44px>👤</div>\'">':'<div style="font-size:44px">👤</div>';
+      var h='<div class="sv-wrap"><div class="sv-prof" style="align-items:center"><div class="sv-av" style="background:#fff">'+ph+'</div><div style="min-width:0;flex:1"><h3 style="margin:0 0 4px;font-size:18px;color:var(--navy)">'+esc(p.name||pname||"")+'</h3><div style="font-size:12.5px;color:var(--muted)">'+(p.nationality?esc(p.nationality):"")+(p.position?(p.nationality?" · ":"")+esc(p.position):"")+(p.team?'<br>'+esc(p.team):"")+'</div></div></div>';
+      // 프로필
+      var info='';
+      function row(l,v){ return (v==null||v===""||v==="null null")?'':'<div class="sv-row"><div class="sl">'+l+'</div><div class="sr">'+esc(String(v))+'</div></div>'; }
+      info+=row(tl({en:"Age",ko:"나이",ja:"年齢",zh:"年龄",es:"Edad",hi:"आयु",vi:"Tuổi",th:"อายุ",ru:"Возраст",de:"Alter",fr:"Âge",it:"Età"}),p.age);
+      info+=row(tl({en:"Height",ko:"키",ja:"身長",zh:"身高",es:"Altura",hi:"कद",vi:"Chiều cao",th:"ส่วนสูง",ru:"Рост",de:"Größe",fr:"Taille",it:"Altezza"}),p.height);
+      info+=row(tl({en:"Weight",ko:"몸무게",ja:"体重",zh:"体重",es:"Peso",hi:"वज़न",vi:"Cân nặng",th:"น้ำหนัก",ru:"Вес",de:"Gewicht",fr:"Poids",it:"Peso"}),p.weight);
+      info+=row(tl({en:"Team",ko:"소속팀",ja:"所属",zh:"球队",es:"Equipo",hi:"टीम",vi:"CLB",th:"ทีม",ru:"Клуб",de:"Verein",fr:"Club",it:"Club"}),p.team);
+      if(info)h+='<div class="sv-sec"><div class="sv-sh">'+tl({en:"Profile",ko:"프로필",ja:"プロフィール",zh:"资料",es:"Perfil",hi:"प्रोफ़ाइल",vi:"Hồ sơ",th:"โปรไฟล์",ru:"Профиль",de:"Profil",fr:"Profil",it:"Profilo"})+'</div><div class="sv-card">'+info+'</div></div>';
+      // 시즌 기록(축구)
+      var s=p.stats;
+      if(s){
+        var st='';
+        st+=row(tl({en:"Appearances",ko:"출전",ja:"出場",zh:"出场",es:"Partidos",hi:"मैच",vi:"Số trận",th:"ลงเล่น",ru:"Матчи",de:"Einsätze",fr:"Matchs",it:"Presenze"}),s.appearances);
+        st+=row(tl({en:"Minutes",ko:"출전 시간",ja:"出場時間",zh:"出场时间",es:"Minutos",hi:"मिनट",vi:"Phút",th:"นาที",ru:"Минуты",de:"Minuten",fr:"Minutes",it:"Minuti"}),s.minutes);
+        st+=row(tl({en:"Goals",ko:"골",ja:"ゴール",zh:"进球",es:"Goles",hi:"गोल",vi:"Bàn thắng",th:"ประตู",ru:"Голы",de:"Tore",fr:"Buts",it:"Gol"}),s.goals);
+        st+=row(tl({en:"Assists",ko:"도움",ja:"アシスト",zh:"助攻",es:"Asistencias",hi:"असिस्ट",vi:"Kiến tạo",th:"แอสซิสต์",ru:"Передачи",de:"Vorlagen",fr:"Passes déc.",it:"Assist"}),s.assists);
+        st+=row(tl({en:"Cards (Y/R)",ko:"카드 (옐로/레드)",ja:"カード",zh:"黄/红牌",es:"Tarjetas",hi:"कार्ड",vi:"Thẻ",th:"ใบเหลือง/แดง",ru:"Карточки",de:"Karten",fr:"Cartons",it:"Cartellini"}),(s.yellow!=null||s.red!=null)?((s.yellow||0)+" / "+(s.red||0)):"");
+        if(st)h+='<div class="sv-sec"><div class="sv-sh">'+tl({en:"Season stats",ko:"시즌 기록",ja:"シーズン記録",zh:"赛季数据",es:"Estadísticas",hi:"सीज़न आँकड़े",vi:"Thống kê mùa",th:"สถิติฤดูกาล",ru:"Статистика",de:"Saisonstats",fr:"Stats saison",it:"Statistiche"})+(p.season?'<span style="font-size:11px;color:var(--muted);font-weight:600"> '+esc(String(p.season))+'</span>':'')+'</div><div class="sv-card">'+st+'</div></div>';
+      }
+      h+='<div class="sv-foot">'+tl({en:"Player profile from API-Sports.",ko:"선수 정보는 API-Sports 제공.",ja:"選手情報はAPI-Sports。",zh:"球员资料来自 API-Sports。",es:"Datos de API-Sports.",hi:"API-Sports से।",vi:"Dữ liệu từ API-Sports.",th:"จาก API-Sports",ru:"Данные API-Sports.",de:"Daten API-Sports.",fr:"Données API-Sports.",it:"Dati API-Sports."})+'</div></div>';
+      $("#plBody").innerHTML=h;
+    }).catch(function(){ if($("#plBody"))$("#plBody").innerHTML='<div class="msg"><div class="big">⚠️</div>'+t("loadFailRetry")+'</div>'; });
+  }
   function openTeam(name,sport,teamId,ctx){
     if(!name)return;
     var sp=sport||S.sport; ctx=ctx||{};
@@ -1937,9 +1972,10 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
       if(!pl.length){ box.innerHTML='<div class="msg"><div class="big">👥</div>'+tl({en:"Squad not provided by our data source for this team.",ko:"이 팀 선수단은 데이터 제공처에서 제공되지 않습니다.",ja:"このチームの選手は未提供です。",zh:"数据方未提供该队阵容。",es:"Plantilla no disponible.",hi:"दस्ता उपलब्ध नहीं।",vi:"Chưa có đội hình.",th:"ไม่มีข้อมูลผู้เล่น",ru:"Состав недоступен.",de:"Kader nicht verfügbar.",fr:"Effectif indisponible.",it:"Rosa non disponibile."})+'</div>'; return; }
       var byPos={}; pl.forEach(function(p){ var k=p.pos||tl({en:"Players",ko:"선수",ja:"選手",zh:"球员",es:"Jugadores",hi:"खिलाड़ी",vi:"Cầu thủ",th:"ผู้เล่น",ru:"Игроки",de:"Spieler",fr:"Joueurs",it:"Giocatori"}); (byPos[k]=byPos[k]||[]).push(p); });
       var h='';
-      Object.keys(byPos).forEach(function(k){ h+='<div class="sv-sec"><div class="sv-sh">'+esc(k)+' <span style="font-size:11px;color:var(--muted);font-weight:600">'+byPos[k].length+'</span></div><div class="sv-card">'+byPos[k].map(function(p){ return '<div class="sv-row"><div class="sl" style="flex:1;min-width:0">'+(p.photo?'<img src="'+esc(p.photo)+'" style="width:26px;height:26px;border-radius:50%;object-fit:cover;margin-right:7px" onerror="this.remove()">':'')+'<span style="min-width:0;overflow:hidden;text-overflow:ellipsis">'+(p.number?'<b style="color:var(--muted);margin-right:6px">'+esc(p.number)+'</b>':'')+esc(p.name)+'</span></div>'+(p.age?'<div class="sr" style="font-size:12px;color:var(--muted)">'+tl({en:"age",ko:"나이",ja:"歳",zh:"岁",es:"edad",hi:"आयु",vi:"tuổi",th:"อายุ",ru:"возр.",de:"Alter",fr:"âge",it:"età"})+' '+esc(p.age)+'</div>':'')+'</div>'; }).join("")+'</div></div>'; });
-      h+='<div class="sv-foot">'+tl({en:"Squad from API-Sports (cached).",ko:"선수단은 API-Sports 제공(캐시).",ja:"選手はAPI-Sports提供。",zh:"阵容来自 API-Sports。",es:"Plantilla de API-Sports.",hi:"API-Sports से।",vi:"Đội hình từ API-Sports.",th:"จาก API-Sports",ru:"Состав: API-Sports.",de:"Kader: API-Sports.",fr:"Effectif API-Sports.",it:"Rosa API-Sports."})+'</div>';
+      Object.keys(byPos).forEach(function(k){ h+='<div class="sv-sec"><div class="sv-sh">'+esc(k)+' <span style="font-size:11px;color:var(--muted);font-weight:600">'+byPos[k].length+'</span></div><div class="sv-card">'+byPos[k].map(function(p){ return '<div class="sv-row sq-pl" data-pid="'+esc(p.id!=null?p.id:"")+'" data-pnm="'+esc(p.name)+'" style="cursor:pointer"><div class="sl" style="flex:1;min-width:0">'+(p.photo?'<img src="'+esc(p.photo)+'" style="width:26px;height:26px;border-radius:50%;object-fit:cover;margin-right:7px" onerror="this.remove()">':'')+'<span style="min-width:0;overflow:hidden;text-overflow:ellipsis">'+(p.number?'<b style="color:var(--muted);margin-right:6px">'+esc(p.number)+'</b>':'')+esc(p.name)+'</span></div>'+(p.age?'<div class="sr" style="font-size:12px;color:var(--muted)">'+tl({en:"age",ko:"나이",ja:"歳",zh:"岁",es:"edad",hi:"आयु",vi:"tuổi",th:"อายุ",ru:"возр.",de:"Alter",fr:"âge",it:"età"})+' '+esc(p.age)+' <span class="chev">›</span></div>':'<div class="sr"><span class="chev" style="color:var(--muted)">›</span></div>')+'</div>'; }).join("")+'</div></div>'; });
+      h+='<div class="sv-foot">'+tl({en:"Squad from API-Sports (cached). Tap a player for details.",ko:"선수단은 API-Sports 제공(캐시). 선수를 누르면 상세.",ja:"選手はAPI-Sports提供。",zh:"阵容来自 API-Sports。点击球员看详情。",es:"Plantilla de API-Sports.",hi:"API-Sports से।",vi:"Đội hình từ API-Sports.",th:"จาก API-Sports",ru:"Состав: API-Sports.",de:"Kader: API-Sports.",fr:"Effectif API-Sports.",it:"Rosa API-Sports."})+'</div>';
       box.innerHTML=h;
+      box.querySelectorAll(".sq-pl").forEach(function(row){ row.onclick=function(){ var pid=row.dataset.pid, pnm=row.dataset.pnm; if(pid)openPlayer(sp,pid,pnm); else toastMsg(tl({en:"Player details not available.",ko:"선수 상세가 제공되지 않습니다.",ja:"選手詳細なし。",zh:"无球员详情。",es:"Sin detalles.",hi:"विवरण नहीं।",vi:"Không có chi tiết.",th:"ไม่มีรายละเอียด",ru:"Нет данных.",de:"Keine Details.",fr:"Pas de détails.",it:"Nessun dettaglio."})); }; });
     }
     function paintStats(tm){
       var box=$("#tmTab"); if(!box)return;

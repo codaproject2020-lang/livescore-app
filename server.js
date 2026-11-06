@@ -21,7 +21,7 @@ const app = express();
 const server = http.createServer(app);
 
 const PORT = process.env.PORT || 3000;
-const APP_VERSION = 'v383';
+const APP_VERSION = 'v384';
 
 // ============================================================
 //  📏 성능 계측(instrumentation) — 엔드포인트 지연·캐시·공급사·WS·이벤트루프
@@ -1184,6 +1184,50 @@ app.get('/api/team/stats', async (req, res) => {
     }
     return res.json({ stats: null, note: 'sport-todo' });
   } catch (e) { return res.json({ stats: null, error: String(e.message || e) }); }
+});
+
+// 👤 선수 상세(명령서 ②-7·#8): API-Sports 선수 프로필 + 시즌 기록 (team_id 아닌 정확한 player_id 사용). 장기 캐시(쿼터 보호).
+app.get('/api/player', async (req, res) => {
+  const sport = String(req.query.sport || 'football').toLowerCase();
+  const id = req.query.id;
+  if (!APISPORTS_KEY) return res.json({ player: null, note: 'needKey' });
+  if (!id) return res.json({ player: null, note: 'noId' });
+  try {
+    if (sport === 'football') {
+      const m = String(req.query.season || '').match(/\d{4}/); const sy = m ? +m[0] : new Date().getFullYear();
+      let j = null;
+      for (const s of [sy, sy - 1]) {
+        j = await asRaw('football', `/players?id=${encodeURIComponent(id)}&season=${s}`, 21600000).catch(() => null);
+        if (j && j.response && j.response.length) { j._sy = s; break; }
+        j = null;
+      }
+      const r = j && j.response && j.response[0];
+      if (!r) return res.json({ player: null, note: 'empty' });
+      const p = r.player || {}, st = (r.statistics && r.statistics[0]) || {};
+      return res.json({
+        player: {
+          id: p.id, name: p.name, firstname: p.firstname, lastname: p.lastname, photo: p.photo,
+          age: p.age, nationality: p.nationality, height: p.height, weight: p.weight,
+          team: st.team && st.team.name, teamLogo: st.team && st.team.logo, league: st.league && st.league.name, season: j._sy,
+          position: st.games && st.games.position,
+          stats: {
+            appearances: st.games && st.games.appearences, minutes: st.games && st.games.minutes,
+            goals: st.goals && st.goals.total, assists: st.goals && st.goals.assists,
+            yellow: st.cards && st.cards.yellow, red: st.cards && st.cards.red,
+            rating: st.games && st.games.rating
+          }
+        }
+      });
+    }
+    if (sport === 'basketball') {
+      const season = hoopSeason();
+      const j = await asRaw('basketball', `/players?id=${encodeURIComponent(id)}&season=${encodeURIComponent(season)}`, 21600000).catch(() => null);
+      const r = j && j.response && j.response[0];
+      if (!r) return res.json({ player: null, note: 'empty' });
+      return res.json({ player: { id: r.id, name: ((r.firstname || '') + ' ' + (r.lastname || '')).trim(), age: r.age, nationality: r.country && r.country.name, height: r.height && (r.height.meters || r.height.feets), weight: r.weight && (r.weight.kilograms || r.weight.pounds), season, stats: null } });
+    }
+    return res.json({ player: null, note: 'sport-todo' });
+  } catch (e) { return res.json({ player: null, error: String(e.message || e) }); }
 });
 
 // ============================================================
@@ -2551,14 +2595,24 @@ async function tsBasketballLineup(tsid) {
   return { id: item.id, home: home.sort(byPts), away: away.sort(byPts),
     homePts: home.reduce((a, b) => a + b.pts, 0), awayPts: away.reduce((a, b) => a + b.pts, 0) };
 }
+// 🗄️ 박스/흐름 스냅샷: TheSports detail_live/lineup_live 는 라이브 중에만 제공 → 라이브 때 받아두고,
+//   종료 후 비면 마지막 정상 스냅샷을 반환(명령서 ②-8 '종료 후 박스·이벤트 유지'). fromSnapshot 플래그로 구분.
+const _bskSnap = new Map();
+function _snapSet(k, v) { _bskSnap.set(k, { v, t: Date.now() }); if (_bskSnap.size > 400) { const now = Date.now(); for (const [kk, vv] of _bskSnap) { if (now - vv.t > 21600000) _bskSnap.delete(kk); } } }
 app.get('/api/basketball/lineup', async (req, res) => {
   const raw = String(req.query.id || '');
   if (!raw) return res.status(400).json({ error: 'need id' });
   // 박스스코어/라인업은 더스포츠(초단위) 경기(id 가 'ts' 접두)만 제공. 타 공급사 경기에 다른 경기 데이터를 대신 표시하지 않음.
   if (!/^ts/.test(raw)) return res.json({ home: [], away: [], note: 'not-thesports' });
   const id = raw.replace(/^ts/, '');
-  try { const lu = await tsBasketballLineup(id); res.json(lu || { home: [], away: [], note: 'no-lineup' }); }
-  catch (e) { res.json({ home: [], away: [], error: String(e.message || e) }); }
+  try {
+    const lu = await tsBasketballLineup(id);
+    const has = lu && ((lu.home && lu.home.length) || (lu.away && lu.away.length));
+    if (has) { _snapSet('box|' + id, lu); return res.json(lu); }
+    const s = _bskSnap.get('box|' + id);
+    if (s) return res.json(Object.assign({}, s.v, { fromSnapshot: true, snapAgeSec: Math.round((Date.now() - s.t) / 1000) }));
+    res.json(lu || { home: [], away: [], note: 'no-lineup' });
+  } catch (e) { const s = _bskSnap.get('box|' + id); if (s) return res.json(Object.assign({}, s.v, { fromSnapshot: true })); res.json({ home: [], away: [], error: String(e.message || e) }); }
 });
 // 🏀 농구 경기 흐름(플레이바이플레이) + 현재기간 팀파울 — detail_live 1회(전 경기 공용 캐시)에서 해당 경기만 추출
 app.get('/api/basketball/live', async (req, res) => {
@@ -2569,21 +2623,27 @@ app.get('/api/basketball/live', async (req, res) => {
     const lv = await tsFetch('/basketball/match/detail_live', {}, 4000).catch(() => null);
     const list = (lv && lv.results) || [];
     const item = list.find(x => x && String(x.id || (x.score && x.score[0])) === String(id));
-    if (!item) return res.json({ found: false, events: [] });
+    if (!item) {   // 종료 후 detail_live에서 빠짐 → 라이브 중 저장한 흐름 스냅샷 반환
+      const s = _bskSnap.get('flow|' + id);
+      if (s) return res.json(Object.assign({}, s.v, { found: true, fromSnapshot: true, snapAgeSec: Math.round((Date.now() - s.t) / 1000) }));
+      return res.json({ found: false, events: [] });
+    }
     const info = tsBskLiveInfo(item);
     const sc = item.score || [];
     const statePer = TS_BSK_PER[sc[1]] || null;
     let foulsOk = false;
     if (info) { if (info.isHalves) foulsOk = info.curP != null; else foulsOk = (info.curP != null && (statePer ? info.curP >= statePer : true)); }
-    res.json({
+    const payload = {
       found: true,
       period: (statePer && !info.isHalves) ? statePer : (info ? info.curP : null), isHalves: info ? info.isHalves : false,
       homeFouls: foulsOk ? info.hf : null, awayFouls: foulsOk ? info.af : null,
       quarters: { home: sc[3] || [], away: sc[4] || [] },
       // 최신순, 최대 150개. 점수는 "홈-원정"으로 정렬해 전달
       events: (info ? info.events : []).slice(-150).reverse().map(e => ({ period: e.period, clock: e.clock, team: e.team, home: e.home, away: e.away, text: e.text }))
-    });
-  } catch (e) { res.json({ error: String(e.message || e), events: [] }); }
+    };
+    if (payload.events.length || (payload.quarters.home && payload.quarters.home.length)) _snapSet('flow|' + id, payload);
+    res.json(payload);
+  } catch (e) { const s = _bskSnap.get('flow|' + id); if (s) return res.json(Object.assign({}, s.v, { found: true, fromSnapshot: true })); res.json({ error: String(e.message || e), events: [] }); }
 });
 // 🏐 TheSports 배구 경기목록(diary) → 세트 승수(ft) + 세트별 점수(p1~p5)
 function tsVolState(s) { s = Number(s); if (s === 1 || s === 0) return 'scheduled'; if (s === 100 || s < 0) return 'finished'; return 'live'; }
