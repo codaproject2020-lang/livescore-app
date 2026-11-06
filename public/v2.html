@@ -2424,12 +2424,17 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
         '<div class="vs"><div class="tm">'+lg5(big.homeLogo,'<div style=font-size:40px>🛡️</div>')+'<div class="nm">'+esc(big.home||"")+'</div></div><div class="vsx">'+(stt==="scheduled"?"VS":fmtScore(big))+'</div><div class="tm">'+lg5(big.awayLogo,'<div style=font-size:40px>🛡️</div>')+'<div class="nm">'+esc(big.away||"")+'</div></div></div>'+
         '<div id="izAnl" class="iz-form"><div class="msg" style="padding:14px"><div class="big">⏳</div></div></div>';
       v.appendChild(card);
-      // 양 팀 최근경기 집계(실데이터) — 없으면 정직 표기
+      // 양 팀 최근경기 집계(실데이터) — 순위표 team_id → API-Sports /api/team/as (TheSports 최근경기는 계약 미포함).
+      //   후보 리그 경기(빅매치)는 순위표에 teamId가 있어 신뢰도 높음. 없으면 '미제공' 정직 표기.
       var sp=S.sport;
-      Promise.all([
-        fetch("/api/team/recent?name="+encodeURIComponent(big.home||"")+"&sport="+encodeURIComponent(sp)).then(function(r){return r.json();}).catch(function(){return null;}),
-        fetch("/api/team/recent?name="+encodeURIComponent(big.away||"")+"&sport="+encodeURIComponent(sp)).then(function(r){return r.json();}).catch(function(){return null;})
-      ]).then(function(res){
+      var norm=function(s){return String(s||"").toLowerCase().replace(/[^a-z0-9가-힣]/g,"");};
+      fetch("/api/rank?sport="+encodeURIComponent(sp)+"&league="+encodeURIComponent(big.league||"")).then(function(r){return r.json();}).then(function(j){
+        var tb=(j&&j.table)||[];
+        var find=function(nm){ var n=norm(nm); return tb.find(function(r){ var tn=norm(r.team||r.name); return tn&&(tn.indexOf(n)>=0||n.indexOf(tn)>=0); }); };
+        var hr=find(big.home), ar=find(big.away);
+        var get=function(row){ return (row&&row.teamId!=null)?fetch("/api/team/as?sport="+encodeURIComponent(sp)+"&id="+encodeURIComponent(row.teamId)).then(function(r){return r.json();}).catch(function(){return null;}):Promise.resolve(null); };
+        return Promise.all([get(hr),get(ar)]);
+      }).catch(function(){return [null,null];}).then(function(res){
         if(tok!==_izToken||!$("#izAnl"))return;
         var hv=insightForm((res[0]&&res[0].events)||[],big.home), av=insightForm((res[1]&&res[1].events)||[],big.away);
         if(!hv.n&&!av.n){ $("#izAnl").innerHTML='<div class="msg" style="padding:16px"><div class="big">📭</div>'+tl({en:"Recent-match records aren't available for these teams.",ko:"이 팀들의 최근 경기 기록을 제공받지 못했습니다.",ja:"直近記録は未提供です。",zh:"暂无这两队的近期记录。",es:"Sin registros recientes.",hi:"हाल के रिकॉर्ड नहीं।",vi:"Chưa có số liệu gần đây.",th:"ไม่มีสถิติล่าสุด",ru:"Нет недавних данных.",de:"Keine jüngsten Daten.",fr:"Pas de données récentes.",it:"Nessun dato recente."})+'</div>'; return; }

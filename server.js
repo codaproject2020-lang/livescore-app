@@ -21,7 +21,7 @@ const app = express();
 const server = http.createServer(app);
 
 const PORT = process.env.PORT || 3000;
-const APP_VERSION = 'v380';
+const APP_VERSION = 'v381';
 
 // ============================================================
 //  📏 성능 계측(instrumentation) — 엔드포인트 지연·캐시·공급사·WS·이벤트루프
@@ -2586,7 +2586,8 @@ async function tsVolleyballGames(date, tz) {
     if (!d) continue;
     const ex = (d && d.results_extra) || {};
     (ex.country || []).forEach(c => countries[c.id] = c.name);
-    (ex.competition || []).forEach(c => comp[c.id] = { name: c.name, logo: c.logo || '', country: countries[c.country_id] || '' });
+    // 🏐 배구는 대회 정보가 results_extra.unique_tournament 에 있음(농구의 competition 과 키가 다름) → 리그명이 비던 버그 수정
+    (ex.unique_tournament || ex.competition || []).forEach(c => comp[c.id] = { name: c.name, logo: c.logo || '', country: countries[c.country_id] || '' });
     (ex.team || []).forEach(t => team[t.id] = { name: t.name, logo: t.logo || '' });
     for (const m of (d && d.results) || []) {
       const id = m.id; if (!id || seen.has(id)) continue;
