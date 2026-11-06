@@ -21,7 +21,7 @@ const app = express();
 const server = http.createServer(app);
 
 const PORT = process.env.PORT || 3000;
-const APP_VERSION = 'v398';
+const APP_VERSION = 'v399';
 
 // ============================================================
 //  📏 성능 계측(instrumentation) — 엔드포인트 지연·캐시·공급사·WS·이벤트루프
@@ -3276,8 +3276,8 @@ async function tsFbBuildSide(arr) {
 }
 // ⭐ TheSports 축구 라인업 파서(재사용) — uuid로 조회 → 표준 teams 반환. raw=true면 원본 구조도 함께.
 async function tsFootLineup(tsid, wantRaw) {
-  // TheSports 라인업 경로 변형 시도(권한/경로 문제 구분). 하나라도 선수 데이터가 오면 사용.
-  const paths = ['/football/match/lineup', '/football/match/lineup/detail', '/football/match/lineup/list'];
+  // TheSports 라인업 — 올바른 경로는 /lineup/detail (plan 포함). /lineup·/lineup/list는 권한 미인증이라 폴백용.
+  const paths = ['/football/match/lineup/detail', '/football/match/lineup'];
   let lu = null, usedPath = null, tries = [];
   for (const p of paths) {
     const resp = await tsFetch(p, { uuid: tsid }, 8000).catch(e => ({ err: String((e && e.message) || e) }));
