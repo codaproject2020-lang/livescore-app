@@ -1659,7 +1659,7 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
         var seasonTag=(j&&j.season)?'<div class="rk-note">'+tl({en:"Season",ko:"시즌",ja:"シーズン",zh:"赛季",es:"Temporada",hi:"सीज़न",vi:"Mùa",th:"ฤดูกาล",ru:"Сезон",de:"Saison",fr:"Saison",it:"Stagione"})+': '+esc(String(j.season))+'</div>':'';
         var warn=matched?'':'<div class="rk-note" style="color:#b06a00">'+tl({en:"(Couldn't match the two teams in this table — showing the league table.)",ko:"(순위표에서 두 팀을 찾지 못해 리그 순위표를 표시합니다.)",ja:"(2チームを特定できず、リーグ順位を表示します。)",zh:"(未能匹配两队，显示联赛排名。)",es:"(No se emparejaron los equipos; se muestra la tabla.)",hi:"(दोनों टीमें नहीं मिलीं; तालिका दिखाई जा रही है।)",vi:"(Không khớp 2 đội; hiển thị BXH giải.)",th:"(จับคู่สองทีมไม่ได้ แสดงตารางลีก)",ru:"(Команды не сопоставлены; показана таблица лиги.)",de:"(Teams nicht zugeordnet; Liga-Tabelle wird gezeigt.)",fr:"(Équipes non appariées ; table affichée.)",it:"(Squadre non abbinate; mostrata la classifica.)"})+'</div>';
         $("#rkBody").innerHTML='<div class="rk-ttl">'+esc(g.league||t(sport))+'</div>'+seasonTag+warn+rankTableHtml(sport,tb,[g.home,g.away]);
-        $("#rkBody").querySelectorAll(".rkrow").forEach(function(row){ row.style.cursor="pointer"; row.onclick=function(){ var nm=row.dataset.team; if(nm)openTeam(nm,sport,row.dataset.teamid); }; });
+        $("#rkBody").querySelectorAll(".rkrow").forEach(function(row){ row.style.cursor="pointer"; row.onclick=function(){ var nm=row.dataset.team; if(nm)openTeam(nm,sport,row.dataset.teamid,{league:(g.league||league||""),season:(j&&j.season)||""}); }; });
         var hiRow=$("#rkBody").querySelector(".rkhi"); if(hiRow)hiRow.scrollIntoView({block:"center"});
       }).catch(function(){ $("#rkBody").innerHTML='<div class="msg"><div class="big">⚠️</div>'+failMsg+'</div>'; });
       return;
@@ -1700,7 +1700,7 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
           $("#rkBody").innerHTML='<div class="msg"><div class="big">🏆</div>'+note+'</div>'; return;
         }
         $("#rkBody").innerHTML='<div class="rk-ttl">'+esc(curLeagueName())+'</div>'+seasonTag+rankTableHtml(st.sport,tb);
-        $("#rkBody").querySelectorAll(".rkrow").forEach(function(row){ row.style.cursor="pointer"; row.onclick=function(){ var nm=row.dataset.team; if(nm)openTeam(nm,st.sport); }; });
+        $("#rkBody").querySelectorAll(".rkrow").forEach(function(row){ row.style.cursor="pointer"; row.onclick=function(){ var nm=row.dataset.team; if(nm)openTeam(nm,st.sport,row.dataset.teamid,{league:curLeagueName(),season:(j&&j.season)||st.season||""}); }; });
       }).catch(function(){ if(o._rkToken!==token)return; $("#rkBody").innerHTML='<div class="msg"><div class="big">⚠️</div>'+failMsg+'</div>'; });
     }
     draw();
@@ -1711,47 +1711,174 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
   function toggleTeamFav(name,logo){ var i=S.favTeams.findIndex(function(x){return String(x.name||"").toLowerCase()===String(name||"").toLowerCase();}); if(i>=0)S.favTeams.splice(i,1); else S.favTeams.push({name:name,logo:logo||""}); saveFavTeams(S.favTeams); return i<0; }
   // 최근 경기에서 이 팀의 승/무/패 산출
   function teamResult(e,name){ var nm=String(name||"").toLowerCase(); var isHome=String(e.home||"").toLowerCase().indexOf(nm)>=0||nm.indexOf(String(e.home||"").toLowerCase())>=0; var hs=e.hs,as=e.as; if(hs==null||as==null)return null; hs=+hs;as=+as; var my=isHome?hs:as, op=isHome?as:hs; return my>op?"W":(my<op?"L":"D"); }
-  // ====== 팀 상세(명령서 B-2) — 헤더 + 개요 카드(팀정보·최근전적·흐름·다음일정) ======
-  function openTeam(name,sport,teamId){
+  // ====== 팀 상세(명령서 2) — 헤더 + 탭(개요·선수단·통계·뉴스) ======
+  //  개요: 순위 카드 + 팀정보 + 최근흐름/결과(클릭) + 다음일정 + 관련뉴스
+  //  선수단/통계: 탭 열 때만 지연 호출(쿼터 보호: 서버 장기 캐시)
+  var _tmWD={W:{ko:"승",def:"W"},L:{ko:"패",def:"L"},D:{ko:"무",def:"D"}};
+  function tmResLabel(r){ return r?(LANG==="ko"?_tmWD[r].ko:_tmWD[r].def):""; }
+  function tmNewsCat(sp){ return ({basketball:"nba",football:"soccer",baseball:"mlb",hockey:"nhl"})[sp]||"all"; }
+  // 과거 결과 클릭 → 오늘 로드된 경기면 경기 상세, 아니면 상대 팀 상세(실데이터만, 가짜 상세 없음)
+  function tmOpenEvent(e,sp,selfName){
+    var gid=String(e.id||"");
+    var found=null;
+    try{ Object.keys(S.data).forEach(function(k){ if(k.split("|")[0]!==sp)return; var d=S.data[k]; if(d&&d.games)d.games.forEach(function(g){ if(String(g.id)===gid||String(g.id)==="ts"+gid)found=g; }); }); }catch(_){}
+    if(found){ if(S.sport!==sp)S.sport=sp; openDetail(found); return; }
+    var opp=(String(e.home||"").toLowerCase().indexOf(String(selfName||"").toLowerCase())>=0)?e.away:e.home;
+    if(opp)openTeam(opp,sp);
+  }
+  function openTeam(name,sport,teamId,ctx){
     if(!name)return;
-    var sp=sport||S.sport;
+    var sp=sport||S.sport; ctx=ctx||{};
+    var dt={ tab:"overview", base:null, rank:undefined, news:undefined, squad:undefined, stats:undefined };
     var o=overlay("ovTeam");
     o.innerHTML='<div class="dt-bar"><button class="bk" id="tmBack">‹</button><div class="ti">'+esc(name)+'</div></div><div class="dt-body" id="tmBody"><div class="msg"><div class="big">⏳</div>'+t("loading")+'</div></div>';
     $("#tmBack").onclick=function(){ closeOverlay("ovTeam"); };
-    // 정확한 team_id가 있으면 API-Sports(이름검색 아님)로 조회 → 동명·여자팀 혼입 방지. 없으면 이름 기반 폴백.
+    var canStats=(teamId&&sp==="football"), canSquad=(teamId&&(sp==="football"||sp==="basketball"));
     var url=(teamId&&(sp==="football"||sp==="basketball"))?("/api/team/as?sport="+encodeURIComponent(sp)+"&id="+encodeURIComponent(teamId)):("/api/team/recent?name="+encodeURIComponent(name)+"&sport="+encodeURIComponent(sp));
-    fetch(url).then(function(r){return r.json()}).then(function(j){
-      var ev=(j&&j.events)||[], nx=(j&&j.next)||[], tm=j&&j.team;
-      if(!tm){ $("#tmBody").innerHTML='<div class="msg"><div class="big">🔎</div>'+tl({en:"No team profile found from our data provider.",ko:"데이터 제공처에서 팀 정보를 찾지 못했습니다.",ja:"チーム情報が見つかりません。",zh:"未找到球队资料。",es:"Perfil no encontrado.",hi:"टीम प्रोफ़ाइल नहीं मिली।",vi:"Không tìm thấy hồ sơ đội.",th:"ไม่พบข้อมูลทีม",ru:"Профиль команды не найден.",de:"Kein Teamprofil gefunden.",fr:"Profil introuvable.",it:"Profilo non trovato."})+'<br><span style="font-size:12px;color:#9aa1ad">'+esc(name)+'</span></div>'; return; }
+    function paint(){
+      var tm=dt.base&&dt.base.team; if(!tm)return;
+      var ev=(dt.base.events)||[], nx=(dt.base.next)||[];
       var fav=teamFav(tm.name||name);
-      var badge=tm.badge?'<img src="'+esc(tm.badge)+'" style="width:64px;height:64px;object-fit:contain" onerror="this.outerHTML=\'<div style=font-size:40px>🛡️</div>\'">':'<div style="font-size:40px">🛡️</div>';
+      var badge=tm.badge?'<img src="'+esc(tm.badge)+'" style="width:60px;height:60px;object-fit:contain" onerror="this.outerHTML=\'<div style=font-size:38px>🛡️</div>\'">':'<div style="font-size:38px">🛡️</div>';
+      var TAB=[["overview",tl({en:"Overview",ko:"개요",ja:"概要",zh:"概况",es:"Resumen",hi:"अवलोकन",vi:"Tổng quan",th:"ภาพรวม",ru:"Обзор",de:"Übersicht",fr:"Aperçu",it:"Panoramica"})]];
+      if(canSquad)TAB.push(["squad",tl({en:"Squad",ko:"선수단",ja:"選手",zh:"阵容",es:"Plantilla",hi:"दस्ता",vi:"Đội hình",th:"ผู้เล่น",ru:"Состав",de:"Kader",fr:"Effectif",it:"Rosa"})]);
+      if(canStats)TAB.push(["stats",tl({en:"Stats",ko:"통계",ja:"統計",zh:"数据",es:"Estadísticas",hi:"आँकड़े",vi:"Thống kê",th:"สถิติ",ru:"Статистика",de:"Statistik",fr:"Stats",it:"Statistiche"})]);
+      TAB.push(["news",t("news")]);
       var h='<div class="sv-wrap">';
-      // 헤더
       h+='<div class="sv-prof" style="align-items:center"><div class="sv-av" style="background:#fff">'+badge+'</div><div style="min-width:0;flex:1"><h3 style="margin:0 0 4px;font-size:18px;color:var(--navy)">'+esc(tm.name||name)+'</h3><div style="font-size:12.5px;color:var(--muted)">'+(tm.country?cFlag(tm.country)+" "+esc(tm.country):"")+(tm.league?(tm.country?" · ":"")+esc(tm.league):"")+'</div><button class="sv-editb" id="tmFav" style="margin-top:8px;'+(fav?"background:var(--navy);color:#fff;border-color:var(--navy)":"")+'">'+(fav?"★ "+tl({en:"Following",ko:"관심 등록됨",ja:"登録済み",zh:"已关注",es:"Siguiendo",hi:"फॉलो किया",vi:"Đang theo",th:"ติดตามแล้ว",ru:"В избранном",de:"Folgt",fr:"Suivi",it:"Seguito"}):"☆ "+tl({en:"Follow team",ko:"관심 등록",ja:"お気に入り",zh:"关注球队",es:"Seguir",hi:"फॉलो करें",vi:"Theo dõi",th:"ติดตาม",ru:"В избранное",de:"Folgen",fr:"Suivre",it:"Segui"}))+'</button></div></div>';
-      // 팀 정보 카드
-      var infoRows='';
-      if(tm.league)infoRows+='<div class="sv-row"><div class="sl">'+t("leagueRank").replace(/.*/,tl({en:"League",ko:"소속 리그",ja:"リーグ",zh:"联赛",es:"Liga",hi:"लीग",vi:"Giải",th:"ลีก",ru:"Лига",de:"Liga",fr:"Ligue",it:"Lega"}))+'</div><div class="sr">'+esc(tm.league)+'</div></div>';
-      if(tm.stadium)infoRows+='<div class="sv-row"><div class="sl">'+tl({en:"Stadium",ko:"홈구장",ja:"本拠地",zh:"主场",es:"Estadio",hi:"स्टेडियम",vi:"Sân nhà",th:"สนาม",ru:"Стадион",de:"Stadion",fr:"Stade",it:"Stadio"})+'</div><div class="sr">'+esc(tm.stadium)+'</div></div>';
-      if(tm.manager)infoRows+='<div class="sv-row"><div class="sl">'+tl({en:"Manager",ko:"감독",ja:"監督",zh:"主教练",es:"Entrenador",hi:"कोच",vi:"HLV",th:"ผจก.",ru:"Тренер",de:"Trainer",fr:"Entraîneur",it:"Allenatore"})+'</div><div class="sr">'+esc(tm.manager)+'</div></div>';
-      if(tm.formed)infoRows+='<div class="sv-row"><div class="sl">'+tl({en:"Founded",ko:"창단",ja:"創設",zh:"成立",es:"Fundado",hi:"स्थापना",vi:"Thành lập",th:"ก่อตั้ง",ru:"Основан",de:"Gegründet",fr:"Fondé",it:"Fondato"})+'</div><div class="sr">'+esc(tm.formed)+'</div></div>';
-      if(infoRows)h+='<div class="sv-sec"><div class="sv-sh">'+tl({en:"Team info",ko:"팀 정보",ja:"チーム情報",zh:"球队信息",es:"Info del equipo",hi:"टीम जानकारी",vi:"Thông tin đội",th:"ข้อมูลทีม",ru:"О команде",de:"Team-Info",fr:"Infos équipe",it:"Info squadra"})+'</div><div class="sv-card">'+infoRows+'</div></div>';
-      // 최근 흐름 + 결과
+      h+='<div class="news-seg" style="padding:4px 0 2px">'+TAB.map(function(x){return '<button class="cchip'+(dt.tab===x[0]?" on":"")+'" data-tt="'+x[0]+'"><span>'+esc(x[1])+'</span></button>';}).join("")+'</div>';
+      h+='<div id="tmTab"></div>';
+      h+='</div>';
+      $("#tmBody").innerHTML=h;
+      var fb=$("#tmFav"); if(fb)fb.onclick=function(){ var added=toggleTeamFav(tm.name||name,tm.badge); fb.outerHTML=''; paint(); toastMsg(added?tl({en:"Added to favorites",ko:"관심 팀에 추가됨",ja:"追加しました",zh:"已关注",es:"Añadido",hi:"जोड़ा गया",vi:"Đã thêm",th:"เพิ่มแล้ว",ru:"Добавлено",de:"Hinzugefügt",fr:"Ajouté",it:"Aggiunto"}):tl({en:"Removed",ko:"관심 해제됨",ja:"解除しました",zh:"已取消",es:"Eliminado",hi:"हटाया",vi:"Đã bỏ",th:"นำออกแล้ว",ru:"Удалено",de:"Entfernt",fr:"Retiré",it:"Rimosso"})); };
+      o.querySelectorAll("[data-tt]").forEach(function(b){ b.onclick=function(){ dt.tab=b.dataset.tt; paint(); }; });
+      if(dt.tab==="overview")paintOverview(tm,ev,nx);
+      else if(dt.tab==="squad")paintSquad(tm);
+      else if(dt.tab==="stats")paintStats(tm);
+      else if(dt.tab==="news")paintNews(tm);
+    }
+    function infoCard(tm){
+      var r='';
+      if(tm.league)r+='<div class="sv-row"><div class="sl">'+tl({en:"League",ko:"소속 리그",ja:"リーグ",zh:"联赛",es:"Liga",hi:"लीग",vi:"Giải",th:"ลีก",ru:"Лига",de:"Liga",fr:"Ligue",it:"Lega"})+'</div><div class="sr">'+esc(tm.league)+'</div></div>';
+      if(tm.stadium)r+='<div class="sv-row"><div class="sl">'+tl({en:"Stadium",ko:"홈구장",ja:"本拠地",zh:"主场",es:"Estadio",hi:"स्टेडियम",vi:"Sân nhà",th:"สนาม",ru:"Стадион",de:"Stadion",fr:"Stade",it:"Stadio"})+'</div><div class="sr">'+esc(tm.stadium)+'</div></div>';
+      if(tm.manager)r+='<div class="sv-row"><div class="sl">'+tl({en:"Manager",ko:"감독",ja:"監督",zh:"主教练",es:"Entrenador",hi:"कोच",vi:"HLV",th:"ผจก.",ru:"Тренер",de:"Trainer",fr:"Entraîneur",it:"Allenatore"})+'</div><div class="sr">'+esc(tm.manager)+'</div></div>';
+      if(tm.formed)r+='<div class="sv-row"><div class="sl">'+tl({en:"Founded",ko:"창단",ja:"創設",zh:"成立",es:"Fundado",hi:"स्थापना",vi:"Thành lập",th:"ก่อตั้ง",ru:"Основан",de:"Gegründet",fr:"Fondé",it:"Fondato"})+'</div><div class="sr">'+esc(tm.formed)+'</div></div>';
+      if(!r)return '';
+      return '<div class="sv-sec"><div class="sv-sh">'+tl({en:"Team info",ko:"팀 정보",ja:"チーム情報",zh:"球队信息",es:"Info del equipo",hi:"टीम जानकारी",vi:"Thông tin đội",th:"ข้อมูลทีม",ru:"О команде",de:"Team-Info",fr:"Infos équipe",it:"Info squadra"})+'</div><div class="sv-card">'+r+'</div></div>';
+    }
+    function paintOverview(tm,ev,nx){
+      var box=$("#tmTab"); if(!box)return;
+      var h='';
+      // 1) 순위 카드 영역(지연 로드) + 팀 정보
+      h+='<div id="tmRankSec"></div>';
+      h+=infoCard(tm);
+      // 2) 최근 흐름 + 결과(클릭)
       h+='<div class="sv-sec"><div class="sv-sh" style="justify-content:flex-start">'+t("recentForm")+'</div>';
       if(!ev.length){ h+='<div class="msg"><div class="big">📅</div>'+t("noRecentRec")+'</div>'; }
       else {
         var forms=ev.map(function(e){return teamResult(e,tm.name||name);}).filter(Boolean);
-        var fchips=forms.slice(0,8).map(function(r){ var c=r==="W"?"#1a9a4b":(r==="L"?"var(--red)":"#8a93a3"); return '<span style="display:inline-flex;width:24px;height:24px;border-radius:50%;background:'+c+';color:#fff;font-weight:800;font-size:12px;align-items:center;justify-content:center">'+(r==="W"?(LANG==="ko"?"승":"W"):r==="L"?(LANG==="ko"?"패":"L"):(LANG==="ko"?"무":"D"))+'</span>'; }).join(" ");
+        var fchips=forms.slice(0,8).map(function(r){ var c=r==="W"?"#1a9a4b":(r==="L"?"var(--red)":"#8a93a3"); return '<span style="display:inline-flex;width:24px;height:24px;border-radius:50%;background:'+c+';color:#fff;font-weight:800;font-size:12px;align-items:center;justify-content:center">'+tmResLabel(r)+'</span>'; }).join(" ");
         if(fchips)h+='<div style="display:flex;gap:5px;flex-wrap:wrap;padding:0 2px 10px">'+fchips+'</div>';
-        h+='<div class="sv-sub" style="margin:-4px 0 8px 2px">'+tl({en:"Based on last",ko:"최근",ja:"直近",zh:"基于最近",es:"Últimos",hi:"पिछले",vi:"Dựa trên",th:"จาก",ru:"По последним",de:"Letzte",fr:"Derniers",it:"Ultime"})+' '+ev.length+tl({en:" matches",ko:"경기 기준",ja:"試合",zh:"场",es:" partidos",hi:" मैच",vi:" trận",th:" แมตช์",ru:" матчам",de:" Spiele",fr:" matchs",it:" partite"})+'</div>';
-        h+='<div class="sv-card">'+ev.map(function(e){ var r=teamResult(e,tm.name||name); var rc=r==="W"?"#1a9a4b":(r==="L"?"var(--red)":"#8a93a3"); return '<div class="sv-row"><div class="sl" style="flex:1;min-width:0"><span style="font-size:11px;color:var(--muted);width:66px;flex:0 0 auto">'+esc(String(e.date||"").slice(5,10))+'</span><span style="min-width:0;overflow:hidden;text-overflow:ellipsis">'+esc(e.home)+' <b>'+(e.hs==null?"-":e.hs)+":"+(e.as==null?"-":e.as)+'</b> '+esc(e.away)+'</span></div>'+(r?'<div class="sr"><span style="color:'+rc+';font-weight:800">'+(r==="W"?(LANG==="ko"?"승":"W"):r==="L"?(LANG==="ko"?"패":"L"):(LANG==="ko"?"무":"D"))+'</span></div>':'')+'</div>'; }).join("")+'</div>';
+        h+='<div class="sv-card" id="tmResults">'+ev.map(function(e,i){ var r=teamResult(e,tm.name||name); var rc=r==="W"?"#1a9a4b":(r==="L"?"var(--red)":"#8a93a3"); return '<div class="sv-row tm-ev" data-i="'+i+'" style="cursor:pointer"><div class="sl" style="flex:1;min-width:0"><span style="font-size:11px;color:var(--muted);width:60px;flex:0 0 auto">'+esc(String(e.date||"").slice(5,10))+'</span><span style="min-width:0;overflow:hidden;text-overflow:ellipsis">'+esc(e.home)+' <b>'+(e.hs==null?"-":e.hs)+":"+(e.as==null?"-":e.as)+'</b> '+esc(e.away)+'</span></div>'+(r?'<div class="sr"><span style="color:'+rc+';font-weight:800">'+tmResLabel(r)+'</span> <span class="chev" style="color:var(--muted)">›</span></div>':'<div class="sr"><span class="chev" style="color:var(--muted)">›</span></div>')+'</div>'; }).join("")+'</div>';
       }
       h+='</div>';
-      // 다음 일정
+      // 3) 다음 일정
       if(nx.length){ h+='<div class="sv-sec"><div class="sv-sh">'+tl({en:"Upcoming",ko:"다음 경기 일정",ja:"今後の予定",zh:"未来赛程",es:"Próximos",hi:"आगामी",vi:"Sắp tới",th:"โปรแกรมหน้า",ru:"Расписание",de:"Kommende Spiele",fr:"À venir",it:"Prossime"})+'</div><div class="sv-card">'+nx.map(function(e){ return '<div class="sv-row"><div class="sl" style="flex:1;min-width:0"><span style="font-size:11px;color:var(--muted);width:66px;flex:0 0 auto">'+esc(String(e.date||"").slice(5,10))+(e.time?" "+esc(String(e.time).slice(0,5)):"")+'</span><span style="min-width:0;overflow:hidden;text-overflow:ellipsis">'+esc(e.home)+' <span style="color:var(--muted)">vs</span> '+esc(e.away)+'</span></div></div>'; }).join("")+'</div></div>'; }
-      h+='<div class="sv-foot">'+tl({en:"Team profile · recent & upcoming from TheSportsDB.",ko:"팀 정보·최근/다음 경기는 TheSportsDB 제공.",ja:"チーム情報はTheSportsDB提供。",zh:"球队资料来自 TheSportsDB。",es:"Datos de TheSportsDB.",hi:"डेटा: TheSportsDB।",vi:"Dữ liệu từ TheSportsDB.",th:"ข้อมูลจาก TheSportsDB",ru:"Данные TheSportsDB.",de:"Daten von TheSportsDB.",fr:"Données TheSportsDB.",it:"Dati TheSportsDB."})+'</div></div>';
-      $("#tmBody").innerHTML=h;
-      var fb=$("#tmFav"); if(fb)fb.onclick=function(){ var added=toggleTeamFav(tm.name||name,tm.badge); openTeam(name,sp,teamId); toastMsg(added?tl({en:"Added to favorites",ko:"관심 팀에 추가됨",ja:"追加しました",zh:"已关注",es:"Añadido",hi:"जोड़ा गया",vi:"Đã thêm",th:"เพิ่มแล้ว",ru:"Добавлено",de:"Hinzugefügt",fr:"Ajouté",it:"Aggiunto"}):tl({en:"Removed",ko:"관심 해제됨",ja:"解除しました",zh:"已取消",es:"Eliminado",hi:"हटाया",vi:"Đã bỏ",th:"นำออกแล้ว",ru:"Удалено",de:"Entfernt",fr:"Retiré",it:"Rimosso"})); };
-    }).catch(function(){ $("#tmBody").innerHTML='<div class="msg"><div class="big">⚠️</div>'+t("m_teamFail")+'<br><button class="refbtn" id="tmRetry" style="margin:12px auto 0">↻ '+t("retry")+'</button></div>'; var rb=$("#tmRetry"); if(rb)rb.onclick=function(){ openTeam(name,sp,teamId); }; });
+      // 4) 관련 뉴스(개요 미리보기)
+      h+='<div id="tmNewsPrev"></div>';
+      h+='<div class="sv-foot">'+tl({en:"Team profile from data provider. Tap a result to open the match or opponent.",ko:"팀 정보는 데이터 제공처 제공. 결과를 누르면 경기 또는 상대 팀으로 이동합니다.",ja:"データ提供元のチーム情報。結果をタップで試合/相手へ。",zh:"球队资料来自数据提供方。点击结果查看比赛或对手。",es:"Perfil del proveedor. Toca un resultado para ver el partido.",hi:"डेटा प्रदाता से। परिणाम टैप करें।",vi:"Hồ sơ từ nhà cung cấp. Chạm kết quả để mở trận.",th:"ข้อมูลจากผู้ให้บริการ แตะผลเพื่อเปิดแมตช์",ru:"Профиль от поставщика. Нажмите результат.",de:"Profil vom Anbieter. Ergebnis antippen.",fr:"Profil du fournisseur. Touchez un résultat.",it:"Profilo dal fornitore. Tocca un risultato."})+'</div>';
+      box.innerHTML=h;
+      // 결과 클릭 연결
+      box.querySelectorAll(".tm-ev").forEach(function(row){ row.onclick=function(){ var e=ev[+row.dataset.i]; if(e)tmOpenEvent(e,sp,tm.name||name); }; });
+      loadRankCard(tm);
+      loadNewsPrev(tm);
+    }
+    function loadRankCard(tm){
+      var sec=$("#tmRankSec"); if(!sec)return;
+      var lg=ctx.league||tm.league||"";
+      if(!lg){ sec.innerHTML=''; return; }
+      sec.innerHTML='<div class="sv-sec"><div class="sv-sh">'+tl({en:"Standings",ko:"현재 시즌 순위",ja:"順位",zh:"赛季排名",es:"Clasificación",hi:"स्टैंडिंग",vi:"BXH mùa giải",th:"อันดับฤดูกาล",ru:"Положение",de:"Tabelle",fr:"Classement",it:"Classifica"})+'</div><div class="sv-card"><div class="msg" style="padding:14px"><div class="big">⏳</div></div></div></div>';
+      fetch("/api/rank?sport="+encodeURIComponent(sp)+"&league="+encodeURIComponent(lg)).then(function(r){return r.json()}).then(function(j){
+        if(!$("#tmRankSec"))return;
+        var tb=(j&&j.table)||[]; if(!tb.length){ $("#tmRankSec").innerHTML=''; return; }
+        var nm=String(tm.name||name).toLowerCase(); var norm=function(s){return String(s||"").toLowerCase().replace(/[^a-z0-9가-힣]/g,"");};
+        var idx=tb.findIndex(function(r){ if(teamId!=null&&r.teamId!=null&&String(r.teamId)===String(teamId))return true; var tn=norm(r.team||r.name); return tn&&(tn.indexOf(norm(nm))>=0||norm(nm).indexOf(tn)>=0); });
+        var rows = idx<0?tb.slice(0,5):tb.slice(Math.max(0,idx-2),idx+3);
+        var isFb=(sp==="football");
+        var head='<tr style="font-size:11px;color:var(--muted)"><td style="padding:3px 6px">#</td><td style="padding:3px 6px">'+tl({en:"Team",ko:"팀",ja:"チーム",zh:"球队",es:"Equipo",hi:"टीम",vi:"Đội",th:"ทีม",ru:"Команда",de:"Team",fr:"Équipe",it:"Squadra"})+'</td><td>'+(isFb?"P":"G")+'</td><td>W</td>'+(isFb?'<td>D</td>':'')+'<td>L</td><td style="font-weight:800">'+(isFb?"Pts":"%")+'</td></tr>';
+        var body=rows.map(function(r){ var hi=(idx>=0&&tb[idx]===r); var tn=r.team||r.name; return '<tr class="tm-rankrow" data-tid="'+esc(r.teamId!=null?r.teamId:"")+'" data-nm="'+esc(tn)+'" style="cursor:pointer;'+(hi?"background:var(--soft);font-weight:800":"")+'"><td style="padding:5px 6px">'+(r.rank||"")+'</td><td style="padding:5px 6px">'+(r.logo?'<img src="'+esc(r.logo)+'" style="width:16px;height:16px;vertical-align:middle;margin-right:4px" onerror="this.remove()">':'')+esc(tn)+'</td><td>'+(r.played!=null?r.played:"-")+'</td><td>'+(r.win!=null?r.win:"-")+'</td>'+(isFb?'<td>'+(r.draw!=null?r.draw:"-")+'</td>':'')+'<td>'+(r.loss!=null?r.loss:"-")+'</td><td style="font-weight:800">'+(isFb?(r.points!=null?r.points:"-"):(r.pct!=null?r.pct:"-"))+'</td></tr>'; }).join("");
+        var seasonTag=(j&&j.season)?' · '+esc(String(j.season)):'';
+        $("#tmRankSec").innerHTML='<div class="sv-sec"><div class="sv-sh">'+tl({en:"Standings",ko:"현재 시즌 순위",ja:"順位",zh:"赛季排名",es:"Clasificación",hi:"स्टैंडिंग",vi:"BXH mùa giải",th:"อันดับฤดูกาล",ru:"Положение",de:"Tabelle",fr:"Classement",it:"Classifica"})+'<span style="font-size:11px;color:var(--muted);font-weight:600">'+esc(lg)+seasonTag+'</span></div><div class="sv-card" style="padding:4px 2px"><table style="width:100%;border-collapse:collapse;font-size:13px">'+head+body+'</table><div style="text-align:center;padding:8px"><button class="refbtn" id="tmRankMore">'+tl({en:"Full table",ko:"전체 순위표 보기",ja:"全順位",zh:"完整排名",es:"Tabla completa",hi:"पूरी तालिका",vi:"BXH đầy đủ",th:"ตารางเต็ม",ru:"Вся таблица",de:"Ganze Tabelle",fr:"Classement complet",it:"Classifica completa"})+' ›</button></div></div></div>';
+        $("#tmRankSec").querySelectorAll(".tm-rankrow").forEach(function(row){ row.onclick=function(){ var t2=row.dataset.nm; if(t2&&t2!==(tm.name||name))openTeam(t2,sp,row.dataset.tid||null,ctx); }; });
+        var mb=$("#tmRankMore"); if(mb)mb.onclick=function(){ openStandings(sp,lg,{home:tm.name||name,away:""}); };
+      }).catch(function(){ if($("#tmRankSec"))$("#tmRankSec").innerHTML=''; });
+    }
+    function loadNewsPrev(tm){
+      var sec=$("#tmNewsPrev"); if(!sec)return;
+      fetch("/api/news?cat="+encodeURIComponent(tmNewsCat(sp))).then(function(r){return r.json()}).then(function(j){
+        if(!$("#tmNewsPrev"))return;
+        var items=(j&&(j.items||j.news||j.articles))||(Array.isArray(j)?j:[]);
+        var words=String(tm.name||name).split(/\s+/).filter(function(w){return w.length>=3;});
+        var hit=items.filter(function(n){ var ti=String(n.title||n.headline||"").toLowerCase(); return words.some(function(w){return ti.indexOf(w.toLowerCase())>=0;}); }).slice(0,3);
+        if(!hit.length){ $("#tmNewsPrev").innerHTML=''; return; }
+        var srcTxt=tl({en:"Read original",ko:"원문 보기",ja:"原文",zh:"原文",es:"Original",hi:"मूल",vi:"Xem gốc",th:"ต้นฉบับ",ru:"Оригинал",de:"Original",fr:"Original",it:"Originale"});
+        $("#tmNewsPrev").innerHTML='<div class="sv-sec"><div class="sv-sh">'+tl({en:"Related news",ko:"관련 뉴스",ja:"関連ニュース",zh:"相关新闻",es:"Noticias",hi:"समाचार",vi:"Tin liên quan",th:"ข่าว",ru:"Новости",de:"News",fr:"Actus",it:"Notizie"})+'</div>'+hit.map(function(n){ var link=n.link||n.url||"#"; var img=n.image||n.thumbnail||""; return '<a class="sv-save" href="'+esc(link)+'" target="_blank" rel="noopener">'+(img?'<img src="'+esc(img)+'" onerror="this.style.display=\'none\'">':'<div style="width:72px;flex:0 0 auto;background:var(--soft);display:flex;align-items:center;justify-content:center;font-size:20px">📰</div>')+'<div class="sc"><div class="tt">'+esc(n.title||n.headline||"")+'</div><div class="mt">'+srcTxt+' ↗ <span style="color:var(--muted)">· ESPN</span></div></div></a>'; }).join("")+'</div>';
+      }).catch(function(){ if($("#tmNewsPrev"))$("#tmNewsPrev").innerHTML=''; });
+    }
+    function paintSquad(tm){
+      var box=$("#tmTab"); if(!box)return;
+      if(dt.squad===undefined){ box.innerHTML='<div class="msg"><div class="big">⏳</div>'+t("loading")+'</div>';
+        fetch("/api/team/squad?sport="+encodeURIComponent(sp)+"&id="+encodeURIComponent(teamId)).then(function(r){return r.json()}).then(function(j){ dt.squad=j||{players:[]}; if(dt.tab==="squad")paintSquad(tm); }).catch(function(){ dt.squad={players:[],error:1}; if(dt.tab==="squad")paintSquad(tm); });
+        return;
+      }
+      var pl=(dt.squad&&dt.squad.players)||[];
+      if(dt.squad.error){ box.innerHTML='<div class="msg"><div class="big">⚠️</div>'+t("m_loadfail")+'</div>'; return; }
+      if(!pl.length){ box.innerHTML='<div class="msg"><div class="big">👥</div>'+tl({en:"Squad not provided by our data source for this team.",ko:"이 팀 선수단은 데이터 제공처에서 제공되지 않습니다.",ja:"このチームの選手は未提供です。",zh:"数据方未提供该队阵容。",es:"Plantilla no disponible.",hi:"दस्ता उपलब्ध नहीं।",vi:"Chưa có đội hình.",th:"ไม่มีข้อมูลผู้เล่น",ru:"Состав недоступен.",de:"Kader nicht verfügbar.",fr:"Effectif indisponible.",it:"Rosa non disponibile."})+'</div>'; return; }
+      var byPos={}; pl.forEach(function(p){ var k=p.pos||tl({en:"Players",ko:"선수",ja:"選手",zh:"球员",es:"Jugadores",hi:"खिलाड़ी",vi:"Cầu thủ",th:"ผู้เล่น",ru:"Игроки",de:"Spieler",fr:"Joueurs",it:"Giocatori"}); (byPos[k]=byPos[k]||[]).push(p); });
+      var h='';
+      Object.keys(byPos).forEach(function(k){ h+='<div class="sv-sec"><div class="sv-sh">'+esc(k)+' <span style="font-size:11px;color:var(--muted);font-weight:600">'+byPos[k].length+'</span></div><div class="sv-card">'+byPos[k].map(function(p){ return '<div class="sv-row"><div class="sl" style="flex:1;min-width:0">'+(p.photo?'<img src="'+esc(p.photo)+'" style="width:26px;height:26px;border-radius:50%;object-fit:cover;margin-right:7px" onerror="this.remove()">':'')+'<span style="min-width:0;overflow:hidden;text-overflow:ellipsis">'+(p.number?'<b style="color:var(--muted);margin-right:6px">'+esc(p.number)+'</b>':'')+esc(p.name)+'</span></div>'+(p.age?'<div class="sr" style="font-size:12px;color:var(--muted)">'+tl({en:"age",ko:"나이",ja:"歳",zh:"岁",es:"edad",hi:"आयु",vi:"tuổi",th:"อายุ",ru:"возр.",de:"Alter",fr:"âge",it:"età"})+' '+esc(p.age)+'</div>':'')+'</div>'; }).join("")+'</div></div>'; });
+      h+='<div class="sv-foot">'+tl({en:"Squad from API-Sports (cached).",ko:"선수단은 API-Sports 제공(캐시).",ja:"選手はAPI-Sports提供。",zh:"阵容来自 API-Sports。",es:"Plantilla de API-Sports.",hi:"API-Sports से।",vi:"Đội hình từ API-Sports.",th:"จาก API-Sports",ru:"Состав: API-Sports.",de:"Kader: API-Sports.",fr:"Effectif API-Sports.",it:"Rosa API-Sports."})+'</div>';
+      box.innerHTML=h;
+    }
+    function paintStats(tm){
+      var box=$("#tmTab"); if(!box)return;
+      if(dt.stats===undefined){ box.innerHTML='<div class="msg"><div class="big">⏳</div>'+t("loading")+'</div>';
+        var lg=ctx.league||tm.league||""; var se=ctx.season||"";
+        fetch("/api/team/stats?sport="+encodeURIComponent(sp)+"&id="+encodeURIComponent(teamId)+"&league="+encodeURIComponent(lg)+"&season="+encodeURIComponent(se)).then(function(r){return r.json()}).then(function(j){ dt.stats=j||{stats:null}; if(dt.tab==="stats")paintStats(tm); }).catch(function(){ dt.stats={stats:null,error:1}; if(dt.tab==="stats")paintStats(tm); });
+        return;
+      }
+      if(dt.stats.error){ box.innerHTML='<div class="msg"><div class="big">⚠️</div>'+t("m_loadfail")+'</div>'; return; }
+      var s=dt.stats.stats;
+      if(!s){ box.innerHTML='<div class="msg"><div class="big">📊</div>'+tl({en:"Season stats not available for this team/league yet.",ko:"이 팀·리그 시즌 통계는 아직 제공되지 않습니다.",ja:"シーズン統計は未提供です。",zh:"暂无该队赛季数据。",es:"Sin estadísticas de temporada.",hi:"सीज़न आँकड़े नहीं।",vi:"Chưa có thống kê mùa.",th:"ยังไม่มีสถิติฤดูกาล",ru:"Нет статистики сезона.",de:"Keine Saisonstatistik.",fr:"Pas de stats de saison.",it:"Nessuna statistica."})+'</div>'; return; }
+      function row(l,v){ return (v==null||v==="")?'':'<div class="sv-row"><div class="sl">'+l+'</div><div class="sr" style="font-weight:800">'+esc(String(v))+'</div></div>'; }
+      var h='<div class="sv-sec"><div class="sv-sh">'+tl({en:"Season summary",ko:"시즌 기록 요약",ja:"シーズン要約",zh:"赛季总览",es:"Resumen temporada",hi:"सीज़न सारांश",vi:"Tóm tắt mùa",th:"สรุปฤดูกาล",ru:"Итоги сезона",de:"Saison-Übersicht",fr:"Résumé saison",it:"Riepilogo"})+(s.season?'<span style="font-size:11px;color:var(--muted);font-weight:600">'+esc(String(s.season))+'</span>':'')+'</div><div class="sv-card">';
+      h+=row(tl({en:"Played",ko:"경기수",ja:"試合",zh:"场次",es:"Jugados",hi:"खेले",vi:"Số trận",th:"ลงเล่น",ru:"Игры",de:"Spiele",fr:"Joués",it:"Giocate"}),s.played);
+      h+=row(tl({en:"Win / Draw / Loss",ko:"승 / 무 / 패",ja:"勝/分/敗",zh:"胜/平/负",es:"V/E/D",hi:"जीत/ड्रॉ/हार",vi:"T/H/B",th:"ชนะ/เสมอ/แพ้",ru:"В/Н/П",de:"S/U/N",fr:"V/N/D",it:"V/P/S"}),(s.wins!=null?s.wins:"-")+" / "+(s.draws!=null?s.draws:"-")+" / "+(s.loses!=null?s.loses:"-"));
+      h+=row(tl({en:"Goals for / against",ko:"득점 / 실점",ja:"得点/失点",zh:"进球/失球",es:"GF / GC",hi:"गोल पक्ष/विपक्ष",vi:"Bàn thắng/thua",th:"ได้/เสีย",ru:"Голы за/против",de:"Tore +/-",fr:"BP / BC",it:"GF / GS"}),(s.gf!=null?s.gf:"-")+" / "+(s.ga!=null?s.ga:"-"));
+      h+=row(tl({en:"Clean sheets",ko:"무실점 경기",ja:"完封",zh:"零封",es:"Porterías a cero",hi:"क्लीन शीट",vi:"Giữ sạch lưới",th:"คลีนชีต",ru:"Сухие матчи",de:"Zu-Null",fr:"Clean sheets",it:"Porta inviolata"}),s.cleanSheet);
+      if(s.form)h+='<div class="sv-row"><div class="sl">'+tl({en:"Recent form",ko:"최근 폼",ja:"直近フォーム",zh:"近期状态",es:"Forma",hi:"फॉर्म",vi:"Phong độ",th:"ฟอร์ม",ru:"Форма",de:"Form",fr:"Forme",it:"Forma"})+'</div><div class="sr" style="font-weight:800;letter-spacing:1px">'+esc(String(s.form).slice(-8))+'</div></div>';
+      h+='</div></div><div class="sv-foot">'+tl({en:"Season stats from API-Sports (cached).",ko:"시즌 통계는 API-Sports 제공(캐시).",ja:"統計はAPI-Sports提供。",zh:"数据来自 API-Sports。",es:"Estadísticas de API-Sports.",hi:"API-Sports से।",vi:"Thống kê từ API-Sports.",th:"จาก API-Sports",ru:"Статистика: API-Sports.",de:"Statistik: API-Sports.",fr:"Stats API-Sports.",it:"Statistiche API-Sports."})+'</div>';
+      box.innerHTML=h;
+    }
+    function paintNews(tm){
+      var box=$("#tmTab"); if(!box)return;
+      if(dt.news===undefined){ box.innerHTML='<div class="msg"><div class="big">⏳</div>'+t("loading")+'</div>';
+        fetch("/api/news?cat="+encodeURIComponent(tmNewsCat(sp))).then(function(r){return r.json()}).then(function(j){ dt.news=(j&&(j.items||j.news||j.articles))||(Array.isArray(j)?j:[]); if(dt.tab==="news")paintNews(tm); }).catch(function(){ dt.news=null; if(dt.tab==="news")paintNews(tm); });
+        return;
+      }
+      if(dt.news===null){ box.innerHTML='<div class="msg"><div class="big">⚠️</div>'+t("m_newsFail")+'</div>'; return; }
+      var words=String(tm.name||name).split(/\s+/).filter(function(w){return w.length>=3;});
+      var hit=dt.news.filter(function(n){ var ti=String(n.title||n.headline||"").toLowerCase(); return words.some(function(w){return ti.indexOf(w.toLowerCase())>=0;}); });
+      var srcTxt=tl({en:"Read original",ko:"원문 보기",ja:"原文を見る",zh:"查看原文",es:"Ver original",hi:"मूल देखें",vi:"Xem gốc",th:"อ่านต้นฉบับ",ru:"Оригинал",de:"Original lesen",fr:"Lire l'original",it:"Leggi originale"});
+      var list=hit.length?hit:dt.news.slice(0,12);
+      var note=hit.length?'':('<div class="sv-sub" style="padding:2px 2px 8px">'+tl({en:"No team-specific headlines right now — showing this sport's latest.",ko:"지금 이 팀 관련 기사가 없어 해당 종목 최신 뉴스를 표시합니다.",ja:"チーム関連記事がないため種目の最新を表示。",zh:"暂无该队相关新闻，显示该项目最新。",es:"Sin titulares del equipo; mostrando lo último.",hi:"टीम-विशिष्ट नहीं; नवीनतम दिखा रहे।",vi:"Chưa có tin riêng đội; hiển thị mới nhất.",th:"ยังไม่มีข่าวเฉพาะทีม แสดงล่าสุด",ru:"Нет новостей о команде; показаны свежие.",de:"Keine Team-News; neueste angezeigt.",fr:"Pas d'actus de l'équipe; dernières affichées.",it:"Nessuna notizia della squadra; ultime mostrate."})+'</div>');
+      if(!list.length){ box.innerHTML='<div class="msg"><div class="big">📰</div>'+tl({en:"No news right now.",ko:"지금은 뉴스가 없습니다.",ja:"ニュースなし。",zh:"暂无新闻。",es:"Sin noticias.",hi:"कोई समाचार नहीं।",vi:"Chưa có tin.",th:"ยังไม่มีข่าว",ru:"Нет новостей.",de:"Keine News.",fr:"Pas d'actus.",it:"Nessuna notizia."})+'</div>'; return; }
+      box.innerHTML=note+list.slice(0,30).map(function(n){ var link=n.link||n.url||"#"; var img=n.image||n.thumbnail||""; var when=n.pubDate||n.published||n.date||""; return '<a class="sv-save" href="'+esc(link)+'" target="_blank" rel="noopener">'+(img?'<img src="'+esc(img)+'" onerror="this.style.display=\'none\'">':'<div style="width:92px;flex:0 0 auto;background:var(--soft);display:flex;align-items:center;justify-content:center;font-size:24px">📰</div>')+'<div class="sc"><div class="tt">'+esc(n.title||n.headline||"")+'</div><div class="mt">'+srcTxt+' ↗ <span style="color:var(--muted)">· ESPN'+(when?' · '+esc(String(when).slice(0,16)):'')+'</span></div></div></a>'; }).join("");
+    }
+    fetch(url).then(function(r){return r.json()}).then(function(j){
+      if(!j||!j.team){ $("#tmBody").innerHTML='<div class="msg"><div class="big">🔎</div>'+tl({en:"No team profile found from our data provider.",ko:"데이터 제공처에서 팀 정보를 찾지 못했습니다.",ja:"チーム情報が見つかりません。",zh:"未找到球队资料。",es:"Perfil no encontrado.",hi:"टीम प्रोफ़ाइल नहीं मिली।",vi:"Không tìm thấy hồ sơ đội.",th:"ไม่พบข้อมูลทีม",ru:"Профиль команды не найден.",de:"Kein Teamprofil gefunden.",fr:"Profil introuvable.",it:"Profilo non trovato."})+'<br><span style="font-size:12px;color:#9aa1ad">'+esc(name)+'</span></div>'; return; }
+      dt.base=j; paint();
+    }).catch(function(){ $("#tmBody").innerHTML='<div class="msg"><div class="big">⚠️</div>'+t("m_teamFail")+'<br><button class="refbtn" id="tmRetry" style="margin:12px auto 0">↻ '+t("retry")+'</button></div>'; var rb=$("#tmRetry"); if(rb)rb.onclick=function(){ openTeam(name,sp,teamId,ctx); }; });
   }
   // ====== 뉴스 화면 (종목별 ESPN 피드 탭, 이미지 04) ======
   function openNews(){

@@ -21,7 +21,7 @@ const app = express();
 const server = http.createServer(app);
 
 const PORT = process.env.PORT || 3000;
-const APP_VERSION = 'v369';
+const APP_VERSION = 'v370';
 
 // ============================================================
 //  📏 성능 계측(instrumentation) — 엔드포인트 지연·캐시·공급사·WS·이벤트루프
@@ -1119,6 +1119,65 @@ app.get('/api/team/as', async (req, res) => {
     }
     return res.json({ team: null, events: [], next: [], note: 'sport-todo' });
   } catch (e) { return res.json({ team: null, events: [], next: [], error: String(e.message || e) }); }
+});
+
+// 팀 선수단 (쿼터 보호: 24h 장기 캐시 — 탭을 열 때만 1회 호출, 전 지역 공유 캐시)
+app.get('/api/team/squad', async (req, res) => {
+  const sport = String(req.query.sport || 'football').toLowerCase();
+  const id = req.query.id;
+  if (!APISPORTS_KEY) return res.json({ players: [], note: 'needKey' });
+  if (!id) return res.json({ players: [], note: 'noId' });
+  try {
+    if (sport === 'football') {
+      const j = await asRaw('football', `/players/squads?team=${encodeURIComponent(id)}`, 86400000).catch(() => null);
+      const sq = j && j.response && j.response[0];
+      const players = ((sq && sq.players) || []).map(p => ({ id: p.id, name: p.name, number: p.number, pos: p.position, photo: p.photo || '', age: p.age }));
+      return res.json({ players, note: players.length ? '' : 'empty' });
+    }
+    if (sport === 'basketball') {
+      const season = hoopSeason();
+      const j = await asRaw('basketball', `/players?team=${encodeURIComponent(id)}&season=${encodeURIComponent(season)}`, 86400000).catch(() => null);
+      const players = ((j && j.response) || []).map(p => ({ id: p.id, name: ((p.firstname || '') + ' ' + (p.lastname || '')).trim(), number: '', pos: (p.leagues && p.leagues.standard && p.leagues.standard.pos) || '', photo: '', age: p.age })).filter(p => p.name);
+      return res.json({ players, note: players.length ? '' : 'empty' });
+    }
+    return res.json({ players: [], note: 'sport-todo' });
+  } catch (e) { return res.json({ players: [], error: String(e.message || e) }); }
+});
+
+// 팀 시즌 통계 (쿼터 보호: 6h 장기 캐시 — 탭을 열 때만 호출). 축구만 제공사 통계 지원.
+app.get('/api/team/stats', async (req, res) => {
+  const sport = String(req.query.sport || 'football').toLowerCase();
+  const id = req.query.id, league = req.query.league, season = req.query.season;
+  if (!APISPORTS_KEY) return res.json({ stats: null, note: 'needKey' });
+  if (!id) return res.json({ stats: null, note: 'noId' });
+  try {
+    if (sport === 'football') {
+      let lid = AF_RANK_ID[league] || (/^\d+$/.test(String(league || '')) ? league : null);
+      if (!lid) return res.json({ stats: null, note: 'noLeague' });
+      const m = String(season || '').match(/\d{4}/); const sy = m ? +m[0] : new Date().getFullYear();
+      let j = null;
+      for (const s of [sy, sy - 1]) {
+        j = await asRaw('football', `/teams/statistics?team=${encodeURIComponent(id)}&league=${encodeURIComponent(lid)}&season=${s}`, 21600000).catch(() => null);
+        if (j && j.response && j.response.fixtures && j.response.fixtures.played && j.response.fixtures.played.total != null) { j._sy = s; break; }
+        j = null;
+      }
+      const r = j && j.response;
+      if (!r) return res.json({ stats: null, note: 'empty' });
+      const gi = o => (o && o.total && o.total.total != null) ? o.total.total : (o && o.total != null ? o.total : null);
+      const stats = {
+        season: j._sy,
+        played: r.fixtures && r.fixtures.played && r.fixtures.played.total,
+        wins: r.fixtures && r.fixtures.wins && r.fixtures.wins.total,
+        draws: r.fixtures && r.fixtures.draws && r.fixtures.draws.total,
+        loses: r.fixtures && r.fixtures.loses && r.fixtures.loses.total,
+        gf: gi(r.goals && r.goals.for), ga: gi(r.goals && r.goals.against),
+        form: r.form || '', cleanSheet: r.clean_sheet && r.clean_sheet.total,
+        failedToScore: r.failed_to_score && r.failed_to_score.total
+      };
+      return res.json({ stats });
+    }
+    return res.json({ stats: null, note: 'sport-todo' });
+  } catch (e) { return res.json({ stats: null, error: String(e.message || e) }); }
 });
 
 // ============================================================
