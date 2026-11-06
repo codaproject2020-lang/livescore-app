@@ -2390,11 +2390,7 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
     // 헤더
     var head=el("div","iz-head"); head.innerHTML='<h2>'+t("insight")+'</h2><p>'+tl({en:"Match flow through the records",ko:"기록으로 보는 경기 흐름",ja:"記録で見る試合の流れ",zh:"用数据看比赛走势",es:"El juego a través de los datos",hi:"आँकड़ों से मैच प्रवाह",vi:"Dòng chảy trận đấu qua số liệu",th:"ดูเกมผ่านสถิติ",ru:"Ход матча по данным",de:"Spielverlauf in Zahlen",fr:"Le match par les données",it:"Il flusso della partita nei dati"})+'</p>';
     v.appendChild(head);
-    // 종목 칩
-    var sports=[["football","⚽"],["basketball","🏀"],["baseball","⚾"],["volleyball","🏐"],["hockey","🏒"]];
-    var chips=el("div","filters");
-    sports.forEach(function(s){ var c=el("button","chip"+(S.sport===s[0]?" on":""),s[1]+" "+t(s[0])); c.onclick=function(){ if(S.sport!==s[0]){ S.sport=s[0]; S.country=""; S.leagueF=""; } if(!S.data[key()]){ load(); } else { renderInsight(); } }; chips.appendChild(c); });
-    v.appendChild(chips);
+    // (종목 선택은 상단 고정 종목 탭을 사용 — 인사이트 내 중복 칩 제거: 명령서 2)
     var d=S.data[key()]; var games=(d&&d.games)||[];
     if(!d){ v.appendChild(el("div","msg",'<div class="big">⏳</div>'+t("loading"))); return; }
     if(d.unsupported){ v.appendChild(el("div","msg",'<div class="big">🧩</div>'+tl({en:"This sport isn't available yet.",ko:"이 종목은 아직 제공되지 않습니다.",ja:"未提供です。",zh:"暂未提供。",es:"No disponible.",hi:"उपलब्ध नहीं।",vi:"Chưa hỗ trợ.",th:"ยังไม่รองรับ",ru:"Недоступно.",de:"Nicht verfügbar.",fr:"Indisponible.",it:"Non disponibile."}))); return; }
