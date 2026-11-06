@@ -21,7 +21,7 @@ const app = express();
 const server = http.createServer(app);
 
 const PORT = process.env.PORT || 3000;
-const APP_VERSION = 'v385';
+const APP_VERSION = 'v386';
 
 // ============================================================
 //  📏 성능 계측(instrumentation) — 엔드포인트 지연·캐시·공급사·WS·이벤트루프
@@ -1810,14 +1810,32 @@ async function tsFootballGames(date) {
   const live = {};
   try {
     const lv = await tsFetch('/football/match/detail_live', {}, 6000);
-    (lv.results || []).forEach(m => { const s = m.score || m; if (Array.isArray(s)) live[s[0]] = { st: s[1], h: (s[2] || [])[0], a: (s[3] || [])[0] }; });
+    // TheSports 축구 detail_live score 배열: [matchId, status_id, home_scores[], away_scores[], 현재하프_킥오프_timestamp(초)]
+    (lv.results || []).forEach(m => { const s = m.score || m; if (Array.isArray(s)) live[s[0]] = { st: s[1], h: (s[2] || [])[0], a: (s[3] || [])[0], ts: s[4] }; });
   } catch (e) {}
+  // status_id → 하프 시작까지 누적초(base). 2=1H시작, 3=HT(45:00 고정), 4=2H시작(+45분), 5=연장(+90분)
+  const FT_BASE = { 2: 0, 3: 45 * 60, 4: 45 * 60, 5: 90 * 60 };
+  const FT_RUN = { 2: 1, 4: 1, 5: 1 };   // 실제로 시계가 흐르는 하프(HT·PEN 제외)
+  const nowSec = Math.floor(Date.now() / 1000);
   return (d.results || []).map(m => {
     const ht = teams[m.home_team_id] || {}, at = teams[m.away_team_id] || {}, cp = comps[m.competition_id] || {};
     const lvm = live[m.id];
     const sid = lvm ? lvm.st : m.status_id;
     let hs = m.home_scores ? m.home_scores[0] : null, as = m.away_scores ? m.away_scores[0] : null;
     if (lvm) { if (lvm.h != null) hs = lvm.h; if (lvm.a != null) as = lvm.a; }
+    // ⏱️ #6 경기시계: 현재 하프 킥오프 timestamp가 '검증 가능'할 때만 초 단위 제공.
+    //    교차검증: (지금 - ts)가 0~70분 범위여야 '현재 하프의 시작'으로 인정(1H킥오프가 2H에 그대로 오는 등 오탐 차단).
+    //    범위 밖이면 초 미제공(ftTs=null) → 프론트는 분/하프 라벨만 정직하게 표시.
+    let ftTs = null, ftBase = 0, ftRun = 0, ftCap = 0, elapsed = null;
+    const sidN = Number(sid);
+    if (lvm && lvm.ts && tsFootState(sid) === 'live' && FT_BASE[sidN] != null) {
+      const within = nowSec - Number(lvm.ts);
+      if (within >= 0 && within <= 70 * 60) {
+        ftTs = Number(lvm.ts); ftBase = FT_BASE[sidN]; ftRun = FT_RUN[sidN] ? 1 : 0;
+        ftCap = ftBase + 70 * 60;
+        elapsed = Math.floor((ftBase + (ftRun ? within : 0)) / 60);
+      }
+    }
     return {
       id: m.id, sport: 'football', tsid: m.id,
       home: ht.name || m.home_team_id, away: at.name || m.away_team_id,
@@ -1825,7 +1843,8 @@ async function tsFootballGames(date) {
       homeTid: m.home_team_id, awayTid: m.away_team_id,
       league: cp.name || '', leagueLogo: cp.logo || '', leagueId: m.competition_id || '', country: cp.country || '',
       hs, as, state: tsFootState(sid), status: tsFootStatus(sid), statusLong: '',
-      date: m.match_time ? new Date(m.match_time * 1000).toISOString() : null, elapsed: null
+      date: m.match_time ? new Date(m.match_time * 1000).toISOString() : null,
+      elapsed, ftTs, ftBase, ftRun, ftCap
     };
   });
 }
@@ -3132,6 +3151,7 @@ app.get('/api/asports/events', async (req, res) => {
       type: ev.type || '',
       detail: ev.detail || '',
       player: ev.player ? ev.player.name : '',
+      pid: ev.player ? ev.player.id : null,
       assist: ev.assist ? ev.assist.name : ''
     }));
     res.json({ events });
