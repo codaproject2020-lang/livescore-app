@@ -276,6 +276,28 @@ img{display:block}
 .chipq{font-size:11px;font-weight:700;color:var(--text);background:var(--soft);border-radius:6px;padding:2px 8px;white-space:nowrap}
 .vb-cur{font-size:11.5px;font-weight:900;color:#fff;background:var(--red);border-radius:6px;padding:2px 9px;white-space:nowrap}
 .vb-cur b{font-weight:900;margin-right:3px;opacity:.92}
+table.vbset td.vbset-cur{color:var(--red);font-weight:900;background:rgba(223,18,59,.06)}
+.vb-curset{display:flex;align-items:center;justify-content:space-between;gap:10px;background:#eef6ef;border:1px solid #cfe6d2;border-radius:10px;padding:10px 12px;margin:10px 0}
+html[data-theme="dark"] .vb-curset{background:#17311f;border-color:#2b5a37}
+.vb-curset-l{font-size:12px;font-weight:800;color:#1aa65a}
+.vb-curset-r{display:flex;align-items:center;gap:8px;font-size:13px;font-weight:800}
+.vb-curset-r em{font-style:normal;color:var(--muted);font-size:11.5px;margin:0 4px}
+.vb-curset-r b{font-size:19px}.vb-curset-r .sep{color:#8a93a3}
+.vb-keyrec{display:flex;gap:10px}
+.vb-keyrec .kr{flex:1;background:var(--soft);border-radius:10px;padding:10px;text-align:center}
+.vb-keyrec .kr .v{display:block;font-weight:900;font-size:17px}
+.vb-keyrec .kr .l{display:block;font-size:11.5px;color:var(--muted);margin-top:2px}
+.ov-links{display:flex;flex-direction:column;gap:7px;margin-top:14px}
+.ov-link{display:flex;justify-content:space-between;align-items:center;width:100%;border:1px solid var(--line);background:var(--card,#fff);border-radius:10px;padding:11px 13px;font-weight:800;font-size:13.5px;color:var(--text);cursor:pointer}
+.vb-h2h-sum{text-align:center;background:var(--soft);border-radius:10px;padding:9px;font-weight:700;font-size:13px;margin-bottom:10px}
+.vb-grow{display:flex;align-items:center;gap:8px;padding:9px 6px;border-bottom:1px solid var(--line);cursor:pointer}
+.vb-grow-dt{min-width:70px;font-size:11px;color:#8a93a3}.vb-grow-dt span{display:block;font-size:10px}
+.vb-grow-tm{flex:1;font-size:12.5px;font-weight:700}.vb-grow-tm b{margin:0 5px}
+.rec-r{font-size:11px;font-weight:900;border-radius:5px;padding:2px 7px}
+.rec-r.w{color:#1aa65a;background:#e7f6ec}.rec-r.l{color:var(--red);background:#fdecef}.rec-r.s{color:#64707f;background:var(--soft)}
+table.rank tr.rk-hl{background:rgba(20,39,72,.06)}table.rank tr.rk-hl td{font-weight:800}
+html[data-theme="dark"] table.rank tr.rk-hl{background:rgba(156,194,255,.1)}
+.rk-lg{width:18px;height:18px;object-fit:contain;vertical-align:middle;margin-right:5px}
 .chipq .qk{color:var(--muted);font-weight:800;margin-right:6px}
 .pl-c{cursor:pointer}.pl.pl-c .pn{text-decoration:underline;text-decoration-color:rgba(43,91,181,.35)}.subchip.pl-c:active{opacity:.6}
 .evsc{margin-left:auto;font-weight:900;color:var(--navy);background:var(--soft);border-radius:6px;padding:1px 7px;font-size:12px}
@@ -698,7 +720,23 @@ var SUP={"esports":["Esports","e스포츠","eスポーツ","电竞","Esports","�
 "scoreOnly":["Scoring only","득점만","得点のみ","仅得分","Solo anotación","केवल स्कोर","Chỉ ghi điểm","เฉพาะทำแต้ม","Только очки","Nur Punkte","Points seuls","Solo punti"],
 "qScore":["Period","쿼터 득점","クォーター得点","节得分","Periodo","पीरियड","Hiệp","ควอเตอร์","Период","Viertel","Période","Periodo"],
 "cumScore":["Total","누적","累計","累计","Total","कुल","Tổng","สะสม","Итог","Gesamt","Total","Totale"],
-"noScorePlays":["No scoring plays in this period.","이 쿼터 득점 플레이가 없습니다.","このクォーターの得点はありません。","本节无得分。","Sin anotaciones en este periodo.","इस पीरियड में कोई स्कोर नहीं।","Không có pha ghi điểm trong hiệp này.","ไม่มีการทำแต้มในควอเตอร์นี้","Нет результативных моментов.","Keine Punkte in diesem Viertel.","Aucun point dans cette période.","Nessun punto in questo periodo."]};
+"noScorePlays":["No scoring plays in this period.","이 쿼터 득점 플레이가 없습니다.","このクォーターの得点はありません。","本节无得分。","Sin anotaciones en este periodo.","इस पीरियड में कोई स्कोर नहीं।","Không có pha ghi điểm trong hiệp này.","ไม่มีการทำแต้มในควอเตอร์นี้","Нет результативных моментов.","Keine Punkte in diesem Viertel.","Aucun point dans cette période.","Nessun punto in questo periodo."],
+"team":["Team","팀","チーム","球队","Equipo","टीम","Đội","ทีม","Команда","Team","Équipe","Squadra"],
+"curSet":["Current set","현재 세트","現在のセット","当前局","Set actual","वर्तमान सेट","Set hiện tại","เซตปัจจุบัน","Текущий сет","Aktueller Satz","Set actuel","Set attuale"],
+"vbTotalPts":["Total points","총 득점","総得点","总得分","Puntos totales","कुल अंक","Tổng điểm","แต้มรวม","Всего очков","Gesamtpunkte","Points totaux","Punti totali"],
+"vbServePt":["Serve pts","서브 시 득점","サーブ得点","发球得分","Pts al saque","सर्व अंक","Điểm giao","แต้มเสิร์ฟ","Очки на подаче","Aufschlagpunkte","Pts au service","Pt al servizio"],
+"vbRecvPt":["Receive pts","리시브 시 득점","レシーブ得点","接发得分","Pts recepción","रिसीव अंक","Điểm đỡ","แต้มรับ","Очки на приёме","Annahmepunkte","Pts réception","Pt in ricezione"],
+"vbMaxRun":["Longest run","최다 연속 득점","最多連続得点","最多连续得分","Mejor racha","सर्वाधिक लगातार","Chuỗi điểm dài nhất","ทำแต้มติดสูงสุด","Макс. серия","Längste Serie","Meilleure série","Serie più lunga"],
+"h2hTab":["H2H","맞대결","対戦","交锋","Enfrentamientos","आमना-सामना","Đối đầu","เจอกัน","Личные встречи","Duelle","Face-à-face","Precedenti"],
+"winShort":["W","승","勝","胜","G","जी","T","ช","В","S","V","V"],
+"lossShort":["L","패","敗","负","P","हा","B","พ","П","N","D","P"],
+"scheduledShort":["Sched.","예정","予定","未开","Prog.","निर्धारित","Dự kiến","กำหนด","Запл.","Geplant","Prévu","Prog."],
+"matchesUnit":["matches","경기","試合","场","partidos","मैच","trận","แมตช์","матчей","Spiele","matchs","gare"],
+"playedShort":["P","경기","試","赛","PJ","खे","T","ลง","И","Sp","J","G"],
+"ptsShort":["Pts","승점","勝点","积分","Pts","अंक","Điểm","คะแนน","Очки","Pkt","Pts","Pti"],
+"gamesTab":["Matches","경기","試合","比赛","Partidos","मैच","Trận","แมตช์","Матчи","Spiele","Matchs","Gare"],
+"upcoming":["Upcoming","다가오는 경기","今後の試合","即将开始","Próximos","आगामी","Sắp tới","ที่จะถึง","Предстоящие","Kommende","À venir","Prossime"],
+"recentGames":["Recent","최근 경기","最近の試合","近期比赛","Recientes","हाल के","Gần đây","ล่าสุด","Недавние","Letzte","Récents","Recenti"]};
 for(var _k in SUP){STR[_k]=SUP[_k];}
 var LANG=(function(){try{return localStorage.getItem('liveup_lang_user')||localStorage.getItem('liveup_lang')||'en';}catch(e){return 'en';}})();
 function setLangV(l){LANG=l;try{localStorage.setItem('liveup_lang_user',l);localStorage.setItem('liveup_lang',l);}catch(e){}}
@@ -1397,6 +1435,15 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
         if(["overview","stats","record","events"].indexOf(_dt.tab)>=0) renderDetailBody();
       }).catch(function(){});
     }
+    // 🏐 배구(TheSports) → API-Sports 팀/리그/시즌 id 1회 해석(순위·맞대결·일정 연결). 공유 캐시.
+    if(S.sport==="volleyball"&&g.homeId==null&&!g._vbTried){
+      g._vbTried=true;
+      fetch("/api/volleyball/resolve?home="+encodeURIComponent(g.home)+"&away="+encodeURIComponent(g.away)+"&league="+encodeURIComponent(g.leagueOrig||g.league||"")+"&season="+encodeURIComponent(g.season||"")).then(function(r){return r.json();}).then(function(j){
+        if(!_dt||_dt.g!==g||!j||!j.found)return;
+        g.vbHomeId=j.homeId; g.vbAwayId=j.awayId; g.vbLeagueId=j.leagueId; g.vbSeason=j.season;
+        if(["overview","vbh2h","vbrank"].indexOf(_dt.tab)>=0) renderDetailBody();
+      }).catch(function(){});
+    }
     // 🎬 등록된 공식 하이라이트가 있으면 탭 추가(있을 때만)
     (function(sp,id){ fetch("/api/highlight?sport="+encodeURIComponent(sp)+"&id="+encodeURIComponent(id)).then(function(r){return r.json()}).then(function(j){
       if(!_dt||_dt.g!==g)return; _dt.hl=(j&&j.highlight)||null; if(_dt.hl)renderDetail();
@@ -1407,6 +1454,7 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
     if(sport==="football") return [["overview",t("overview")],["stats",t("statsTab")],["lineup",t("lineup")],["events",t("eventsTab")],["record",t("recordTab")],["chat",t("chat")]];
     if(sport==="baseball") return [["overview",t("overview")],["box",t("boxTab")],["chat",t("chat")]];
     if(sport==="basketball") return [["overview",t("overview")],["bsklineup",t("lineup")],["box",t("playerRec")],["bskteam",t("teamStat")],["bskflow",t("flowTab")],["bskrec",t("recordTab")],["chat",t("chat")]];
+    if(sport==="volleyball") return [["overview",t("overview")],["vbstats",t("statsTab")],["vbh2h",t("h2hTab")],["vbrank",t("standings")],["chat",t("chat")]];
     return [["overview",t("overview")],["chat",t("chat")]];
   }
   function renderDetail(){
@@ -1465,7 +1513,12 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
     var g=_dt.g, sport=_dt.sport, tab=_dt.tab;
     if(tab==="chat"){ return renderChat(g); }
     if(tab==="highlight"){ return renderHighlight(g); }
-    if(tab==="overview"){ return renderOverview(g,sport); }
+    if(tab==="overview"){ if(sport==="volleyball") return loadVolleyOverview(g); return renderOverview(g,sport); }
+    if(sport==="volleyball"){
+      if(tab==="vbstats") return loadVolleyStats(g);
+      if(tab==="vbh2h") return loadVolleyH2H(g);
+      if(tab==="vbrank") return loadVolleyRank(g);
+    }
     if(sport==="football"){
       if(tab==="lineup") return loadFootballLineup(g);
       if(tab==="events") return loadFootballEvents(g);
@@ -2133,6 +2186,158 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
     }catch(e){ dtBody('<div class="msg">'+t("m_chatNA")+'</div>'); }
   }
 
+  // ====== 🏐 배구 상세: 개요 · 통계 · 맞대결 · 순위 (A2~A4) ======
+  function vbNoCover(){ return '<div class="msg"><div class="big">📋</div>'+tl({en:"Standings/records not covered for this league by our data provider.",ko:"이 리그는 제공사 순위·기록 데이터가 없어 맞대결·순위를 표시할 수 없습니다.",ja:"このリーグは提供元の順位・記録データがありません。",zh:"该联赛暂无数据提供方的排名/记录。",es:"Clasificación/registros no disponibles para esta liga.",hi:"इस लीग के लिए स्टैंडिंग/रिकॉर्ड उपलब्ध नहीं।",vi:"Giải này chưa có dữ liệu BXH/lịch sử.",th:"ลีกนี้ยังไม่มีข้อมูลอันดับ/สถิติ",ru:"Для этой лиги нет данных о таблице/истории.",de:"Keine Tabellen-/Verlaufsdaten für diese Liga.",fr:"Classement/historique indisponibles pour cette ligue.",it:"Classifica/storico non disponibili per questa lega."})+'</div>'; }
+  // 세트별 점수표(완료·현재·미시작 구분)
+  function vbSetsTable(g){
+    var ss=g.setScores||[]; if(!ss.length)return '';
+    var live=stateOf(g)==="live";
+    var h='<table class="rank vbset"><thead><tr><th style="text-align:left">'+t("team")+'</th>';
+    for(var i=0;i<ss.length;i++){ h+='<th>'+(i+1)+'S</th>'; }
+    h+='<th>'+t("setScore")+'</th></tr></thead><tbody>';
+    function row(away){ var r='<tr><td class="tm" style="text-align:left">'+haBadge(away)+' '+esc(away?g.away:g.home)+'</td>';
+      ss.forEach(function(p,i){ var v=away?p.away:p.home; var cur=live&&i===ss.length-1; r+='<td class="'+(cur?"vbset-cur":"")+'">'+(v==null?"-":v)+'</td>'; });
+      r+='<td style="font-weight:900">'+(away?(g.as==null?"-":g.as):(g.hs==null?"-":g.hs))+'</td></tr>'; return r; }
+    return h+row(false)+row(true)+'</tbody></table>';
+  }
+  function loadVolleyOverview(g){
+    var live=stateOf(g)==="live"; var ss=g.setScores||[];
+    var h='<div class="dt-sec-t">'+tl({en:"Set scores",ko:"세트별 점수",ja:"セット別スコア",zh:"各局比分",es:"Puntos por set",hi:"सेट स्कोर",vi:"Điểm từng set",th:"คะแนนแต่ละเซต",ru:"Счёт по сетам",de:"Satzergebnisse",fr:"Scores par set",it:"Punteggi set"})+'</div>'+vbSetsTable(g);
+    if(live){ var cur=g.livePts||(ss.length?ss[ss.length-1]:null); var curN=g.period||ss.length;
+      if(cur&&(cur.home!=null||cur.away!=null)){
+        h+='<div class="vb-curset"><div class="vb-curset-l">'+periodColLabel("volleyball",curN-1,false)+' · '+t("curSet")+'</div><div class="vb-curset-r"><span><em>'+esc(g.home)+'</em><b>'+(cur.home==null?0:cur.home)+'</b></span><span class="sep">:</span><span><b>'+(cur.away==null?0:cur.away)+'</b><em>'+esc(g.away)+'</em></span></div></div>';
+      }
+    }
+    // 주요 기록: 세트 승수 + 총득점(세트 점수 합 — 확실)
+    var totH=0,totA=0,hasPts=false; ss.forEach(function(p){ if(p.home!=null){totH+=p.home;hasPts=true;} if(p.away!=null)totA+=p.away; });
+    h+='<div class="dt-sec-t" style="margin-top:14px">'+t("keyStats")+'</div><div class="vb-keyrec">';
+    h+='<div class="kr"><span class="v">'+(g.hs==null?"-":g.hs)+' : '+(g.as==null?"-":g.as)+'</span><span class="l">'+t("setScore")+'</span></div>';
+    if(hasPts) h+='<div class="kr"><span class="v">'+totH+' : '+totA+'</span><span class="l">'+t("vbTotalPts")+'</span></div>';
+    h+='</div>';
+    h+='<div class="ov-links"><button class="ov-link" data-go="vbstats">📊 '+t("statsTab")+' ›</button><button class="ov-link" data-go="vbh2h">⚔️ '+t("h2hTab")+' ›</button><button class="ov-link" data-go="vbrank">🏆 '+t("standings")+' ›</button></div>';
+    dtBody(h);
+    var db=$("#dtBody"); if(db)db.querySelectorAll(".ov-link").forEach(function(b){ b.onclick=function(){ _dt.tab=b.dataset.go; renderDetail(); }; });
+  }
+  // 통계: 전체/세트 전환 + 서브·리시브·총득점 비교막대(실데이터·교차검증된 statId 매핑)
+  var _vbStatSel=0;
+  function loadVolleyStats(g){
+    if(g.id.indexOf("ts")!==0){ dtBody('<div class="msg"><div class="big">📊</div>'+t("noStatsShow")+'</div>'); return; }
+    dtLoading(); var tk=_dtTok;
+    fetch("/api/volleyball/live?id="+encodeURIComponent(g.id)).then(function(r){return r.json();}).then(function(j){
+      if(!dtFresh(tk))return;
+      if(!j||!j.found||!j.scopes||!j.scopes.length){ dtBody('<div class="msg"><div class="big">📊</div>'+tl({en:"Live stats are provided during the match.",ko:"경기 통계는 진행 중에 제공됩니다.",ja:"試合統計は進行中に提供されます。",zh:"比赛统计在进行中提供。",es:"Estadísticas disponibles durante el partido.",hi:"लाइव आँकड़े मैच के दौरान।",vi:"Thống kê có trong trận đấu.",th:"สถิติมีระหว่างแข่ง",ru:"Статистика доступна во время матча.",de:"Live-Statistik während des Spiels.",fr:"Stats pendant le match.",it:"Statistiche durante la gara."})+'</div>'); return; }
+      _dt._vbScopes=j.scopes; renderVolleyStats(g);
+    }).catch(function(){ dtBody('<div class="msg">⚠️ '+t("loadFailRetry")+'</div>'); });
+  }
+  function renderVolleyStats(g){
+    var scopes=_dt._vbScopes||[]; var nSets=scopes.filter(function(s){return s.scope>0;}).length;
+    if(_vbStatSel>nSets)_vbStatSel=0;
+    var sc=scopes.find(function(s){return s.scope===_vbStatSel;})||scopes[0];
+    var map={}; (sc.rows||[]).forEach(function(r){ map[r.id]=r; });
+    function pr(id){ var r=map[id]; return r?r:{home:null,away:null}; }
+    function pct(v){ return v==null?"-":(Math.round(v*1000)/10)+"%"; }
+    function num(v){ return v==null?"-":v; }
+    function bar(label,hv,av,hn,an){ hn=+hn||0; an=+an||0; var tt=hn+an||1; var hw=(hn===an)?0:(hn>an?1:-1);
+      return '<div class="stbar"><div class="lab"><span class="'+(hw>0?"stw":"")+'">'+hv+'</span><span style="color:#8a93a3">'+label+'</span><span class="'+(hw<0?"stw":"")+'">'+av+'</span></div><div class="tr"><div class="h" style="width:'+(hn/tt*100)+'%"></div><div class="a" style="width:'+(an/tt*100)+'%"></div></div></div>'; }
+    var segs='<div class="st-seg"><button class="'+(_vbStatSel===0?"on":"")+'" data-s="0">'+t("filterAll")+'</button>';
+    for(var i=1;i<=nSets;i++){ segs+='<button class="'+(_vbStatSel===i?"on":"")+'" data-s="'+i+'">'+i+'S</button>'; }
+    segs+='</div>';
+    var tp=pr(3), sv=pr(6), svA=pr(7), svR=pr(8), rc=pr(9), rcA=pr(10), rcR=pr(11), mx=pr(2);
+    var h='<div style="display:flex;justify-content:space-between;font-weight:800;margin-bottom:8px"><span>'+esc(g.home)+'</span><span>'+esc(g.away)+'</span></div>'+segs;
+    h+=bar(t("vbTotalPts"), num(tp.home), num(tp.away), tp.home, tp.away);
+    h+=bar(t("vbServePt")+" "+pct(svR.home)+" / "+pct(svR.away), num(sv.home)+"/"+num(svA.home), num(sv.away)+"/"+num(svA.away), sv.home, sv.away);
+    h+=bar(t("vbRecvPt")+" "+pct(rcR.home)+" / "+pct(rcR.away), num(rc.home)+"/"+num(rcA.home), num(rc.away)+"/"+num(rcA.away), rc.home, rc.away);
+    h+=bar(t("vbMaxRun"), num(mx.home), num(mx.away), mx.home, mx.away);
+    h+='<p style="color:#8a93a3;font-size:11px;margin-top:10px">'+tl({en:"From live feed. Some detail (aces, serve errors, timeouts) is not separated by the provider.",ko:"실시간 피드 기준. 일부 세부(에이스·서브 실책·타임아웃)는 공급사가 개별 제공하지 않습니다.",ja:"ライブ基準。一部(エース・サーブミス・タイムアウト)は個別提供なし。",zh:"基于实时数据。部分细项(发球直得/失误/暂停)供应商未单独提供。",es:"En vivo. Algunos detalles no los separa el proveedor.",hi:"लाइव फ़ीड। कुछ विवरण प्रदाता अलग नहीं देता।",vi:"Từ dữ liệu trực tiếp. Một số chi tiết nhà cung cấp không tách.",th:"จากฟีดสด บางรายการผู้ให้บริการไม่แยก",ru:"По лайв-данным. Часть деталей провайдер не разделяет.",de:"Aus Live-Daten. Einige Details trennt der Anbieter nicht.",fr:"En direct. Certains détails non séparés par le fournisseur.",it:"Dal vivo. Alcuni dettagli non separati dal fornitore."})+'</p>';
+    dtBody(h);
+    var db=$("#dtBody"); if(db)db.querySelectorAll(".st-seg button").forEach(function(b){ b.onclick=function(){ _vbStatSel=+b.dataset.s; renderVolleyStats(g); }; });
+  }
+  // 과거/맞대결 경기 한 줄
+  function vbGameRow(x,perspId){
+    var mine=String(x.homeId)===String(perspId);
+    var res=""; if(x.finished&&x.setsH!=null&&x.setsA!=null&&x.setsH!==x.setsA){ var win=mine?(x.setsH>x.setsA):(x.setsA>x.setsH); res='<span class="rec-r '+(win?"w":"l")+'">'+(win?t("winShort"):t("lossShort"))+'</span>'; }
+    else if(x.scheduled){ res='<span class="rec-r s">'+t("scheduledShort")+'</span>'; }
+    var sc=(x.setsH!=null&&x.setsA!=null)?(x.setsH+" : "+x.setsA):(x.scheduled?hhmm(x.date):"-");
+    return '<div class="vb-grow" data-gid="'+esc(String(x.id))+'" data-h="'+esc(x.home)+'" data-a="'+esc(x.away)+'" data-sh="'+(x.setsH==null?"":x.setsH)+'" data-sa="'+(x.setsA==null?"":x.setsA)+'" data-dt="'+esc(x.date||"")+'" data-lg="'+esc(x.league||"")+'" data-fin="'+(x.finished?1:"")+'">'+
+      '<div class="vb-grow-dt">'+esc(String(x.date||"").slice(0,10))+'<span>'+esc(shortLeague(x.league||"","volleyball"))+'</span></div>'+
+      '<div class="vb-grow-tm">'+esc(x.home)+' <b>'+sc+'</b> '+esc(x.away)+'</div>'+res+'</div>';
+  }
+  function bindVbRows(cont){ var db=cont||$("#dtBody"); if(!db)return; db.querySelectorAll(".vb-grow").forEach(function(el2){ el2.onclick=function(){ var d=el2.dataset;
+    var ng={ id:String(d.gid), home:d.h, away:d.a, hs:(d.sh===""?null:+d.sh), as:(d.sa===""?null:+d.sa), league:d.lg, leagueOrig:d.lg, date:d.dt, state:(d.fin?"finished":"scheduled"), setScores:null };
+    openDetail(ng); }; }); }
+  function loadVolleyH2H(g){
+    if(g.vbHomeId==null){ if(g._vbTried)return dtBody(vbNoCover()); return dtLoading(); }
+    dtLoading(); var tk=_dtTok;
+    fetch("/api/volleyball/h2h?home="+encodeURIComponent(g.vbHomeId)+"&away="+encodeURIComponent(g.vbAwayId)+"&season="+encodeURIComponent(g.vbSeason||"")).then(function(r){return r.json();}).then(function(j){
+      if(!dtFresh(tk))return;
+      var gs=(j&&j.games)||[];
+      if(!gs.length){ dtBody('<div class="msg"><div class="big">📋</div>'+tl({en:"No head-to-head matches found.",ko:"맞대결 기록이 없습니다.",ja:"対戦記録がありません。",zh:"暂无交锋记录。",es:"Sin enfrentamientos.",hi:"कोई आमना-सामना नहीं।",vi:"Chưa có đối đầu.",th:"ไม่มีการเจอกัน",ru:"Нет очных встреч.",de:"Keine direkten Duelle.",fr:"Aucune confrontation.",it:"Nessun precedente."})+'</div>'); return; }
+      var fin=gs.filter(function(x){return x.finished&&x.setsH!=null&&x.setsH!==x.setsA;});
+      var w=0,l=0; fin.forEach(function(x){ var homeMine=String(x.homeId)===String(g.vbHomeId); var mineWon=homeMine?(x.setsH>x.setsA):(x.setsA>x.setsH); if(mineWon)w++; else l++; });
+      var h='<div class="vb-h2h-sum"><b>'+esc(g.home)+'</b> '+w+t("winShort")+' · <b>'+esc(g.away)+'</b> '+l+t("winShort")+' <span style="color:#8a93a3">('+fin.length+" "+t("matchesUnit")+")</span></div>";
+      h+=gs.map(function(x){ return vbGameRow(x,g.vbHomeId); }).join("");
+      dtBody(h); bindVbRows();
+    }).catch(function(){ dtBody('<div class="msg">⚠️ '+t("loadFailRetry")+'</div>'); });
+  }
+  function loadVolleyRank(g){
+    var lg=g.vbLeagueId||g.leagueId||g.leagueOrig||g.league||"";
+    if(!lg){ return dtBody(vbNoCover()); }
+    dtLoading(); var tk=_dtTok;
+    fetch("/api/rank?sport=volleyball&league="+encodeURIComponent(lg)+(g.vbSeason?"&season="+encodeURIComponent(g.vbSeason):"")).then(function(r){return r.json();}).then(function(j){
+      if(!dtFresh(tk))return;
+      var tb=(j&&j.table)||[];
+      if(!tb.length){ dtBody(vbNoCover()); return; }
+      var nm=function(s){return String(s||"").toLowerCase().replace(/[^a-z0-9가-힣]/g,"");};
+      var hn=nm(g.vbHomeName||g.home), an=nm(g.vbAwayName||g.away);
+      var h='<div class="dt-sec-t">🏆 '+esc(shortLeague(g.leagueOrig||g.league||"","volleyball"))+(j.season?" "+esc(j.season):"")+'</div>';
+      h+='<table class="rank"><thead><tr><th>#</th><th style="text-align:left">'+t("team")+'</th><th>'+t("playedShort")+'</th><th>'+t("winShort")+'</th><th>'+t("lossShort")+'</th><th>'+t("ptsShort")+'</th></tr></thead><tbody>';
+      h+=tb.map(function(r){ var tn=nm(r.team); var hl=(tn&&(tn===hn||tn===an||tn.indexOf(hn)>=0||tn.indexOf(an)>=0||hn.indexOf(tn)>=0||an.indexOf(tn)>=0));
+        return '<tr class="'+(hl?"rk-hl":"")+'" data-tid="'+esc(String(r.teamId||""))+'" data-tn="'+esc(r.team||"")+'"><td>'+(r.rank||"")+'</td><td class="tm" style="text-align:left">'+(r.logo?'<img src="'+esc(r.logo)+'" class="rk-lg" onerror="this.style.display=\'none\'">':"")+'<span class="plink">'+esc(r.team||"")+'</span></td><td>'+(r.played!=null?r.played:"-")+'</td><td>'+(r.win!=null?r.win:"-")+'</td><td>'+(r.loss!=null?r.loss:"-")+'</td><td style="font-weight:800">'+(r.points!=null?r.points:"-")+'</td></tr>'; }).join("");
+      h+='</tbody></table>';
+      h+='<p style="color:#8a93a3;font-size:11px;margin-top:8px">'+tl({en:"Standings via API-Sports.",ko:"순위: API-Sports 제공.",ja:"順位: API-Sports。",zh:"排名来自 API-Sports。",es:"Clasificación de API-Sports.",hi:"स्टैंडिंग: API-Sports।",vi:"BXH từ API-Sports.",th:"อันดับจาก API-Sports",ru:"Таблица: API-Sports.",de:"Tabelle via API-Sports.",fr:"Classement via API-Sports.",it:"Classifica via API-Sports."})+'</p>';
+      dtBody(h);
+      var db=$("#dtBody"); if(db)db.querySelectorAll("tr[data-tid]").forEach(function(tr){ tr.onclick=function(){ var tid=tr.dataset.tid; if(tid)openVolleyTeam(tid,tr.dataset.tn,(g.vbLeagueId||g.leagueId||g.leagueOrig||g.league),(j.season||g.vbSeason)); else if(tr.dataset.tn)openTeam(tr.dataset.tn,"volleyball"); }; });
+    }).catch(function(){ dtBody('<div class="msg">⚠️ '+t("loadFailRetry")+'</div>'); });
+  }
+  // 🏐 배구 팀 상세(경기/순위) — K02/K03. API-Sports teamgames + 순위.
+  function openVolleyTeam(teamId,name,league,season){
+    var o=overlay("ovVbTeam"); var tab="games";
+    o.innerHTML='<div class="dt-bar"><button class="bk" id="vtBack">‹</button><div class="ti">'+esc(name||"")+'</div></div><div class="dt-body" id="vtMain"></div>';
+    $("#vtBack").onclick=function(){ closeOverlay("ovVbTeam"); };
+    var fav=teamFav(name);
+    function render(){
+      var head='<div class="sv-prof" style="align-items:center;margin-bottom:8px"><div style="font-size:30px">🏐</div><div style="flex:1;min-width:0"><h3 style="margin:0;font-size:17px;color:var(--navy)">'+esc(name||"")+'</h3></div><button class="sv-editb" id="vtFav" style="'+(fav?"background:var(--navy);color:#fff;border-color:var(--navy)":"")+'">'+(fav?"★ "+tl({en:"Following",ko:"관심 등록됨",ja:"登録済",zh:"已关注",es:"Siguiendo",hi:"फॉलो",vi:"Đang theo",th:"ติดตามแล้ว",ru:"В избранном",de:"Folgt",fr:"Suivi",it:"Seguito"}):"☆ "+tl({en:"Follow",ko:"관심 등록",ja:"登録",zh:"关注",es:"Seguir",hi:"फॉलो",vi:"Theo dõi",th:"ติดตาม",ru:"В избранное",de:"Folgen",fr:"Suivre",it:"Segui"}))+'</button></div>';
+      var tabs='<div class="dt-tabs"><button class="dt-tab'+(tab==="games"?" on":"")+'" data-t="games">'+t("gamesTab")+'</button><button class="dt-tab'+(tab==="rank"?" on":"")+'" data-t="rank">'+t("standings")+'</button></div>';
+      $("#vtMain").innerHTML=head+tabs+'<div id="vtBody"><div class="msg"><div class="big">⏳</div>'+t("loading")+'</div></div>';
+      var fb=$("#vtFav"); if(fb)fb.onclick=function(){ fav=toggleTeamFav(name,""); render(); };
+      o.querySelectorAll(".dt-tab").forEach(function(b){ b.onclick=function(){ tab=b.dataset.t; render(); }; });
+      if(tab==="games")loadG(); else loadR();
+    }
+    function loadG(){
+      fetch("/api/volleyball/teamgames?team="+encodeURIComponent(teamId)+"&season="+encodeURIComponent(season||"")).then(function(r){return r.json();}).then(function(j){
+        var vb=$("#vtBody"); if(!vb)return; var gs=(j.games||[]);
+        if(!gs.length){ vb.innerHTML='<div class="msg"><div class="big">📅</div>'+t("noStatsShow")+'</div>'; return; }
+        var now=Date.now()/1000;
+        var up=gs.filter(function(x){return !x.finished&&(x.ts||0)>=now-5400;}).sort(function(a,b){return (a.ts||0)-(b.ts||0);}).slice(0,8);
+        var past=gs.filter(function(x){return x.finished;}).sort(function(a,b){return (b.ts||0)-(a.ts||0);}).slice(0,15);
+        var h='';
+        if(up.length) h+='<div class="dt-sec-t">'+t("upcoming")+'</div>'+up.map(function(x){return vbGameRow(x,teamId);}).join("");
+        h+='<div class="dt-sec-t"'+(up.length?' style="margin-top:12px"':'')+'>'+t("recentGames")+'</div>'+past.map(function(x){return vbGameRow(x,teamId);}).join("");
+        vb.innerHTML=h; bindVbRows(vb);
+      }).catch(function(){ var vb=$("#vtBody"); if(vb)vb.innerHTML='<div class="msg">⚠️ '+t("loadFailRetry")+'</div>'; });
+    }
+    function loadR(){
+      fetch("/api/rank?sport=volleyball&league="+encodeURIComponent(league||"")+(season?"&season="+encodeURIComponent(season):"")).then(function(r){return r.json();}).then(function(j){
+        var vb=$("#vtBody"); if(!vb)return; var tb=(j.table)||[];
+        if(!tb.length){ vb.innerHTML=vbNoCover(); return; }
+        var nm=function(s){return String(s||"").toLowerCase().replace(/[^a-z0-9가-힣]/g,"");}; var me=nm(name);
+        var h='<table class="rank"><thead><tr><th>#</th><th style="text-align:left">'+t("team")+'</th><th>'+t("playedShort")+'</th><th>'+t("winShort")+'</th><th>'+t("lossShort")+'</th><th>'+t("ptsShort")+'</th></tr></thead><tbody>';
+        h+=tb.map(function(r){ var hl=(String(r.teamId)===String(teamId)||nm(r.team)===me); return '<tr class="'+(hl?"rk-hl":"")+'"><td>'+(r.rank||"")+'</td><td class="tm" style="text-align:left">'+(r.logo?'<img src="'+esc(r.logo)+'" class="rk-lg" onerror="this.style.display=\'none\'">':"")+esc(r.team||"")+'</td><td>'+(r.played!=null?r.played:"-")+'</td><td>'+(r.win!=null?r.win:"-")+'</td><td>'+(r.loss!=null?r.loss:"-")+'</td><td style="font-weight:800">'+(r.points!=null?r.points:"-")+'</td></tr>'; }).join("");
+        vb.innerHTML=h+'</tbody></table>';
+      }).catch(function(){ var vb=$("#vtBody"); if(vb)vb.innerHTML='<div class="msg">⚠️ '+t("loadFailRetry")+'</div>'; });
+    }
+    render();
+  }
   // ====== 전체 메뉴 ======
   // 메뉴용 라인 아이콘(목업과 동일한 모노톤 스타일) — 이모지 대신 SVG
   var MENU_ICONS={

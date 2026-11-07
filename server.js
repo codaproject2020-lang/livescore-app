@@ -21,7 +21,7 @@ const app = express();
 const server = http.createServer(app);
 
 const PORT = process.env.PORT || 3000;
-const APP_VERSION = 'v409';
+const APP_VERSION = 'v410';
 
 // ============================================================
 //  📏 성능 계측(instrumentation) — 엔드포인트 지연·캐시·공급사·WS·이벤트루프
@@ -1742,24 +1742,30 @@ async function vbTeamGamesRaw(teamId, season){
   const j=await asRaw('volleyball', `/games?team=${encodeURIComponent(teamId)}&season=${encodeURIComponent(season)}`, 300000).catch(()=>null);
   return ((j&&j.response)||[]);
 }
-// TheSports 경기(홈/원정명+날짜) → API-Sports 경기/팀/리그/시즌 ID 해석
-async function vbResolve(home, away, date){
-  const key=_nrmVbTeam(home)+'|'+_nrmVbTeam(away)+'|'+(date||'');
+// TheSports 경기 → API-Sports 팀/리그/시즌 ID 해석: 리그명→순위표의 팀명 매칭(제공사 간 안정적)
+async function vbResolve(home, away, leagueName, season){
+  const key='std|'+_nrmVbTeam(home)+'|'+_nrmVbTeam(away)+'|'+_nrmVbTeam(leagueName);
   const c=_vbResolveCache.get(key); if(c&&Date.now()-c.t<6*3600e3) return c.v;
   let out=null;
   try{
-    const j=await asRaw('volleyball', `/games?date=${date}`, 3600e3);
-    const arr=(j&&j.response)||[]; const h=_nrmVbTeam(home), a=_nrmVbTeam(away);
-    const hit=(gh,ta)=>{ return (gh&&(gh.includes(h)||h.includes(gh)))&&(ta&&(ta.includes(a)||a.includes(ta))); };
-    let m=arr.find(g=>hit(_nrmVbTeam(g.teams&&g.teams.home&&g.teams.home.name), _nrmVbTeam(g.teams&&g.teams.away&&g.teams.away.name)));
-    if(!m) m=arr.find(g=>hit(_nrmVbTeam(g.teams&&g.teams.away&&g.teams.away.name), _nrmVbTeam(g.teams&&g.teams.home&&g.teams.home.name))); // 홈/원정 뒤바뀜
-    if(m){ const n=vbNormGame(m); out={ gameId:n.id, leagueId:n.leagueId, leagueName:n.league, season:n.season, homeId:n.homeId, awayId:n.awayId, homeName:n.home, awayName:n.away }; }
+    const lid=await asLeagueId('volleyball', leagueName);
+    if(lid){
+      const m=String(season||'').match(/\d{4}/); const y=m?+m[0]:new Date().getFullYear();
+      const h=_nrmVbTeam(home), a=_nrmVbTeam(away);
+      for(const sy of [`${y}-${y+1}`, String(y), `${y-1}-${y}`, String(y-1)]){
+        const j=await asRaw('volleyball', `/standings?league=${lid}&season=${encodeURIComponent(sy)}`, 3600e3).catch(()=>null);
+        const table=parseHoopStandings(j); if(!table.length) continue;
+        const find=n=>{ let r=table.find(t=>_nrmVbTeam(t.team)===n); if(r)return r; return table.find(t=>{ const tn=_nrmVbTeam(t.team); return tn&&(tn.includes(n)||n.includes(tn)); }); };
+        const rh=find(h), ra=find(a);
+        if(rh&&ra){ out={ leagueId:lid, leagueName, season:sy, homeId:rh.teamId, awayId:ra.teamId, homeName:rh.team, awayName:ra.team }; break; }
+      }
+    }
   }catch(e){}
   _vbResolveCache.set(key,{t:Date.now(),v:out});
   return out;
 }
 app.get('/api/volleyball/resolve', async (req,res)=>{ res.set('Cache-Control','no-store');
-  try{ const r=await vbResolve(req.query.home,req.query.away,req.query.date); res.json(Object.assign({found:!!r}, r||{})); }
+  try{ const r=await vbResolve(req.query.home,req.query.away,req.query.league,req.query.season); res.json(Object.assign({found:!!r}, r||{})); }
   catch(e){ res.json({found:false, error:String(e.message||e)}); } });
 app.get('/api/volleyball/teamgames', async (req,res)=>{ res.set('Cache-Control','no-store');
   if(!APISPORTS_KEY) return res.json({needKey:true, games:[]});
