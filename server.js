@@ -21,7 +21,7 @@ const app = express();
 const server = http.createServer(app);
 
 const PORT = process.env.PORT || 3000;
-const APP_VERSION = 'v425';
+const APP_VERSION = 'v426';
 
 // ============================================================
 //  📏 성능 계측(instrumentation) — 엔드포인트 지연·캐시·공급사·WS·이벤트루프
@@ -898,9 +898,9 @@ const AF_RANK_ID = {
 };
 // 농구 리그명 → API-Sports 농구 리그 ID
 // R011: KBL 남자는 API-Sports 미커버(과거 48은 아이슬란드 리그여서 제거). WKBL=92 확인됨.
-const AB_RANK_ID = { 'NBA': 12, 'EuroLeague': 120, 'WKBL': 92 };
+const AB_RANK_ID = { 'NBA': 12, 'EuroLeague': 120, 'KBL': 91, 'WKBL': 92 };   // B06: KBL=91, WKBL=92 (diag 확인)
 const BASEBALL_RANK_ID = { 'MLB': 1, 'NPB': 2, 'KBO': 5 };   // R012/R013: API-Sports 야구 리그 id(검증됨)
-function bskLeagueAlias(name) { const n = String(name || ''); if (/\bNBA\b/i.test(n) && !/g[\s-]?league/i.test(n)) return 'NBA'; if (/euroleague/i.test(n)) return 'EuroLeague'; if (/\bWKBL\b|women'?s?\s*korean/i.test(n)) return 'WKBL'; return name; }
+function bskLeagueAlias(name) { const n = String(name || ''); if (/\bNBA\b/i.test(n) && !/g[\s-]?league|g\s*리그/i.test(n)) return 'NBA'; if (/euroleague/i.test(n)) return 'EuroLeague'; if (/\bWKBL\b|women'?s?\s*korean|여자\s*농구/i.test(n)) return 'WKBL'; if (/\bKBL\b|korean?\s*basketball|한국?\s*농구/i.test(n)) return 'KBL'; return name; }
 async function rankFootball(league, season) {
   const lid = AF_RANK_ID[league] || (/^\d+$/.test(league) ? league : null);
   if (!lid) return { table: [], note: 'unmapped' };
