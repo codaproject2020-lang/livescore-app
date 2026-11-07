@@ -1914,9 +1914,13 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
   // P01·P02 득점 그래프 — 실제 득점 이벤트로 양 팀 누적 점수 계단 그래프 + 좌우/터치 탐색 + 당시 점수·선수 표시.
   function bskScoreGraph(allEv,g){
     var box=$("#bskGraph"); if(!box)return;
+    // 시간순(과거→최신) 보정: 공급사 play-by-play는 최신→과거일 수 있음. 양끝 누적점수 합으로 방향 판정.
+    var ev=allEv.slice();
+    var withS=ev.filter(function(e){return e.home!=null&&e.away!=null;});
+    if(withS.length>=2){ var f=withS[0], l=withS[withS.length-1]; if((f.home+f.away)>(l.home+l.away)) ev.reverse(); }
     // 득점(누적 점수가 바뀐) 이벤트만 추출 — 쿼터합계 추정 아님, 실제 이벤트 기반
     var pts=[], ph=0,pa=0, period=1, lastP=1;
-    allEv.forEach(function(e){
+    ev.forEach(function(e){
       if(/end of the (\d+)/i.test(e.text)){ var m=e.text.match(/end of the (\d+)/i); lastP=Math.max(lastP,parseInt(m[1],10)+1); }
       if(/end of (?:overtime|ot)/i.test(e.text)) lastP++;
       var H=e.home, A=e.away;
