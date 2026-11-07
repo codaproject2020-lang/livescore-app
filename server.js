@@ -21,7 +21,7 @@ const app = express();
 const server = http.createServer(app);
 
 const PORT = process.env.PORT || 3000;
-const APP_VERSION = 'v404';
+const APP_VERSION = 'v405';
 
 // ============================================================
 //  📏 성능 계측(instrumentation) — 엔드포인트 지연·캐시·공급사·WS·이벤트루프
@@ -2639,6 +2639,7 @@ app.get('/api/basketball/lineup', async (req, res) => {
 });
 // 🏀 농구 경기 흐름(플레이바이플레이) + 현재기간 팀파울 — detail_live 1회(전 경기 공용 캐시)에서 해당 경기만 추출
 app.get('/api/basketball/live', async (req, res) => {
+  res.set('Cache-Control', 'no-store');   // 라이브 경기흐름: 중간 캐시 재사용 금지
   const raw = String(req.query.id || '');
   if (!/^ts/.test(raw)) return res.json({ note: 'not-thesports', events: [] });
   const id = raw.replace(/^ts/, '');
@@ -3108,6 +3109,7 @@ app.get('/api/asports/games', async (req, res) => {
   const sport = req.query.sport || 'football';
   const date = req.query.date || new Date().toISOString().slice(0, 10);
   const cfg = AS[sport]; if (!cfg) return res.status(400).json({ error: 'bad sport' });
+  res.set('Cache-Control', 'no-store');   // 라이브 점수: 중간 캐시(브라우저·CDN)가 과거 응답 재사용 금지 — 항상 origin 최신
   try { const v = await fullGamesCached(sport, date, req.query.tz); const ageMs = v && v.builtAt ? (Date.now() - v.builtAt) : null; res.json(Object.assign({}, v, { ageMs, ageSec: ageMs != null ? Math.round(ageMs / 1000) : null })); }
   catch (e) { res.status(502).json({ error: String(e.message || e) }); }
 });
