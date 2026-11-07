@@ -21,7 +21,7 @@ const app = express();
 const server = http.createServer(app);
 
 const PORT = process.env.PORT || 3000;
-const APP_VERSION = 'v419';
+const APP_VERSION = 'v420';
 
 // ============================================================
 //  📏 성능 계측(instrumentation) — 엔드포인트 지연·캐시·공급사·WS·이벤트루프
@@ -1150,6 +1150,44 @@ app.get('/api/team/as', async (req, res) => {
       const g = (games && games.response) || [];
       const mapB = x => ({ id: x.id, date: x.date, home: x.teams.home.name, away: x.teams.away.name, hs: x.scores && x.scores.home && x.scores.home.total, as: x.scores && x.scores.away && x.scores.away.total, league: x.league && x.league.name, done: (x.status && /finished|FT|AOT/i.test(x.status.short || x.status.long || '')) });
       const all = g.map(mapB);
+      const events = all.filter(x => x.done).slice(-8).reverse();
+      const next = all.filter(x => !x.done).slice(0, 6);
+      return res.json({ team, events, next });
+    }
+    if (sport === 'baseball') {
+      // R019: 야구 순위표 팀 클릭 → API-Sports 팀 ID 기반 상세(TheSportsDB 403 우회)
+      const y = new Date().getFullYear();
+      let tj = null, games = null;
+      for (const sy of [y, y - 1]) {
+        if (!tj) tj = await asRaw('baseball', `/teams?id=${encodeURIComponent(id)}`, 86400000).catch(() => null);
+        const gj = await asRaw('baseball', `/games?team=${encodeURIComponent(id)}&season=${sy}`, 600000).catch(() => null);
+        if (gj && gj.response && gj.response.length) { games = gj; break; }
+        if (!games) games = gj;
+      }
+      const t = tj && tj.response && tj.response[0];
+      const team = t ? { id, name: t.name, badge: t.logo, country: t.country && t.country.name } : null;
+      const g = (games && games.response) || [];
+      const mapBb = x => ({ id: x.id, date: x.date, home: x.teams && x.teams.home && x.teams.home.name, away: x.teams && x.teams.away && x.teams.away.name, hs: x.scores && x.scores.home && (x.scores.home.total != null ? x.scores.home.total : x.scores.home), as: x.scores && x.scores.away && (x.scores.away.total != null ? x.scores.away.total : x.scores.away), league: x.league && x.league.name, done: (x.status && /finished|FT|AOT|game finished/i.test((x.status.short || '') + ' ' + (x.status.long || ''))) });
+      const all = g.map(mapBb);
+      const events = all.filter(x => x.done).slice(-8).reverse();
+      const next = all.filter(x => !x.done).slice(0, 6);
+      return res.json({ team, events, next });
+    }
+    if (sport === 'volleyball') {
+      // R019: 배구 순위표 팀 클릭 → API-Sports 팀 ID 기반 상세
+      const y = new Date().getFullYear();
+      let tj = null, games = null;
+      for (const sy of [`${y}-${y + 1}`, String(y), `${y - 1}-${y}`, String(y - 1)]) {
+        if (!tj) tj = await asRaw('volleyball', `/teams?id=${encodeURIComponent(id)}`, 86400000).catch(() => null);
+        const gj = await asRaw('volleyball', `/games?team=${encodeURIComponent(id)}&season=${encodeURIComponent(sy)}`, 600000).catch(() => null);
+        if (gj && gj.response && gj.response.length) { games = gj; break; }
+        if (!games) games = gj;
+      }
+      const t = tj && tj.response && tj.response[0];
+      const team = t ? { id, name: t.name, badge: t.logo, country: t.country && t.country.name } : null;
+      const g = (games && games.response) || [];
+      const mapV = x => ({ id: x.id, date: x.date, home: x.teams && x.teams.home && x.teams.home.name, away: x.teams && x.teams.away && x.teams.away.name, hs: x.scores && (x.scores.home != null ? (x.scores.home.total != null ? x.scores.home.total : x.scores.home) : null), as: x.scores && (x.scores.away != null ? (x.scores.away.total != null ? x.scores.away.total : x.scores.away) : null), league: x.league && x.league.name, done: (x.status && /finished|FT|game finished/i.test((x.status.short || '') + ' ' + (x.status.long || ''))) });
+      const all = g.map(mapV);
       const events = all.filter(x => x.done).slice(-8).reverse();
       const next = all.filter(x => !x.done).slice(0, 6);
       return res.json({ team, events, next });

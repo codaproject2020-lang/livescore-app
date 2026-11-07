@@ -2749,7 +2749,8 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
     o.innerHTML='<div class="dt-bar"><button class="bk" id="tmBack">‹</button><div class="ti">'+esc(name)+'</div></div><div class="dt-body" id="tmBody"><div class="msg"><div class="big">⏳</div>'+t("loading")+'</div></div>';
     $("#tmBack").onclick=function(){ closeOverlay("ovTeam"); };
     var canStats=(teamId&&sp==="football"), canSquad=(teamId&&(sp==="football"||sp==="basketball"));
-    var url=(teamId&&(sp==="football"||sp==="basketball"))?("/api/team/as?sport="+encodeURIComponent(sp)+"&id="+encodeURIComponent(teamId)):("/api/team/recent?name="+encodeURIComponent(name)+"&sport="+encodeURIComponent(sp));
+    var asOk=(teamId&&(sp==="football"||sp==="basketball"||sp==="baseball"||sp==="volleyball"));
+    var url=asOk?("/api/team/as?sport="+encodeURIComponent(sp)+"&id="+encodeURIComponent(teamId)):("/api/team/recent?name="+encodeURIComponent(name)+"&sport="+encodeURIComponent(sp));
     function paint(){
       var tm=dt.base&&dt.base.team; if(!tm)return;
       var ev=(dt.base.events)||[], nx=(dt.base.next)||[];
