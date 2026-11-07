@@ -21,7 +21,7 @@ const app = express();
 const server = http.createServer(app);
 
 const PORT = process.env.PORT || 3000;
-const APP_VERSION = 'v421';
+const APP_VERSION = 'v422';
 
 // ============================================================
 //  📏 성능 계측(instrumentation) — 엔드포인트 지연·캐시·공급사·WS·이벤트루프
@@ -1210,9 +1210,15 @@ app.get('/api/team/squad', async (req, res) => {
       return res.json({ players, note: players.length ? '' : 'empty' });
     }
     if (sport === 'basketball') {
-      const season = hoopSeason();
-      const j = await asRaw('basketball', `/players?team=${encodeURIComponent(id)}&season=${encodeURIComponent(season)}`, 86400000).catch(() => null);
-      const players = ((j && j.response) || []).map(p => ({ id: p.id, name: ((p.firstname || '') + ' ' + (p.lastname || '')).trim(), number: '', pos: (p.leagues && p.leagues.standard && p.leagues.standard.pos) || '', photo: '', age: p.age })).filter(p => p.name);
+      // R024: 새 시즌 로스터 미반영 시 직전 시즌으로 폴백(선수단 빈 화면 방지). API-Sports 농구는 선수 사진 미제공.
+      const cur = hoopSeason();
+      const py = +cur.slice(0, 4) - 1; const prev = py + '-' + (py + 1);
+      let players = [];
+      for (const season of [cur, prev]) {
+        const j = await asRaw('basketball', `/players?team=${encodeURIComponent(id)}&season=${encodeURIComponent(season)}`, 86400000).catch(() => null);
+        players = ((j && j.response) || []).map(p => ({ id: p.id, name: ((p.firstname || '') + ' ' + (p.lastname || '')).trim(), number: '', pos: (p.leagues && p.leagues.standard && p.leagues.standard.pos) || '', photo: '', age: p.age })).filter(p => p.name);
+        if (players.length) break;
+      }
       return res.json({ players, note: players.length ? '' : 'empty' });
     }
     return res.json({ players: [], note: 'sport-todo' });
@@ -3366,8 +3372,8 @@ app.get('/api/asports/lineups', async (req, res) => {
       team: t.team ? t.team.name : '', logo: t.team ? t.team.logo : '',
       formation: t.formation || '',
       coach: t.coach ? t.coach.name : '',
-      startXI: (t.startXI || []).map(x => ({ id: x.player.id, name: x.player.name, number: x.player.number, pos: x.player.pos, grid: x.player.grid })),
-      subs: (t.substitutes || []).map(x => ({ id: x.player.id, name: x.player.name, number: x.player.number, pos: x.player.pos }))
+      startXI: (t.startXI || []).map(x => ({ id: x.player.id, name: x.player.name, number: x.player.number, pos: x.player.pos, grid: x.player.grid, photo: x.player.id ? ('https://media.api-sports.io/football/players/' + x.player.id + '.png') : '' })),
+      subs: (t.substitutes || []).map(x => ({ id: x.player.id, name: x.player.name, number: x.player.number, pos: x.player.pos, photo: x.player.id ? ('https://media.api-sports.io/football/players/' + x.player.id + '.png') : '' }))
     }));
     const out = { teams };
     if (teams.length >= 2 && (teams[0].startXI || []).length >= 11) cache.set(OKK, { t: Date.now(), v: out });
@@ -3387,8 +3393,8 @@ async function fbLastLineup(teamId) {
         return {
           team: mine.team.name, logo: mine.team.logo, formation: mine.formation || '',
           coach: mine.coach ? mine.coach.name : '',
-          startXI: (mine.startXI || []).map(x => ({ id: x.player.id, name: x.player.name, number: x.player.number, pos: x.player.pos, grid: x.player.grid })),
-          subs: (mine.substitutes || []).map(x => ({ id: x.player.id, name: x.player.name, number: x.player.number, pos: x.player.pos })),
+          startXI: (mine.startXI || []).map(x => ({ id: x.player.id, name: x.player.name, number: x.player.number, pos: x.player.pos, grid: x.player.grid, photo: x.player.id ? ('https://media.api-sports.io/football/players/' + x.player.id + '.png') : '' })),
+          subs: (mine.substitutes || []).map(x => ({ id: x.player.id, name: x.player.name, number: x.player.number, pos: x.player.pos, photo: x.player.id ? ('https://media.api-sports.io/football/players/' + x.player.id + '.png') : '' })),
           fromDate: fx.fixture.date
         };
       }
@@ -3504,7 +3510,7 @@ async function lastMatchLineup(teamId) {
     const lj = await asRaw('football', `/fixtures/lineups?fixture=${fid}`, 24 * 3600e3);
     const block = (lj.response || []).find(b => b.team && b.team.id === teamId);
     if (!block || !(block.startXI || []).length) return null;
-    const mkP = x => ({ id: x.player && x.player.id, name: (x.player && x.player.name) || '', number: (x.player && x.player.number != null) ? x.player.number : '', pos: (x.player && x.player.pos) || '', grid: (x.player && x.player.grid) || '', photo: '' });
+    const mkP = x => ({ id: x.player && x.player.id, name: (x.player && x.player.name) || '', number: (x.player && x.player.number != null) ? x.player.number : '', pos: (x.player && x.player.pos) || '', grid: (x.player && x.player.grid) || '', photo: (x.player && x.player.id) ? ('https://media.api-sports.io/football/players/' + x.player.id + '.png') : '' });
     return {
       team: (block.team && block.team.name) || '', logo: (block.team && block.team.logo) || '',
       formation: block.formation || '', coach: (block.coach && block.coach.name) || '',
@@ -3548,7 +3554,7 @@ app.get('/api/football/lineup', async (req, res) => {
       const j = await asRaw('football', `/fixtures/lineups?fixture=${encodeURIComponent(fixtureId)}`, 45000);
       const arr = j.response || [];
       if (arr.length >= 2 && (arr[0].startXI || []).length) {
-        const mkP = x => ({ id: x.player && x.player.id, name: (x.player && x.player.name) || '', number: (x.player && x.player.number != null) ? x.player.number : '', pos: (x.player && x.player.pos) || '', grid: (x.player && x.player.grid) || '', photo: '' });
+        const mkP = x => ({ id: x.player && x.player.id, name: (x.player && x.player.name) || '', number: (x.player && x.player.number != null) ? x.player.number : '', pos: (x.player && x.player.pos) || '', grid: (x.player && x.player.grid) || '', photo: (x.player && x.player.id) ? ('https://media.api-sports.io/football/players/' + x.player.id + '.png') : '' });
         const mkT = a => ({ team: (a.team && a.team.name) || '', logo: (a.team && a.team.logo) || '', formation: a.formation || '', coach: (a.coach && a.coach.name) || '', startXI: (a.startXI || []).map(mkP), subs: (a.substitutes || []).map(mkP) });
         return res.json({ teams: [mkT(arr[0]), mkT(arr[1])], src: 'apifootball', kind: 'confirmed' });
       }
@@ -3792,7 +3798,7 @@ app.get('/api/football/fixplayers', async (req, res) => {
         out.push({
           pid: (p.player && p.player.id) || null,
           name: (p.player && p.player.name) || '',
-          photo: (p.player && p.player.photo) || '',
+          photo: (p.player && p.player.photo) || ((p.player && p.player.id) ? ('https://media.api-sports.io/football/players/' + p.player.id + '.png') : ''),
           team: teamName, teamId,
           number: games.number != null ? games.number : '',
           pos: games.position || '',
