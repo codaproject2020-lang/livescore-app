@@ -1047,23 +1047,24 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
   //   배열 순서 = 정렬 우선순위(위일수록 먼저). 목록·버튼·상단 메인경기 선정이 같은 표를 공유.
   var LEAGUES={
     football:[
+      {re:/^(uefa\s+)?champions\s*league$/i},                                              // R004: 국제대회 우선 — UCL
+      {re:/^(uefa\s+)?europa\s*league$/i},                                                 // UEL
       {re:/^(eng(land|lish)\s+)?premier\s*league$/i, co:/england|britain|united kingdom|\buk\b|영국|잉글랜드/i},   // EPL (몽골/인도 등 "X Premier League" 배제)
       {re:/^(spa(in|nish)\s+)?la[\s-]?liga( ea sports| santander)?$/i, co:/spain|스페인/i},
       {re:/^(ita(ly|lian)\s+)?serie\s*a$/i, co:/italy|이탈리아/i},
-      {re:/^(fra(nce|nch)\s+)?ligue\s*1$/i, co:/france|프랑스/i},
       {re:/^(ger(many|man)\s+)?bundesliga$/i, co:/germany|독일/i},                         // "2. Bundesliga"·"Austrian Bundesliga" 배제
-      {re:/^(uefa\s+)?champions\s*league$/i},                                              // UCL(국제) — AFC/CONCACAF 등 접두사 있는 건 배제
-      {re:/^(uefa\s+)?europa\s*league$/i},
+      {re:/^(fra(nce|nch)\s+)?ligue\s*1$/i, co:/france|프랑스/i},
       {re:/^(kor(ea|ean)\s+)?k[\s-]?league\s*1$/i, co:/korea|한국/i},
+      {re:/^(kor(ea|ean)\s+)?k[\s-]?league\s*2$/i, co:/korea|한국/i},                      // R004: K리그2 추가
       {re:/^(usa\s+)?(mls|major\s*league\s*soccer)$/i, co:/usa|united states|america|미국/i},
       {re:/^(saudi\s+)?(pro|professional)\s*league$|^saudi pro league$/i, co:/saudi|사우디/i},
       {re:/^(jap(an|anese)\s+)?j1[\s-]?league$|^j1$/i, co:/japan|일본/i}
     ],
-    basketball:[
+    basketball:[   // R005: NBA → KBL → WKBL → 유로리그 → 기타
       {re:/\bNBA\b|national\s*basketball\s*association/i, co:/usa|united states|america|미국/i, x:/\bg[\s-]?league\b|summer\s*league|2k|preseason|exhibition/i},   // R028: NBA G League 제외
       {re:/\bKBL\b|korean?\s*basketball\s*league/i, co:/korea|한국/i, x:/\bWKBL\b|women/i},
-      {re:/euroleague/i},
       {re:/\bWKBL\b|women'?s?\s*korean?\s*basketball/i, co:/korea|한국/i},
+      {re:/euroleague/i},
       {re:/\bB[\s.]?league\b|japan(ese)?\s*basketball/i, co:/japan|일본/i},
       {re:/\bCBA\b|chinese\s*basketball\s*association/i, co:/china|중국/i}
     ],
@@ -1081,15 +1082,16 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
     ],
     // 배구 목록 정렬(#8): 터키 1부 우선(여자 Sultanlar / 남자 Efeler 구분) → 한국 V리그 → 이탈리아/폴란드 등.
     //   상단 메인경기(#9)는 별도 규칙이지만 한국 V리그·터키 모두 후보 → 아래 표에 함께 포함.
-    volleyball:[
-      {re:/sultanlar\s*ligi/i, co:/turkey|t[üu]rkiye|터키/i},                      // 터키 여자 1부
+    volleyball:[   // R006: 국내 V리그 남 → 여 → 해외 주요 → 기타
+      {re:/(V[\s-]?리그|V[\s-]?League|KOVO).*(남자|men)|남자부/i, co:/korea|한국/i},     // 한국 V리그 남자부
+      {re:/(V[\s-]?리그|V[\s-]?League|KOVO).*(여자|women)|여자부/i, co:/korea|한국/i},   // 한국 V리그 여자부
+      {re:/V[\s-]?리그|V[\s-]?League|KOVO/i, co:/korea|한국/i},                          // 한국 V리그(성별 미표기)
       {re:/efeler\s*ligi/i, co:/turkey|t[üu]rkiye|터키/i},                         // 터키 남자 1부
-      {re:/(V[\s-]?리그|V[\s-]?League).*(여자|women)|여자부/i, co:/korea|한국/i},   // 한국 V리그 여자부
-      {re:/(V[\s-]?리그|V[\s-]?League).*(남자|men)|남자부/i, co:/korea|한국/i},     // 한국 V리그 남자부
-      {re:/V[\s-]?리그|V[\s-]?League/i, co:/korea|한국/i},                          // 한국 V리그(성별 미표기)
+      {re:/sultanlar\s*ligi/i, co:/turkey|t[üu]rkiye|터키/i},                      // 터키 여자 1부
       {re:/superlega/i, co:/italy|이탈리아/i},
       {re:/serie\s*a1/i, co:/italy|이탈리아/i},
-      {re:/plusliga/i, co:/poland|폴란드/i}
+      {re:/plusliga/i, co:/poland|폴란드/i},
+      {re:/superleague\s*women|superliga/i}
     ]
   };
   // 하위·리저브·유소년·여자부(남자 리그에 한함) 오인 방지용 — 대회명에 이런 토큰이 있으면 상위 빅리그로 보지 않음
