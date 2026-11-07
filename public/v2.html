@@ -274,6 +274,11 @@ img{display:block}
 /* 보조 라인(라인스코어/세트/BSO) */
 .gm-sub{grid-column:1/-1;padding:2px 2px 2px;display:flex;flex-wrap:wrap;gap:6px;align-items:center;justify-content:center}
 .chipq{font-size:11px;font-weight:700;color:var(--text);background:var(--soft);border-radius:6px;padding:2px 8px;white-space:nowrap}
+.langbtn{display:inline-flex;align-items:center;gap:4px;border:1px solid var(--line);background:var(--card,#fff);border-radius:16px;padding:4px 8px 4px 7px;cursor:pointer;max-width:118px}
+.langbtn .lfl{font-size:15px;line-height:1}
+.langbtn .lnm{font-size:12px;font-weight:800;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.langbtn .lcv{width:13px;height:13px;color:#8a93a3;flex:none}
+html[data-theme="dark"] .langbtn{background:#1b2740;border-color:#2c3a54}
 .vb-cur{font-size:11.5px;font-weight:900;color:#fff;background:var(--red);border-radius:6px;padding:2px 9px;white-space:nowrap}
 .vb-cur b{font-weight:900;margin-right:3px;opacity:.92}
 table.vbset td.vbset-cur{color:var(--red);font-weight:900;background:rgba(223,18,59,.06)}
@@ -665,9 +670,7 @@ html[data-theme="dark"] .cpl .cpt{color:#9aa6b6}
     <div><div class="logo">LIVE <b>UP</b></div></div>
     <div class="tagline">오늘의 경기를 한눈에</div>
     <div class="sp"></div>
-    <button class="iconbtn" id="btnLang" aria-label="language">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c3 3 3 15 0 18M12 3c-3 3-3 15 0 18"/></svg>
-    </button>
+    <button class="langbtn" id="btnLang" aria-label="language"></button>
     <button class="iconbtn" id="btnSearch" aria-label="검색">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4-4"/></svg>
     </button>
@@ -3486,6 +3489,9 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
 
   // ====== 다국어: 하단메뉴 라벨 + 언어 선택기 ======
   var LANGNAMES={en:"English",ko:"한국어",ja:"日本語",zh:"中文",es:"Español",hi:"हिन्दी",vi:"Tiếng Việt",th:"ไทย",ru:"Русский",de:"Deutsch",fr:"Français",it:"Italiano"};
+  // U01: 언어 대표 국기(고정 매핑). 언어와 접속 국가/시간대는 별개.
+  var LANGFLAG={en:"🇺🇸",ko:"🇰🇷",ja:"🇯🇵",zh:"🇨🇳",es:"🇪🇸",hi:"🇮🇳",vi:"🇻🇳",th:"🇹🇭",ru:"🇷🇺",de:"🇩🇪",fr:"🇫🇷",it:"🇮🇹"};
+  function paintLangBtn(){ var b=$("#btnLang"); if(!b)return; b.innerHTML='<span class="lfl">'+(LANGFLAG[LANG]||"🌐")+'</span><span class="lnm">'+esc(LANGNAMES[LANG]||"English")+'</span><svg class="lcv" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M6 9l6 6 6-6"/></svg>'; }
   function applyChrome(){
     try{
       document.documentElement.lang=LANG;
@@ -3502,12 +3508,12 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
     $("#lgpBack").onclick=function(){ closeOverlay("ovLang"); };
     o.querySelectorAll("[data-l]").forEach(function(r){ r.onclick=function(){ setLangV(r.dataset.l); closeOverlay("ovLang"); applyI18n(); }; });
   }
-  function applyI18n(){ applyChrome(); render(); }
+  function applyI18n(){ applyChrome(); paintLangBtn(); render(); }
 
   // ====== 이벤트 바인딩 ======
   function bind(){
     applyChrome();
-    $("#btnLang").onclick=openLangPicker;
+    $("#btnLang").onclick=openLangPicker; paintLangBtn();
     // 날짜 변경: 과거·미래로 가면 일정·결과를 보도록 '전체'로 전환(오늘로 복귀 시엔 현재 탭 유지)
     function onDate(nd){ S.date=nd; if(nd!==todayStr()&&S.filter==="live")S.filter="all"; if(S.screen==="live"){S.base="home";S.screen="home";} load(); }
     $("#dPrev").onclick=function(){ onDate(addDays(S.date,-1)); };
