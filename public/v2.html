@@ -752,6 +752,7 @@ var SUP={"esports":["Esports","e스포츠","eスポーツ","电竞","Esports","�
 "noScorePlays":["No scoring plays in this period.","이 쿼터 득점 플레이가 없습니다.","このクォーターの得点はありません。","本节无得分。","Sin anotaciones en este periodo.","इस पीरियड में कोई स्कोर नहीं।","Không có pha ghi điểm trong hiệp này.","ไม่มีการทำแต้มในควอเตอร์นี้","Нет результативных моментов.","Keine Punkte in diesem Viertel.","Aucun point dans cette période.","Nessun punto in questo periodo."],
 "team":["Team","팀","チーム","球队","Equipo","टीम","Đội","ทีม","Команда","Team","Équipe","Squadra"],
 "curSet":["Current set","현재 세트","現在のセット","当前局","Set actual","वर्तमान सेट","Set hiện tại","เซตปัจจุบัน","Текущий сет","Aktueller Satz","Set actuel","Set attuale"],
+"setsWon":["Sets won","세트 승수","獲得セット","获胜局数","Sets ganados","जीते सेट","Set thắng","เซตที่ชนะ","Выигр. сеты","Gewonnene Sätze","Sets gagnés","Set vinti"],
 "vbTotalPts":["Total points","총 득점","総得点","总得分","Puntos totales","कुल अंक","Tổng điểm","แต้มรวม","Всего очков","Gesamtpunkte","Points totaux","Punti totali"],
 "vbServePt":["Serve pts","서브 시 득점","サーブ得点","发球得分","Pts al saque","सर्व अंक","Điểm giao","แต้มเสิร์ฟ","Очки на подаче","Aufschlagpunkte","Pts au service","Pt al servizio"],
 "vbRecvPt":["Receive pts","리시브 시 득점","レシーブ得点","接发得分","Pts recepción","रिसीव अंक","Điểm đỡ","แต้มรับ","Очки на приёме","Annahmepunkte","Pts réception","Pt in ricezione"],
@@ -2321,7 +2322,7 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
     var live=stateOf(g)==="live";
     var h='<table class="rank vbset"><thead><tr><th style="text-align:left">'+t("team")+'</th>';
     for(var i=0;i<ss.length;i++){ h+='<th>'+(i+1)+'S</th>'; }
-    h+='<th>'+t("setScore")+'</th></tr></thead><tbody>';
+    h+='<th>'+t("setsWon")+'</th></tr></thead><tbody>';
     function row(away){ var r='<tr><td class="tm" style="text-align:left">'+haBadge(away)+' '+esc(away?g.away:g.home)+'</td>';
       ss.forEach(function(p,i){ var v=away?p.away:p.home; var cur=live&&i===ss.length-1; r+='<td class="'+(cur?"vbset-cur":"")+'">'+(v==null?"-":v)+'</td>'; });
       r+='<td style="font-weight:900">'+(away?(g.as==null?"-":g.as):(g.hs==null?"-":g.hs))+'</td></tr>'; return r; }
@@ -2338,7 +2339,7 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
     // 주요 기록: 세트 승수 + 총득점(세트 점수 합 — 확실)
     var totH=0,totA=0,hasPts=false; ss.forEach(function(p){ if(p.home!=null){totH+=p.home;hasPts=true;} if(p.away!=null)totA+=p.away; });
     h+='<div class="dt-sec-t" style="margin-top:14px">'+t("keyStats")+'</div><div class="vb-keyrec">';
-    h+='<div class="kr"><span class="v">'+(g.hs==null?"-":g.hs)+' : '+(g.as==null?"-":g.as)+'</span><span class="l">'+t("setScore")+'</span></div>';
+    h+='<div class="kr"><span class="v">'+(g.hs==null?"-":g.hs)+' : '+(g.as==null?"-":g.as)+'</span><span class="l">'+t("setsWon")+'</span></div>';
     if(hasPts) h+='<div class="kr"><span class="v">'+totH+' : '+totA+'</span><span class="l">'+t("vbTotalPts")+'</span></div>';
     h+='</div>';
     h+='<div class="ov-links"><button class="ov-link" data-go="vbstats">📊 '+t("statsTab")+' ›</button><button class="ov-link" data-go="vbh2h">⚔️ '+t("h2hTab")+' ›</button><button class="ov-link" data-go="vbrank">🏆 '+t("standings")+' ›</button></div>';
