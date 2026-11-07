@@ -1107,7 +1107,7 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
       {re:/^(jap(an|anese)\s+)?j1[\s-]?league$|^j1$/i, co:/japan|일본/i}
     ],
     basketball:[   // R005: NBA → KBL → WKBL → 유로리그 → 기타
-      {re:/\bNBA\b|national\s*basketball\s*association/i, co:/usa|united states|america|미국/i, x:/\bg[\s-]?league\b|summer\s*league|2k|preseason|exhibition/i},   // R028: NBA G League 제외
+      {re:/\bNBA\b|national\s*basketball\s*association/i, co:/usa|united states|america|미국/i, x:/\bg[\s-]?league\b|g\s*리그|development|summer\s*league|2k|preseason|exhibition/i},   // R028/L02: NBA G League·G리그 제외(후순위)
       {re:/\bKBL\b|korean?\s*basketball\s*league/i, co:/korea|한국/i, x:/\bWKBL\b|women/i},
       {re:/\bWKBL\b|women'?s?\s*korean?\s*basketball/i, co:/korea|한국/i},
       {re:/euroleague/i},
