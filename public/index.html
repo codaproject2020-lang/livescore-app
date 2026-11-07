@@ -274,6 +274,22 @@ img{display:block}
 /* 보조 라인(라인스코어/세트/BSO) */
 .gm-sub{grid-column:1/-1;padding:2px 2px 2px;display:flex;flex-wrap:wrap;gap:6px;align-items:center;justify-content:center}
 .chipq{font-size:11px;font-weight:700;color:var(--text);background:var(--soft);border-radius:6px;padding:2px 8px;white-space:nowrap}
+.lgwrap{display:flex;align-items:center;gap:2px}
+.lgwrap .cbar{flex:1;min-width:0}
+.lg-all{flex:none;display:inline-flex;align-items:center;justify-content:center;width:34px;height:32px;margin-right:12px;border:1px solid var(--line);background:var(--card,#fff);border-radius:9px;color:var(--navy);cursor:pointer}
+.lg-all svg{width:18px;height:18px}
+html[data-theme="dark"] .lg-all{background:#1b2740;border-color:#2c3a54}
+.lb-search{padding:4px 2px 8px}.lb-search input{width:100%;border:1px solid var(--line);border-radius:10px;padding:10px 12px;font-size:14px;background:var(--soft)}
+.lb-gender{display:flex;gap:6px;margin-bottom:8px}
+.lb-gender button{flex:1;border:1px solid var(--line);background:var(--card,#fff);border-radius:16px;padding:6px;font-size:13px;font-weight:700;color:var(--muted);cursor:pointer}
+.lb-gender button.on{background:var(--navy);color:#fff;border-color:var(--navy)}
+.lb-sec{font-size:11.5px;font-weight:800;color:#8a93a3;margin:12px 0 4px;padding-left:2px}
+.lb-row{display:flex;align-items:center;gap:10px;width:100%;border:none;background:none;border-bottom:1px solid var(--line);padding:10px 4px;cursor:pointer;text-align:left}
+.lb-row.sel{background:rgba(223,18,59,.05)}
+.lb-ic{font-size:17px;width:22px;text-align:center;flex:none}
+.lb-nm{flex:1;min-width:0}.lb-nm b{display:block;font-size:14px;font-weight:800;color:var(--text)}.lb-nm i{display:block;font-style:normal;font-size:11.5px;color:#8a93a3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.lb-n{font-size:12px;font-weight:800;color:var(--muted);background:var(--soft);border-radius:10px;padding:2px 9px;flex:none}
+.lb-ck{color:var(--red);font-weight:900;flex:none}
 .langbtn{display:inline-flex;align-items:center;gap:4px;border:1px solid var(--line);background:var(--card,#fff);border-radius:16px;padding:4px 8px 4px 7px;cursor:pointer;max-width:118px}
 .langbtn .lfl{font-size:15px;line-height:1}
 .langbtn .lnm{font-size:12px;font-weight:800;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -739,7 +755,15 @@ var SUP={"esports":["Esports","e스포츠","eスポーツ","电竞","Esports","�
 "ptsShort":["Pts","승점","勝点","积分","Pts","अंक","Điểm","คะแนน","Очки","Pkt","Pts","Pti"],
 "gamesTab":["Matches","경기","試合","比赛","Partidos","मैच","Trận","แมตช์","Матчи","Spiele","Matchs","Gare"],
 "upcoming":["Upcoming","다가오는 경기","今後の試合","即将开始","Próximos","आगामी","Sắp tới","ที่จะถึง","Предстоящие","Kommende","À venir","Prossime"],
-"recentGames":["Recent","최근 경기","最近の試合","近期比赛","Recientes","हाल के","Gần đây","ล่าสุด","Недавние","Letzte","Récents","Recenti"]};
+"recentGames":["Recent","최근 경기","最近の試合","近期比赛","Recientes","हाल के","Gần đây","ล่าสุด","Недавние","Letzte","Récents","Recenti"],
+"allLeaguesBrowse":["All leagues","리그 전체 선택","全リーグ選択","全部联赛","Todas las ligas","सभी लीग","Tất cả giải","ทุกลีก","Все лиги","Alle Ligen","Toutes les ligues","Tutte le leghe"],
+"lgSearchPh":["Search league or country","리그 또는 국가 검색","リーグ・国を検索","搜索联赛或国家","Buscar liga o país","लीग या देश खोजें","Tìm giải/quốc gia","ค้นหาลีก/ประเทศ","Поиск лиги/страны","Liga/Land suchen","Rechercher ligue/pays","Cerca lega/paese"],
+"mGender":["Men","남자","男子","男子","Masculino","पुरुष","Nam","ชาย","Муж","Herren","Hommes","Maschile"],
+"wGender":["Women","여자","女子","女子","Femenino","महिला","Nữ","หญิง","Жен","Damen","Femmes","Femminile"],
+"intlComp":["International","국제대회","国際大会","国际赛事","Internacional","अंतरराष्ट्रीय","Quốc tế","นานาชาติ","Международные","International","International","Internazionali"],
+"majorLeagues":["Major leagues","주요 리그","主要リーグ","主要联赛","Ligas principales","प्रमुख लीग","Giải lớn","ลีกใหญ่","Главные лиги","Top-Ligen","Ligues majeures","Leghe principali"],
+"otherLeagues":["Other leagues","기타 리그","その他","其他联赛","Otras ligas","अन्य लीग","Giải khác","ลีกอื่น","Прочие лиги","Weitere Ligen","Autres ligues","Altre leghe"],
+"noResults":["No results","결과 없음","結果なし","无结果","Sin resultados","कोई परिणाम नहीं","Không có kết quả","ไม่พบผล","Нет результатов","Keine Ergebnisse","Aucun résultat","Nessun risultato"]};
 for(var _k in SUP){STR[_k]=SUP[_k];}
 var LANG=(function(){try{return localStorage.getItem('liveup_lang_user')||localStorage.getItem('liveup_lang')||'en';}catch(e){return 'en';}})();
 function setLangV(l){LANG=l;try{localStorage.setItem('liveup_lang_user',l);localStorage.setItem('liveup_lang',l);}catch(e){}}
@@ -1252,9 +1276,45 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
       c.onclick=function(){ S.leagueF=(S.leagueF===k?"":k); renderHome(); };
       bar.appendChild(c);
     });
-    return bar;
+    // U04/U07: 칩은 한 줄 스크롤, 오른쪽에 '전체 리그' 버튼 고정(스크롤과 별개)
+    var wrap=el("div","lgwrap"); wrap.appendChild(bar);
+    var allBtn=el("button","lg-all"); allBtn.setAttribute("aria-label",t("allLeaguesBrowse")); allBtn.title=t("allLeaguesBrowse");
+    allBtn.innerHTML='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"><path d="M4 6h16M4 12h16M4 18h16"/></svg>';
+    allBtn.onclick=function(){ openLeagueBrowse(games); };
+    wrap.appendChild(allBtn);
+    return wrap;
   }
   function applyLeague(list){ if(!S.leagueF)return list; return list.filter(function(g){return leagueKey(g)===S.leagueF}); }
+  // U07: 전체 리그 선택 창 — 검색·성별·분류(국제/주요/기타)·경기 수. 선택은 리그명(ID)으로 연결.
+  function openLeagueBrowse(games){
+    var o=overlay("ovLgBrowse"); var gender="all", q="";
+    o.innerHTML='<div class="dt-bar"><button class="bk" id="lbBack">‹</button><div class="ti">'+t("allLeaguesBrowse")+'</div></div>'+
+      '<div class="dt-body" id="lbBody"></div>';
+    $("#lbBack").onclick=function(){ closeOverlay("ovLgBrowse"); };
+    function build(){
+      var map={}; (games||[]).forEach(function(g){ var k=leagueKey(g); if(!k)return; if(!map[k])map[k]={name:k,country:g.country,n:0,intl:cIsIntl(g.country),big:isBigLeague(S.sport,k,g.country)}; map[k].n++; });
+      var arr=Object.keys(map).map(function(k){return map[k];});
+      if(gender!=="all"){ arr=arr.filter(function(x){ var gg=leagueGender(x.name); return gender==="w"?(gg==="W"):(gg!=="W"); }); }
+      if(q){ var qq=q.toLowerCase(); arr=arr.filter(function(x){ return (x.name+" "+(x.country||"")).toLowerCase().indexOf(qq)>=0; }); }
+      var sortfn=function(a,b){ var ra=leagueRank(S.sport,a.name,a.country),rb=leagueRank(S.sport,b.name,b.country); if(ra!==rb)return ra-rb; if(b.n!==a.n)return b.n-a.n; return a.name<b.name?-1:1; };
+      var intl=arr.filter(function(x){return x.intl;}).sort(sortfn);
+      var big=arr.filter(function(x){return !x.intl&&x.big;}).sort(sortfn);
+      var other=arr.filter(function(x){return !x.intl&&!x.big;}).sort(sortfn);
+      function rowHtml(x){ var sel=(S.leagueF===x.name); var ic=x.intl?'🌐':(x.country?cFlag(x.country):'🏆');
+        return '<button class="lb-row'+(sel?' sel':'')+'" data-lg="'+esc(x.name)+'"><span class="lb-ic">'+ic+'</span><span class="lb-nm"><b>'+esc(shortLeague(x.name,S.sport))+'</b><i>'+esc(x.name)+(x.country?' · '+esc(x.country):'')+'</i></span><span class="lb-n">'+x.n+'</span>'+(sel?'<span class="lb-ck">✓</span>':'')+'</button>'; }
+      function sec(title,list){ if(!list.length)return ''; return '<div class="lb-sec">'+esc(title)+'</div>'+list.map(rowHtml).join(''); }
+      var h='<div class="lb-search"><input id="lbQ" placeholder="'+esc(t("lgSearchPh"))+'" value="'+esc(q)+'"></div>'+
+        '<div class="lb-gender">'+[['all',t("filterAll")],['m',t("mGender")],['w',t("wGender")]].map(function(x){return '<button class="'+(gender===x[0]?'on':'')+'" data-g="'+x[0]+'">'+esc(x[1])+'</button>';}).join('')+'</div>';
+      h+='<button class="lb-row'+(S.leagueF===''?' sel':'')+'" data-lg=""><span class="lb-ic">🏆</span><span class="lb-nm"><b>'+t("allLeagues")+'</b></span>'+(S.leagueF===''?'<span class="lb-ck">✓</span>':'')+'</button>';
+      if(!arr.length){ h+='<div class="msg" style="padding:24px 0"><div class="big">🔍</div>'+t("noResults")+'</div>'; }
+      else { h+=sec(t("intlComp"),intl)+sec(t("majorLeagues"),big)+sec(t("otherLeagues"),other); }
+      $("#lbBody").innerHTML=h;
+      var qi=$("#lbQ"); if(qi){ qi.oninput=function(){ q=qi.value; build(); var q2=$("#lbQ"); if(q2){ q2.focus(); try{q2.setSelectionRange(q.length,q.length);}catch(e){} } }; }
+      $("#lbBody").querySelectorAll(".lb-gender button").forEach(function(b){ b.onclick=function(){ gender=b.dataset.g; build(); }; });
+      $("#lbBody").querySelectorAll(".lb-row").forEach(function(b){ b.onclick=function(){ S.leagueF=b.dataset.lg; closeOverlay("ovLgBrowse"); renderHome(); }; });
+    }
+    build();
+  }
 
   // ====== 리그 블록 ======
   function groupByLeague(list){
