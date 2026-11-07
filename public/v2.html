@@ -274,6 +274,12 @@ img{display:block}
 /* 보조 라인(라인스코어/세트/BSO) */
 .gm-sub{grid-column:1/-1;padding:2px 2px 2px;display:flex;flex-wrap:wrap;gap:6px;align-items:center;justify-content:center}
 .chipq{font-size:11px;font-weight:700;color:var(--text);background:var(--soft);border-radius:6px;padding:2px 8px;white-space:nowrap}
+.fbflow{margin:4px 0 6px}
+.fbflow-svg{width:100%;height:auto;display:block}
+.fbflow-lg{display:flex;flex-wrap:wrap;gap:12px;justify-content:center;margin-top:4px;font-size:11px;font-weight:700;color:var(--muted)}
+.fbflow-lg span{display:inline-flex;align-items:center;gap:4px}
+.fbflow-lg i{width:9px;height:9px;border-radius:2px;display:inline-block}
+.fbflow-lg .mut{color:#9aa6b6;font-weight:600}
 .lgwrap{display:flex;align-items:center;gap:2px}
 .lgwrap .cbar{flex:1;min-width:0}
 .lg-all{flex:none;display:inline-flex;align-items:center;justify-content:center;width:34px;height:32px;margin-right:12px;border:1px solid var(--line);background:var(--card,#fff);border-radius:9px;color:var(--navy);cursor:pointer}
@@ -763,7 +769,10 @@ var SUP={"esports":["Esports","e스포츠","eスポーツ","电竞","Esports","�
 "intlComp":["International","국제대회","国際大会","国际赛事","Internacional","अंतरराष्ट्रीय","Quốc tế","นานาชาติ","Международные","International","International","Internazionali"],
 "majorLeagues":["Major leagues","주요 리그","主要リーグ","主要联赛","Ligas principales","प्रमुख लीग","Giải lớn","ลีกใหญ่","Главные лиги","Top-Ligen","Ligues majeures","Leghe principali"],
 "otherLeagues":["Other leagues","기타 리그","その他","其他联赛","Otras ligas","अन्य लीग","Giải khác","ลีกอื่น","Прочие лиги","Weitere Ligen","Autres ligues","Altre leghe"],
-"noResults":["No results","결과 없음","結果なし","无结果","Sin resultados","कोई परिणाम नहीं","Không có kết quả","ไม่พบผล","Нет результатов","Keine Ergebnisse","Aucun résultat","Nessun risultato"]};
+"noResults":["No results","결과 없음","結果なし","无结果","Sin resultados","कोई परिणाम नहीं","Không có kết quả","ไม่พบผล","Нет результатов","Keine Ergebnisse","Aucun résultat","Nessun risultato"],
+"matchFlow":["Match flow","경기 흐름","試合の流れ","比赛走势","Desarrollo","मैच प्रवाह","Diễn biến","สถานการณ์","Ход матча","Spielverlauf","Déroulement","Andamento"],
+"flowNoData":["No timeline events provided for this match.","이 경기의 시간대별 이벤트가 제공되지 않습니다.","この試合の時系列イベントは未提供です。","本场暂无时间轴事件。","Sin eventos cronológicos.","समयरेखा घटनाएँ नहीं।","Không có sự kiện theo thời gian.","ไม่มีเหตุการณ์ตามเวลา","Нет событий по минутам.","Keine Zeitleisten-Ereignisse.","Aucun événement chronologique.","Nessun evento cronologico."],
+"flowGoalLine":["Goal lead over time","시간대별 득점차","得点差の推移","进球领先走势","Diferencia de goles","समय अनुसार गोल अंतर","Chênh lệch bàn thắng","ส่วนต่างประตู","Разница голов","Tordifferenz","Écart de buts","Scarto gol"]};
 for(var _k in SUP){STR[_k]=SUP[_k];}
 var LANG=(function(){try{return localStorage.getItem('liveup_lang_user')||localStorage.getItem('liveup_lang')||'en';}catch(e){return 'en';}})();
 function setLangV(l){LANG=l;try{localStorage.setItem('liveup_lang_user',l);localStorage.setItem('liveup_lang',l);}catch(e){}}
@@ -1643,8 +1652,9 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
       // 농구/배구/하키 세트/쿼터
       if(g.setScores&&g.setScores.length){ var lab=sport==="basketball"?t("quarterScore"):(sport==="hockey"?t("periodScore"):t("setScore")); h+='<div class="dt-sec-t">'+lab+'</div><div style="display:flex;flex-wrap:wrap;gap:6px">'+g.setScores.map(function(p,i){return '<span class="chipq"><b class="qk">'+periodColLabel(sport,i,g.isHalves)+'</b>'+(p.home==null?"-":p.home)+":"+(p.away==null?"-":p.away)+'</span>'}).join("")+'</div>'; }
     }
-    // 축구 개요 요약: 핵심 통계 + 라인업/이벤트 바로가기 (전체는 각 탭에서)
+    // 축구 개요 요약: 경기 흐름 그래프(F01) → 핵심 통계 → 이벤트 → 최근성적/순위
     if(sport==="football"&&stateOf(g)!=="scheduled"){
+      h+='<div id="ovFlow"></div>';
       h+='<div id="ovStats"><div class="dt-sec-t" style="margin-top:18px">📊 '+t("keyStats")+'</div><p style="color:#8a93a3;font-size:13px">'+t("loading")+'</p></div>';
       h+='<div id="ovStars"></div>';
       h+='<div class="ov-jump">'+
@@ -1674,8 +1684,51 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
     loadOverviewRank(g,sport);
     // 개요 → 탭 이동 버튼
     var db=$("#dtBody"); if(db){ db.querySelectorAll(".ovj").forEach(function(btn){ btn.onclick=function(){ _dt.tab=btn.dataset.go; renderDetail(); }; }); }
-    if(sport==="football"&&stateOf(g)!=="scheduled"){ loadOverviewStats(g); loadOverviewStars(g); }
+    if(sport==="football"&&stateOf(g)!=="scheduled"){ loadOverviewStats(g); loadOverviewStars(g); loadFootballFlow(g); }
     loadForm(g,sport);
+  }
+  // F01/F02: 축구 경기 흐름 그래프 — API-Football 이벤트(득점·카드·교체의 실제 분)로 득점 진행 타임라인.
+  //  시간대별 모멘텀 파형은 공급사 미제공이라 생성하지 않음(명령서 F02). 데이터 없으면 '미제공' 명시.
+  function loadFootballFlow(g){
+    var box=$("#ovFlow"); if(!box)return;
+    if(!g.apiFixture){ box.innerHTML=''; return; }   // fixmap 해석 전/실패 → 개요의 다른 실데이터는 그대로
+    var tk=_dtTok;
+    fetch("/api/asports/events?fixture="+encodeURIComponent(g.apiFixture)).then(function(r){return r.json();}).then(function(j){
+      if(tk!==_dtTok)return; var bx=$("#ovFlow"); if(!bx)return;
+      var evs=(j&&j.events)||[];
+      var title='<div class="dt-sec-t">📈 '+t("matchFlow")+'</div>';
+      if(!evs.length){ bx.innerHTML=title+'<p style="color:#8a93a3;font-size:12.5px">'+t("flowNoData")+'</p>'; return; }
+      var homeId=g.homeId;
+      var mn=function(e){ return (+e.minute||0)+(+e.extra||0); };
+      var isHomeEv=function(e){ var h=String(e.teamId)===String(homeId); if(/own\s*goal/i.test(e.detail||""))h=!h; return h; };
+      var maxMin=90; evs.forEach(function(e){ if(mn(e)>maxMin)maxMin=mn(e); }); maxMin=Math.max(maxMin,90);
+      // 득점 진행(계단)
+      var goals=evs.filter(function(e){ return /goal/i.test(e.type)&&!/missed|cancelled|penalty\s*(miss|saved)/i.test((e.detail||"")+(e.type||"")); }).sort(function(a,b){return mn(a)-mn(b);});
+      var W=320,Hh=108,PL=8,PR=8,PT=16,PB=16,iw=W-PL-PR,ih=Hh-PT-PB,cy=PT+ih/2;
+      var X=function(m){ return PL+Math.min(1,m/maxMin)*iw; };
+      var hs=0,as=0,pts=[{x:PL,hs:0,as:0}];
+      goals.forEach(function(e){ if(isHomeEv(e))hs++; else as++; pts.push({x:X(mn(e)),hs:hs,as:as,home:isHomeEv(e),e:e}); });
+      // 계단 경로(홈=위로 +, 원정=아래로 −) : 득점차 d = hs-as
+      var mx=Math.max(1,hs,as);
+      var yFor=function(d){ return cy - (d/mx)*(ih/2); };
+      var d='M'+PL+' '+cy; var cd=0;
+      pts.forEach(function(p,i){ if(i===0)return; var pd=p.hs-p.as; d+=' L'+p.x+' '+yFor(cd)+' L'+p.x+' '+yFor(pd); cd=pd; });
+      d+=' L'+(W-PR)+' '+yFor(cd);
+      // HT 선(45분)
+      var htx=X(45);
+      // 득점 마커
+      var gm=pts.slice(1).map(function(p){ return '<circle cx="'+p.x+'" cy="'+(p.home?PT+6:Hh-PB-6)+'" r="4" fill="'+(p.home?"var(--navy)":"var(--red)")+'"/><text x="'+p.x+'" y="'+(p.home?PT+2:Hh-PB+2)+'" font-size="8" text-anchor="middle" fill="#8a93a3">'+p.hs+'-'+p.as+'</text>'; }).join("");
+      // 카드/교체 마커(중앙선 위 작은 틱)
+      var others=evs.filter(function(e){ return /card/i.test(e.type)||/subst/i.test(e.type); });
+      var om=others.map(function(e){ var x=X(mn(e)); var col=/red/i.test(e.detail||"")?"#df123b":(/yellow/i.test(e.detail||"")?"#f5b400":"#9aa6b6"); var up=isHomeEv(e); return '<rect x="'+(x-1)+'" y="'+(up?cy-9:cy+3)+'" width="2" height="6" rx="1" fill="'+col+'"/>'; }).join("");
+      var svg='<svg viewBox="0 0 '+W+' '+Hh+'" class="fbflow-svg" preserveAspectRatio="none">'+
+        '<line x1="'+PL+'" y1="'+cy+'" x2="'+(W-PR)+'" y2="'+cy+'" stroke="var(--line)"/>'+
+        '<line x1="'+htx+'" y1="'+PT+'" x2="'+htx+'" y2="'+(Hh-PB)+'" stroke="var(--line)" stroke-dasharray="3 3"/>'+
+        '<text x="'+htx+'" y="'+(Hh-2)+'" font-size="7.5" text-anchor="middle" fill="#9aa6b6">HT</text>'+
+        '<path d="'+d+'" fill="none" stroke="#2b6cf0" stroke-width="2"/>'+gm+om+'</svg>';
+      var lg='<div class="fbflow-lg"><span><i style="background:var(--navy)"></i>'+esc(g.home)+'</span><span><i style="background:var(--red)"></i>'+esc(g.away)+'</span><span class="mut">'+t("flowGoalLine")+'</span></div>';
+      bx.innerHTML=title+'<div class="fbflow">'+svg+lg+'</div>';
+    }).catch(function(){ var bx=$("#ovFlow"); if(bx)bx.innerHTML=''; });
   }
   // 개요용 핵심 통계 요약(점유율·슈팅·유효슈팅·경고·퇴장) — fbstats 1회 호출(탭과 동일 캐시)
   function loadOverviewStats(g){
