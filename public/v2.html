@@ -3587,8 +3587,8 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
       // 최신 라이브 필드만 복사(단일 최신 상태 기준) — 점수 감소도 공급사 정정으로 반영(I06)
       ["hs","as","status","statusLong","state","period","timer","elapsed","neutral","setScores","inningHalf","curInning","bso","bases","box","homeFouls","awayFouls","periodLabel","isHalves","ftTs","ftBase","ftRun","ftCap","homeLogo","awayLogo","league","country"].forEach(function(k){ if(fresh[k]!==undefined) g[k]=fresh[k]; });
       updateDetailHead();
-      var sig=(g.hs==null?"-":g.hs)+":"+(g.as==null?"-":g.as)+":"+(g.state||"")+":"+(g.period||"")+":"+(g.status||"");
-      if(sig!==_dtLastSig){ _dtLastSig=sig; if(_dt.tab==="overview") renderOverview(g,sport); }   // 점수/상태 바뀌면 개요만 재렌더
+      var sig=(g.hs==null?"-":g.hs)+":"+(g.as==null?"-":g.as)+":"+(g.state||"")+":"+(g.period||"")+":"+(g.status||"")+":"+((g.setScores||[]).map(function(p){return p.home+"/"+p.away;}).join(","));
+      if(sig!==_dtLastSig){ _dtLastSig=sig; if(_dt.tab==="overview"){ if(sport==="volleyball")loadVolleyOverview(g); else renderOverview(g,sport); } }   // 점수/상태/세트 바뀌면 개요만 재렌더(종목별 라우팅)
     }).catch(function(){ _dtSyncing=false; });
   }
   // 상세 헤더(점수·상태·시계)만 제자리 갱신 — 탭 내용·스크롤 보존

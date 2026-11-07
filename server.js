@@ -21,7 +21,7 @@ const app = express();
 const server = http.createServer(app);
 
 const PORT = process.env.PORT || 3000;
-const APP_VERSION = 'v410';
+const APP_VERSION = 'v411';
 
 // ============================================================
 //  📏 성능 계측(instrumentation) — 엔드포인트 지연·캐시·공급사·WS·이벤트루프
@@ -73,7 +73,10 @@ app.use((req, res, next) => {
 });
 app.set('trust proxy', true);   // Render 프록시 뒤 실제 클라이언트 IP 인식
 app.use(express.json());
-app.use(express.static(path.join(__dirname, 'public')));
+// 앱 셸(HTML)·서비스워커는 매 로드 재검증(배포 즉시 반영) — 정적 자산(이미지/폰트)은 기본 캐시 유지
+app.use(express.static(path.join(__dirname, 'public'), { setHeaders: function(res, p){
+  if(/\.html$/i.test(p) || /sw\.js$/i.test(p)){ res.setHeader('Cache-Control', 'no-cache, must-revalidate'); }
+} }));
 
 // ============================================================
 //  📊 접속자 추적(analytics) — 방문·버튼클릭·IP·시각 수집
@@ -933,6 +936,15 @@ async function rankMLB(season) {
 }
 // API-Sports 농구/배구 리그명 → 리그 ID 자동 검색 (하드코딩 없이 커버)
 const _leagueIdCache = new Map();
+// 🏐 배구 리그명(현지어 포함) → API-Sports 검색어 별칭. 성별 구분 유지(여자부는 남자 리그로 매핑 금지).
+function vbLeagueAlias(name) {
+  const n = String(name || '');
+  if (/v\s*리그|v-?\s*league/i.test(n)) {
+    if (/여자|여성|women|female|\bw\b/i.test(n)) return 'KOVO Women';   // 여자부(미커버 시 unmapped 유지)
+    if (/남자|남성|men|male|\bm\b/i.test(n)) return 'KOVO';             // 남자부 → API-Sports KOVO
+  }
+  return name;
+}
 async function asLeagueId(sport, name) {
   if (!name) return null;
   const ck = sport + '|' + name;
@@ -987,7 +999,7 @@ async function rankBasketball(league, season) {
   return { table: [], kind: 'basketball' };
 }
 async function rankVolleyball(league, season) {
-  let lid = /^\d+$/.test(league) ? league : await asLeagueId('volleyball', league);
+  let lid = /^\d+$/.test(league) ? league : await asLeagueId('volleyball', vbLeagueAlias(league));
   if (!lid) return { table: [], note: 'unmapped' };
   const m = String(season || '').match(/\d{4}/); const y = m ? +m[0] : new Date().getFullYear();
   for (const sy of [`${y}-${y + 1}`, String(y), `${y - 1}-${y}`, String(y - 1)]) {
@@ -1748,7 +1760,7 @@ async function vbResolve(home, away, leagueName, season){
   const c=_vbResolveCache.get(key); if(c&&Date.now()-c.t<6*3600e3) return c.v;
   let out=null;
   try{
-    const lid=await asLeagueId('volleyball', leagueName);
+    const lid=await asLeagueId('volleyball', vbLeagueAlias(leagueName));
     if(lid){
       const m=String(season||'').match(/\d{4}/); const y=m?+m[0]:new Date().getFullYear();
       const h=_nrmVbTeam(home), a=_nrmVbTeam(away);
