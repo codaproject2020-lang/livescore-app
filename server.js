@@ -21,7 +21,7 @@ const app = express();
 const server = http.createServer(app);
 
 const PORT = process.env.PORT || 3000;
-const APP_VERSION = 'v408';
+const APP_VERSION = 'v409';
 
 // ============================================================
 //  📏 성능 계측(instrumentation) — 엔드포인트 지연·캐시·공급사·WS·이벤트루프
@@ -1723,7 +1723,75 @@ app.get('/api/ts/vbdiag', async (req, res) => {
   } catch (e) { out.error = String((e && e.message) || e); }
   res.json(out);
 });
-// 🏀 진단: TheSports 농구 활성화/커버리지 + 초단위 timer + 라인업 확인
+// ============ 🏐 배구 상세 보완: 팀일정·맞대결(유도)·라이브통계 — API-Sports 보완 + TheSports 라이브 ============
+const _vbResolveCache = new Map();
+function _nrmVbTeam(s){ return String(s||'').toLowerCase().replace(/\b(women|woman|men|man|ladies|female|male|w|m|vc|bc|volley(ball)?|club)\b/g,'').replace(/[^a-z0-9가-힣]/g,'').trim(); }
+function vbNormGame(g){
+  const H=(g.teams&&g.teams.home)||{}, A=(g.teams&&g.teams.away)||{};
+  const sc=g.scores||{}; const stObj=g.status||{};
+  const stShort=String((typeof stObj==='object'?(stObj.short||stObj.long):stObj)||'');
+  const fin=/FT|AOT|AW|WO|fin/i.test(stShort)||/finish/i.test(String(stObj&&stObj.long||''));
+  const sched=/NS|TBD|POST/i.test(stShort)||/not started|scheduled/i.test(String(stObj&&stObj.long||''));
+  return { id:g.id, date:g.date||(g.timestamp?new Date(g.timestamp*1000).toISOString():null), ts:g.timestamp||null,
+    league:(g.league&&g.league.name)||'', leagueId:(g.league&&g.league.id)||null, season:(g.league&&g.league.season)||null,
+    homeId:H.id, awayId:A.id, home:H.name||'', away:A.name||'', homeLogo:H.logo||'', awayLogo:A.logo||'',
+    setsH:(sc.home!=null?sc.home:null), setsA:(sc.away!=null?sc.away:null), periods:g.periods||null,
+    status:stShort, finished:fin, scheduled:sched };
+}
+async function vbTeamGamesRaw(teamId, season){
+  const j=await asRaw('volleyball', `/games?team=${encodeURIComponent(teamId)}&season=${encodeURIComponent(season)}`, 300000).catch(()=>null);
+  return ((j&&j.response)||[]);
+}
+// TheSports 경기(홈/원정명+날짜) → API-Sports 경기/팀/리그/시즌 ID 해석
+async function vbResolve(home, away, date){
+  const key=_nrmVbTeam(home)+'|'+_nrmVbTeam(away)+'|'+(date||'');
+  const c=_vbResolveCache.get(key); if(c&&Date.now()-c.t<6*3600e3) return c.v;
+  let out=null;
+  try{
+    const j=await asRaw('volleyball', `/games?date=${date}`, 3600e3);
+    const arr=(j&&j.response)||[]; const h=_nrmVbTeam(home), a=_nrmVbTeam(away);
+    const hit=(gh,ta)=>{ return (gh&&(gh.includes(h)||h.includes(gh)))&&(ta&&(ta.includes(a)||a.includes(ta))); };
+    let m=arr.find(g=>hit(_nrmVbTeam(g.teams&&g.teams.home&&g.teams.home.name), _nrmVbTeam(g.teams&&g.teams.away&&g.teams.away.name)));
+    if(!m) m=arr.find(g=>hit(_nrmVbTeam(g.teams&&g.teams.away&&g.teams.away.name), _nrmVbTeam(g.teams&&g.teams.home&&g.teams.home.name))); // 홈/원정 뒤바뀜
+    if(m){ const n=vbNormGame(m); out={ gameId:n.id, leagueId:n.leagueId, leagueName:n.league, season:n.season, homeId:n.homeId, awayId:n.awayId, homeName:n.home, awayName:n.away }; }
+  }catch(e){}
+  _vbResolveCache.set(key,{t:Date.now(),v:out});
+  return out;
+}
+app.get('/api/volleyball/resolve', async (req,res)=>{ res.set('Cache-Control','no-store');
+  try{ const r=await vbResolve(req.query.home,req.query.away,req.query.date); res.json(Object.assign({found:!!r}, r||{})); }
+  catch(e){ res.json({found:false, error:String(e.message||e)}); } });
+app.get('/api/volleyball/teamgames', async (req,res)=>{ res.set('Cache-Control','no-store');
+  if(!APISPORTS_KEY) return res.json({needKey:true, games:[]});
+  const team=req.query.team, season=req.query.season||new Date().getFullYear();
+  if(!team) return res.status(400).json({error:'team required', games:[]});
+  try{ let gs=(await vbTeamGamesRaw(team,season)).map(vbNormGame);
+    if(!gs.length){ gs=(await vbTeamGamesRaw(team, (+String(season).slice(0,4))-1)).map(vbNormGame); }
+    gs.sort((x,y)=>(x.ts||0)-(y.ts||0));
+    res.json({ games:gs, raw:(req.query.debug?gs.slice(0,1):undefined) }); }
+  catch(e){ res.status(502).json({error:String(e.message||e), games:[]}); } });
+app.get('/api/volleyball/h2h', async (req,res)=>{ res.set('Cache-Control','no-store');
+  if(!APISPORTS_KEY) return res.json({needKey:true, games:[]});
+  const homeId=req.query.home, awayId=req.query.away; let season=+String(req.query.season||new Date().getFullYear()).slice(0,4);
+  if(!homeId||!awayId) return res.status(400).json({error:'home/away required', games:[]});
+  try{ let all=[];
+    for(const s of [season, season-1, season-2]){ const rows=await vbTeamGamesRaw(homeId,s).catch(()=>[]);
+      rows.forEach(g=>{ const h=g.teams&&g.teams.home&&g.teams.home.id, a=g.teams&&g.teams.away&&g.teams.away.id;
+        if((String(h)===String(homeId)&&String(a)===String(awayId))||(String(h)===String(awayId)&&String(a)===String(homeId))) all.push(vbNormGame(g)); }); }
+    const seen=new Set(); all=all.filter(g=>{ if(seen.has(g.id))return false; seen.add(g.id); return true; }).sort((x,y)=>(y.ts||0)-(x.ts||0));
+    res.json({ games:all }); }
+  catch(e){ res.status(502).json({error:String(e.message||e), games:[]}); } });
+// 🏐 배구 라이브 통계(현재 경기) — TheSports detail_live. stats=[[scope,[[statId,home,away]...]]].
+app.get('/api/volleyball/live', async (req,res)=>{ res.set('Cache-Control','no-store');
+  const raw=String(req.query.id||''); if(!/^ts/.test(raw)) return res.json({found:false, note:'not-thesports'});
+  const id=raw.replace(/^ts/,'');
+  try{ const lv=await tsFetch('/volleyball/match/detail_live', {}, 5000).catch(()=>null);
+    const arr=(lv&&lv.results)||[]; const mine=arr.find(x=>String(x&&x.id)===String(id));
+    if(!mine) return res.json({ found:false });
+    const scopes=[]; (mine.stats||[]).forEach(sc=>{ if(Array.isArray(sc)&&Array.isArray(sc[1])){ scopes.push({ scope:sc[0], rows:sc[1].map(r=>({id:r[0], home:r[1], away:r[2]})) }); } });
+    res.json({ found:true, score:mine.score||null, scopes, rawStats:(req.query.debug?mine.stats:undefined), rawScore:(req.query.debug?mine.score:undefined) });
+  }catch(e){ res.status(502).json({error:String(e.message||e)}); } });
+// 🏐 진단: 농구 활성화/커버리지 + 초단위 timer + 라인업 확인
 // 🔎 진단: 더스포츠 농구 팀/선수/시즌/순위/종료박스 후보 엔드포인트 탐색(구조 확인용, 최소 호출)
 app.get('/api/ts/bskdiag', async (req, res) => {
   if (!TS_ON) return res.json({ on: false });
