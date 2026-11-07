@@ -1201,7 +1201,7 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
   function cIsIntl(country){ var n=cNorm(country); return !!CINTL[n]||!!CINTL[String(country||"").toLowerCase()]; }
   function cFlag(country){ var k=cKey(country); return (CFLAG[k]&&CFLAG[k].f)||"🏳️"; }
   // U05: 리그 국기 — country 필드 우선, 없으면 리그명에서 추론(축구 피드 country 공백 대응). 미상/복수국가는 대회 아이콘.
-  var _LG_FLAG=[[/premier league|\bEPL\b/i,"🏴󠁧󠁢󠁥󠁮󠁧󠁿"],[/champions|europa|conference|euro(pe|pa)|uefa/i,"🌐"],[/la\s*liga|primera divisi[oó]n|españ|spanish/i,"🇪🇸"],[/serie\s*[ab]|ital/i,"🇮🇹"],[/bundesliga|german/i,"🇩🇪"],[/ligue\s*[12]|fran[cç]/i,"🇫🇷"],[/eredivisie|dutch|netherl/i,"🇳🇱"],[/primeira|portug/i,"🇵🇹"],[/s[uü]per\s*lig|turk|türk/i,"🇹🇷"],[/k[\s-]*league|k리그|korea|대한민국|\bKBO\b|\bKBL\b|\bKOVO\b|v리그/i,"🇰🇷"],[/j[12]\s*league|japan|日本|\bNPB\b/i,"🇯🇵"],[/\bMLS\b|major league soccer|\bMLB\b|\bNBA\b|\bNHL\b|usa|united states/i,"🇺🇸"],[/saudi/i,"🇸🇦"],[/liga mx|mexic/i,"🇲🇽"],[/bras(il|ile)/i,"🇧🇷"],[/argentin/i,"🇦🇷"],[/\bKHL\b|russia|росс/i,"🇷🇺"]];
+  var _LG_FLAG=[[/^(english\s+)?premier\s*league$|\bEPL\b/i,"🏴󠁧󠁢󠁥󠁮󠁧󠁿"],[/champions league|europa league|conference league|uefa/i,"🌐"],[/la\s*liga|primera divisi[oó]n|españ|spanish/i,"🇪🇸"],[/^(italian\s+)?serie\s*[ab]$|\bital/i,"🇮🇹"],[/bundesliga|german/i,"🇩🇪"],[/ligue\s*[12]|fran[cç]/i,"🇫🇷"],[/eredivisie|dutch|netherl/i,"🇳🇱"],[/primeira|portug/i,"🇵🇹"],[/s[uü]per\s*lig|turk|türk/i,"🇹🇷"],[/k[\s-]*league|k리그|korea|대한민국|\bKBO\b|\bKBL\b|\bKOVO\b|v리그/i,"🇰🇷"],[/j[12]\s*league|japan|日本|\bNPB\b/i,"🇯🇵"],[/\bMLS\b|major league soccer|\bMLB\b|\bNBA\b|\bNHL\b|usa|united states/i,"🇺🇸"],[/saudi/i,"🇸🇦"],[/liga mx|mexic/i,"🇲🇽"],[/bras(il|ile)/i,"🇧🇷"],[/argentin/i,"🇦🇷"],[/\bKHL\b|russia|росс/i,"🇷🇺"]];
   function leagueFlag(name,country){ if(country){ var f=cFlag(country); if(f&&f!=="🏳️")return f; } var n=String(name||""); for(var i=0;i<_LG_FLAG.length;i++){ if(_LG_FLAG[i][0].test(n))return _LG_FLAG[i][1]; } return "🏆"; }
   function cLabel(country){ var k=cKey(country); if(CFLAG[k]) return LANG==="ko"?CFLAG[k].ko:(country||CFLAG[k].ko); return country||""; }
   // e스포츠: 리그명에서 게임명 추출 ("LoL · LCK" → "LoL")
@@ -1239,21 +1239,22 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
   function leagueKey(g){ return String(g.league||"").trim(); }
   // U01/U02: 긴 리그명 → 짧은 현지어 약칭(표시용). 필터·선택은 전체명(ID)로 유지하고 표시만 축약.
   //  성별(남/여)·국가 구분 유지 — 젠더 모호 대회(V리그·슈퍼리가 등)엔 남/여 접미사 부착.
+  // R008/R028: 약칭은 '정확히 그 대회'일 때만(앵커드). 부분매칭으로 다른 리그를 같은 약칭으로 합치지 않음.
   var _LG_SHORT=[
-    [/premier league/i,"EPL",0],[/\bchampionship\b/i,{en:"Championship",ko:"챔피언십"},0],
-    [/la\s*liga|primera divisi[oó]n/i,{en:"LaLiga",ko:"라리가"},0],[/serie\s*a\b/i,{en:"Serie A",ko:"세리에A"},0],[/serie\s*b\b/i,{en:"Serie B",ko:"세리에B"},0],
-    [/bundesliga\s*2|2\.\s*bundesliga/i,{en:"Bundesliga 2",ko:"분데스2"},0],[/bundesliga/i,{en:"Bundesliga",ko:"분데스리가"},0],
-    [/ligue\s*1/i,{en:"Ligue 1",ko:"리그1"},0],[/ligue\s*2/i,{en:"Ligue 2",ko:"리그2"},0],
-    [/eredivisie/i,"Eredivisie",0],[/primeira liga/i,{en:"Primeira",ko:"프리메이라"},0],
-    [/s[uü]per\s*lig/i,{en:"Süper Lig",ko:"쉬페르리그"},1],
-    [/uefa champions|champions league/i,"UCL",0],[/uefa europa|europa league/i,"UEL",0],[/conference league/i,"UECL",0],
-    [/major league soccer|\bmls\b/i,"MLS",0],[/saudi pro league/i,"SPL",0],
-    [/k[\s-]*league\s*1|k리그\s*1/i,{en:"K League 1",ko:"K리그1"},0],[/k[\s-]*league\s*2|k리그\s*2/i,{en:"K League 2",ko:"K리그2"},0],
-    [/j1\s*league/i,"J1",0],[/j2\s*league/i,"J2",0],[/liga mx/i,"Liga MX",0],[/bras(il|ile)/i,{en:"Brasileirão",ko:"브라질세리에A"},0],
-    [/major league baseball|\bmlb\b/i,"MLB",0],[/\bkbo\b/i,"KBO",0],[/nippon professional|\bnpb\b/i,"NPB",0],
-    [/\bnba\b/i,"NBA",0],[/\bkbl\b/i,"KBL",1],[/euroleague/i,{en:"EuroLeague",ko:"유로리그"},0],[/\bwkbl\b/i,"WKBL",0],
-    [/\bnhl\b/i,"NHL",0],[/\bkhl\b/i,"KHL",0],[/\bahl\b/i,"AHL",0],
-    [/v[\s.-]*league|v리그/i,{en:"V-League",ko:"V리그"},1],[/superliga|super\s*league/i,{en:"Superliga",ko:"슈퍼리가"},1],[/plusliga/i,"PlusLiga",1]
+    [/^(english\s+)?premier\s*league$/i,"EPL",0],
+    [/^(spanish\s+)?la\s*liga$|^primera divisi[oó]n$/i,{en:"LaLiga",ko:"라리가"},0],[/^(italian\s+)?serie\s*a$/i,{en:"Serie A",ko:"세리에A"},0],[/^(italian\s+)?serie\s*b$/i,{en:"Serie B",ko:"세리에B"},0],
+    [/^(german\s+)?bundesliga$/i,{en:"Bundesliga",ko:"분데스리가"},0],
+    [/^(french\s+)?ligue\s*1$/i,{en:"Ligue 1",ko:"리그1"},0],[/^(french\s+)?ligue\s*2$/i,{en:"Ligue 2",ko:"리그2"},0],
+    [/^(dutch\s+)?eredivisie$/i,"Eredivisie",0],[/^(portuguese\s+)?primeira liga$|^liga portugal$/i,{en:"Primeira",ko:"프리메이라"},0],
+    [/^(turkish\s+)?s[uü]per\s*lig$/i,{en:"Süper Lig",ko:"쉬페르리그"},1],
+    [/^(uefa\s+)?champions\s*league$/i,"UCL",0],[/^(uefa\s+)?europa\s*league$/i,"UEL",0],[/^(uefa\s+)?(europa\s+)?conference\s*league$/i,"UECL",0],
+    [/^(usa\s+)?major league soccer$|^mls$/i,"MLS",0],[/^saudi (pro|professional) league$/i,"SPL",0],
+    [/^(korean?\s+)?k[\s-]*league\s*1$|^k리그\s*1$/i,{en:"K League 1",ko:"K리그1"},0],[/^(korean?\s+)?k[\s-]*league\s*2$|^k리그\s*2$/i,{en:"K League 2",ko:"K리그2"},0],
+    [/^(japanese\s+)?j1(\s*league)?$/i,"J1",0],[/^(japanese\s+)?j2(\s*league)?$/i,"J2",0],[/^liga mx$/i,"Liga MX",0],[/^brasileir[aã]o$|^brazil(ian)?\s+s[eé]rie a$/i,{en:"Brasileirão",ko:"브라질세리에A"},0],
+    [/^(major league baseball|mlb)$/i,"MLB",0],[/^kbo( league)?$/i,"KBO",0],[/^(nippon professional baseball|npb)$/i,"NPB",0],
+    [/\bNBA\b/i,"NBA",0],[/korean?\s*basketball\s*league|\bkbl\b/i,"KBL",1],[/^euroleague$/i,{en:"EuroLeague",ko:"유로리그"},0],[/\bwkbl\b|women'?s?\s*korean?\s*basketball/i,"WKBL",0],
+    [/\bNHL\b/i,"NHL",0],[/\bKHL\b/i,"KHL",0],[/\bAHL\b/i,"AHL",0],
+    [/v[\s.-]*league|v리그|kovo/i,{en:"V-League",ko:"V리그"},1],[/^plusliga$/i,"PlusLiga",1],[/efeler/i,{en:"Efeler",ko:"에펠레르"},0],[/sultanlar/i,{en:"Sultanlar",ko:"술탄라르"},0]
   ];
   function leagueGender(n){ if(/\b(women|female|ladies|girls|féminin|femminile|feminino|damen)\b|여자|여성|여(?![가-힣])/i.test(n))return "W"; if(/\b(men|male|boys|masculin|maschile|masculino|herren)\b|남자|남성|남(?![가-힣])/i.test(n))return "M"; return ""; }
   function shortLeague(name,sport){
