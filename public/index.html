@@ -239,6 +239,24 @@ img{display:block}
 /* ===== 경기 카드 ===== */
 .gm{display:grid;grid-template-columns:1fr auto 1fr auto;align-items:center;gap:8px;padding:12px 12px;border-top:1px solid var(--line);min-height:62px}
 .gm:first-child{border-top:none}
+/* 2행 카드(C01~C03) */
+.gm2{display:grid;grid-template-columns:52px 1fr 30px;align-items:center;gap:8px;padding:10px 10px;border-top:1px solid var(--line);position:relative;cursor:pointer}
+.gm2:first-child{border-top:none}
+.gm2 .g2stat{text-align:center;min-width:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px}
+.gm2 .g2time{font-size:14px;font-weight:800;color:var(--navy)}
+.gm2 .g2st{font-size:10.5px;font-weight:800;color:var(--muted);line-height:1.25;word-break:keep-all}
+.gm2 .g2st.live{color:var(--red)}
+.gm2 .g2st .lc,.gm2 .g2st .fc{color:var(--red)}
+.gm2 .g2teams{display:flex;flex-direction:column;gap:7px;min-width:0}
+.gm2 .g2row{display:flex;align-items:center;gap:8px;min-width:0}
+.gm2 .g2lg{width:24px;height:24px;object-fit:contain;flex:0 0 auto}
+.gm2 .g2lg.ph{display:flex;align-items:center;justify-content:center;font-size:13px;background:var(--soft);border-radius:50%}
+.gm2 .g2nm{flex:1;min-width:0;font-weight:700;font-size:13.5px;line-height:1.25;white-space:normal;word-break:break-word}
+.gm2 .g2sc{flex:0 0 auto;font-weight:900;font-size:17px;color:var(--navy);min-width:20px;text-align:right}
+.gm2 .g2sc.red{color:var(--red)}
+.gm2 .g2row .ha{margin-top:0;flex:0 0 auto}
+.gm2 .fav{position:static;align-self:center}
+.gm2 .gm-sub{grid-column:1/-1}
 .gm .side{display:flex;align-items:center;gap:9px;min-width:0}
 .gm .side.away{flex-direction:row-reverse;text-align:right}
 .gm .side img,.gm .side .tph{width:30px;height:30px;object-fit:contain;flex:0 0 auto}
@@ -1174,23 +1192,27 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
   // ====== 경기 카드 ======
   function gid(g){ return S.sport+":"+g.id; }
   function fmtScore(g){ if(SET.hideScores&&stateOf(g)!=="scheduled") return "· : ·"; return (g.hs==null?"-":g.hs)+" : "+(g.as==null?"-":g.as); }
+  // 🂠 2행 경기 카드(C01~C03): 좌측 상태/시간 열 + 팀 2행(각 행: H/A배지·로고·팀명·오른쪽 점수) + 관심별 + 보조라인.
+  //   팀명은 말줄임 없이 줄바꿈(C02). H=홈/A=원정은 API 실제 홈·원정 기준.
   function gameCard(g){
-    var card=el("div","gm");
-    card.appendChild(sideEl(g.home,g.homeLogo,false,g.neutral));
-    var mid=el("div","mid");
-    if(stateOf(g)==="scheduled"){
-      mid.innerHTML='<div class="tt">'+hhmm(g.date)+'</div><div class="subt">'+t("startSoon")+'</div>';
-    }else{
-      var live=stateOf(g)==="live";
-      mid.innerHTML='<div class="sc'+(live?" red":"")+'">'+fmtScore(g)+'</div><div class="st'+(live?" live":"")+'">'+statusText(g)+'</div>';
+    var card=el("div","gm2");
+    var sch=stateOf(g)==="scheduled", live=stateOf(g)==="live";
+    function g2row(name,logo,away,score){
+      return '<div class="g2row">'+haBadge(away,g.neutral)+
+        (logo?'<img class="g2lg" src="'+esc(logo)+'" onerror="this.outerHTML=\'<div class=\\\'g2lg ph\\\'>🛡️</div>\'">':'<div class="g2lg ph">🛡️</div>')+
+        '<span class="g2nm">'+esc(name||"")+'</span>'+
+        '<span class="g2sc'+(live&&score!=="·"&&!sch?" red":"")+'">'+score+'</span></div>';
     }
-    card.appendChild(mid);
-    card.appendChild(sideEl(g.away,g.awayLogo,true,g.neutral));
-    // 관심 별
+    var hidden=(SET.hideScores&&!sch);
+    var hsc=sch?'':(hidden?'·':(g.hs==null?'-':g.hs)), asc=sch?'':(hidden?'·':(g.as==null?'-':g.as));
+    var stat=sch
+      ? '<div class="g2time">'+hhmm(g.date)+'</div><div class="g2st sch">'+t("startSoon")+'</div>'
+      : '<div class="g2st'+(live?" live":"")+'">'+statusText(g)+'</div>';
+    card.innerHTML='<div class="g2stat">'+stat+'</div><div class="g2teams">'+g2row(g.home,g.homeLogo,false,hsc)+g2row(g.away,g.awayLogo,true,asc)+'</div>';
+    // 관심 별 — 경기 단위 1개(C03)
     var fv=el("button","fav"+(S.favs.has(gid(g))?" on":""),"★");
     fv.onclick=function(e){ e.stopPropagation(); if(S.favs.has(gid(g)))S.favs.delete(gid(g)); else S.favs.add(gid(g)); saveFavs(); fv.classList.toggle("on"); if(S.filter==="fav"||S.screen==="fav")renderHome(); };
     card.appendChild(fv);
-    // 보조 라인
     var sub=subLine(g);
     if(sub) card.appendChild(sub);
     card.onclick=function(e){ if(e.target.closest(".fav"))return; openDetail(g); };
