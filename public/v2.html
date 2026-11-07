@@ -1060,12 +1060,12 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
       {re:/^(jap(an|anese)\s+)?j1[\s-]?league$|^j1$/i, co:/japan|일본/i}
     ],
     basketball:[
-      {re:/^(usa\s+)?NBA$|national\s*basketball\s*association/i, co:/usa|united states|america|미국/i},
-      {re:/^(kor(ea|ean)\s+)?KBL$/i, co:/korea|한국/i},
+      {re:/\bNBA\b|national\s*basketball\s*association/i, co:/usa|united states|america|미국/i, x:/\bg[\s-]?league\b|summer\s*league|2k|preseason|exhibition/i},   // R028: NBA G League 제외
+      {re:/\bKBL\b|korean?\s*basketball\s*league/i, co:/korea|한국/i, x:/\bWKBL\b|women/i},
       {re:/euroleague/i},
-      {re:/^(kor(ea|ean)\s+)?WKBL$/i, co:/korea|한국/i},
-      {re:/^(jap(an|anese)\s+)?B\.?\s*League$/i, co:/japan|일본/i},
-      {re:/^(china|chinese\s+)?CBA$/i, co:/china|중국/i}
+      {re:/\bWKBL\b|women'?s?\s*korean?\s*basketball/i, co:/korea|한국/i},
+      {re:/\bB[\s.]?league\b|japan(ese)?\s*basketball/i, co:/japan|일본/i},
+      {re:/\bCBA\b|chinese\s*basketball\s*association/i, co:/china|중국/i}
     ],
     baseball:[
       {re:/\bMLB\b|major\s*league\s*baseball|메이저리그/i, co:/usa|united states|america|미국/i},
@@ -1099,7 +1099,7 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
     var arr=LEAGUES[sport]||[]; var s=String(name||""); var c=String(country||"");
     if(SUBTIER_RE.test(s)) return 950;                                  // 하위/유소년/리저브 → 기타보다도 뒤
     // 이름 매칭 우선. 국가(co)는 '값이 있을 때만' 모순 검사(공급사가 country를 비우면 이름만으로 인정).
-    for(var i=0;i<arr.length;i++){ var d=arr[i]; if(d.re.test(s)){ if(d.co&&c&&!d.co.test(c)) continue; return i; } }
+    for(var i=0;i<arr.length;i++){ var d=arr[i]; if(d.re.test(s)){ if(d.x&&d.x.test(s)) continue; if(d.co&&c&&!d.co.test(c)) continue; return i; } }
     return 999;
   }
   function isBigLeague(sport,name,country){ return leagueRank(sport,name,country)<900; }

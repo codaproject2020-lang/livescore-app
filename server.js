@@ -21,7 +21,7 @@ const app = express();
 const server = http.createServer(app);
 
 const PORT = process.env.PORT || 3000;
-const APP_VERSION = 'v415';
+const APP_VERSION = 'v416';
 
 // ============================================================
 //  📏 성능 계측(instrumentation) — 엔드포인트 지연·캐시·공급사·WS·이벤트루프
@@ -964,16 +964,18 @@ function parseHoopStandings(j) {
   const groups = (j && j.response) || [];
   // 팀별 1행만(콘퍼런스/디비전/전체 중복 제거). 콘퍼런스 레벨 그룹을 우선 보존.
   const byTeam = new Map();
+  const asStr = v => { if (v == null) return ''; if (typeof v === 'object') return String(v.name || v.long || v.short || ''); return String(v); };  // R010: 객체 문자열화 방지
+  const asNum = v => { if (v == null || v === '') return null; if (typeof v === 'object') { const n = v.total ?? v.value ?? v.count; return (n == null ? null : +n); } const n = +v; return isNaN(n) ? null : n; };
   groups.forEach(g => (Array.isArray(g) ? g : [g]).forEach(r => {
     if (!r || !r.team) return;
-    const gname = (r.group && (r.group.name || r.group)) || (r.stage || '');
+    const gname = asStr(r.group) || asStr(r.stage);
     const key = r.team.id || r.team.name;
     const row = {
-      rank: r.position || null, teamId: r.team.id, team: r.team.name, logo: r.team.logo, group: gname,
-      played: r.games && r.games.played,
-      win: r.games && r.games.win && (r.games.win.total ?? r.games.win),
-      loss: r.games && (r.games.lose ? (r.games.lose.total ?? r.games.lose) : (r.games.loss && (r.games.loss.total ?? r.games.loss))),
-      points: r.points != null ? r.points : ''
+      rank: r.position || null, teamId: r.team.id, team: asStr(r.team.name), logo: r.team.logo, group: gname,
+      played: asNum(r.games && r.games.played),
+      win: asNum(r.games && (r.games.win)),
+      loss: asNum(r.games && (r.games.lose != null ? r.games.lose : r.games.loss)),
+      points: (r.points == null || typeof r.points === 'object') ? asNum(r.points) : r.points
     };
     const prev = byTeam.get(key);
     const isConf = s => /(conference|east|west)/i.test(s || '');
@@ -1809,8 +1811,17 @@ app.get('/api/volleyball/live', async (req,res)=>{ res.set('Cache-Control','no-s
     const scopes=[]; (mine.stats||[]).forEach(sc=>{ if(Array.isArray(sc)&&Array.isArray(sc[1])){ scopes.push({ scope:sc[0], rows:sc[1].map(r=>({id:r[0], home:r[1], away:r[2]})) }); } });
     res.json({ found:true, score:mine.score||null, scopes, rawStats:(req.query.debug?mine.stats:undefined), rawScore:(req.query.debug?mine.score:undefined) });
   }catch(e){ res.status(502).json({error:String(e.message||e)}); } });
+// 🔎 진단(R011~R014): API-Sports 리그 검색 — 정확한 리그 id/국가 확인(KBL·WKBL·KBO·NPB·EuroLeague 등)
+app.get('/api/diag/leagues', async (req, res) => {
+  const sport = req.query.sport || 'basketball'; const q = req.query.q || '';
+  try {
+    const j = await asRaw(sport, `/leagues?search=${encodeURIComponent(q)}`, 86400000);
+    const arr = (j && j.response) || [];
+    const out = arr.slice(0, 20).map(l => { const lg = l.league || l; const co = l.country || {}; return { id: lg.id, name: lg.name, type: lg.type, country: co.name || l.country, code: co.code }; });
+    res.json({ sport, q, results: arr.length, leagues: out, errors: j && j.errors });
+  } catch (e) { res.json({ error: String(e.message || e) }); }
+});
 // 🏐 진단: 농구 활성화/커버리지 + 초단위 timer + 라인업 확인
-// 🔎 진단: 더스포츠 농구 팀/선수/시즌/순위/종료박스 후보 엔드포인트 탐색(구조 확인용, 최소 호출)
 app.get('/api/ts/bskdiag', async (req, res) => {
   if (!TS_ON) return res.json({ on: false });
   const out = { on: true, ids: {}, probes: {} };
