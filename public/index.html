@@ -1189,6 +1189,9 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
   function cKey(country){ var n=cNorm(country); if(!n)return ""; if(CALIAS[n])return CALIAS[n]; return n; }
   function cIsIntl(country){ var n=cNorm(country); return !!CINTL[n]||!!CINTL[String(country||"").toLowerCase()]; }
   function cFlag(country){ var k=cKey(country); return (CFLAG[k]&&CFLAG[k].f)||"🏳️"; }
+  // U05: 리그 국기 — country 필드 우선, 없으면 리그명에서 추론(축구 피드 country 공백 대응). 미상/복수국가는 대회 아이콘.
+  var _LG_FLAG=[[/premier league|\bEPL\b/i,"🏴󠁧󠁢󠁥󠁮󠁧󠁿"],[/champions|europa|conference|euro(pe|pa)|uefa/i,"🌐"],[/la\s*liga|primera divisi[oó]n|españ|spanish/i,"🇪🇸"],[/serie\s*[ab]|ital/i,"🇮🇹"],[/bundesliga|german/i,"🇩🇪"],[/ligue\s*[12]|fran[cç]/i,"🇫🇷"],[/eredivisie|dutch|netherl/i,"🇳🇱"],[/primeira|portug/i,"🇵🇹"],[/s[uü]per\s*lig|turk|türk/i,"🇹🇷"],[/k[\s-]*league|k리그|korea|대한민국|\bKBO\b|\bKBL\b|\bKOVO\b|v리그/i,"🇰🇷"],[/j[12]\s*league|japan|日本|\bNPB\b/i,"🇯🇵"],[/\bMLS\b|major league soccer|\bMLB\b|\bNBA\b|\bNHL\b|usa|united states/i,"🇺🇸"],[/saudi/i,"🇸🇦"],[/liga mx|mexic/i,"🇲🇽"],[/bras(il|ile)/i,"🇧🇷"],[/argentin/i,"🇦🇷"],[/\bKHL\b|russia|росс/i,"🇷🇺"]];
+  function leagueFlag(name,country){ if(country){ var f=cFlag(country); if(f&&f!=="🏳️")return f; } var n=String(name||""); for(var i=0;i<_LG_FLAG.length;i++){ if(_LG_FLAG[i][0].test(n))return _LG_FLAG[i][1]; } return "🏆"; }
   function cLabel(country){ var k=cKey(country); if(CFLAG[k]) return LANG==="ko"?CFLAG[k].ko:(country||CFLAG[k].ko); return country||""; }
   // e스포츠: 리그명에서 게임명 추출 ("LoL · LCK" → "LoL")
   function esportsGame(league){ var s=String(league||"").split(/[·|\-–—:]/)[0].trim(); return s||league||""; }
@@ -1270,7 +1273,7 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
     var all=el("button","cchip"+(S.leagueF===""?" on":""),'🏆 <span>'+t("allLeagues")+'</span>');
     all.onclick=function(){ S.leagueF=""; renderHome(); }; bar.appendChild(all);
     ord.forEach(function(k){
-      var fl=(cnt[k].country?cFlag(cnt[k].country):"");
+      var fl=leagueFlag(k,cnt[k].country);
       var c=el("button","cchip"+(S.leagueF===k?" on":""),(fl?fl+" ":"")+'<span>'+esc(shortLeague(k,S.sport))+'</span> <i class="cn">'+cnt[k].n+'</i>');
       c.title=k;   // 전체 대회명은 툴팁/접근성으로 유지(U02)
       c.onclick=function(){ S.leagueF=(S.leagueF===k?"":k); renderHome(); };
@@ -1300,7 +1303,7 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
       var intl=arr.filter(function(x){return x.intl;}).sort(sortfn);
       var big=arr.filter(function(x){return !x.intl&&x.big;}).sort(sortfn);
       var other=arr.filter(function(x){return !x.intl&&!x.big;}).sort(sortfn);
-      function rowHtml(x){ var sel=(S.leagueF===x.name); var ic=x.intl?'🌐':(x.country?cFlag(x.country):'🏆');
+      function rowHtml(x){ var sel=(S.leagueF===x.name); var ic=x.intl?'🌐':leagueFlag(x.name,x.country);
         return '<button class="lb-row'+(sel?' sel':'')+'" data-lg="'+esc(x.name)+'"><span class="lb-ic">'+ic+'</span><span class="lb-nm"><b>'+esc(shortLeague(x.name,S.sport))+'</b><i>'+esc(x.name)+(x.country?' · '+esc(x.country):'')+'</i></span><span class="lb-n">'+x.n+'</span>'+(sel?'<span class="lb-ck">✓</span>':'')+'</button>'; }
       function sec(title,list){ if(!list.length)return ''; return '<div class="lb-sec">'+esc(title)+'</div>'+list.map(rowHtml).join(''); }
       var h='<div class="lb-search"><input id="lbQ" placeholder="'+esc(t("lgSearchPh"))+'" value="'+esc(q)+'"></div>'+
