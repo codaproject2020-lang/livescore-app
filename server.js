@@ -21,7 +21,7 @@ const app = express();
 const server = http.createServer(app);
 
 const PORT = process.env.PORT || 3000;
-const APP_VERSION = 'v399';
+const APP_VERSION = 'v400';
 
 // ============================================================
 //  📏 성능 계측(instrumentation) — 엔드포인트 지연·캐시·공급사·WS·이벤트루프
@@ -133,7 +133,7 @@ async function ytMeta(videoId) {
 const adminSubs = new Map();        // 관리자 알림 구독: endpoint -> subscription
 let _lastErrPush = 0;
 // 기능 토글/메인터넌스 (관리자가 바꾸면 전체 유저에 즉시 반영, 코드/배포 불필요)
-const CFG = { flags: {}, maint: '', bskSrc: 'auto', ftbSrc: 'thesports', volSrc: 'thesports', alertsOff: false, alertsNight: false, updatedAt: 0 };
+const CFG = { flags: {}, maint: '', bskSrc: 'thesports', ftbSrc: 'thesports', volSrc: 'thesports', bsbSrc: 'thesports', alertsOff: false, alertsNight: false, updatedAt: 0 };
 function logError(src, type, msg, extra, force) {
   try {
     const e = { ts: Date.now(), src: src || 'server', type: type || 'error', msg: String((msg && msg.message) || msg || '').slice(0, 600), extra: extra || null };
@@ -318,7 +318,7 @@ async function initDB() {
       errorsCol = db.collection('errors'); await errorsCol.createIndex({ ts: -1 }).catch(() => {});
       configCol = db.collection('config');
       const c = await configCol.findOne({ _id: 'main' });
-      if (c) { CFG.flags = c.flags || {}; CFG.maint = c.maint || ''; CFG.bskSrc = c.bskSrc || 'auto'; CFG.ftbSrc = c.ftbSrc || 'thesports'; CFG.volSrc = c.volSrc || 'thesports'; CFG.alertsOff = !!c.alertsOff; CFG.alertsNight = !!c.alertsNight; CFG.updatedAt = c.updatedAt || 0; }
+      if (c) { CFG.flags = c.flags || {}; CFG.maint = c.maint || ''; CFG.bskSrc = c.bskSrc || 'thesports'; CFG.ftbSrc = c.ftbSrc || 'thesports'; CFG.volSrc = c.volSrc || 'thesports'; CFG.bsbSrc = c.bsbSrc || 'thesports'; CFG.alertsOff = !!c.alertsOff; CFG.alertsNight = !!c.alertsNight; CFG.updatedAt = c.updatedAt || 0; }
       // 📡 직전 접속수 복원 — 10분 이내에 저장된 값만 바닥값으로 사용(오래된 값은 무시)
       try { const pdoc = await configCol.findOne({ _id: 'presence' }); if (pdoc && pdoc.n > 0 && (Date.now() - (pdoc.at || 0) < 10 * 60 * 1000)) { _presenceFloor = pdoc.n; console.log(`[DB] 접속수 바닥값 복원: ${_presenceFloor}`); } } catch (_) {}
       adminSubsCol = db.collection('admin_subs');
@@ -2831,21 +2831,19 @@ async function buildGamesCore(sport, date, tz) {
       };
     });
   }
-  // ⚾ KBO(한국)·NPB(일본) = TheSports 실시간으로 교체 (API-Sports 지연 보정)
-  if (sport === 'baseball' && TS_ON) {
+  // ⚾ 야구 = TheSports 1순위(계약 메인). MLB만 MLB 공식 무료 StatsAPI 유지(API-Sports 아님·최고품질), 그 외 전 리그는 TheSports로 교체.
+  if (sport === 'baseball' && TS_ON && CFG.bsbSrc !== 'apisports') {
     try {
-      // KBO·NPB·CPBL + 아시안게임 = TheSports로 교체 (API-Sports가 아시안게임 야구는 팀↔점수를 뒤집어 주는 오류가 있어 TheSports가 정확)
-      const wantRe = /KBO|NPB|CPBL|Korea|Korean|Nippon|Japan|Chinese Professional|Taiwan|일본|한국|대만|Futures|퓨처스|퓨쳐스|Eastern League|Western League|Asian Games|Asiad|아시안게임/i;
+      const keepApi = /\bMLB\b|major\s*league\s*baseball/i;   // MLB는 공식 StatsAPI 유지(TheSports보다 피치·박스 상세)
       const hsRe = /koshien|senbatsu|high\s*school|甲子園|고교|amateur|university|college/i;
       const ts = await tsBaseballGames(date).catch(() => []);
-      const kn = ts.filter(g => wantRe.test(g.league || '') && !hsRe.test(g.league || ''));
+      // MLB·고교 제외한 모든 TheSports 야구 경기를 메인으로 사용(KBO·NPB·CPBL·멕시칸·기타 포함)
+      const kn = ts.filter(g => !hsRe.test(g.league || '') && !keepApi.test(g.league || ''));
       if (kn.length) {
-        // 🔑 TheSports가 같은 매치업을 가진 경기만 교체(제거+추가). 없는 경기는 API-Sports 그대로 유지 → 경기 사라짐 방지
-        // ⚠️ 소스마다 팀명이 달라(예: "Nippon Ham Fighters" vs "Hokkaido Nippon-Ham Fighters") 전체이름 키는 안 맞음
-        //    → 닉네임(마지막 단어: Fighters/Eagles 등) 쌍으로 매칭해 중복 방지
+        // 🔑 닉네임(마지막 단어) 쌍으로 매칭. TheSports 커버 경기는 API-Sports 버전 제거 후 TheSports로 교체, 없는 경기는 추가.
         const key = g => [nkLast(g.home), nkLast(g.away)].sort().join('|');
         const knKeys = new Set(kn.map(key));
-        games = games.filter(g => !wantRe.test(g.league || '') || !knKeys.has(key(g)));
+        games = games.filter(g => keepApi.test(g.league || '') || !knKeys.has(key(g)));  // MLB는 항상 유지, 그 외 TheSports가 커버하면 제거
         games = games.concat(kn);
       }
     } catch (e) { /* TheSports 실패 시 API-Sports 유지 */ }
