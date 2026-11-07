@@ -21,7 +21,7 @@ const app = express();
 const server = http.createServer(app);
 
 const PORT = process.env.PORT || 3000;
-const APP_VERSION = 'v405';
+const APP_VERSION = 'v406';
 
 // ============================================================
 //  📏 성능 계측(instrumentation) — 엔드포인트 지연·캐시·공급사·WS·이벤트루프
@@ -1681,6 +1681,37 @@ app.get('/api/ts/volley', async (req, res) => {
       liveSample: ((lv && lv.results) || []).slice(0, 3)
     });
   } catch (e) { res.json({ on: true, error: String((e && e.message) || e) }); }
+});
+// 🏐 진단(D01): 더스포츠 배구 통계·순위·맞대결·일정 후보 엔드포인트 가용성 탐색(구조 확인용)
+app.get('/api/ts/vbdiag', async (req, res) => {
+  if (!TS_ON) return res.json({ on: false });
+  const out = { on: true, ids: {}, probes: {} };
+  try {
+    const ymd = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+    const d = await tsFetch('/volleyball/match/diary', { date: ymd }, 6000).catch(() => null);
+    const results = (d && d.results) || [];
+    // 종료/진행 경기 우선(통계 있을 확률 높음)
+    const m = results.find(x => String(x.status_id) === '8' || String(x.status_id) === '4') || results[0] || {};
+    const matchId = m.id, teamId = m.home_team_id, awayTid = m.away_team_id, compId = m.unique_tournament_id || m.tournament_id, seasonId = m.season_id;
+    out.ids = { matchId, teamId, awayTid, compId, seasonId, status: m.status_id };
+    const probe = async (name, path, params) => {
+      try { const r = await tsFetch(path, params, 5000); const res0 = r && r.results;
+        let sk = null;
+        if (Array.isArray(res0)) sk = (res0[0] && typeof res0[0] === 'object') ? Object.keys(res0[0]).slice(0, 18) : (res0.length ? typeof res0[0] : null);
+        else if (res0 && typeof res0 === 'object') sk = Object.keys(res0).slice(0, 18);
+        else if (r && typeof r === 'object') sk = Object.keys(r).slice(0, 10);
+        out.probes[name] = { path, ok: !!(res0 && (Array.isArray(res0) ? res0.length : Object.keys(res0).length)), type: Array.isArray(res0) ? ('array ' + res0.length) : typeof res0, sampleKeys: sk }; }
+      catch (e) { out.probes[name] = { path, err: String((e && e.message) || e).slice(0, 70) }; }
+    };
+    // 현재 경기 통계(detail_live 전체에서 해당 경기 추출: 서브/리시브/에이스/타임아웃 필드 확인)
+    try { const lv = await tsFetch('/volleyball/match/detail_live', {}, 6000); const arr = (lv && lv.results) || []; const mine = arr.find(x => String(x && (x.id || (x[0]))) === String(matchId)) || arr[0];
+      out.probes['detail_live.self'] = { count: arr.length, sample: mine ? (Array.isArray(mine) ? mine.slice(0, 12) : Object.keys(mine).slice(0, 20)) : null }; } catch (e) { out.probes['detail_live.self'] = { err: String(e).slice(0, 60) }; }
+    if (seasonId) { await probe('standing.detail', '/volleyball/standing/detail', { uuid: seasonId }); await probe('standing.table', '/volleyball/standing/table', { uuid: seasonId }); await probe('season.team_stats', '/volleyball/season/team_stats/list', { uuid: seasonId }); }
+    if (compId) { await probe('season.list', '/volleyball/season/list', { uuid: compId }); await probe('competition.list', '/volleyball/competition/list', { uuid: compId }); }
+    if (teamId) { await probe('team.list', '/volleyball/team/list', { uuid: teamId }); await probe('team.additional', '/volleyball/team/additional/list', { uuid: teamId }); await probe('match.recent_byteam', '/volleyball/match/recent/list', { team_id: teamId }); }
+    if (matchId) { await probe('head2head', '/volleyball/head2head', { uuid: matchId }); await probe('match.trend', '/volleyball/match/trend/detail', { uuid: matchId }); await probe('match.analysis', '/volleyball/match/analysis', { uuid: matchId }); await probe('match.recent_bymatch', '/volleyball/match/recent/list', { uuid: matchId }); }
+  } catch (e) { out.error = String((e && e.message) || e); }
+  res.json(out);
 });
 // 🏀 진단: TheSports 농구 활성화/커버리지 + 초단위 timer + 라인업 확인
 // 🔎 진단: 더스포츠 농구 팀/선수/시즌/순위/종료박스 후보 엔드포인트 탐색(구조 확인용, 최소 호출)
