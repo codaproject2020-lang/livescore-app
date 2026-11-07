@@ -21,7 +21,7 @@ const app = express();
 const server = http.createServer(app);
 
 const PORT = process.env.PORT || 3000;
-const APP_VERSION = 'v416';
+const APP_VERSION = 'v417';
 
 // ============================================================
 //  📏 성능 계측(instrumentation) — 엔드포인트 지연·캐시·공급사·WS·이벤트루프
@@ -897,7 +897,10 @@ const AF_RANK_ID = {
   'UEFA Champions League': 2, 'UEFA Europa League': 3, 'Eliteserien': 103, 'Allsvenskan': 113
 };
 // 농구 리그명 → API-Sports 농구 리그 ID
-const AB_RANK_ID = { 'NBA': 12, 'EuroLeague': 120, 'KBL': 48 };
+// R011: KBL 남자는 API-Sports 미커버(과거 48은 아이슬란드 리그여서 제거). WKBL=92 확인됨.
+const AB_RANK_ID = { 'NBA': 12, 'EuroLeague': 120, 'WKBL': 92 };
+const BASEBALL_RANK_ID = { 'MLB': 1, 'NPB': 2, 'KBO': 5 };   // R012/R013: API-Sports 야구 리그 id(검증됨)
+function bskLeagueAlias(name) { const n = String(name || ''); if (/\bNBA\b/i.test(n) && !/g[\s-]?league/i.test(n)) return 'NBA'; if (/euroleague/i.test(n)) return 'EuroLeague'; if (/\bWKBL\b|women'?s?\s*korean/i.test(n)) return 'WKBL'; return name; }
 async function rankFootball(league, season) {
   const lid = AF_RANK_ID[league] || (/^\d+$/.test(league) ? league : null);
   if (!lid) return { table: [], note: 'unmapped' };
@@ -988,8 +991,9 @@ function parseHoopStandings(j) {
 // 현재 농구 시즌(가을 개막 기준). 예: 2026-11 → "2026-2027"
 function hoopSeason(d) { d = d || new Date(); const y = d.getUTCFullYear(), m = d.getUTCMonth() + 1; const s = (m >= 9) ? y : (y - 1); return s + '-' + (s + 1); }
 async function rankBasketball(league, season) {
-  let lid = AB_RANK_ID[league] || (/^\d+$/.test(league) ? league : null);
-  if (!lid) lid = await asLeagueId('basketball', league);
+  // R008/R011: 농구 feed의 숫자 리그 id는 API-Sports 네임스페이스가 아님 → 숫자 그대로 신뢰 금지(아이슬란드 등 오매칭 원인). 이름으로만 해석.
+  let lid = AB_RANK_ID[bskLeagueAlias(league)] || AB_RANK_ID[league] || null;
+  if (!lid && !/^\d+$/.test(String(league))) lid = await asLeagueId('basketball', bskLeagueAlias(league));
   if (!lid) return { table: [], note: 'unmapped' };
   const cur = hoopSeason();
   const py = parseInt(cur, 10) - 1;
@@ -1022,13 +1026,26 @@ async function rankHockey(league, season) {
   }
   return { table: [], kind: 'hockey' };
 }
+// R012/R013: KBO·NPB 순위 — API-Sports 야구 /standings (리그 48=아이슬란드 같은 교차 네임스페이스 숫자 신뢰 금지)
+async function rankBaseballAS(league, season) {
+  let lid = BASEBALL_RANK_ID[league] || null;
+  if (!lid) { if (/kbo|korea|대한민국/i.test(league)) lid = 5; else if (/npb|nippon|japan|일본/i.test(league)) lid = 2; }
+  if (!lid) return { table: [], note: 'unmapped', kind: 'baseball' };
+  const m = String(season || '').match(/\d{4}/); const y = m ? +m[0] : new Date().getFullYear();
+  for (const sy of [y, y - 1]) {
+    const j = await asRaw('baseball', `/standings?league=${lid}&season=${sy}`, 1800000).catch(() => null);
+    const table = parseHoopStandings(j);   // games.win/lose·position 구조 공통
+    if (table.length) return { table, kind: 'baseball', season: String(sy) };
+  }
+  return { table: [], kind: 'baseball' };
+}
 app.get('/api/rank', async (req, res) => {
   const sport = req.query.sport || 'football', league = req.query.league || '', season = req.query.season || '';
   try {
     let out = { table: [] };
     if (sport === 'football') out = await rankFootball(league, season);
     else if (sport === 'baseball') {
-      if (/KBO|NPB|CPBL/i.test(league)) out = { table: [], note: 'ts-todo' };   // KBO/NPB 준비중
+      if (/KBO|NPB|CPBL|korea|japan|대한민국|일본/i.test(league)) out = await rankBaseballAS(league, season);   // R012/R013: KBO·NPB API-Sports 순위
       else out = await rankMLB(season);   // MLB(및 기본)
     }
     else if (sport === 'basketball') out = await rankBasketball(league, season);

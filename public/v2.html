@@ -1613,7 +1613,8 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
   // 경기 개요의 '실제 순위 표'(명령서 ②-1·#7): 링크 대신 양 팀 주변 순위를 직접 표시 + 전체표/팀상세 연결
   function loadOverviewRank(g,sport){
     var sec=$("#ovRankTbl"); if(!sec)return;
-    var lg=g.leagueId||g.league||"";
+    // R008/R011: 축구만 leagueId(TheSports comp id) 사용. 농구/야구/배구/하키 feed id는 API-Sports와 네임스페이스가 달라 리그명으로 해석.
+    var lg=(sport==="football")?(g.leagueId||g.league||""):(g.leagueOrig||g.league||"");
     if(!lg){ sec.innerHTML='<p style="color:#8a93a3;font-size:13px">'+t("noStatsShow")+'</p>'; return; }
     fetch("/api/rank?sport="+encodeURIComponent(sport)+"&league="+encodeURIComponent(lg)).then(function(r){return r.json();}).then(function(j){
       if(!$("#ovRankTbl"))return;
