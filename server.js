@@ -21,7 +21,7 @@ const app = express();
 const server = http.createServer(app);
 
 const PORT = process.env.PORT || 3000;
-const APP_VERSION = 'v406';
+const APP_VERSION = 'v407';
 
 // ============================================================
 //  📏 성능 계측(instrumentation) — 엔드포인트 지연·캐시·공급사·WS·이벤트루프
@@ -1705,7 +1705,17 @@ app.get('/api/ts/vbdiag', async (req, res) => {
     };
     // 현재 경기 통계(detail_live 전체에서 해당 경기 추출: 서브/리시브/에이스/타임아웃 필드 확인)
     try { const lv = await tsFetch('/volleyball/match/detail_live', {}, 6000); const arr = (lv && lv.results) || []; const mine = arr.find(x => String(x && (x.id || (x[0]))) === String(matchId)) || arr[0];
-      out.probes['detail_live.self'] = { count: arr.length, sample: mine ? (Array.isArray(mine) ? mine.slice(0, 12) : Object.keys(mine).slice(0, 20)) : null }; } catch (e) { out.probes['detail_live.self'] = { err: String(e).slice(0, 60) }; }
+      out.probes['detail_live.self'] = { count: arr.length, keys: mine ? (Array.isArray(mine) ? ('arr' + mine.length) : Object.keys(mine).slice(0, 20)) : null, statsRaw: mine ? JSON.stringify(mine.stats || mine.score || mine).slice(0, 900) : null }; } catch (e) { out.probes['detail_live.self'] = { err: String(e).slice(0, 60) }; }
+    // API-Sports 배구 보완 가용성(순위는 이미 /api/rank 사용) — H2H·팀일정 확인
+    const asProbe = async (name, path) => { try { const j = await asRaw('volleyball', path, 60000); const r = (j && j.response); out.probes[name] = { path, results: j && j.results, ok: Array.isArray(r) ? r.length : typeof r, sampleKeys: Array.isArray(r) && r[0] ? Object.keys(r[0]).slice(0, 16) : null, errors: j && j.errors }; } catch (e) { out.probes[name] = { path, err: String((e && e.message) || e).slice(0, 70) }; } };
+    await asProbe('AS.status', '/status');
+    await asProbe('AS.games.today', '/games?date=' + new Date().toISOString().slice(0, 10));
+    // h2h/팀일정은 API-Sports 팀ID 필요 → today 게임에서 추출 후 2차 프로브
+    try { const g = await asRaw('volleyball', '/games?date=' + new Date().toISOString().slice(0, 10), 60000); const gm = (g && g.response || [])[0]; const th = gm && gm.teams && gm.teams.home && gm.teams.home.id, ta = gm && gm.teams && gm.teams.away && gm.teams.away.id, lg = gm && gm.league && gm.league.id, se = gm && gm.league && gm.league.season;
+      out.ids.asSample = { th, ta, lg, se };
+      if (th && ta) await asProbe('AS.h2h', '/games?h2h=' + th + '-' + ta);
+      if (th && se) await asProbe('AS.team_games', '/games?team=' + th + '&season=' + se);
+    } catch (e) { out.probes['AS.derive'] = { err: String(e).slice(0, 60) }; }
     if (seasonId) { await probe('standing.detail', '/volleyball/standing/detail', { uuid: seasonId }); await probe('standing.table', '/volleyball/standing/table', { uuid: seasonId }); await probe('season.team_stats', '/volleyball/season/team_stats/list', { uuid: seasonId }); }
     if (compId) { await probe('season.list', '/volleyball/season/list', { uuid: compId }); await probe('competition.list', '/volleyball/competition/list', { uuid: compId }); }
     if (teamId) { await probe('team.list', '/volleyball/team/list', { uuid: teamId }); await probe('team.additional', '/volleyball/team/additional/list', { uuid: teamId }); await probe('match.recent_byteam', '/volleyball/match/recent/list', { team_id: teamId }); }
