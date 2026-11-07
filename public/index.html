@@ -135,6 +135,9 @@ img{display:block}
 .seg2{display:inline-flex;gap:8px;flex-wrap:wrap}
 .segb{border:1px solid var(--line);background:#fff;border-radius:999px;padding:8px 17px;font-size:13px;font-weight:700;color:var(--navy)}
 .segb.on{background:var(--navy);border-color:var(--navy);color:#fff}
+/* R020: 환경설정 터치 영역 ≥44px */
+#segTheme .segb,#segFont .segb{min-height:44px;display:inline-flex;align-items:center;justify-content:center}
+#segTheme,#segFont{gap:10px}
 .sv-sub{font-size:12px;color:var(--muted);margin:4px 0 0 2px}
 .sv-btn-primary{width:100%;background:var(--navy);color:#fff;border:none;border-radius:13px;padding:15px;font-size:15px;font-weight:800;display:flex;align-items:center;justify-content:center;gap:9px}
 .sv-btn-outline{width:100%;background:#fff;color:var(--navy);border:1.5px solid var(--line);border-radius:13px;padding:14px;font-size:14.5px;font-weight:800}
@@ -635,7 +638,8 @@ html[data-theme="dark"] .cpl .cpt{color:#9aa6b6}
 .setrow .lb{font-weight:800;font-size:14px;color:var(--navy)}
 .setrow .sub{font-size:11.5px;color:var(--muted);font-weight:600;margin-top:2px}
 .setrow .rv{color:var(--red);font-weight:800;font-size:13px}
-.sw{width:50px;height:28px;border-radius:999px;background:var(--soft2);position:relative;flex:0 0 auto;transition:background .15s}
+.sw{width:50px;height:28px;border-radius:999px;background:var(--soft2);position:relative;flex:0 0 auto;transition:background .15s;cursor:pointer}
+.sw::before{content:"";position:absolute;top:-9px;bottom:-9px;left:-9px;right:-9px}/* R020: 스위치 탭 영역 ≥44px */
 .sw i{position:absolute;top:3px;left:3px;width:22px;height:22px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.25);transition:left .15s}
 .sw.on{background:var(--navy)}.sw.on i{left:25px}
 .seg{display:flex;gap:7px;margin:4px 0 12px}
