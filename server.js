@@ -21,7 +21,7 @@ const app = express();
 const server = http.createServer(app);
 
 const PORT = process.env.PORT || 3000;
-const APP_VERSION = 'v426';
+const APP_VERSION = 'v428';
 
 // ============================================================
 //  📏 성능 계측(instrumentation) — 엔드포인트 지연·캐시·공급사·WS·이벤트루프
@@ -1735,6 +1735,69 @@ async function tsFetch(path, params, ttl = 6000, reqTimeout) {
   const qs = new URLSearchParams(Object.assign({ user: TS_USER, secret: TS_SECRET }, params || {})).toString();
   return cachedJSON(`${TS_BASE}${path}?${qs}`, ttl, reqTimeout);
 }
+
+// ====== 🎥 TheSports Live Match Tracker 위젯 ======
+// 대시보드에서 생성한 Online URL(profile 포함)을 종목별로 보관. 비어있으면 '설정 전'으로 정직 처리.
+// 환경변수 TRACKER_FOOTBALL/BASKETBALL/VOLLEYBALL/BASEBALL 로도 주입 가능.
+let TRACKER_URLS = {
+  football: process.env.TRACKER_FOOTBALL || '',
+  basketball: process.env.TRACKER_BASKETBALL || '',
+  volleyball: process.env.TRACKER_VOLLEYBALL || '',
+  baseball: process.env.TRACKER_BASEBALL || ''
+};
+function trackerTemplate(sport) {
+  if (TRACKER_URLS[sport]) return TRACKER_URLS[sport];
+  // 한 종목만 입력된 경우 경로의 /view/{sport} 만 바꿔 파생(프로필 공유 가정)
+  const base = TRACKER_URLS.football || TRACKER_URLS.basketball || TRACKER_URLS.volleyball || TRACKER_URLS.baseball;
+  if (base && /\/view\/[a-z]+/i.test(base)) return base.replace(/(\/view\/)[a-z]+/i, '$1' + sport);
+  return '';
+}
+function buildTrackerUrl(tmpl, uuid) {
+  if (!tmpl || !uuid) return '';
+  let url = tmpl;
+  if (/\{match_id\}|\{uuid\}/i.test(url)) url = url.replace(/\{match_id\}|\{uuid\}/ig, encodeURIComponent(uuid));
+  else if (/([?&]uuid=)[^&]*/i.test(url)) url = url.replace(/([?&]uuid=)[^&]*/i, '$1' + encodeURIComponent(uuid));
+  else url += (url.indexOf('?') >= 0 ? '&' : '?') + 'uuid=' + encodeURIComponent(uuid);
+  return url;
+}
+// 야구(API-Sports 숫자 id)는 TheSports match_id가 없으므로 diary에서 팀명·날짜로 best-effort 해석
+function _nrmTeam(s) { return String(s || '').toLowerCase().replace(/[^a-z0-9가-힣]/g, ''); }
+async function resolveBaseballTsid(home, away, date) {
+  if (!TS_ON) return '';
+  const ymd = String(date || new Date().toISOString().slice(0, 10)).replace(/-/g, '');
+  try {
+    const d = await tsFetch('/baseball/match/diary', { date: ymd }, 300000).catch(() => null);
+    const ex = (d && d.results_extra) || {};
+    const teams = (ex.team) || {};
+    const idByName = {};
+    Object.keys(teams).forEach(tid => { const nm = _nrmTeam(teams[tid] && (teams[tid].name || teams[tid])); if (nm) idByName[nm] = tid; });
+    const h = _nrmTeam(home), a = _nrmTeam(away);
+    const findId = n => { if (idByName[n]) return idByName[n]; const k = Object.keys(idByName).find(x => x.indexOf(n) >= 0 || n.indexOf(x) >= 0); return k ? idByName[k] : null; };
+    const hid = findId(h), aid = findId(a);
+    const arr = (d && d.results) || [];
+    const m = arr.find(x => (x.home_team_id === hid && x.away_team_id === aid) || (x.home_team_id === aid && x.away_team_id === hid));
+    return m ? String(m.id) : '';
+  } catch (e) { return ''; }
+}
+app.get('/api/tracker', async (req, res) => {
+  const sport = String(req.query.sport || 'football').toLowerCase();
+  const tmpl = trackerTemplate(sport);
+  if (!tmpl) return res.json({ url: '', note: 'not-configured' });
+  let uuid = String(req.query.uuid || '');
+  if (!uuid && sport === 'baseball') uuid = await resolveBaseballTsid(req.query.home, req.query.away, req.query.date);
+  if (!uuid) return res.json({ url: '', note: 'no-id' });
+  res.json({ url: buildTrackerUrl(tmpl, uuid), sport, uuid });
+});
+// 관리자: 트래커 URL 설정(비밀번호). 종목별 또는 공통 1개.
+app.post('/api/admin/tracker', express.json(), (req, res) => {
+  if (!ADMIN_KEY || String((req.body && req.body.key) || '') !== ADMIN_KEY) return res.status(403).json({ error: 'auth' });
+  const u = (req.body && req.body.urls) || {};
+  ['football', 'basketball', 'volleyball', 'baseball'].forEach(s => { if (typeof u[s] === 'string') TRACKER_URLS[s] = u[s].trim(); });
+  res.json({ ok: true, configured: Object.keys(TRACKER_URLS).filter(k => TRACKER_URLS[k]) });
+});
+app.get('/api/admin/tracker', (req, res) => {
+  res.json({ configured: Object.keys(TRACKER_URLS).filter(k => TRACKER_URLS[k]), sports: ['football', 'basketball', 'volleyball', 'baseball'] });
+});
 // 🏐 진단: TheSports 배구 커버리지 확인 (현재 플랜에 배구 스케줄/라이브가 포함되는지)
 app.get('/api/ts/volley', async (req, res) => {
   if (!TS_ON) return res.json({ on: false, msg: 'TheSports 키 미설정' });
