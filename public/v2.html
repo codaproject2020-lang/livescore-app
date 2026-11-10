@@ -2290,12 +2290,15 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
       var xs=shots.map(function(s){return s.x}), ys=shots.map(function(s){return s.y});
       var xmin=Math.min.apply(null,xs),xmax=Math.max.apply(null,xs),ymin=Math.min.apply(null,ys),ymax=Math.max.apply(null,ys);
       var W=320,H=200,pad=10;
-      function px(x){ return pad+(xmax>xmin?(x-xmin)/(xmax-xmin):0.5)*(W-2*pad); }
+      // 좌표는 팀별 자기 공격 반코트 기준(x=바스켓 거리) → 홈=왼쪽 반, 원정=오른쪽 반(미러)으로 배치
+      var half=(W-2*pad)/2;
+      function nx(x){ return (xmax>xmin?(x-xmin)/(xmax-xmin):0.5); }      // 0(바스켓 근처)~1(하프)
       function py(y){ return pad+(ymax>ymin?(y-ymin)/(ymax-ymin):0.5)*(H-2*pad); }
+      function cxOf(s){ var n=nx(s.x); return s.team==='home' ? (pad+n*half) : (W-pad-n*half); }
       var _q='all';
       function draw(){
         var fs=shots.filter(function(s){return _q==='all'||s.period===+_q;});
-        var dots=fs.map(function(s){ var cx=px(s.x),cy=py(s.y),col=s.team==='home'?'#1b57c4':'#d23b3b';
+        var dots=fs.map(function(s){ var cx=cxOf(s),cy=py(s.y),col=s.team==='home'?'#1b57c4':'#d23b3b';
           return s.made?('<circle cx="'+cx.toFixed(1)+'" cy="'+cy.toFixed(1)+'" r="3.4" fill="'+col+'" fill-opacity="0.9"/>')
             :('<g stroke="'+col+'" stroke-width="1.7"><line x1="'+(cx-3.2).toFixed(1)+'" y1="'+(cy-3.2).toFixed(1)+'" x2="'+(cx+3.2).toFixed(1)+'" y2="'+(cy+3.2).toFixed(1)+'"/><line x1="'+(cx-3.2).toFixed(1)+'" y1="'+(cy+3.2).toFixed(1)+'" x2="'+(cx+3.2).toFixed(1)+'" y2="'+(cy-3.2).toFixed(1)+'"/></g>'); }).join("");
         var sv=$("#shotSvg"); if(sv) sv.innerHTML='<rect x="1" y="1" width="'+(W-2)+'" height="'+(H-2)+'" rx="8" fill="#f3ead9" stroke="#d9c9a8"/><line x1="'+(W/2)+'" y1="2" x2="'+(W/2)+'" y2="'+(H-2)+'" stroke="#d9c9a8" stroke-dasharray="4 4"/><circle cx="'+(W/2)+'" cy="'+(H/2)+'" r="22" fill="none" stroke="#d9c9a8"/>'+dots;
