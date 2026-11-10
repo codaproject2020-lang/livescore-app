@@ -21,7 +21,7 @@ const app = express();
 const server = http.createServer(app);
 
 const PORT = process.env.PORT || 3000;
-const APP_VERSION = 'v443';
+const APP_VERSION = 'v444';
 
 // ============================================================
 //  📏 성능 계측(instrumentation) — 엔드포인트 지연·캐시·공급사·WS·이벤트루프
@@ -2065,6 +2065,22 @@ app.get('/api/ts/bskmatch', async (req, res) => {
   await probe('live_history', '/basketball/match/live/history', { uuid });
   await probe('trend_detail', '/basketball/match/trend/detail', { uuid });
   await probe('lineup_live', '/basketball/match/lineup_live', { uuid });
+  if (String(req.query.raw) === '1') {
+    try {
+      const lh = await tsFetch('/basketball/match/live/history', { uuid }, 5000);
+      const m = ((lh && lh.results) || lh && lh.results === undefined ? lh.results : null);
+      const item = lh && lh.results;
+      out.rawFull = {
+        score: item && item.score,
+        stats: item && item.stats,
+        players_g0_first2: item && item.players && item.players[0] && item.players[0].slice(0, 2),
+        players_groups: item && item.players && item.players.map(g => (g || []).length),
+        tlive_q1_first6: item && item.tlive && item.tlive[0] && item.tlive[0].slice(0, 6)
+      };
+      const tr = await tsFetch('/basketball/match/trend/detail', { uuid }, 5000);
+      out.trendFull = tr && tr.results;
+    } catch (e) { out.rawErr = String((e && e.message) || e).slice(0, 80); }
+  }
   res.json(out);
 });
 // 🔬 진단: TheSports diary를 '캐시 없이 직접' 호출해 실제 소요시간·응답을 측정(느림 vs 무응답 vs 빈응답 구분).
