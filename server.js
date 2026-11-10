@@ -21,7 +21,7 @@ const app = express();
 const server = http.createServer(app);
 
 const PORT = process.env.PORT || 3000;
-const APP_VERSION = 'v437';
+const APP_VERSION = 'v438';
 
 // ============================================================
 //  📏 성능 계측(instrumentation) — 엔드포인트 지연·캐시·공급사·WS·이벤트루프
@@ -1987,7 +1987,7 @@ app.get('/api/diag/bskstats', async (req, res) => {
     out.teamStats = { results: st && st.results, errors: st && st.errors, teams: sr.length, sample: sr.slice(0, 2).map(x => ({ team: x.team && x.team.name, keys: x.statistics ? (Array.isArray(x.statistics) ? x.statistics.map(s => s.type).slice(0, 30) : Object.keys(x.statistics).slice(0, 30)) : Object.keys(x).slice(0, 20), raw: JSON.stringify(x.statistics || x).slice(0, 700) })) };
     const sp = await asRaw('basketball', `/games/statistics/players?id=${match.id}`, 600000).catch(e => ({ _err: String(e.message || e) }));
     const spr = (sp && sp.response) || [];
-    out.playerStats = { results: sp && sp.results, errors: sp && sp.errors, rows: spr.length, topKeys: spr[0] ? Object.keys(spr[0]) : null, sample: spr.slice(0, 2).map(x => JSON.stringify(x).slice(0, 900)) };
+    out.playerStats = { results: sp && sp.results, errors: sp && sp.errors, rows: spr.length };
   } catch (e) { out.error = String(e.message || e); }
   res.json(out);
 });
@@ -3031,6 +3031,54 @@ setInterval(() => { bskSnapshotTick().catch(() => {}); }, 60000);
 //   매칭: 리그명→API-Sports 리그ID, 날짜+팀명으로 경기 탐색 → /games/statistics/teams. 실데이터만 반환(없으면 null).
 function _abTok(s){ return String(s||'').toLowerCase().replace(/[^a-z0-9 ]/g,'').split(/\s+/).filter(w=>w.length>3); }
 function _abTeamMatch(gn, want){ const g=String(gn||'').toLowerCase(), w=String(want||'').toLowerCase(); if(!g||!w) return false; if(g===w||g.includes(w)||w.includes(g)) return true; const gt=_abTok(g), wt=_abTok(w); return gt.some(x=>wt.includes(x)); }
+// 공용: 리그명+날짜+팀명으로 API-Sports 농구 경기 1건 탐색(여러 시즌 표기 폴백).
+async function asFindBskGame(home, away, date, leagueName){
+  const lid = AB_RANK_ID[bskLeagueAlias(leagueName)] || AB_RANK_ID[leagueName] || null;
+  if(!lid) return { err:'no-league-map' };
+  const ymd = String(date).slice(0,10); const yr = +ymd.slice(0,4);
+  const seasons = [`${yr}-${yr+1}`, String(yr), `${yr-1}-${yr}`, String(yr-1)];
+  let games=[];
+  for(const s of seasons){
+    const j = await asRaw('basketball', `/games?league=${lid}&season=${encodeURIComponent(s)}&date=${ymd}&timezone=Asia/Seoul`, 3600000).catch(()=>null);
+    const arr=(j&&j.response)||[]; if(arr.length){ games=arr; break; }
+  }
+  if(!games.length) return { err:'no-apisports-game' };
+  const match = games.find(g=>_abTeamMatch(g.teams&&g.teams.home&&g.teams.home.name, home) && _abTeamMatch(g.teams&&g.teams.away&&g.teams.away.name, away));
+  if(!match) return { err:'no-match' };
+  return { match };
+}
+// ⚾/🏀 "MM:SS" 또는 "MM" → 정수 분
+function _abMinutes(m){ if(m==null) return 0; const s=String(m); const mm=s.split(':')[0]; const n=parseInt(mm,10); return isNaN(n)?0:n; }
+// 🔁 종료 경기 선수 박스 폴백(§08 라인업): API-Sports 선수 기록 → 우리 박스 형태. 확정 선발(type=starters) 구분.
+async function asBasketballPlayerBox(home, away, date, leagueName){
+  const f = await asFindBskGame(home, away, date, leagueName);
+  if(f.err) return { note:f.err };
+  const match = f.match;
+  const sp = await asRaw('basketball', `/games/statistics/players?id=${match.id}`, 3600000).catch(()=>null);
+  const rows=(sp&&sp.response)||[]; if(!rows.length) return { note:'no-players' };
+  const nz=v=>(v==null?null:+v);
+  const conv=r=>{ const fg=r.field_goals||{}, tp=r.threepoint_goals||{}, ft=r.freethrows_goals||{}, rb=r.rebounds||{};
+    const p2m=+fg.total||0, p2a=+fg.attempts||0, t3m=+tp.total||0, t3a=+tp.attempts||0;
+    return { id:(r.player&&r.player.id)||'', name:(r.player&&r.player.name)||'-', number:'',
+      min:_abMinutes(r.minutes), pts:nz(r.points), reb:nz(rb.total), ast:nz(r.assists),
+      fg:(p2m+t3m)+'-'+(p2a+t3a), p3:t3m+'-'+t3a, ft:(ft.total==null?'-':ft.total)+'-'+(ft.attempts==null?'-':ft.attempts),
+      oreb:null, dreb:null, stl:null, blk:null, to:null, pf:null,
+      starter:/start/i.test(String(r.type||'')) };
+  };
+  const hid=match.teams.home.id, aid=match.teams.away.id;
+  const home2=[], away2=[];
+  rows.forEach(r=>{ const tid=r.team&&r.team.id; const p=conv(r); if(tid===hid) home2.push(p); else if(tid===aid) away2.push(p); });
+  if(!home2.length&&!away2.length) return { note:'no-players' };
+  const stH=home2.filter(p=>p.starter).length, stA=away2.filter(p=>p.starter).length;
+  return { home:home2, away:away2, source:'apisports', hasStarters:(stH===5&&stA===5) };
+}
+app.get('/api/basketball/playerbox', async (req, res) => {
+  const home=req.query.home, away=req.query.away, date=req.query.date, league=req.query.league||'';
+  if(!home||!away||!date) return res.json({ note:'need-params' });
+  if(!APISPORTS_KEY) return res.json({ note:'needKey' });
+  try{ const r=await asBasketballPlayerBox(home, away, date, league); res.json(r||{ note:'no-data' }); }
+  catch(e){ res.json({ error:String(e.message||e) }); }
+});
 async function asBasketballTeamStats(home, away, date, leagueName){
   const lid = AB_RANK_ID[bskLeagueAlias(leagueName)] || AB_RANK_ID[leagueName] || null;
   if(!lid) return { note:'no-league-map' };

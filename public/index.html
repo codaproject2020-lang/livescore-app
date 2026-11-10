@@ -2312,7 +2312,7 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
     var LPROF=tl({en:"Season/profile data is being prepared.",ko:"시즌 누적·프로필 데이터는 준비 중입니다.",ja:"シーズン・プロフィールは準備中です。",zh:"赛季/资料数据准备中。",es:"Datos de temporada/perfil en preparación.",hi:"सीज़न/प्रोफ़ाइल डेटा तैयार हो रहा है।",vi:"Dữ liệu mùa giải/hồ sơ đang chuẩn bị.",th:"กำลังเตรียมข้อมูลฤดูกาล/โปรไฟล์",ru:"Данные сезона/профиля готовятся.",de:"Saison-/Profildaten werden vorbereitet.",fr:"Données de saison/profil en préparation.",it:"Dati stagione/profilo in preparazione."});
     var cg=tl({en:"This game",ko:"이 경기 기록",ja:"この試合",zh:"本场",es:"Este partido",hi:"इस मैच",vi:"Trận này",th:"เกมนี้",ru:"Эта игра",de:"Dieses Spiel",fr:"Ce match",it:"Questa gara"});
     var photo=p.photo?'<img src="'+esc(p.photo)+'" style="width:64px;height:64px;border-radius:50%;object-fit:cover" onerror="this.outerHTML=\'<div class=ph style=\\\'width:64px;height:64px\\\'>👤</div>\'">':'<div class="ph" style="width:64px;height:64px">👤</div>';
-    function st(lbl,v){ return '<div class="pst"><span class="v">'+v+'</span><span class="l">'+lbl+'</span></div>'; }
+    function st(lbl,v){ return '<div class="pst"><span class="v">'+(v==null?'-':v)+'</span><span class="l">'+lbl+'</span></div>'; }
     o.innerHTML='<div class="dt-bar"><button class="bk" id="plBack">‹</button><div class="ti">'+esc(p.name||"")+'</div></div>'+
       '<div class="dt-body"><div style="display:flex;align-items:center;gap:12px;margin:6px 0 14px">'+photo+'<div><div style="font-weight:800;font-size:16px">'+esc(p.name||"")+'</div><div style="color:var(--muted);font-size:13px">'+(p.number?("#"+esc(String(p.number))+" · "):"")+esc(team||"")+'</div></div></div>'+
       '<div class="dt-sec-t">📊 '+cg+'</div>'+
@@ -2324,32 +2324,45 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
   // 라인업 — F01·F02: 코트 배치(최다 출전 5인) + 선수 기록표(MIN/PTS/REB/AST)
   function loadBasketballRoster(g){
     dtLoading();
-    bskBox(g,function(j){ if(!$("#dtBody"))return;
-      if(!bskHasBox(j)){ dtBody('<div class="msg"><div class="big">📋</div>'+bskNoBox(j,"lineup")+'</div>'); return; }
+    var LMIN=tl({en:"MIN",ko:"분",ja:"分",zh:"时间",es:"MIN",hi:"मिन",vi:"Phút",th:"นาที",ru:"Мин",de:"MIN",fr:"MIN",it:"MIN"});
+    function mnum(p){ var m=parseInt(p.min,10); return isNaN(m)?-1:m; }
+    function lastName(nm){ var ps=(nm||"").trim().split(/\s+/); var suf=/^(jr|sr|ii|iii|iv|v)\.?$/i; while(ps.length>1&&suf.test(ps[ps.length-1]))ps.pop(); return ps[ps.length-1]||nm; }
+    function pos(p,i,away){ var L=[[50,14],[20,34],[80,34],[32,64],[68,64]]; var c=L[i]||[50,50]; return {x:c[0], y:away?(100-c[1]):c[1]}; }
+    function pickFive(arr,useStarters){ if(useStarters){ var st=arr.filter(function(p){return p.starter;}); if(st.length===5) return st; } return arr.slice().sort(function(a,b){return mnum(b)-mnum(a);}).slice(0,5); }
+    function court(arr,nm,away,useStarters){ if(!arr.length)return '';
+      var five=pickFive(arr,useStarters);
+      var dots=five.map(function(p,i){ var c=pos(p,i,away); return '<div class="cpl'+(away?" a":" h")+'" data-pid="'+esc(String(p.id||""))+'" style="left:'+c.x+'%;top:'+c.y+'%"><span class="cno">'+(p.number!==""?esc(String(p.number)):"-")+'</span><span class="cnm">'+esc(lastName(p.name))+'</span><span class="cpt">'+p.pts+'·'+p.min+"'</span></div>"; }).join("");
+      return '<div class="dt-sec-t">'+esc(nm)+'</div><div class="bcourt">'+dots+'</div>';
+    }
+    function tbl(arr,nm){ if(!arr.length)return '';
+      var s=arr.slice().sort(function(a,b){return mnum(b)-mnum(a);});
+      var h='<div class="dt-sec-t" style="margin-top:14px">'+esc(nm)+'</div><table class="rank bsk"><thead><tr><th style="text-align:left">'+t("playerCol")+'</th><th>'+LMIN+'</th><th>PTS</th><th>REB</th><th>AST</th></tr></thead><tbody>';
+      h+=s.map(function(p){ return '<tr class="bskrow" data-pid="'+esc(String(p.id||""))+'"><td class="tm" style="text-align:left">'+(p.number!==""?('<span style="color:#8a93a3;font-size:11px">#'+esc(String(p.number))+'</span> '):'')+'<span class="plink">'+esc(p.name||"-")+'</span></td><td>'+p.min+'</td><td style="font-weight:800">'+p.pts+'</td><td>'+p.reb+'</td><td>'+p.ast+'</td></tr>'; }).join("");
+      return h+'</tbody></table>';
+    }
+    function render(home,away,opt){ if(!$("#dtBody"))return; opt=opt||{};
       _bskPlayers={};
-      (j.home||[]).forEach(function(p){ _bskPlayers[p.id]={p:p,team:g.home}; });
-      (j.away||[]).forEach(function(p){ _bskPlayers[p.id]={p:p,team:g.away}; });
-      var note=tl({en:"Starters not flagged by feed — top 5 by minutes shown on court.",ko:"피드가 확정 선발을 제공하지 않아 출전시간 상위 5인을 코트에 표시합니다.",ja:"先発区分がないため出場時間上位5人をコートに表示。",zh:"数据源不标注首发，按出场时间显示前5人。",es:"Titulares no marcados — top 5 por minutos en la cancha.",hi:"स्टार्टर चिह्नित नहीं — मिनटों के शीर्ष 5 कोर्ट पर।",vi:"Không đánh dấu đá chính — 5 người nhiều phút nhất.",th:"ไม่ระบุตัวจริง — แสดง 5 คนเวลาลงเล่นสูงสุด",ru:"Стартовые не отмечены — топ-5 по минутам.",de:"Starter nicht markiert — Top 5 nach Minuten.",fr:"Titulaires non indiqués — top 5 par minutes.",it:"Titolari non indicati — top 5 per minuti."});
-      var LMIN=tl({en:"MIN",ko:"분",ja:"分",zh:"时间",es:"MIN",hi:"मिन",vi:"Phút",th:"นาที",ru:"Мин",de:"MIN",fr:"MIN",it:"MIN"});
-      function mnum(p){ var m=parseInt(p.min,10); return isNaN(m)?-1:m; }
-      function lastName(nm){ var ps=(nm||"").trim().split(/\s+/); var suf=/^(jr|sr|ii|iii|iv|v)\.?$/i; while(ps.length>1&&suf.test(ps[ps.length-1]))ps.pop(); return ps[ps.length-1]||nm; }
-      function pos(p,i,away){ // 5인 코트 배치 좌표(%)
-        var L=[[50,14],[20,34],[80,34],[32,64],[68,64]];
-        var c=L[i]||[50,50]; return {x:c[0], y:away?(100-c[1]):c[1]};
-      }
-      function court(arr,nm,away){ if(!arr.length)return '';
-        var five=arr.slice().sort(function(a,b){return mnum(b)-mnum(a);}).slice(0,5);
-        var dots=five.map(function(p,i){ var c=pos(p,i,away); return '<div class="cpl'+(away?" a":" h")+'" data-pid="'+esc(String(p.id||""))+'" style="left:'+c.x+'%;top:'+c.y+'%"><span class="cno">'+(p.number!==""?esc(String(p.number)):"-")+'</span><span class="cnm">'+esc(lastName(p.name))+'</span><span class="cpt">'+p.pts+'·'+p.min+"'</span></div>"; }).join("");
-        return '<div class="dt-sec-t">'+esc(nm)+'</div><div class="bcourt">'+dots+'</div>';
-      }
-      function tbl(arr,nm){ if(!arr.length)return '';
-        var s=arr.slice().sort(function(a,b){return mnum(b)-mnum(a);});
-        var h='<div class="dt-sec-t" style="margin-top:14px">'+esc(nm)+'</div><table class="rank bsk"><thead><tr><th style="text-align:left">'+t("playerCol")+'</th><th>'+LMIN+'</th><th>PTS</th><th>REB</th><th>AST</th></tr></thead><tbody>';
-        h+=s.map(function(p){ return '<tr class="bskrow" data-pid="'+esc(String(p.id||""))+'"><td class="tm" style="text-align:left">'+(p.number!==""?('<span style="color:#8a93a3;font-size:11px">#'+esc(String(p.number))+'</span> '):'')+'<span class="plink">'+esc(p.name||"-")+'</span></td><td>'+p.min+'</td><td style="font-weight:800">'+p.pts+'</td><td>'+p.reb+'</td><td>'+p.ast+'</td></tr>'; }).join("");
-        return h+'</tbody></table>';
-      }
-      dtBody('<p style="color:#8a93a3;font-size:12px;margin-bottom:8px">ℹ️ '+note+'</p>'+court(j.home,g.home,false)+court(j.away,g.away,true)+tbl(j.home,g.home)+tbl(j.away,g.away));
+      (home||[]).forEach(function(p){ _bskPlayers[p.id]={p:p,team:g.home}; });
+      (away||[]).forEach(function(p){ _bskPlayers[p.id]={p:p,team:g.away}; });
+      var useStarters=!!opt.starters;
+      var note = useStarters
+        ? tl({en:"Confirmed starting five (API-Sports).",ko:"확정 선발 5인(API-Sports).",ja:"確定スターター5人(API-Sports)。",zh:"确认首发五人(API-Sports)。",es:"Quinteto titular confirmado (API-Sports).",hi:"पुष्ट स्टार्टिंग फाइव (API-Sports)।",vi:"Đội hình xuất phát xác nhận (API-Sports).",th:"ตัวจริง 5 คนที่ยืนยัน (API-Sports)",ru:"Подтверждённая стартовая пятёрка (API-Sports).",de:"Bestätigte Starting Five (API-Sports).",fr:"Cinq de départ confirmé (API-Sports).",it:"Quintetto titolare confermato (API-Sports)."})
+        : (opt.src==='apisports'
+          ? tl({en:"Starters not flagged — top 5 by minutes (API-Sports).",ko:"확정 선발 미제공 — 출전시간 상위 5인(API-Sports).",ja:"先発区分なし — 出場時間上位5人(API-Sports)。",zh:"未标注首发 — 按出场时间前5人(API-Sports)。",es:"Sin titulares marcados — top 5 por minutos (API-Sports).",hi:"स्टार्टर नहीं — मिनटों के शीर्ष 5 (API-Sports)।",vi:"Không đánh dấu đá chính — 5 người nhiều phút (API-Sports).",th:"ไม่ระบุตัวจริง — 5 คนเวลามากสุด (API-Sports)",ru:"Стартовые не отмечены — топ-5 по минутам (API-Sports).",de:"Starter nicht markiert — Top 5 nach Minuten (API-Sports).",fr:"Titulaires non indiqués — top 5 par minutes (API-Sports).",it:"Titolari non indicati — top 5 per minuti (API-Sports)."})
+          : tl({en:"Starters not flagged by feed — top 5 by minutes shown on court.",ko:"피드가 확정 선발을 제공하지 않아 출전시간 상위 5인을 코트에 표시합니다.",ja:"先発区分がないため出場時間上位5人をコートに表示。",zh:"数据源不标注首发，按出场时间显示前5人。",es:"Titulares no marcados — top 5 por minutos en la cancha.",hi:"स्टार्टर चिह्नित नहीं — मिनटों के शीर्ष 5 कोर्ट पर।",vi:"Không đánh dấu đá chính — 5 người nhiều phút nhất.",th:"ไม่ระบุตัวจริง — แสดง 5 คนเวลาลงเล่นสูงสุด",ru:"Стартовые не отмечены — топ-5 по минутам.",de:"Starter nicht markiert — Top 5 nach Minuten.",fr:"Titulaires non indiqués — top 5 par minutes.",it:"Titolari non indicati — top 5 per minuti."}));
+      dtBody('<p style="color:#8a93a3;font-size:12px;margin-bottom:8px">ℹ️ '+note+'</p>'+court(home,g.home,false,useStarters)+court(away,g.away,true,useStarters)+tbl(home,g.home)+tbl(away,g.away));
       var db=$("#dtBody"); if(db){ db.querySelectorAll(".bskrow,.cpl").forEach(function(x){ x.onclick=function(){ var e=_bskPlayers[x.dataset.pid]; if(e)openBskPlayer(e.p,e.team); }; }); }
+    }
+    bskBox(g,function(j){ if(!$("#dtBody"))return;
+      if(bskHasBox(j)){ render(j.home, j.away, {src:'thesports'}); return; }
+      // 📋 종료 후 TheSports 박스 소실 → API-Sports 선수 박스 폴백(확정 선발 구분)
+      var tk=_dtTok;
+      var qs='home='+encodeURIComponent(g.home||'')+'&away='+encodeURIComponent(g.away||'')+'&date='+encodeURIComponent(String(g.date||'').slice(0,10))+'&league='+encodeURIComponent(g.league||'');
+      fetch('/api/basketball/playerbox?'+qs).then(function(r){return r.json()}).then(function(d){
+        if(tk!==_dtTok||!$("#dtBody"))return;
+        if(d&&(d.home&&d.home.length||d.away&&d.away.length)){ render(d.home||[], d.away||[], {src:'apisports', starters:d.hasStarters}); }
+        else { dtBody('<div class="msg"><div class="big">📋</div>'+bskNoBox(j,"lineup")+'</div>'); }
+      }).catch(function(){ if(tk!==_dtTok||!$("#dtBody"))return; dtBody('<div class="msg"><div class="big">📋</div>'+bskNoBox(j,"lineup")+'</div>'); });
     });
   }
   // 팀 통계 — 박스 합계 비교 + 현재기간 팀파울. 종료 후 TheSports 박스가 비면 API-Sports 공식 통계로 폴백.
