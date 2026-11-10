@@ -21,7 +21,7 @@ const app = express();
 const server = http.createServer(app);
 
 const PORT = process.env.PORT || 3000;
-const APP_VERSION = 'v431';
+const APP_VERSION = 'v432';
 
 // ============================================================
 //  📏 성능 계측(instrumentation) — 엔드포인트 지연·캐시·공급사·WS·이벤트루프
@@ -321,7 +321,10 @@ async function initDB() {
       errorsCol = db.collection('errors'); await errorsCol.createIndex({ ts: -1 }).catch(() => {});
       configCol = db.collection('config');
       const c = await configCol.findOne({ _id: 'main' });
-      if (c) { CFG.flags = c.flags || {}; CFG.maint = c.maint || ''; CFG.bskSrc = c.bskSrc || 'thesports'; CFG.ftbSrc = c.ftbSrc || 'thesports'; CFG.volSrc = c.volSrc || 'thesports'; CFG.bsbSrc = c.bsbSrc || 'thesports'; CFG.alertsOff = !!c.alertsOff; CFG.alertsNight = !!c.alertsNight; CFG.updatedAt = c.updatedAt || 0; }
+      if (c) { CFG.flags = c.flags || {}; CFG.maint = c.maint || ''; CFG.bskSrc = c.bskSrc || 'thesports'; CFG.ftbSrc = c.ftbSrc || 'thesports'; CFG.volSrc = c.volSrc || 'thesports'; CFG.bsbSrc = c.bsbSrc || 'thesports'; CFG.alertsOff = !!c.alertsOff; CFG.alertsNight = !!c.alertsNight; CFG.updatedAt = c.updatedAt || 0;
+        // 🎥 트래커 URL(72시간마다 갱신) 복원 — 관리자가 저장한 값이 하드코딩 기본값을 덮어씀(재배포 불필요)
+        if (c.tracker) { ['football', 'basketball', 'volleyball', 'baseball'].forEach(s => { if (typeof c.tracker[s] === 'string' && c.tracker[s]) TRACKER_URLS[s] = c.tracker[s]; }); console.log('[DB] 트래커 URL 복원'); }
+      }
       // 📡 직전 접속수 복원 — 10분 이내에 저장된 값만 바닥값으로 사용(오래된 값은 무시)
       try { const pdoc = await configCol.findOne({ _id: 'presence' }); if (pdoc && pdoc.n > 0 && (Date.now() - (pdoc.at || 0) < 10 * 60 * 1000)) { _presenceFloor = pdoc.n; console.log(`[DB] 접속수 바닥값 복원: ${_presenceFloor}`); } } catch (_) {}
       adminSubsCol = db.collection('admin_subs');
@@ -1795,15 +1798,19 @@ app.get('/api/tracker', async (req, res) => {
   const version = String(req.query.version || '3d').toLowerCase();   // 야구 템플릿엔 버전 세그먼트 없음(치환 무시됨)
   res.json({ url: buildTrackerUrl(tmpl, uuid, lang, version), sport, uuid });
 });
-// 관리자: 트래커 URL 설정(비밀번호). 종목별 또는 공통 1개.
-app.post('/api/admin/tracker', express.json(), (req, res) => {
-  if (!ADMIN_KEY || String((req.body && req.body.key) || '') !== ADMIN_KEY) return res.status(403).json({ error: 'auth' });
+// 관리자: 트래커 URL 설정(비밀번호). 72시간마다 갱신한 URL을 붙여넣으면 즉시 적용·DB 영속(재배포 불필요).
+app.post('/api/admin/tracker', express.json(), async (req, res) => {
+  if (!adminOK(req)) return res.status(403).json({ error: 'auth' });
   const u = (req.body && req.body.urls) || {};
   ['football', 'basketball', 'volleyball', 'baseball'].forEach(s => { if (typeof u[s] === 'string') TRACKER_URLS[s] = u[s].trim(); });
+  // DB 영속 저장(서버 재시작 후에도 유지). Mongo 없으면 메모리만.
+  try { if (configCol) await configCol.updateOne({ _id: 'main' }, { $set: { tracker: { football: TRACKER_URLS.football, basketball: TRACKER_URLS.basketball, volleyball: TRACKER_URLS.volleyball, baseball: TRACKER_URLS.baseball }, trackerUpdatedAt: Date.now() } }, { upsert: true }); } catch (e) { console.error('[tracker save]', e.message); }
   res.json({ ok: true, configured: Object.keys(TRACKER_URLS).filter(k => TRACKER_URLS[k]) });
 });
 app.get('/api/admin/tracker', (req, res) => {
-  res.json({ configured: Object.keys(TRACKER_URLS).filter(k => TRACKER_URLS[k]), sports: ['football', 'basketball', 'volleyball', 'baseball'] });
+  // 관리자 페이지 프리필용. 현재 저장된 URL 그대로 반환(비밀 아님 — 위젯 iframe src로 공개됨).
+  const auth = ADMIN_KEY && String(req.query.key || '') === ADMIN_KEY;
+  res.json({ configured: Object.keys(TRACKER_URLS).filter(k => TRACKER_URLS[k]), sports: ['football', 'basketball', 'volleyball', 'baseball'], urls: auth ? TRACKER_URLS : undefined });
 });
 // 🏐 진단: TheSports 배구 커버리지 확인 (현재 플랜에 배구 스케줄/라이브가 포함되는지)
 app.get('/api/ts/volley', async (req, res) => {

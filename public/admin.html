@@ -175,6 +175,17 @@
       </div>
       <button class="btn g" id="opSave">설정 저장</button>
       <span class="muted" id="opSaveMsg" style="margin-left:8px"></span>
+
+      <div class="sub2" style="margin-top:20px">🎥 라이브 트래커 URL <span class="muted" style="font-weight:600">(테스트 URL은 72시간마다 갱신 필요 · 여기 붙여넣고 저장하면 즉시 반영·배포 불필요)</span></div>
+      <div style="margin:6px 0;font-size:12px;color:#6b7280">더스포츠 대시보드 → 코드 받기에서 생성된 URL을 종목별로 붙여넣으세요. (profile·language·version·uuid는 그대로 두면 앱이 자동 치환) 한 칸만 채워도 나머지 종목은 경로만 바꿔 자동 적용됩니다.</div>
+      <div style="display:flex;flex-direction:column;gap:7px;max-width:760px">
+        <label style="font-size:12px;font-weight:700">⚽ 축구 <input id="trkFootball" placeholder="https://widgets.thesports01.com/{language}/{version}/football?profile=...&uuid={match_uuid}" style="width:100%;padding:8px;border:1px solid var(--line);border-radius:8px;font-size:12px"></label>
+        <label style="font-size:12px;font-weight:700">🏀 농구 <input id="trkBasketball" placeholder="https://widgets.thesports01.com/{language}/{version}/basketball?profile=...&uuid={match_uuid}" style="width:100%;padding:8px;border:1px solid var(--line);border-radius:8px;font-size:12px"></label>
+        <label style="font-size:12px;font-weight:700">🏐 배구 <input id="trkVolleyball" placeholder="https://widgets.thesports01.com/{language}/{version}/volleyball?profile=...&uuid={match_uuid}" style="width:100%;padding:8px;border:1px solid var(--line);border-radius:8px;font-size:12px"></label>
+        <label style="font-size:12px;font-weight:700">⚾ 야구 <input id="trkBaseball" placeholder="https://widgets.thesports01.com/{language}/baseball?profile=...&uuid={match_uuid}" style="width:100%;padding:8px;border:1px solid var(--line);border-radius:8px;font-size:12px"></label>
+      </div>
+      <div style="margin-top:8px"><button class="btn g" id="trkSave">트래커 URL 저장</button><span class="muted" id="trkMsg" style="margin-left:8px"></span></div>
+
       <div class="sub2" style="margin-top:20px">🚨 최근 오류 로그 <button class="btn" id="opErrClear" style="font-size:11px;padding:3px 9px;margin-left:6px">비우기</button></div>
       <div style="overflow:auto;max-height:420px;margin-top:6px">
         <table class="tbl"><thead><tr><th>시각</th><th>출처</th><th>내용</th></tr></thead><tbody id="opErrRows"></tbody></table>
@@ -377,7 +388,15 @@
       }
       const c=await api('/api/admin/config');
       if(c&&c.ok){ const f=c.flags||{}; $('#fShorts').checked=f.shorts!==false; $('#fNews').checked=f.news!==false; $('#fBsk').value=c.bskSrc||'auto'; $('#fFtb').value=c.ftbSrc||'thesports'; $('#fVol').value=c.volSrc||'thesports'; $('#fMaint').value=c.maint||''; $('#fAlertOff').checked=!!c.alertsOff; $('#fAlertNight').checked=!!c.alertsNight; }
+      try{ const tk=await api('/api/admin/tracker?key='+encodeURIComponent(KEY)); if(tk&&tk.urls){ $('#trkFootball').value=tk.urls.football||''; $('#trkBasketball').value=tk.urls.basketball||''; $('#trkVolleyball').value=tk.urls.volleyball||''; $('#trkBaseball').value=tk.urls.baseball||''; } }catch(_){}
     }catch(e){ if(String(e.message)==='unauthorized') logout(); }
+  }
+  async function saveTracker(){
+    const urls={ football:$('#trkFootball').value.trim(), basketball:$('#trkBasketball').value.trim(), volleyball:$('#trkVolleyball').value.trim(), baseball:$('#trkBaseball').value.trim() };
+    try{ const r=await apiPost('/api/admin/tracker',{ urls });
+      $('#trkMsg').textContent = r&&r.ok ? ('✅ 저장됨 ('+(r.configured||[]).length+'종목 적용)') : '저장 실패';
+      setTimeout(()=>{$('#trkMsg').textContent='';},5000);
+    }catch(e){ $('#trkMsg').textContent='실패'; }
   }
   async function saveOps(){
     const flags={ shorts:$('#fShorts').checked, news:$('#fNews').checked };
@@ -407,6 +426,7 @@
   $('#opTest')&&$('#opTest').addEventListener('click',testPush);
   $('#opCache')&&$('#opCache').addEventListener('click',clearCache);
   $('#opSave')&&$('#opSave').addEventListener('click',saveOps);
+  $('#trkSave')&&$('#trkSave').addEventListener('click',saveTracker);
   $('#opErrClear')&&$('#opErrClear').addEventListener('click',clearErrs);
   $('#hlLoadMatches')&&$('#hlLoadMatches').addEventListener('click',hlLoadMatches);
   $('#hlSave')&&$('#hlSave').addEventListener('click',hlSave);
