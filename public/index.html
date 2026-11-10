@@ -1768,11 +1768,12 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
   }
   // 🎥 TheSports Live Match Tracker 위젯(스코어보드·이벤트·3D 경기장 내장 iframe)
   function trkUuid(g,sport){
-    // 축구·농구·배구: 더스포츠 경기 id(tsXXXX) → uuid=XXXX. 야구(API-Sports 숫자 id)는 서버 해석 필요.
+    // 더스포츠 경기 id → uuid. 축구·농구·배구는 'ts' 접두어(tsXXXX), 야구는 접두어 없는 더스포츠 id.
     var id=String(g.id||"");
     if(/^ts/.test(id)) return id.replace(/^ts/,"");
     if(g.tsid) return String(g.tsid);
-    return "";
+    if(/^[a-z0-9]{10,}$/i.test(id)) return id;   // 접두어 없는 더스포츠 id(야구 등). 순수 숫자(API-Sports)는 제외
+    return "";   // 서버가 diary로 best-effort 해석
   }
   function loadTracker(g,sport){
     dtLoading(); var tk=_dtTok;
