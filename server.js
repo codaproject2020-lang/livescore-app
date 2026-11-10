@@ -21,7 +21,7 @@ const app = express();
 const server = http.createServer(app);
 
 const PORT = process.env.PORT || 3000;
-const APP_VERSION = 'v435';
+const APP_VERSION = 'v436';
 
 // ============================================================
 //  📏 성능 계측(instrumentation) — 엔드포인트 지연·캐시·공급사·WS·이벤트루프
@@ -3046,8 +3046,12 @@ async function asBasketballTeamStats(home, away, date, leagueName){
   if(!match) return { note:'no-match' };
   const st = await asRaw('basketball', `/games/statistics/teams?id=${match.id}`, 3600000).catch(()=>null);
   const rows=(st&&st.response)||[]; if(rows.length<2) return { note:'no-stats' };
+  // ⚠️ API-Sports 규약: field_goals = 2점 전용(3점 미포함). 우리 프론트는 fg=전체FG(2P+3P) 기준(TheSports와 동일) →
+  //    여기서 2P(field_goals) + 3P(threepoint)를 합산해 전체 FG로 변환. (검증: 2P·2 + 3P·3 + FT = 최종점수)
   const conv=r=>{ const S=r.statistics||r, fg=S.field_goals||{}, tp=S.threepoint_goals||{}, ft=S.freethrows_goals||{}, rb=S.rebounds||{}; const nz=v=>(v==null?null:+v);
-    return { fgm:nz(fg.total), fga:nz(fg.attempts), tpm:nz(tp.total), tpa:nz(tp.attempts), ftm:nz(ft.total), fta:nz(ft.attempts),
+    const p2m=nz(fg.total), p2a=nz(fg.attempts), t3m=nz(tp.total), t3a=nz(tp.attempts);
+    const add=(a,b)=>(a==null&&b==null)?null:((a||0)+(b||0));
+    return { fgm:add(p2m,t3m), fga:add(p2a,t3a), tpm:t3m, tpa:t3a, ftm:nz(ft.total), fta:nz(ft.attempts),
       reb:nz(rb.total), oreb:nz(rb.offence), dreb:nz(rb.defense), ast:nz(S.assists), stl:nz(S.steals), blk:nz(S.blocks), to:nz(S.turnovers), pf:nz(S.personal_fouls) }; };
   const byId={}; rows.forEach(r=>{ const tid=r.team&&r.team.id; if(tid!=null) byId[tid]=conv(r); });
   const H=byId[match.teams.home.id], A=byId[match.teams.away.id];
