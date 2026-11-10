@@ -21,7 +21,7 @@ const app = express();
 const server = http.createServer(app);
 
 const PORT = process.env.PORT || 3000;
-const APP_VERSION = 'v436';
+const APP_VERSION = 'v437';
 
 // ============================================================
 //  📏 성능 계측(instrumentation) — 엔드포인트 지연·캐시·공급사·WS·이벤트루프
@@ -1987,7 +1987,7 @@ app.get('/api/diag/bskstats', async (req, res) => {
     out.teamStats = { results: st && st.results, errors: st && st.errors, teams: sr.length, sample: sr.slice(0, 2).map(x => ({ team: x.team && x.team.name, keys: x.statistics ? (Array.isArray(x.statistics) ? x.statistics.map(s => s.type).slice(0, 30) : Object.keys(x.statistics).slice(0, 30)) : Object.keys(x).slice(0, 20), raw: JSON.stringify(x.statistics || x).slice(0, 700) })) };
     const sp = await asRaw('basketball', `/games/statistics/players?id=${match.id}`, 600000).catch(e => ({ _err: String(e.message || e) }));
     const spr = (sp && sp.response) || [];
-    out.playerStats = { results: sp && sp.results, errors: sp && sp.errors, rows: spr.length };
+    out.playerStats = { results: sp && sp.results, errors: sp && sp.errors, rows: spr.length, topKeys: spr[0] ? Object.keys(spr[0]) : null, sample: spr.slice(0, 2).map(x => JSON.stringify(x).slice(0, 900)) };
   } catch (e) { out.error = String(e.message || e); }
   res.json(out);
 });
