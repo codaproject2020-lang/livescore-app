@@ -2352,37 +2352,52 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
       var db=$("#dtBody"); if(db){ db.querySelectorAll(".bskrow,.cpl").forEach(function(x){ x.onclick=function(){ var e=_bskPlayers[x.dataset.pid]; if(e)openBskPlayer(e.p,e.team); }; }); }
     });
   }
-  // 팀 통계 — 박스 합계 비교 + 현재기간 팀파울
+  // 팀 통계 — 박스 합계 비교 + 현재기간 팀파울. 종료 후 TheSports 박스가 비면 API-Sports 공식 통계로 폴백.
   function loadBasketballTeam(g){
     dtLoading();
-    bskBox(g,function(j){ if(!$("#dtBody"))return;
-      if(!bskHasBox(j)){ dtBody('<div class="msg"><div class="big">📊</div>'+bskNoBox(j,"team")+'</div>'); return; }
-      function sum(arr){ var o={pts:0,reb:0,oreb:0,dreb:0,ast:0,stl:0,blk:0,to:0,pf:0,fgm:0,fga:0,tpm:0,tpa:0,ftm:0,fta:0}; (arr||[]).forEach(function(p){o.pts+=p.pts;o.reb+=p.reb;o.oreb+=p.oreb;o.dreb+=p.dreb;o.ast+=p.ast;o.stl+=p.stl;o.blk+=p.blk;o.to+=p.to;o.pf+=p.pf; var fg=String(p.fg).split('-'),tp=String(p.p3).split('-'),ft=String(p.ft).split('-'); o.fgm+=+fg[0]||0;o.fga+=+fg[1]||0;o.tpm+=+tp[0]||0;o.tpa+=+tp[1]||0;o.ftm+=+ft[0]||0;o.fta+=+ft[1]||0;}); return o; }
-      var H=sum(j.home), A=sum(j.away);
-      // N04: 성공률 = 성공/시도×100(반올림 통일). 시도 0은 미산출(-). FG=2P+3P 대조.
-      function pct(m,a){ return a>0?Math.round(m/a*100)+"%":"-"; }
-      // N05: 비교막대 + 유리방향 강조. lowerBetter(파울·턴오버)는 적을수록 유리, 동률은 중립.
-      function bar(label,hv,av,hn,an,lowerBetter){ hn=hn||0;an=an||0; var tt=hn+an||1;
-        var hw=(hn===an)?0:(lowerBetter?(hn<an):(hn>an))?1:-1;   // 1=홈유리, -1=원정유리, 0=동률
-        return '<div class="stbar"><div class="lab"><span class="'+(hw>0?'stw':'')+'">'+hv+'</span><span style="color:#8a93a3">'+label+'</span><span class="'+(hw<0?'stw':'')+'">'+av+'</span></div><div class="tr"><div class="h" style="width:'+(hn/tt*100)+'%"></div><div class="a" style="width:'+(an/tt*100)+'%"></div></div></div>'; }
-      // 2점 = FG - 3P (성공/시도 각각)
-      var H2m=H.fgm-H.tpm, H2a=H.fga-H.tpa, A2m=A.fgm-A.tpm, A2a=A.fga-A.tpa;
+    // N04: 성공률 = 성공/시도×100(반올림 통일). 시도 0은 미산출(-). FG=2P+3P 대조.
+    function pct(m,a){ return (m!=null&&a>0)?Math.round(m/a*100)+"%":"-"; }
+    // N05: 비교막대 + 유리방향 강조. lowerBetter(파울·턴오버)는 적을수록 유리, 동률은 중립.
+    function bar(label,hv,av,hn,an,lowerBetter){ hn=hn||0;an=an||0; var tt=hn+an||1;
+      var hw=(hn===an)?0:(lowerBetter?(hn<an):(hn>an))?1:-1;
+      return '<div class="stbar"><div class="lab"><span class="'+(hw>0?'stw':'')+'">'+hv+'</span><span style="color:#8a93a3">'+label+'</span><span class="'+(hw<0?'stw':'')+'">'+av+'</span></div><div class="tr"><div class="h" style="width:'+(hn/tt*100)+'%"></div><div class="a" style="width:'+(an/tt*100)+'%"></div></div></div>'; }
+    // 둘 다 null인 항목은 막대 자체를 숨김(공급사 미제공 → 0으로 채우지 않음).
+    function shoot(label,Hm,Ha,Am,Aa){ if(Hm==null&&Am==null)return ''; return bar(label+" "+pct(Hm,Ha)+" / "+pct(Am,Aa), (Hm==null?'-':Hm)+"-"+(Ha==null?'-':Ha), (Am==null?'-':Am)+"-"+(Aa==null?'-':Aa), Hm||0, Am||0); }
+    function cnt(label,Hv,Av,lower){ if(Hv==null&&Av==null)return ''; return bar(label,(Hv==null?'-':Hv),(Av==null?'-':Av),Hv||0,Av||0,lower); }
+    function render(H,A,src){ if(!$("#dtBody"))return;
+      var H2m=(H.fgm!=null&&H.tpm!=null)?H.fgm-H.tpm:null, H2a=(H.fga!=null&&H.tpa!=null)?H.fga-H.tpa:null;
+      var A2m=(A.fgm!=null&&A.tpm!=null)?A.fgm-A.tpm:null, A2a=(A.fga!=null&&A.tpa!=null)?A.fga-A.tpa:null;
       var h='<div style="display:flex;justify-content:space-between;font-weight:800;margin-bottom:6px"><span>'+esc(g.home)+'</span><span>'+esc(g.away)+'</span></div>';
-      if(g.homeFouls!=null||g.awayFouls!=null){ h+=bar(t("teamFoul")+(g.periodLabel?" ("+g.periodLabel+")":""), (g.homeFouls==null?"-":g.homeFouls), (g.awayFouls==null?"-":g.awayFouls), g.homeFouls, g.awayFouls, true); }
-      h+=bar("FG "+pct(H.fgm,H.fga)+" / "+pct(A.fgm,A.fga), H.fgm+"-"+H.fga, A.fgm+"-"+A.fga, H.fgm, A.fgm);
-      h+=bar("2P "+pct(H2m,H2a)+" / "+pct(A2m,A2a), H2m+"-"+H2a, A2m+"-"+A2a, H2m, A2m);
-      h+=bar("3P "+pct(H.tpm,H.tpa)+" / "+pct(A.tpm,A.tpa), H.tpm+"-"+H.tpa, A.tpm+"-"+A.tpa, H.tpm, A.tpm);
-      h+=bar("FT "+pct(H.ftm,H.fta)+" / "+pct(A.ftm,A.fta), H.ftm+"-"+H.fta, A.ftm+"-"+A.fta, H.ftm, A.ftm);
-      h+=bar("REB", H.reb, A.reb, H.reb, A.reb);
-      h+=bar("OREB", H.oreb, A.oreb, H.oreb, A.oreb);
-      h+=bar("DREB", H.dreb, A.dreb, H.dreb, A.dreb);
-      h+=bar("AST", H.ast, A.ast, H.ast, A.ast);
-      h+=bar("STL", H.stl, A.stl, H.stl, A.stl);
-      h+=bar("BLK", H.blk, A.blk, H.blk, A.blk);
-      h+=bar("TO", H.to, A.to, H.to, A.to, true);
-      h+=bar("PF", H.pf, A.pf, H.pf, A.pf, true);
-      h+='<p style="color:#8a93a3;font-size:11px;margin-top:8px">'+tl({en:"Team totals computed from live box score.",ko:"실시간 박스스코어 합계 기준.",ja:"ライブBOXスコア合計基準。",zh:"基于实时技术统计合计。",es:"Totales del marcador en vivo.",hi:"लाइव बॉक्स स्कोर योग।",vi:"Tổng từ bảng điểm trực tiếp.",th:"รวมจากบ็อกซ์สกอร์สด",ru:"Итоги по лайв-бокс-скору.",de:"Summen aus Live-Boxscore.",fr:"Totaux du tableau en direct.",it:"Totali dal tabellino dal vivo."})+'</p>';
+      if(src==='livebox'&&(g.homeFouls!=null||g.awayFouls!=null)){ h+=bar(t("teamFoul")+(g.periodLabel?" ("+g.periodLabel+")":""), (g.homeFouls==null?"-":g.homeFouls), (g.awayFouls==null?"-":g.awayFouls), g.homeFouls, g.awayFouls, true); }
+      h+=shoot("FG",H.fgm,H.fga,A.fgm,A.fga);
+      h+=shoot("2P",H2m,H2a,A2m,A2a);
+      h+=shoot("3P",H.tpm,H.tpa,A.tpm,A.tpa);
+      h+=shoot("FT",H.ftm,H.fta,A.ftm,A.fta);
+      h+=cnt("REB",H.reb,A.reb);
+      h+=cnt("OREB",H.oreb,A.oreb);
+      h+=cnt("DREB",H.dreb,A.dreb);
+      h+=cnt("AST",H.ast,A.ast);
+      h+=cnt("STL",H.stl,A.stl);
+      h+=cnt("BLK",H.blk,A.blk);
+      h+=cnt("TO",H.to,A.to,true);
+      h+=cnt("PF",H.pf,A.pf,true);
+      var note=(src==='apisports')?tl({en:"Official end-of-game team stats (API-Sports).",ko:"종료 경기 공식 팀 기록(API-Sports).",ja:"試合終了後の公式チーム記録(API-Sports)。",zh:"赛后官方球队数据(API-Sports)。",es:"Estadísticas oficiales de fin de partido (API-Sports).",hi:"मैच समाप्ति के आधिकारिक टीम आँकड़े (API-Sports)।",vi:"Thống kê đội chính thức sau trận (API-Sports).",th:"สถิติทีมอย่างเป็นทางการหลังจบเกม (API-Sports)",ru:"Официальная командная статистика матча (API-Sports).",de:"Offizielle Teamstatistik nach Spielende (API-Sports).",fr:"Stats d'équipe officielles de fin de match (API-Sports).",it:"Statistiche squadra ufficiali di fine gara (API-Sports)."}):tl({en:"Team totals computed from live box score.",ko:"실시간 박스스코어 합계 기준.",ja:"ライブBOXスコア合計基準。",zh:"基于实时技术统计合计。",es:"Totales del marcador en vivo.",hi:"लाइव बॉक्स स्कोर योग।",vi:"Tổng từ bảng điểm trực tiếp.",th:"รวมจากบ็อกซ์สกอร์สด",ru:"Итоги по лайв-бокс-скору.",de:"Summen aus Live-Boxscore.",fr:"Totaux du tableau en direct.",it:"Totali dal tabellino dal vivo."});
+      h+='<p style="color:#8a93a3;font-size:11px;margin-top:8px">'+note+'</p>';
       dtBody(h);
+    }
+    bskBox(g,function(j){ if(!$("#dtBody"))return;
+      if(bskHasBox(j)){
+        function sum(arr){ var o={pts:0,reb:0,oreb:0,dreb:0,ast:0,stl:0,blk:0,to:0,pf:0,fgm:0,fga:0,tpm:0,tpa:0,ftm:0,fta:0}; (arr||[]).forEach(function(p){o.pts+=p.pts;o.reb+=p.reb;o.oreb+=p.oreb;o.dreb+=p.dreb;o.ast+=p.ast;o.stl+=p.stl;o.blk+=p.blk;o.to+=p.to;o.pf+=p.pf; var fg=String(p.fg).split('-'),tp=String(p.p3).split('-'),ft=String(p.ft).split('-'); o.fgm+=+fg[0]||0;o.fga+=+fg[1]||0;o.tpm+=+tp[0]||0;o.tpa+=+tp[1]||0;o.ftm+=+ft[0]||0;o.fta+=+ft[1]||0;}); return o; }
+        render(sum(j.home), sum(j.away), 'livebox'); return;
+      }
+      // 📊 종료 후 TheSports 박스 소실 → API-Sports 공식 팀 통계 폴백
+      var tk=_dtTok;
+      var qs='home='+encodeURIComponent(g.home||'')+'&away='+encodeURIComponent(g.away||'')+'&date='+encodeURIComponent(String(g.date||'').slice(0,10))+'&league='+encodeURIComponent(g.league||'');
+      fetch('/api/basketball/teamstats?'+qs).then(function(r){return r.json()}).then(function(d){
+        if(tk!==_dtTok||!$("#dtBody"))return;
+        if(d&&d.home&&d.away){ render(d.home, d.away, 'apisports'); }
+        else { dtBody('<div class="msg"><div class="big">📊</div>'+bskNoBox(j,"team")+'</div>'); }
+      }).catch(function(){ if(tk!==_dtTok||!$("#dtBody"))return; dtBody('<div class="msg"><div class="big">📊</div>'+bskNoBox(j,"team")+'</div>'); });
     });
   }
   // 경기 흐름(플레이바이플레이) — Q01~Q06: 쿼터별 그룹 + 접기/펼치기 + 전체/득점만 필터

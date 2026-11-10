@@ -21,7 +21,7 @@ const app = express();
 const server = http.createServer(app);
 
 const PORT = process.env.PORT || 3000;
-const APP_VERSION = 'v434';
+const APP_VERSION = 'v435';
 
 // ============================================================
 //  📏 성능 계측(instrumentation) — 엔드포인트 지연·캐시·공급사·WS·이벤트루프
@@ -3027,6 +3027,40 @@ async function bskSnapshotTick() {
 }
 setTimeout(() => { bskSnapshotTick().catch(() => {}); }, 8000);
 setInterval(() => { bskSnapshotTick().catch(() => {}); }, 60000);
+// 🔁 종료 경기 팀 통계 폴백: TheSports 라이브 박스가 종료 후 사라진 경기를, API-Sports(종료 통계 보관)에서 보완.
+//   매칭: 리그명→API-Sports 리그ID, 날짜+팀명으로 경기 탐색 → /games/statistics/teams. 실데이터만 반환(없으면 null).
+function _abTok(s){ return String(s||'').toLowerCase().replace(/[^a-z0-9 ]/g,'').split(/\s+/).filter(w=>w.length>3); }
+function _abTeamMatch(gn, want){ const g=String(gn||'').toLowerCase(), w=String(want||'').toLowerCase(); if(!g||!w) return false; if(g===w||g.includes(w)||w.includes(g)) return true; const gt=_abTok(g), wt=_abTok(w); return gt.some(x=>wt.includes(x)); }
+async function asBasketballTeamStats(home, away, date, leagueName){
+  const lid = AB_RANK_ID[bskLeagueAlias(leagueName)] || AB_RANK_ID[leagueName] || null;
+  if(!lid) return { note:'no-league-map' };
+  const ymd = String(date).slice(0,10); const yr = +ymd.slice(0,4);
+  const seasons = [`${yr}-${yr+1}`, String(yr), `${yr-1}-${yr}`, String(yr-1)];
+  let games=[];
+  for(const s of seasons){
+    const j = await asRaw('basketball', `/games?league=${lid}&season=${encodeURIComponent(s)}&date=${ymd}&timezone=Asia/Seoul`, 3600000).catch(()=>null);
+    const arr=(j&&j.response)||[]; if(arr.length){ games=arr; break; }
+  }
+  if(!games.length) return { note:'no-apisports-game' };
+  const match = games.find(g=>_abTeamMatch(g.teams&&g.teams.home&&g.teams.home.name, home) && _abTeamMatch(g.teams&&g.teams.away&&g.teams.away.name, away));
+  if(!match) return { note:'no-match' };
+  const st = await asRaw('basketball', `/games/statistics/teams?id=${match.id}`, 3600000).catch(()=>null);
+  const rows=(st&&st.response)||[]; if(rows.length<2) return { note:'no-stats' };
+  const conv=r=>{ const S=r.statistics||r, fg=S.field_goals||{}, tp=S.threepoint_goals||{}, ft=S.freethrows_goals||{}, rb=S.rebounds||{}; const nz=v=>(v==null?null:+v);
+    return { fgm:nz(fg.total), fga:nz(fg.attempts), tpm:nz(tp.total), tpa:nz(tp.attempts), ftm:nz(ft.total), fta:nz(ft.attempts),
+      reb:nz(rb.total), oreb:nz(rb.offence), dreb:nz(rb.defense), ast:nz(S.assists), stl:nz(S.steals), blk:nz(S.blocks), to:nz(S.turnovers), pf:nz(S.personal_fouls) }; };
+  const byId={}; rows.forEach(r=>{ const tid=r.team&&r.team.id; if(tid!=null) byId[tid]=conv(r); });
+  const H=byId[match.teams.home.id], A=byId[match.teams.away.id];
+  if(!H||!A) return { note:'no-stats' };
+  return { home:H, away:A, source:'apisports', gameId:match.id };
+}
+app.get('/api/basketball/teamstats', async (req, res) => {
+  const home=req.query.home, away=req.query.away, date=req.query.date, league=req.query.league||'';
+  if(!home||!away||!date) return res.json({ note:'need-params' });
+  if(!APISPORTS_KEY) return res.json({ note:'needKey' });
+  try{ const r=await asBasketballTeamStats(home, away, date, league); res.json(r||{ note:'no-apisports-stats' }); }
+  catch(e){ res.json({ error:String(e.message||e) }); }
+});
 // 🏐 TheSports 배구 경기목록(diary) → 세트 승수(ft) + 세트별 점수(p1~p5)
 function tsVolState(s) { s = Number(s); if (s === 1 || s === 0) return 'scheduled'; if (s === 100 || s < 0) return 'finished'; return 'live'; }
 async function tsVolleyballGames(date, tz) {
