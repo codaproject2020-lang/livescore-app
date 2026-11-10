@@ -21,7 +21,7 @@ const app = express();
 const server = http.createServer(app);
 
 const PORT = process.env.PORT || 3000;
-const APP_VERSION = 'v442';
+const APP_VERSION = 'v443';
 
 // ============================================================
 //  📏 성능 계측(instrumentation) — 엔드포인트 지연·캐시·공급사·WS·이벤트루프
@@ -2042,6 +2042,29 @@ app.get('/api/ts/bsktest', async (req, res) => {
       catch (e) { out.lineupErr = String((e && e.message) || e); }
     }
   } catch (e) { out.liveErr = String((e && e.message) || e); }
+  res.json(out);
+});
+// 🔬 진단(읽기전용): 특정 종료경기 uuid 로 TheSports 미사용 엔드포인트가 완전한 데이터를 주는지 확인.
+//   live/history(PBP)·trend/detail(흐름·슛)·lineup_live(선발/박스) 구조만 보고, 비밀키는 노출 안 함.
+//   예: /api/ts/bskmatch?uuid=vjxm8xt51361q6o   (골스-뉴올리언스 ts id 에서 ts 접두 제거)
+app.get('/api/ts/bskmatch', async (req, res) => {
+  if (!TS_ON) return res.json({ on: false });
+  const uuid = String(req.query.uuid || '').replace(/^ts/, '');
+  if (!uuid) return res.json({ error: 'need uuid' });
+  const out = { uuid, probes: {} };
+  const dig = (obj, depth = 0) => {
+    if (obj == null) return null;
+    if (Array.isArray(obj)) return { _arr: obj.length, _first: depth < 3 ? dig(obj[0], depth + 1) : '…' };
+    if (typeof obj === 'object') { const o = {}; for (const k of Object.keys(obj).slice(0, 25)) o[k] = depth < 3 ? dig(obj[k], depth + 1) : '…'; return o; }
+    return (typeof obj === 'string' && obj.length > 40) ? obj.slice(0, 40) + '…' : obj;
+  };
+  const probe = async (name, path, params) => {
+    try { const r = await tsFetch(path, params, 5000); const results = (r && r.results); out.probes[name] = { ok: results != null, count: Array.isArray(results) ? results.length : (results ? 1 : 0), shape: dig(results), rawSample: JSON.stringify(results).slice(0, 1200) }; }
+    catch (e) { out.probes[name] = { err: String((e && e.message) || e).slice(0, 80) }; }
+  };
+  await probe('live_history', '/basketball/match/live/history', { uuid });
+  await probe('trend_detail', '/basketball/match/trend/detail', { uuid });
+  await probe('lineup_live', '/basketball/match/lineup_live', { uuid });
   res.json(out);
 });
 // 🔬 진단: TheSports diary를 '캐시 없이 직접' 호출해 실제 소요시간·응답을 측정(느림 vs 무응답 vs 빈응답 구분).
