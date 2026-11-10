@@ -21,7 +21,7 @@ const app = express();
 const server = http.createServer(app);
 
 const PORT = process.env.PORT || 3000;
-const APP_VERSION = 'v438';
+const APP_VERSION = 'v439';
 
 // ============================================================
 //  📏 성능 계측(instrumentation) — 엔드포인트 지연·캐시·공급사·WS·이벤트루프
@@ -3049,6 +3049,8 @@ async function asFindBskGame(home, away, date, leagueName){
 }
 // ⚾/🏀 "MM:SS" 또는 "MM" → 정수 분
 function _abMinutes(m){ if(m==null) return 0; const s=String(m); const mm=s.split(':')[0]; const n=parseInt(mm,10); return isNaN(n)?0:n; }
+// API-Sports 이름에 섞인 HTML 엔티티(&apos; &amp; 등) 디코딩 → 이름 깨짐 방지
+function _deHtml(s){ if(s==null) return s; return String(s).replace(/&apos;/g,"'").replace(/&#0*39;/g,"'").replace(/&quot;/g,'"').replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&amp;/g,'&'); }
 // 🔁 종료 경기 선수 박스 폴백(§08 라인업): API-Sports 선수 기록 → 우리 박스 형태. 확정 선발(type=starters) 구분.
 async function asBasketballPlayerBox(home, away, date, leagueName){
   const f = await asFindBskGame(home, away, date, leagueName);
@@ -3059,7 +3061,7 @@ async function asBasketballPlayerBox(home, away, date, leagueName){
   const nz=v=>(v==null?null:+v);
   const conv=r=>{ const fg=r.field_goals||{}, tp=r.threepoint_goals||{}, ft=r.freethrows_goals||{}, rb=r.rebounds||{};
     const p2m=+fg.total||0, p2a=+fg.attempts||0, t3m=+tp.total||0, t3a=+tp.attempts||0;
-    return { id:(r.player&&r.player.id)||'', name:(r.player&&r.player.name)||'-', number:'',
+    return { id:(r.player&&r.player.id)||'', name:_deHtml((r.player&&r.player.name))||'-', number:'',
       min:_abMinutes(r.minutes), pts:nz(r.points), reb:nz(rb.total), ast:nz(r.assists),
       fg:(p2m+t3m)+'-'+(p2a+t3a), p3:t3m+'-'+t3a, ft:(ft.total==null?'-':ft.total)+'-'+(ft.attempts==null?'-':ft.attempts),
       oreb:null, dreb:null, stl:null, blk:null, to:null, pf:null,
