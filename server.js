@@ -21,7 +21,7 @@ const app = express();
 const server = http.createServer(app);
 
 const PORT = process.env.PORT || 3000;
-const APP_VERSION = 'v444';
+const APP_VERSION = 'v445';
 
 // ============================================================
 //  📏 성능 계측(instrumentation) — 엔드포인트 지연·캐시·공급사·WS·이벤트루프
@@ -2952,7 +2952,40 @@ function tsBskPlayer(p) {
   const n = i => +s[i] || 0;
   return { id: p[0], name: String(p[1] || '').trim(), photo: p[2] || '', number: p[3] || '',
     min: n(0), fg: pair(s[1]), p3: pair(s[2]), ft: pair(s[3]),
-    oreb: n(4), dreb: n(5), reb: n(6), ast: n(7), stl: n(8), blk: n(9), to: n(10), pf: n(11), pts: n(13) };
+    oreb: n(4), dreb: n(5), reb: n(6), ast: n(7), stl: n(8), blk: n(9), to: n(10), pf: n(11), pts: n(13),
+    // s[16]: 선발 구분(0=선발, 1=벤치) — 실데이터 검증. 필드 없으면 null.
+    starter: (s.length > 16 ? (String(s[16]) === '0') : null) };
+}
+// 🏀 종료(및 진행) 경기 완전 데이터 — TheSports /basketball/match/live/history (종료 후에도 지속).
+//   box(선발/BLK/STL/사진) + tlive(플레이바이플레이·슛좌표) + 쿼터점수. 라이브 전용 lineup_live/detail_live 와 별개.
+async function tsBskHistory(tsid) {
+  const r = await tsFetch('/basketball/match/live/history', { uuid: tsid }, 1800000).catch(() => null); // 종료경기 1회→30분 캐시
+  const item = r && r.results; if (!item || !item.players) return null;
+  const pl = item.players;
+  const mk = arr => (arr || []).filter(x => Array.isArray(x)).map(tsBskPlayer);
+  const home = mk(pl[0]), away = mk(pl[1]);
+  if (!home.length && !away.length) return null;
+  // tlive: [[q1events...],[q2...],...]. 이벤트 문자열 "period^clock^team^?^away-home^text^pids^isShot^made^pts^x,y"
+  const flow = [], shots = [];
+  const tl = item.tlive || [];
+  for (const q of tl) {
+    for (const s of (q || [])) {
+      const f = String(s).split('^');
+      const sc = String(f[4] || '0-0').split('-'); const away2 = +sc[0] || 0, home2 = +sc[1] || 0;
+      const xy = String(f[10] || '').split(','); const x = xy[0] !== '' ? +xy[0] : null, y = xy[1] != null && xy[1] !== '' ? +xy[1] : null;
+      const ev = { period: +f[0] || 0, clock: f[1] || '', team: (f[2] === '1' ? 'home' : 'away'),
+        home: home2, away: away2, text: f[5] || '', pids: f[6] || '', isShot: (f[7] === '1'), made: (f[8] === '1'), pts: +f[9] || 0, x, y };
+      flow.push(ev);
+      if (ev.isShot && x != null && y != null) shots.push({ period: ev.period, team: ev.team, made: ev.made, x, y, pt: /3pt|3-pt/i.test(ev.text) ? 3 : 2, text: ev.text, pid: (ev.pids.split(',')[0] || '') });
+    }
+  }
+  const sc = item.score || []; const hq = sc[3] || [], aq = sc[4] || [];
+  const byPts = (a, b) => (b.pts - a.pts) || (b.min - a.min);
+  const stH = home.filter(p => p.starter).length, stA = away.filter(p => p.starter).length;
+  return { id: tsid, home: home.sort(byPts), away: away.sort(byPts),
+    homePts: home.reduce((a, b) => a + b.pts, 0), awayPts: away.reduce((a, b) => a + b.pts, 0),
+    hasStarters: (stH === 5 && stA === 5), source: 'history',
+    flow: flow.reverse().slice(0, 300), shots, quarters: { home: hq, away: aq } };
 }
 async function tsBasketballLineup(tsid) {
   // lineup_live 는 (uuid 를 줘도) 여러 경기를 배열로 반환 → 반드시 요청한 경기 id 와 일치하는 항목만 사용.
@@ -2996,6 +3029,12 @@ app.get('/api/basketball/lineup', async (req, res) => {
     const lu = await tsBasketballLineup(id);
     const has = lu && ((lu.home && lu.home.length) || (lu.away && lu.away.length));
     if (has) { _snapSet('box|' + id, lu); return res.json(lu); }
+    // 🏀 라이브 lineup_live 비면(= 종료 경기) → live/history 로 완전 박스(선발/BLK/STL) 복원
+    const hist = await tsBskHistory(id).catch(() => null);
+    if (hist && ((hist.home && hist.home.length) || (hist.away && hist.away.length))) {
+      const box = { id: hist.id, home: hist.home, away: hist.away, homePts: hist.homePts, awayPts: hist.awayPts, hasStarters: hist.hasStarters, source: 'history' };
+      _snapSet('box|' + id, box); return res.json(box);
+    }
     const s = await _snapGet('box|' + id);
     if (s) return res.json(Object.assign({}, s.v, { fromSnapshot: true, snapAgeSec: Math.round((Date.now() - s.t) / 1000) }));
     res.json(lu || { home: [], away: [], note: 'no-lineup' });
@@ -3011,7 +3050,14 @@ app.get('/api/basketball/live', async (req, res) => {
     const lv = await tsFetch('/basketball/match/detail_live', {}, 4000).catch(() => null);
     const list = (lv && lv.results) || [];
     const item = list.find(x => x && String(x.id || (x.score && x.score[0])) === String(id));
-    if (!item) {   // 종료 후 detail_live에서 빠짐 → 라이브 중 저장한 흐름 스냅샷 반환(메모리→Mongo)
+    if (!item) {   // 종료 후 detail_live에서 빠짐 → ① live/history(공식 지속 PBP) ② 라이브 중 저장 스냅샷
+      const hist = await tsBskHistory(id).catch(() => null);
+      if (hist && hist.flow && hist.flow.length) {
+        const payload = { found: true, fromHistory: true, period: null, isHalves: false, homeFouls: null, awayFouls: null,
+          quarters: hist.quarters, events: hist.flow.map(e => ({ period: e.period, clock: e.clock, team: e.team, home: e.home, away: e.away, text: e.text })) };
+        _snapSet('flow|' + id, payload);
+        return res.json(payload);
+      }
       const s = await _snapGet('flow|' + id);
       if (s) return res.json(Object.assign({}, s.v, { found: true, fromSnapshot: true, snapAgeSec: Math.round((Date.now() - s.t) / 1000) }));
       return res.json({ found: false, events: [] });
@@ -3032,6 +3078,20 @@ app.get('/api/basketball/live', async (req, res) => {
     if (payload.events.length || (payload.quarters.home && payload.quarters.home.length)) _snapSet('flow|' + id, payload);
     res.json(payload);
   } catch (e) { const s = await _snapGet('flow|' + id); if (s) return res.json(Object.assign({}, s.v, { found: true, fromSnapshot: true })); res.json({ error: String(e.message || e), events: [] }); }
+});
+// 🏀 농구 슛차트 — live/history tlive 의 슛 이벤트(좌표·성공여부·쿼터) 반환. 종료 경기도 지속.
+app.get('/api/basketball/shotchart', async (req, res) => {
+  const raw = String(req.query.id || '');
+  if (!/^ts/.test(raw)) return res.json({ note: 'not-thesports', shots: [] });
+  const id = raw.replace(/^ts/, '');
+  try {
+    const hist = await tsBskHistory(id).catch(() => null);
+    if (hist && hist.shots && hist.shots.length) {
+      // 쿼터 정보는 flow 에서 매칭(선택). 여기선 좌표·팀·성공·종류만.
+      return res.json({ found: true, shots: hist.shots });
+    }
+    res.json({ found: false, shots: [] });
+  } catch (e) { res.json({ error: String(e.message || e), shots: [] }); }
 });
 // 🤖 백그라운드 농구 스냅샷 캡처: 아무도 상세를 열지 않아도 라이브 중 흐름/박스를 저장해 둔다.
 //    detail_live 1회(전 경기 공용)로 모든 라이브 경기 흐름을 스냅샷 → 종료 후에도 /live 가 유지 반환.

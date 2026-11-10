@@ -2280,6 +2280,37 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
   }
   function bskHasBox(j){ return j&&((j.home||[]).length||(j.away||[]).length); }
   // 선수 기록(풀 박스)
+  // 🎯 농구 슛 차트 — live/history 슛 좌표(성공=점, 실패=✕), 홈/원정 색, 쿼터 필터. 좌표 단위 미상 → 데이터 범위로 정규화.
+  function loadBskShotChart(g){
+    var el=$("#dtShot"); if(!el||!/^ts/.test(String(g.id||"")))return;
+    var tk=_dtTok;
+    fetch("/api/basketball/shotchart?id="+encodeURIComponent(g.id)).then(function(r){return r.json()}).then(function(d){
+      if(tk!==_dtTok||!$("#dtShot"))return;
+      var shots=(d&&d.shots)||[]; if(!shots.length){ el.innerHTML=''; return; }
+      var xs=shots.map(function(s){return s.x}), ys=shots.map(function(s){return s.y});
+      var xmin=Math.min.apply(null,xs),xmax=Math.max.apply(null,xs),ymin=Math.min.apply(null,ys),ymax=Math.max.apply(null,ys);
+      var W=320,H=200,pad=10;
+      function px(x){ return pad+(xmax>xmin?(x-xmin)/(xmax-xmin):0.5)*(W-2*pad); }
+      function py(y){ return pad+(ymax>ymin?(y-ymin)/(ymax-ymin):0.5)*(H-2*pad); }
+      var _q='all';
+      function draw(){
+        var fs=shots.filter(function(s){return _q==='all'||s.period===+_q;});
+        var dots=fs.map(function(s){ var cx=px(s.x),cy=py(s.y),col=s.team==='home'?'#1b57c4':'#d23b3b';
+          return s.made?('<circle cx="'+cx.toFixed(1)+'" cy="'+cy.toFixed(1)+'" r="3.4" fill="'+col+'" fill-opacity="0.9"/>')
+            :('<g stroke="'+col+'" stroke-width="1.7"><line x1="'+(cx-3.2).toFixed(1)+'" y1="'+(cy-3.2).toFixed(1)+'" x2="'+(cx+3.2).toFixed(1)+'" y2="'+(cy+3.2).toFixed(1)+'"/><line x1="'+(cx-3.2).toFixed(1)+'" y1="'+(cy+3.2).toFixed(1)+'" x2="'+(cx+3.2).toFixed(1)+'" y2="'+(cy-3.2).toFixed(1)+'"/></g>'); }).join("");
+        var sv=$("#shotSvg"); if(sv) sv.innerHTML='<rect x="1" y="1" width="'+(W-2)+'" height="'+(H-2)+'" rx="8" fill="#f3ead9" stroke="#d9c9a8"/><line x1="'+(W/2)+'" y1="2" x2="'+(W/2)+'" y2="'+(H-2)+'" stroke="#d9c9a8" stroke-dasharray="4 4"/><circle cx="'+(W/2)+'" cy="'+(H/2)+'" r="22" fill="none" stroke="#d9c9a8"/>'+dots;
+      }
+      var LALL=tl({en:"All",ko:"전체",ja:"全体",zh:"全部",es:"Todo",hi:"सभी",vi:"Tất cả",th:"ทั้งหมด",ru:"Все",de:"Alle",fr:"Tout",it:"Tutto"});
+      var bs='display:inline-block;padding:4px 10px;margin:0 4px 6px 0;border:1px solid var(--line);border-radius:14px;font-size:12px;font-weight:700;background:#fff;color:var(--navy);cursor:pointer';
+      var bsOn='background:var(--navy);color:#fff;border-color:var(--navy)';
+      var qbtns=['all','1','2','3','4'].map(function(q){ return '<button class="shotq" data-q="'+q+'" style="'+bs+(q==='all'?';'+bsOn:'')+'">'+(q==='all'?LALL:q+'Q')+'</button>'; }).join('');
+      el.innerHTML='<div class="dt-sec-t" style="margin-top:16px">🎯 '+tl({en:"Shot Chart",ko:"슛 차트",ja:"ショットチャート",zh:"投篮图",es:"Mapa de tiros",hi:"शॉट चार्ट",vi:"Biểu đồ ném",th:"แผนภูมิการยิง",ru:"Карта бросков",de:"Wurfkarte",fr:"Carte des tirs",it:"Mappa dei tiri"})+'</div>'+
+        '<div>'+qbtns+'</div><svg id="shotSvg" viewBox="0 0 '+W+' '+H+'" style="width:100%;border-radius:10px"></svg>'+
+        '<div style="font-size:12px;color:#8a93a3;margin-top:4px"><span style="color:#1b57c4;font-weight:700">●</span> '+esc(g.home)+' &nbsp; <span style="color:#d23b3b;font-weight:700">●</span> '+esc(g.away)+' &nbsp; ✕ '+tl({en:"Miss",ko:"실패",ja:"失敗",zh:"未中",es:"Fallo",hi:"मिस",vi:"Trượt",th:"พลาด",ru:"Промах",de:"Fehlwurf",fr:"Raté",it:"Errore"})+'</div>';
+      draw();
+      el.querySelectorAll('.shotq').forEach(function(b){ b.onclick=function(){ _q=b.dataset.q; el.querySelectorAll('.shotq').forEach(function(x){ x.setAttribute('style',bs); }); b.setAttribute('style',bs+';'+bsOn); draw(); }; });
+    }).catch(function(){ if($("#dtShot"))$("#dtShot").innerHTML=''; });
+  }
   function loadBasketballBox(g){
     dtLoading();
     var LPLR=tl({en:"Player",ko:"선수",ja:"選手",zh:"球员",es:"Jugador",hi:"खिलाड़ी",vi:"Cầu thủ",th:"นักกีฬา",ru:"Игрок",de:"Spieler",fr:"Joueur",it:"Giocatore"});
@@ -2308,8 +2339,9 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
       (home||[]).forEach(function(p){ _bskPlayers[p.id]={p:p,team:g.home}; });
       (away||[]).forEach(function(p){ _bskPlayers[p.id]={p:p,team:g.away}; });
       var note=(src==='apisports')?'<p style="color:#8a93a3;font-size:11px;margin-bottom:8px">'+tl({en:"Official end-of-game player stats (API-Sports).",ko:"종료 경기 공식 선수 기록(API-Sports).",ja:"試合終了後の公式選手記録(API-Sports)。",zh:"赛后官方球员数据(API-Sports)。",es:"Estadísticas oficiales de jugadores (API-Sports).",hi:"आधिकारिक खिलाड़ी आँकड़े (API-Sports)।",vi:"Thống kê cầu thủ chính thức (API-Sports).",th:"สถิตินักกีฬาอย่างเป็นทางการ (API-Sports)",ru:"Официальная статистика игроков (API-Sports).",de:"Offizielle Spielerstatistik (API-Sports).",fr:"Stats des joueurs officielles (API-Sports).",it:"Statistiche giocatori ufficiali (API-Sports)."})+'</p>':'';
-      dtBody(note+tbl(home,g.home)+tbl(away,g.away));
+      dtBody(note+tbl(home,g.home)+tbl(away,g.away)+'<div id="dtShot"></div>');
       var db=$("#dtBody"); if(db){ db.querySelectorAll(".bskrow").forEach(function(tr){ tr.onclick=function(){ var e=_bskPlayers[tr.dataset.pid]; if(e)openBskPlayer(e.p,e.team); }; }); }
+      loadBskShotChart(g);   // 🎯 슛차트(live/history)
     }
     bskBox(g,function(j){ if(!$("#dtBody"))return;
       if(bskHasBox(j)){ render(j.home, j.away, 'thesports'); return; }
@@ -2365,7 +2397,7 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
       (away||[]).forEach(function(p){ _bskPlayers[p.id]={p:p,team:g.away}; });
       var useStarters=!!opt.starters;
       var note = useStarters
-        ? tl({en:"Confirmed starting five (API-Sports).",ko:"확정 선발 5인(API-Sports).",ja:"確定スターター5人(API-Sports)。",zh:"确认首发五人(API-Sports)。",es:"Quinteto titular confirmado (API-Sports).",hi:"पुष्ट स्टार्टिंग फाइव (API-Sports)।",vi:"Đội hình xuất phát xác nhận (API-Sports).",th:"ตัวจริง 5 คนที่ยืนยัน (API-Sports)",ru:"Подтверждённая стартовая пятёрка (API-Sports).",de:"Bestätigte Starting Five (API-Sports).",fr:"Cinq de départ confirmé (API-Sports).",it:"Quintetto titolare confermato (API-Sports)."})
+        ? tl({en:"Confirmed starting five.",ko:"확정 선발 5인.",ja:"確定スターター5人。",zh:"确认首发五人。",es:"Quinteto titular confirmado.",hi:"पुष्ट स्टार्टिंग फाइव।",vi:"Đội hình xuất phát xác nhận.",th:"ตัวจริง 5 คนที่ยืนยัน",ru:"Подтверждённая стартовая пятёрка.",de:"Bestätigte Starting Five.",fr:"Cinq de départ confirmé.",it:"Quintetto titolare confermato."})
         : (opt.src==='apisports'
           ? tl({en:"Starters not flagged — top 5 by minutes (API-Sports).",ko:"확정 선발 미제공 — 출전시간 상위 5인(API-Sports).",ja:"先発区分なし — 出場時間上位5人(API-Sports)。",zh:"未标注首发 — 按出场时间前5人(API-Sports)。",es:"Sin titulares marcados — top 5 por minutos (API-Sports).",hi:"स्टार्टर नहीं — मिनटों के शीर्ष 5 (API-Sports)।",vi:"Không đánh dấu đá chính — 5 người nhiều phút (API-Sports).",th:"ไม่ระบุตัวจริง — 5 คนเวลามากสุด (API-Sports)",ru:"Стартовые не отмечены — топ-5 по минутам (API-Sports).",de:"Starter nicht markiert — Top 5 nach Minuten (API-Sports).",fr:"Titulaires non indiqués — top 5 par minutes (API-Sports).",it:"Titolari non indicati — top 5 per minuti (API-Sports)."})
           : tl({en:"Starters not flagged by feed — top 5 by minutes shown on court.",ko:"피드가 확정 선발을 제공하지 않아 출전시간 상위 5인을 코트에 표시합니다.",ja:"先発区分がないため出場時間上位5人をコートに表示。",zh:"数据源不标注首发，按出场时间显示前5人。",es:"Titulares no marcados — top 5 por minutos en la cancha.",hi:"स्टार्टर चिह्नित नहीं — मिनटों के शीर्ष 5 कोर्ट पर।",vi:"Không đánh dấu đá chính — 5 người nhiều phút nhất.",th:"ไม่ระบุตัวจริง — แสดง 5 คนเวลาลงเล่นสูงสุด",ru:"Стартовые не отмечены — топ-5 по минутам.",de:"Starter nicht markiert — Top 5 nach Minuten.",fr:"Titulaires non indiqués — top 5 par minutes.",it:"Titolari non indicati — top 5 per minuti."}));
@@ -2373,7 +2405,7 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
       var db=$("#dtBody"); if(db){ db.querySelectorAll(".bskrow,.cpl").forEach(function(x){ x.onclick=function(){ var e=_bskPlayers[x.dataset.pid]; if(e)openBskPlayer(e.p,e.team); }; }); }
     }
     bskBox(g,function(j){ if(!$("#dtBody"))return;
-      if(bskHasBox(j)){ render(j.home, j.away, {src:'thesports'}); return; }
+      if(bskHasBox(j)){ render(j.home, j.away, {src:(j.source==='history'?'history':'thesports'), starters:j.hasStarters}); return; }
       // 📋 종료 후 TheSports 박스 소실 → API-Sports 선수 박스 폴백(확정 선발 구분)
       var tk=_dtTok;
       var qs='home='+encodeURIComponent(g.home||'')+'&away='+encodeURIComponent(g.away||'')+'&date='+encodeURIComponent(String(g.date||'').slice(0,10))+'&league='+encodeURIComponent(g.league||'');
