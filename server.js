@@ -21,7 +21,7 @@ const app = express();
 const server = http.createServer(app);
 
 const PORT = process.env.PORT || 3000;
-const APP_VERSION = 'v440';
+const APP_VERSION = 'v441';
 
 // ============================================================
 //  📏 성능 계측(instrumentation) — 엔드포인트 지연·캐시·공급사·WS·이벤트루프
@@ -3932,6 +3932,7 @@ async function fbH2H(homeId, awayId) {
       const t = fx.teams || {}, g = fx.goals || {};
       return {
         date: (fx.fixture && fx.fixture.date) || null,
+        hId: (t.home && t.home.id) != null ? t.home.id : null, aId: (t.away && t.away.id) != null ? t.away.id : null,
         hName: (t.home && t.home.name) || '', aName: (t.away && t.away.name) || '',
         hs: g.home != null ? g.home : '-', as: g.away != null ? g.away : '-'
       };

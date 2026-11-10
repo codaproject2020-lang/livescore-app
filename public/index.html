@@ -2038,11 +2038,13 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
       if(tk!==_dtTok||!$("#dtBody"))return;
       var h='';
       if(h2h&&h2h.length){
+        // §10: 홈/원정·승패는 팀 ID로 대응(이름 문자열 불일치로 역전되던 버그 수정). ID 없으면 이름 폴백.
+        var myHome=function(m){ if(m.hId!=null&&g.homeId!=null) return String(m.hId)===String(g.homeId); if(m.aId!=null&&g.homeId!=null) return String(m.aId)!==String(g.homeId); return (m.hName===g.home); };
         var w=0,d=0,l=0,gf=0,ga=0,n=0;
-        h2h.forEach(function(m){ var myH=(m.hName===g.home); var my=+m.hs,op=+m.as; if(!myH){ my=+m.as; op=+m.hs; } if(!isNaN(my)&&!isNaN(op)){ n++; gf+=my; ga+=op; if(my>op)w++; else if(my<op)l++; else d++; } });
+        h2h.forEach(function(m){ var myH=myHome(m); var my=myH?+m.hs:+m.as,op=myH?+m.as:+m.hs; if(!isNaN(my)&&!isNaN(op)){ n++; gf+=my; ga+=op; if(my>op)w++; else if(my<op)l++; else d++; } });
         h+='<div class="dt-sec-t">🤝 '+t("h2hTitle")+' <span style="font-weight:600;color:var(--muted);font-size:12px">('+t("recent")+' '+n+')</span></div>';
         h+='<div class="rec-sum"><div class="rs"><div class="rsn" style="color:var(--red)">'+w+'</div><div class="rsl">'+t("win")+'</div></div><div class="rs"><div class="rsn">'+d+'</div><div class="rsl">'+t("draw")+'</div></div><div class="rs"><div class="rsn" style="color:var(--navy)">'+l+'</div><div class="rsl">'+t("lose")+'</div></div><div class="rs"><div class="rsn" style="color:var(--red)">'+(n?(gf/n).toFixed(1):"-")+'</div><div class="rsl">'+t("avgGF")+'</div></div><div class="rs"><div class="rsn">'+(n?(ga/n).toFixed(1):"-")+'</div><div class="rsl">'+t("avgGA")+'</div></div></div>';
-        h+='<div class="rec-list">'+h2h.slice(0,8).map(function(m){ var myH=(m.hName===g.home); var my=myH?+m.hs:+m.as,op=myH?+m.as:+m.hs; var res=isNaN(my)||isNaN(op)?"":(my>op?'<span class="wdlc w">'+t("win")+'</span>':(my<op?'<span class="wdlc l">'+t("lose")+'</span>':'<span class="wdlc d">'+t("draw")+'</span>')); return '<div class="rl-row"><span class="rl-dt">'+esc(String(m.date||"").slice(5,10))+(m.league?'<br><i>'+esc(m.league)+'</i>':'')+'</span><span class="rl-tm" style="text-align:right">'+esc(m.hName)+'</span><b class="rl-sc">'+esc(String(m.hs))+'–'+esc(String(m.as))+'</b><span class="rl-tm">'+esc(m.aName)+'</span>'+res+'</div>'; }).join("")+'</div>';
+        h+='<div class="rec-list">'+h2h.slice(0,8).map(function(m){ var myH=myHome(m); var my=myH?+m.hs:+m.as,op=myH?+m.as:+m.hs; var res=isNaN(my)||isNaN(op)?"":(my>op?'<span class="wdlc w">'+t("win")+'</span>':(my<op?'<span class="wdlc l">'+t("lose")+'</span>':'<span class="wdlc d">'+t("draw")+'</span>')); return '<div class="rl-row"><span class="rl-dt">'+esc(String(m.date||"").slice(5,10))+(m.league?'<br><i>'+esc(m.league)+'</i>':'')+'</span><span class="rl-tm" style="text-align:right">'+esc(m.hName)+'</span><b class="rl-sc">'+esc(String(m.hs))+'–'+esc(String(m.as))+'</b><span class="rl-tm">'+esc(m.aName)+'</span>'+res+'</div>'; }).join("")+'</div>';
       }
       // 양 팀 최근 5경기 성적
       if((rh&&rh.length)||(ra&&ra.length)){
