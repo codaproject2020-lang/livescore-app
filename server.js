@@ -21,7 +21,7 @@ const app = express();
 const server = http.createServer(app);
 
 const PORT = process.env.PORT || 3000;
-const APP_VERSION = 'v432';
+const APP_VERSION = 'v433';
 
 // ============================================================
 //  📏 성능 계측(instrumentation) — 엔드포인트 지연·캐시·공급사·WS·이벤트루프
@@ -100,7 +100,7 @@ let visitorsCol = null;             // 방문자 영속 컬렉션(연결 시)
 // ============================================================
 const ERRLOG = [];                 // 최근 에러 링버퍼(관리자 화면 표시)
 const ERR_MAX = 300;
-let errorsCol = null, configCol = null, adminSubsCol = null, highlightsCol = null;
+let errorsCol = null, configCol = null, adminSubsCol = null, highlightsCol = null, bskSnapCol = null;
 // 🎬 경기 하이라이트(관리자 수동 등록) — key: "sport:matchId"
 const HIGHLIGHTS = new Map();
 // 공식 채널 허용목록(채널ID·핸들). 자동수집·공식 배지 판정에 사용. 수동 등록은 경고만.
@@ -333,6 +333,8 @@ async function initDB() {
       console.log(`[DB] 운영 config/에러/관리자알림 로드 (관리자구독 ${asList.length})`);
       // 🎬 하이라이트 로드
       try { highlightsCol = db.collection('highlights'); await highlightsCol.createIndex({ key: 1 }, { unique: true }).catch(() => {}); const hls = await highlightsCol.find({}).toArray(); for (const h of hls) { if (h.key) HIGHLIGHTS.set(h.key, h); } console.log(`[DB] 하이라이트 ${hls.length}건 로드`); } catch (e) { console.error('[DB] highlights 로드 실패:', e.message); }
+      // 🗄️ 농구 종료경기 박스/흐름 스냅샷 영속 저장(서버 재시작 후에도 유지). 48h TTL 자동정리.
+      try { bskSnapCol = db.collection('bsk_snap'); await bskSnapCol.createIndex({ at: 1 }, { expireAfterSeconds: 172800 }).catch(() => {}); const cnt = await bskSnapCol.estimatedDocumentCount().catch(() => 0); console.log(`[DB] 농구 스냅샷 컬렉션 준비(보존 ${cnt}건)`); } catch (e) { console.error('[DB] bsk_snap 초기화 실패:', e.message); }
     } catch (e) { console.error('[DB] 운영 컬렉션 초기화 실패:', e.message); }
     const all = await usersCol.find({}).toArray();   // 기존 회원 메모리에 로드
     for (const u of all) {
@@ -2902,7 +2904,19 @@ async function tsBasketballLineup(tsid) {
 // 🗄️ 박스/흐름 스냅샷: TheSports detail_live/lineup_live 는 라이브 중에만 제공 → 라이브 때 받아두고,
 //   종료 후 비면 마지막 정상 스냅샷을 반환(명령서 ②-8 '종료 후 박스·이벤트 유지'). fromSnapshot 플래그로 구분.
 const _bskSnap = new Map();
-function _snapSet(k, v) { _bskSnap.set(k, { v, t: Date.now() }); if (_bskSnap.size > 400) { const now = Date.now(); for (const [kk, vv] of _bskSnap) { if (now - vv.t > 21600000) _bskSnap.delete(kk); } } }
+function _snapSet(k, v) {
+  _bskSnap.set(k, { v, t: Date.now() });
+  if (_bskSnap.size > 400) { const now = Date.now(); for (const [kk, vv] of _bskSnap) { if (now - vv.t > 21600000) _bskSnap.delete(kk); } }
+  // 영속: 종료 후/재시작 후에도 유지. 실패해도 메모리 스냅샷은 유효.
+  if (bskSnapCol) bskSnapCol.updateOne({ _id: k }, { $set: { v, at: new Date() } }, { upsert: true }).catch(() => {});
+}
+// 메모리 우선, 없으면 Mongo에서 복원(재시작 직후 등). 반환형은 { v, t } 또는 null.
+async function _snapGet(k) {
+  const m = _bskSnap.get(k); if (m) return m;
+  if (!bskSnapCol) return null;
+  try { const d = await bskSnapCol.findOne({ _id: k }); if (d && d.v) { const rec = { v: d.v, t: (d.at ? +new Date(d.at) : Date.now()) }; _bskSnap.set(k, rec); return rec; } } catch (e) {}
+  return null;
+}
 app.get('/api/basketball/lineup', async (req, res) => {
   const raw = String(req.query.id || '');
   if (!raw) return res.status(400).json({ error: 'need id' });
@@ -2913,10 +2927,10 @@ app.get('/api/basketball/lineup', async (req, res) => {
     const lu = await tsBasketballLineup(id);
     const has = lu && ((lu.home && lu.home.length) || (lu.away && lu.away.length));
     if (has) { _snapSet('box|' + id, lu); return res.json(lu); }
-    const s = _bskSnap.get('box|' + id);
+    const s = await _snapGet('box|' + id);
     if (s) return res.json(Object.assign({}, s.v, { fromSnapshot: true, snapAgeSec: Math.round((Date.now() - s.t) / 1000) }));
     res.json(lu || { home: [], away: [], note: 'no-lineup' });
-  } catch (e) { const s = _bskSnap.get('box|' + id); if (s) return res.json(Object.assign({}, s.v, { fromSnapshot: true })); res.json({ home: [], away: [], error: String(e.message || e) }); }
+  } catch (e) { const s = await _snapGet('box|' + id); if (s) return res.json(Object.assign({}, s.v, { fromSnapshot: true })); res.json({ home: [], away: [], error: String(e.message || e) }); }
 });
 // 🏀 농구 경기 흐름(플레이바이플레이) + 현재기간 팀파울 — detail_live 1회(전 경기 공용 캐시)에서 해당 경기만 추출
 app.get('/api/basketball/live', async (req, res) => {
@@ -2928,8 +2942,8 @@ app.get('/api/basketball/live', async (req, res) => {
     const lv = await tsFetch('/basketball/match/detail_live', {}, 4000).catch(() => null);
     const list = (lv && lv.results) || [];
     const item = list.find(x => x && String(x.id || (x.score && x.score[0])) === String(id));
-    if (!item) {   // 종료 후 detail_live에서 빠짐 → 라이브 중 저장한 흐름 스냅샷 반환
-      const s = _bskSnap.get('flow|' + id);
+    if (!item) {   // 종료 후 detail_live에서 빠짐 → 라이브 중 저장한 흐름 스냅샷 반환(메모리→Mongo)
+      const s = await _snapGet('flow|' + id);
       if (s) return res.json(Object.assign({}, s.v, { found: true, fromSnapshot: true, snapAgeSec: Math.round((Date.now() - s.t) / 1000) }));
       return res.json({ found: false, events: [] });
     }
@@ -2948,8 +2962,41 @@ app.get('/api/basketball/live', async (req, res) => {
     };
     if (payload.events.length || (payload.quarters.home && payload.quarters.home.length)) _snapSet('flow|' + id, payload);
     res.json(payload);
-  } catch (e) { const s = _bskSnap.get('flow|' + id); if (s) return res.json(Object.assign({}, s.v, { found: true, fromSnapshot: true })); res.json({ error: String(e.message || e), events: [] }); }
+  } catch (e) { const s = await _snapGet('flow|' + id); if (s) return res.json(Object.assign({}, s.v, { found: true, fromSnapshot: true })); res.json({ error: String(e.message || e), events: [] }); }
 });
+// 🤖 백그라운드 농구 스냅샷 캡처: 아무도 상세를 열지 않아도 라이브 중 흐름/박스를 저장해 둔다.
+//    detail_live 1회(전 경기 공용)로 모든 라이브 경기 흐름을 스냅샷 → 종료 후에도 /live 가 유지 반환.
+//    박스(라인업)는 라이브 경기당 1회 호출이라 동시성 상한(6)으로 과호출 방지(§14 호출량 보호).
+let _bgSnapRunning = false;
+async function bskSnapshotTick() {
+  if (_bgSnapRunning) return; _bgSnapRunning = true;
+  try {
+    const lv = await tsFetch('/basketball/match/detail_live', {}, 5000).catch(() => null);
+    const list = (lv && lv.results) || [];
+    const liveIds = [];
+    for (const item of list) {
+      const id = item && (item.id || (item.score && item.score[0])); if (!id) continue;
+      const info = tsBskLiveInfo(item); const sc = item.score || [];
+      const statePer = TS_BSK_PER[sc[1]] || null;
+      let foulsOk = false;
+      if (info) { if (info.isHalves) foulsOk = info.curP != null; else foulsOk = (info.curP != null && (statePer ? info.curP >= statePer : true)); }
+      const payload = {
+        found: true,
+        period: (statePer && info && !info.isHalves) ? statePer : (info ? info.curP : null), isHalves: info ? info.isHalves : false,
+        homeFouls: foulsOk ? info.hf : null, awayFouls: foulsOk ? info.af : null,
+        quarters: { home: sc[3] || [], away: sc[4] || [] },
+        events: (info ? info.events : []).slice(-150).reverse().map(e => ({ period: e.period, clock: e.clock, team: e.team, home: e.home, away: e.away, text: e.text }))
+      };
+      if (payload.events.length || (payload.quarters.home && payload.quarters.home.length)) { _snapSet('flow|' + id, payload); liveIds.push(id); }
+    }
+    // 박스(라인업)도 라이브 동안 저장 — 동시성 6으로 제한, 한 틱에 최대 18경기.
+    const todo = liveIds.slice(0, 18); let i = 0;
+    async function worker() { while (i < todo.length) { const id = todo[i++]; try { const lu = await tsBasketballLineup(id); if (lu && ((lu.home && lu.home.length) || (lu.away && lu.away.length))) _snapSet('box|' + id, lu); } catch (e) {} } }
+    await Promise.all(Array.from({ length: Math.min(6, todo.length) }, worker));
+  } catch (e) { } finally { _bgSnapRunning = false; }
+}
+setTimeout(() => { bskSnapshotTick().catch(() => {}); }, 8000);
+setInterval(() => { bskSnapshotTick().catch(() => {}); }, 60000);
 // 🏐 TheSports 배구 경기목록(diary) → 세트 승수(ft) + 세트별 점수(p1~p5)
 function tsVolState(s) { s = Number(s); if (s === 1 || s === 0) return 'scheduled'; if (s === 100 || s < 0) return 'finished'; return 'live'; }
 async function tsVolleyballGames(date, tz) {
