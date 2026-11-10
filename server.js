@@ -21,7 +21,7 @@ const app = express();
 const server = http.createServer(app);
 
 const PORT = process.env.PORT || 3000;
-const APP_VERSION = 'v441';
+const APP_VERSION = 'v442';
 
 // ============================================================
 //  📏 성능 계측(instrumentation) — 엔드포인트 지연·캐시·공급사·WS·이벤트루프
@@ -4145,7 +4145,8 @@ async function _fbStatSide(fixture) {
       rc: _numOrNull(_pickStat(st, /red/i))
     };
   };
-  return { team0: resp[0].team ? resp[0].team.name : '', a: side(resp[0]), team1: resp[1].team ? resp[1].team.name : '', b: side(resp[1]) };
+  return { team0: resp[0].team ? resp[0].team.name : '', team0Id: resp[0].team ? resp[0].team.id : null, a: side(resp[0]),
+           team1: resp[1].team ? resp[1].team.name : '', team1Id: resp[1].team ? resp[1].team.id : null, b: side(resp[1]) };
 }
 app.get('/api/asports/livestats', async (req, res) => {
   if (!APISPORTS_KEY) return res.json({ needKey: true, stats: {} });
@@ -4164,12 +4165,24 @@ app.get('/api/asports/livestats', async (req, res) => {
     // 순차가 아니라 병렬이되 캐시로 대부분 즉시 반환
     await Promise.all(live.map(async g => {
       try {
-        const s = await _fbStatSide(g.id);
+        // 🔗 더스포츠 소스 경기(ts 접두)는 API-Sports fixture id 가 없어 통계 조회 실패 → 팀명+날짜로 fixture 해석 후 조회.
+        //    resolveApiFixture 는 6h 캐시(일자별 fixtures 1회 공용) → 카드마다 중복 호출 없음(§08 호출량 보호).
+        let fixtureId = g.id, resolvedHomeId = null, resolvedAwayId = null;
+        if (!/^\d+$/.test(String(g.id))) {
+          const rf = await resolveApiFixture(g.home, g.away, date).catch(() => null);
+          if (!rf || !rf.found) return;
+          fixtureId = rf.fixtureId; resolvedHomeId = rf.homeId; resolvedAwayId = rf.awayId;
+        }
+        const s = await _fbStatSide(fixtureId);
         if (!s) return;
-        // 응답 팀순서를 홈/원정에 매핑(이름 매칭, 실패 시 0=홈 가정)
-        const norm = x => String(x || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+        // §08 홈/원정 매핑: 가능하면 팀 ID 기준, 없으면 이름 매칭(실패 시 0=홈 가정)
         let home = s.a, away = s.b;
-        if (norm(s.team1) === norm(g.home) || norm(s.team0) === norm(g.away)) { home = s.b; away = s.a; }
+        if (resolvedHomeId != null && (s.team0Id != null || s.team1Id != null)) {
+          if (String(s.team1Id) === String(resolvedHomeId)) { home = s.b; away = s.a; }
+        } else {
+          const norm = x => String(x || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+          if (norm(s.team1) === norm(g.home) || norm(s.team0) === norm(g.away)) { home = s.b; away = s.a; }
+        }
         // 전부 null 이면 수록하지 않음(미제공)
         const any = o => o && (o.poss != null || o.shots != null || o.sot != null || o.yc != null || o.rc != null);
         if (any(home) || any(away)) out['' + g.id] = { home, away };
