@@ -21,7 +21,7 @@ const app = express();
 const server = http.createServer(app);
 
 const PORT = process.env.PORT || 3000;
-const APP_VERSION = 'v433';
+const APP_VERSION = 'v434';
 
 // ============================================================
 //  📏 성능 계측(instrumentation) — 엔드포인트 지연·캐시·공급사·WS·이벤트루프
@@ -1960,6 +1960,36 @@ app.get('/api/diag/leagues', async (req, res) => {
     const out = arr.slice(0, 20).map(l => { const lg = l.league || l; const co = l.country || {}; return { id: lg.id, name: lg.name, type: lg.type, country: co.name || l.country, code: co.code }; });
     res.json({ sport, q, results: arr.length, leagues: out, errors: j && j.errors });
   } catch (e) { res.json({ error: String(e.message || e) }); }
+});
+// 🔎 진단: API-Sports(api-basketball)가 종료 경기 팀/선수 통계를 제공하는지 실응답 확인(비밀키 비노출).
+//   예: /api/diag/bskstats?date=2026-11-10&league=12&home=Golden&away=New%20Orleans
+app.get('/api/diag/bskstats', async (req, res) => {
+  if (!APISPORTS_KEY) return res.json({ note: 'needKey' });
+  const date = String(req.query.date || new Date().toISOString().slice(0, 10));
+  const league = String(req.query.league || '12');   // 12 = NBA
+  const home = String(req.query.home || '').toLowerCase(), away = String(req.query.away || '').toLowerCase();
+  const out = { date, league, tried: [] };
+  try {
+    const yr = +date.slice(0, 4); const seasons = [String(yr), `${yr}-${yr + 1}`, String(yr - 1), `${yr - 1}-${yr}`];
+    let games = [], usedSeason = null;
+    for (const s of seasons) {
+      const j = await asRaw('basketball', `/games?league=${league}&season=${encodeURIComponent(s)}&date=${date}&timezone=Asia/Seoul`, 600000).catch(() => null);
+      out.tried.push({ season: s, results: j && j.results, errors: j && j.errors });
+      const arr = (j && j.response) || [];
+      if (arr.length) { games = arr; usedSeason = s; break; }
+    }
+    out.usedSeason = usedSeason; out.gameCount = games.length;
+    const match = games.find(g => { const h = ((g.teams && g.teams.home && g.teams.home.name) || '').toLowerCase(), a = ((g.teams && g.teams.away && g.teams.away.name) || '').toLowerCase(); return (!home || h.includes(home) || home.includes(h.split(' ')[0])) && (!away || a.includes(away) || away.includes(a.split(' ')[0])); }) || games[0] || null;
+    if (!match) { out.note = 'no-game-matched'; out.sampleTeams = games.slice(0, 6).map(g => ({ id: g.id, h: g.teams && g.teams.home && g.teams.home.name, a: g.teams && g.teams.away && g.teams.away.name, st: g.status && g.status.short })); return res.json(out); }
+    out.game = { id: match.id, home: match.teams.home.name, away: match.teams.away.name, status: match.status && match.status.short, scores: match.scores };
+    const st = await asRaw('basketball', `/games/statistics/teams?id=${match.id}`, 600000).catch(e => ({ _err: String(e.message || e) }));
+    const sr = (st && st.response) || [];
+    out.teamStats = { results: st && st.results, errors: st && st.errors, teams: sr.length, sample: sr.slice(0, 2).map(x => ({ team: x.team && x.team.name, keys: x.statistics ? (Array.isArray(x.statistics) ? x.statistics.map(s => s.type).slice(0, 30) : Object.keys(x.statistics).slice(0, 30)) : Object.keys(x).slice(0, 20), raw: JSON.stringify(x.statistics || x).slice(0, 700) })) };
+    const sp = await asRaw('basketball', `/games/statistics/players?id=${match.id}`, 600000).catch(e => ({ _err: String(e.message || e) }));
+    const spr = (sp && sp.response) || [];
+    out.playerStats = { results: sp && sp.results, errors: sp && sp.errors, rows: spr.length };
+  } catch (e) { out.error = String(e.message || e); }
+  res.json(out);
 });
 // 🏐 진단: 농구 활성화/커버리지 + 초단위 timer + 라인업 확인
 app.get('/api/ts/bskdiag', async (req, res) => {
