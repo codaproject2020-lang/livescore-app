@@ -1657,7 +1657,16 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
     inn=[]; for(var j=1;j<=maxi;j++)inn.push(j);
     var thead="<th></th>"+inn.map(function(n){return "<th>"+n+"</th>"}).join("")+"<th>R</th><th>H</th><th>E</th>";
     function row(side,nm){ var o=box[side]; var cells=inn.map(function(n){ var v=o.innings&&o.innings[n]; return "<td>"+(v==null||v===""?"-":v)+"</td>"; }).join(""); return "<tr><td class='tm'>"+esc(nm)+"</td>"+cells+"<td class='rr'>"+(o.r==null?"-":o.r)+"</td><td>"+(o.h==null?"-":o.h)+"</td><td>"+(o.e==null?"-":o.e)+"</td></tr>"; }
-    wrap.innerHTML="<table><thead><tr>"+thead+"</tr></thead><tbody>"+row("away",g.away)+row("home",g.home)+"</tbody></table>";
+    var tbl="<table><thead><tr>"+thead+"</tr></thead><tbody>"+row("away",g.away)+row("home",g.home)+"</tbody></table>";
+    // §4: 이닝 합계 ≠ 공급사 총득점(R) — R은 공급사 값 유지(임의 보정·이닝 추가 금지). 불일치 시 안내 + 진단 로그.
+    function innSum(side){ var o=box[side]; if(!o||!o.innings)return null; var s=0,any=false; for(var k in o.innings){ var v=+o.innings[k]; if(!isNaN(v)&&o.innings[k]!==""&&o.innings[k]!=null){s+=v;any=true;} } return any?s:null; }
+    var hS=innSum("home"), aS=innSum("away");
+    var mm=(box.home.r!=null&&hS!=null&&hS!==box.home.r)||(box.away.r!=null&&aS!=null&&aS!==box.away.r);
+    if(mm){
+      try{ console.debug("[LS mismatch]", gid(g), "H",hS,"/R",box.home.r, "A",aS,"/R",box.away.r, "at",new Date().toISOString()); }catch(e){}
+      tbl+='<div style="font-size:11px;color:var(--muted);margin-top:4px;padding:0 2px">'+tl({en:"Inning-by-inning detail is updating (provider total shown).",ko:"이닝별 기록이 갱신 중입니다(총득점은 공급사 기준).",ja:"イニング別は更新中（合計は提供元基準）。",zh:"各局记录更新中（总分以数据源为准）。",es:"Detalle por entrada actualizándose (total del proveedor).",hi:"पारी-वार विवरण अपडेट हो रहा है।",vi:"Chi tiết theo lượt đang cập nhật.",th:"รายละเอียดแต่ละอินนิงกำลังอัปเดต",ru:"Данные по иннингам обновляются.",de:"Inning-Details werden aktualisiert.",fr:"Détail par manche en cours de mise à jour.",it:"Dettaglio per inning in aggiornamento."})+'</div>';
+    }
+    wrap.innerHTML=tbl;
     return wrap;
   }
 
@@ -1694,7 +1703,9 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
       if(!_dt||_dt.g!==g)return; _dt.hl=(j&&j.highlight)||null; if(_dt.hl)renderDetail();
     }).catch(function(){ if(_dt&&_dt.g===g)_dt.hl=null; }); })(S.sport,g.id);
   }
-  function closeDetail(){ if(_dt&&_dt.ws){try{_dt.ws.close()}catch(e){}} _dt=null; document.body.style.overflow=""; var d=$("#detail"); if(d)d.remove(); }
+  function closeDetail(){ if(_dt&&_dt.ws){try{_dt.ws.close()}catch(e){}} _dt=null; document.body.style.overflow=""; var d=$("#detail"); if(d)d.remove();
+    // §5: 목록 재진입 시 데이터가 오래됐으면(>20초) 즉시 갱신 요청. 기존 자료는 유지, 성공해야 라벨 갱신(실패 시 '방금'으로 안 바뀜). 폴링 중복 없음.
+    try{ var _k=key(), _at=S.recvAt[_k]||0; if((S.screen==="home"||S.screen==="live"||S.screen==="fav")&&document.visibilityState==="visible"&&(Date.now()-_at>20000)) pollSync(); }catch(e){} }
   var TRK=["football","basketball","volleyball","baseball"];   // TheSports Live Match Tracker 지원 종목
   function trkTab(){ return ["tracker","🎥 "+t("trackerTab")]; }
   function detailTabs(sport){

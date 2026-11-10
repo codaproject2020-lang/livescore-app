@@ -21,7 +21,7 @@ const app = express();
 const server = http.createServer(app);
 
 const PORT = process.env.PORT || 3000;
-const APP_VERSION = 'v428';
+const APP_VERSION = 'v430';
 
 // ============================================================
 //  📏 성능 계측(instrumentation) — 엔드포인트 지연·캐시·공급사·WS·이벤트루프
@@ -1739,12 +1739,14 @@ async function tsFetch(path, params, ttl = 6000, reqTimeout) {
 // ====== 🎥 TheSports Live Match Tracker 위젯 ======
 // 대시보드에서 생성한 Online URL(profile 포함)을 종목별로 보관. 비어있으면 '설정 전'으로 정직 처리.
 // 환경변수 TRACKER_FOOTBALL/BASKETBALL/VOLLEYBALL/BASEBALL 로도 주입 가능.
+// 대시보드 생성 Online URL(종목별 profile). {language}·{버전/version}·{match_uuid} 치환. 야구는 버전 세그먼트 없음.
 let TRACKER_URLS = {
-  football: process.env.TRACKER_FOOTBALL || '',
-  basketball: process.env.TRACKER_BASKETBALL || '',
-  volleyball: process.env.TRACKER_VOLLEYBALL || '',
-  baseball: process.env.TRACKER_BASEBALL || ''
+  football: process.env.TRACKER_FOOTBALL || 'https://widgets.thesports01.com/{language}/{version}/football?profile=3nhwvkzvj0adhkkoly8x&uuid={match_uuid}',
+  basketball: process.env.TRACKER_BASKETBALL || 'https://widgets.thesports01.com/{language}/{version}/basketball?profile=jztx9nz9w6tphkkldw3d&uuid={match_uuid}',
+  volleyball: process.env.TRACKER_VOLLEYBALL || 'https://widgets.thesports01.com/{language}/{version}/volleyball?profile=kdhek83k67a6hnn0jej8&uuid={match_uuid}',
+  baseball: process.env.TRACKER_BASEBALL || 'https://widgets.thesports01.com/{language}/baseball?profile=j7sx9nz9w6tphkkldg24&uuid={match_uuid}'
 };
+const TRACKER_LANGS = { en: 1, ko: 1, ja: 1, zh: 1, es: 1, ru: 1, de: 1, fr: 1, it: 1, th: 1, vi: 1 };  // 위젯 지원 추정 언어(미지원은 en)
 function trackerTemplate(sport) {
   if (TRACKER_URLS[sport]) return TRACKER_URLS[sport];
   // 한 종목만 입력된 경우 경로의 /view/{sport} 만 바꿔 파생(프로필 공유 가정)
@@ -1752,10 +1754,13 @@ function trackerTemplate(sport) {
   if (base && /\/view\/[a-z]+/i.test(base)) return base.replace(/(\/view\/)[a-z]+/i, '$1' + sport);
   return '';
 }
-function buildTrackerUrl(tmpl, uuid) {
+function buildTrackerUrl(tmpl, uuid, lang, version) {
   if (!tmpl || !uuid) return '';
   let url = tmpl;
-  if (/\{match_id\}|\{uuid\}/i.test(url)) url = url.replace(/\{match_id\}|\{uuid\}/ig, encodeURIComponent(uuid));
+  if (/^\/\//.test(url)) url = 'https:' + url;                 // 프로토콜 상대 → https
+  url = url.replace(/\{\s*language\s*\}/ig, TRACKER_LANGS[lang] ? lang : 'en');
+  url = url.replace(/\{\s*(버전|버젼|version|ver)\s*\}/ig, version || '3d');
+  if (/\{\s*(match_uuid|match_id|uuid)\s*\}/i.test(url)) url = url.replace(/\{\s*(match_uuid|match_id|uuid)\s*\}/ig, encodeURIComponent(uuid));
   else if (/([?&]uuid=)[^&]*/i.test(url)) url = url.replace(/([?&]uuid=)[^&]*/i, '$1' + encodeURIComponent(uuid));
   else url += (url.indexOf('?') >= 0 ? '&' : '?') + 'uuid=' + encodeURIComponent(uuid);
   return url;
@@ -1786,7 +1791,9 @@ app.get('/api/tracker', async (req, res) => {
   let uuid = String(req.query.uuid || '');
   if (!uuid && sport === 'baseball') uuid = await resolveBaseballTsid(req.query.home, req.query.away, req.query.date);
   if (!uuid) return res.json({ url: '', note: 'no-id' });
-  res.json({ url: buildTrackerUrl(tmpl, uuid), sport, uuid });
+  const lang = String(req.query.lang || 'en').toLowerCase();
+  const version = String(req.query.version || '3d').toLowerCase();   // 야구 템플릿엔 버전 세그먼트 없음(치환 무시됨)
+  res.json({ url: buildTrackerUrl(tmpl, uuid, lang, version), sport, uuid });
 });
 // 관리자: 트래커 URL 설정(비밀번호). 종목별 또는 공통 1개.
 app.post('/api/admin/tracker', express.json(), (req, res) => {
@@ -2677,11 +2684,16 @@ async function gsBasketballGames(date, tz) {
         const hsN = numOrNull(GSA(lt, 'totalscore')), asN = numOrNull(GSA(at, 'totalscore'));
         const iso = gsIso(GSA(m, 'date'), GSA(m, 'time'));
         const qn = { Q1: 1, Q2: 2, Q3: 3, Q4: 4, OT: 5 }[short] || null;
+        // §3: 미진행 쿼터·OT의 0:0 자동생성 방지 — TheSports 분기와 동일하게 '시작된 기간까지만' 표시.
+        //   예정/확인중(비live·비finished)은 쿼터 미표시. 실제 득점이 있는 기간 또는 진행 중 현재 기간까지만.
+        const _stNow = asState(short, hsN);
+        const _hq = ['q1', 'q2', 'q3', 'q4', 'ot'].map(k => GSA(lt, k));
+        const _aq = ['q1', 'q2', 'q3', 'q4', 'ot'].map(k => GSA(at, k));
+        let _lastPlayed = 0;
+        for (let i = 0; i < _hq.length; i++) { if ((numOrNull(_hq[i]) || 0) > 0 || (numOrNull(_aq[i]) || 0) > 0) _lastPlayed = i + 1; }
+        const _showN = (_stNow === 'live' || _stNow === 'finished') ? Math.max(_lastPlayed, (_stNow === 'live' && qn) ? qn : 0) : 0;
         const setScores = [];
-        ['q1', 'q2', 'q3', 'q4', 'ot'].forEach(k => {
-          const h = GSA(lt, k), a = GSA(at, k);
-          if ((h != null && h !== '') || (a != null && a !== '')) setScores.push({ home: numOrNull(h), away: numOrNull(a) });
-        });
+        for (let i = 0; i < _showN; i++) { const h = _hq[i], a = _aq[i]; setScores.push({ home: (h != null && h !== '') ? numOrNull(h) : null, away: (a != null && a !== '') ? numOrNull(a) : null }); }
         const tmr = GSA(m, 'timer');
         const htid = GSA(lt, 'id'), atid = GSA(at, 'id');
         const g = {
