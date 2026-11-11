@@ -964,7 +964,7 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
     var n=$("#sporttabs"); n.innerHTML="";
     SPORTS.forEach(function(s){
       var b=el("button","stab"+(s.k===S.sport?" on":""),'<span class="ic">'+s.ic+'</span>'+t(s.k));
-      b.onclick=function(){ if(S.sport!==s.k){ S.sport=s.k; S.country=""; S.leagueF=""; load(); } };
+      b.onclick=function(){ if(S.sport!==s.k){ S.sport=s.k; S.country=""; S.leagueF=""; S.filter="live"; load(); } };   // 종목 전환 시 진행 중 우선(없으면 자동 전체)
       n.appendChild(b);
     });
   }
@@ -1053,9 +1053,10 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
     if(eff==="live") list=list.slice().sort(function(a,b){return (isStaleLive(a)?1:0)-(isStaleLive(b)?1:0);});
 
     if(!list.length){
-      // 🏀 농구: 진행 경기 0건이 '정상 조회'로 확인되고 예정/종료 경기가 있으면 자동으로 '전체' 전환
-      //   (로딩·오류·데모·국가필터 때문인 경우는 제외 → 전환하지 않음)
-      if(eff==="live"&&S.sport==="basketball"&&!S.country&&!S.leagueF&&d&&!d.error&&!isDemo&&(games&&games.length>0)){
+      // ⚽🏀🏐 전 종목: 진행 경기 0건이 '정상 조회'로 확인되고 예정/종료 경기가 있으면 자동으로 '전체' 전환
+      //   → 배구처럼 오늘 진행 경기가 없는 종목은 빈 '진행 중' 대신 전체 목록이 바로 보인다.
+      //   (로딩·오류·데모·국가·리그 필터 때문인 경우는 제외 → 전환하지 않음. 진행 경기가 있으면 그대로 진행 중 유지.)
+      if(eff==="live"&&!S.country&&!S.leagueF&&d&&!d.error&&!isDemo&&(games&&games.length>0)){
         if(S.screen==="live"){S.base="home";S.screen="home";}
         S.filter="all"; renderHome(); return;
       }
@@ -4101,7 +4102,7 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
       var idx=-1; for(var i=0;i<SPORTS.length;i++){ if(SPORTS[i].k===S.sport){ idx=i; break; } }
       if(idx<0)return; var ni=idx+dir; if(ni<0||ni>=SPORTS.length)return;   // 양끝에서는 넘기지 않음(탭과 동일)
       var nk=SPORTS[ni].k; if(nk===S.sport)return;
-      S.sport=nk; S.country=""; S.leagueF=""; load();
+      S.sport=nk; S.country=""; S.leagueF=""; S.filter="live"; load();   // 종목 전환 시 진행 중 우선(없으면 자동 전체)
       // 활성 탭이 보이도록 탭바 가로 스크롤
       try{ var tb=$("#sporttabs"); var btn=tb&&tb.querySelectorAll(".stab")[ni]; if(btn&&btn.scrollIntoView)btn.scrollIntoView({inline:"center",block:"nearest"}); }catch(_){}
       snapView();
