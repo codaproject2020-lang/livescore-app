@@ -21,7 +21,7 @@ const app = express();
 const server = http.createServer(app);
 
 const PORT = process.env.PORT || 3000;
-const APP_VERSION = 'v451';
+const APP_VERSION = 'v452';
 
 // ============================================================
 //  📏 성능 계측(instrumentation) — 엔드포인트 지연·캐시·공급사·WS·이벤트루프
@@ -2113,6 +2113,36 @@ app.get('/api/ts/raw', async (req, res) => {
       rawFirst: (full && Array.isArray(results)) ? results[0] : null,
       sample: (Array.isArray(results) ? results.slice(0, 2).map(m => ({ id: m.id, home: m.home_team_id, away: m.away_team_id, comp: m.competition_id, status: m.status_id, match_time: m.match_time })) : null) });
   } catch (e) { clearTimeout(timer); res.json({ on: true, sport, date: ymd, via, ms: Date.now() - t0, toMs, aborted: String((e && e.message) || e) }); }
+});
+// 🔬 진단(read-only): TheSports 임의 GET 리소스 구조 프로브 — 고급 화면(모멘텀/분석/순위/팀/선수) 필드 디코드용.
+//    키/시크릿은 tsFetch 내부에서만 붙으며 응답에 노출하지 않는다. 허용 경로만 통과.
+app.get('/api/ts/probe', async (req, res) => {
+  if (!TS_ON) return res.json({ on: false, msg: 'TheSports 키 미설정' });
+  let path = String(req.query.path || '');
+  if (!/^\/[a-z]+\/(match|team|player|season|competition|standing|coach)\/[a-z/_]*$/i.test(path)) {
+    return res.json({ err: 'path not allowed', got: path });
+  }
+  // 통과 허용 파라미터만 전달(토큰류 금지)
+  const params = {};
+  ['uuid', 'id', 'team_id', 'player_id', 'competition_id', 'season_id', 'match_id', 'coach_id', 'date'].forEach(k => { if (req.query[k] != null) params[k] = String(req.query[k]); });
+  try {
+    const r = await tsFetch(path, params, 4000, 9000).catch(e => ({ err: String((e && e.message) || e) }));
+    const results = (r && r.results);
+    function shape(v, d) {
+      if (d > 3 || v == null) return typeof v;
+      if (Array.isArray(v)) return ['array(' + v.length + ')', v.length ? shape(v[0], d + 1) : null];
+      if (typeof v === 'object') { const o = {}; Object.keys(v).slice(0, 40).forEach(k => { o[k] = shape(v[k], d + 1); }); return o; }
+      return typeof v + (typeof v === 'string' && v.length < 24 ? '=' + v : '');
+    }
+    const rawStr = JSON.stringify(results != null ? results : r);
+    res.json({ on: true, path, params,
+      topKeys: (r && typeof r === 'object') ? Object.keys(r) : null,
+      err: r && (r.err || r.msg || r.error) || null,
+      resultsType: Array.isArray(results) ? ('array(' + results.length + ')') : typeof results,
+      shape: shape(results != null ? results : r, 0),
+      sample: Array.isArray(results) ? results.slice(0, 2) : results,
+      rawTruncated: rawStr && rawStr.length > 8000 ? (rawStr.slice(0, 8000) + '…[truncated ' + rawStr.length + ']') : rawStr });
+  } catch (e) { res.json({ on: true, path, err: String((e && e.message) || e) }); }
 });
 // 🔬 진단: TheSports 팀 최근경기(recent/list) 응답 구조 확인 — 인사이트/팀상세 실데이터 연결용
 app.get('/api/ts/recentprobe', async (req, res) => {
