@@ -191,12 +191,11 @@ img{display:block}
 .trk-wrap{width:100%;background:#0b1220;border-radius:12px;overflow:hidden;margin:2px 0 8px}
 .trk-frame{width:100%;height:420px;border:0;display:block;background:#0b1220}
 @media(min-width:560px){.trk-frame{height:480px}}
-/* 상단 고정 경기장(트래커) */
+/* 상단 경기장(트래커) — 위젯 전체가 보이도록 탭과 동일 높이. 잘리지 않음. 스크롤 시 탭 바가 상단 고정 */
 .dt-head-slim{padding:8px 12px 6px!important}
-.dt-trkpin{width:100%;background:#0b1220;overflow:hidden;position:sticky;top:0;z-index:5}
-.dt-trkpin .trk-frame{height:232px}
-.dt-trkpin .trk-ph{height:232px;display:flex;align-items:center;justify-content:center;color:#8a93a3;font-size:13px}
-@media(min-width:560px){.dt-trkpin .trk-frame{height:300px}.dt-trkpin .trk-ph{height:300px}}
+.dt-trkpin{width:100%;background:#0b1220;overflow:hidden}
+.dt-trkpin .trk-ph{height:300px;display:flex;align-items:center;justify-content:center;color:#8a93a3;font-size:13px}
+#detail .dt-tabs{position:sticky;top:0;z-index:6;background:var(--bg)}
 .hl-thumb{position:absolute;inset:0;background-size:cover;background-position:center;cursor:pointer;display:flex;align-items:center;justify-content:center}
 .hl-thumb::after{content:"";position:absolute;inset:0;background:rgba(0,0,0,.18)}
 .hl-play{position:relative;z-index:1;width:62px;height:62px;border-radius:50%;background:rgba(229,9,20,.92);color:#fff;display:flex;align-items:center;justify-content:center;font-size:24px;padding-left:4px}
