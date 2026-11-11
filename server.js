@@ -21,7 +21,7 @@ const app = express();
 const server = http.createServer(app);
 
 const PORT = process.env.PORT || 3000;
-const APP_VERSION = 'v465';
+const APP_VERSION = 'v466';
 
 // ============================================================
 //  📏 성능 계측(instrumentation) — 엔드포인트 지연·캐시·공급사·WS·이벤트루프
@@ -2221,7 +2221,8 @@ async function tsFootballGames(date) {
       league: cp.name || '', leagueLogo: cp.logo || '', leagueId: m.competition_id || '', country: cp.country || '',
       hs, as, state: tsFootState(sid), status: tsFootStatus(sid), statusLong: '',
       date: m.match_time ? new Date(m.match_time * 1000).toISOString() : null,
-      elapsed, ftTs, ftBase, ftRun, ftCap
+      elapsed, ftTs, ftBase, ftRun, ftCap,
+      cov: m.coverage ? { lineup: m.coverage.lineup ? 1 : 0, mlive: m.coverage.mlive ? 1 : 0 } : null   // 탭 노출 판단용(라인업/라이브)
     };
   });
 }
