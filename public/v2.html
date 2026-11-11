@@ -865,6 +865,24 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
   var S={ sport:"football", date:todayStr(), filter:"live", screen:"home", base:"home", country:"", leagueF:"",
           favs:loadFavs(), favTeams:loadFavTeams(), collapsed:{}, pinLeague:{}, scroll:0, data:{}, recvAt:{}, demo:{}, fbLive:{} };
 
+  // ====== 명령서2: 새로고침 후 보던 화면 유지 ======
+  // 보던 상태(종목/날짜/필터/화면/리그/스크롤/열린 상세)를 세션에 저장 → 새로고침 시 그대로 복원.
+  // sessionStorage 사용: 새로고침엔 유지되지만 탭을 완전히 닫으면 사라져, 다음날 열 때 과거 날짜로 복원되는 부작용을 막는다.
+  var VIEWK="lu_view";
+  function snapView(){
+    try{
+      var o={ v:1, sport:S.sport, date:S.date, filter:S.filter, screen:S.screen, base:S.base,
+              country:S.country, leagueF:S.leagueF,
+              pin:(S.pinLeague&&S.pinLeague[S.sport])||"",
+              scroll:(window.scrollY||document.documentElement.scrollTop||0) };
+      // 매치 상세가 열려 있으면 어떤 경기였는지도 저장(복원 시 자동 재오픈)
+      if(typeof _dt!=="undefined"&&_dt&&document.querySelector("#detail")&&_dt.g){
+        o.detail={ sport:_dt.sport, id:_dt.g.id, tab:_dt.tab }; }
+      sessionStorage.setItem(VIEWK, JSON.stringify(o));
+    }catch(e){}
+  }
+  function readView(){ try{ return JSON.parse(sessionStorage.getItem(VIEWK)||"null"); }catch(e){ return null; } }
+
   // ====== 유틸 ======
   function $(s,r){return (r||document).querySelector(s)}
   function el(t,c,h){var e=document.createElement(t);if(c)e.className=c;if(h!=null)e.innerHTML=h;return e}
@@ -4037,9 +4055,96 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
   window.addEventListener("online",function(){ forceSync("online"); });
   window.addEventListener("focus",function(){ if(document.visibilityState==="visible")forceSync("focus"); });
 
+  // ====== 명령서2: 보던 화면 상태 저장 훅 ======
+  // 새로고침/이탈 직전에 현재 상태 저장(스크롤 포함). 스크롤 중에도 가볍게 갱신.
+  window.addEventListener("pagehide", snapView);
+  window.addEventListener("beforeunload", snapView);
+  document.addEventListener("visibilitychange", function(){ if(document.visibilityState==="hidden") snapView(); });
+  var _svTick=0;
+  window.addEventListener("scroll", function(){ var n=Date.now(); if(n-_svTick<400)return; _svTick=n; snapView(); }, {passive:true});
+
+  // ====== 명령서3: 좌우 스와이프로 종목 전환 ======
+  // 목록 화면(홈/라이브/관심)에서만. 상세·오버레이가 열려 있거나, 가로 스크롤 요소(종목탭·리그칩·표·차트) 위에서 시작한 스와이프는 무시.
+  (function(){
+    var sx=0, sy=0, st=0, active=false;
+    function horizScrollAncestor(node){
+      for(var e=node; e&&e!==document.body; e=e.parentElement){
+        try{ var cs=getComputedStyle(e); var ox=cs.overflowX;
+          if((ox==="auto"||ox==="scroll")&&e.scrollWidth>e.clientWidth+4) return true;
+        }catch(_){}
+        if(e.className&&/sporttabs|cchips|rk-chips|news-seg|dt-tabs|bm-|shotwrap|flowwrap|hl-|carousel|segb|seg\b/.test(String(e.className))) return true;
+        if(e.tagName==="TABLE"||e.tagName==="SVG"||e.tagName==="CANVAS"||e.tagName==="INPUT"||e.tagName==="TEXTAREA"||e.tagName==="SELECT") return true;
+      }
+      return false;
+    }
+    function listScreen(){ return S.screen==="home"||S.screen==="live"||S.screen==="fav"; }
+    function switchBy(dir){   // dir +1=다음 종목(오른쪽 탭), -1=이전 종목
+      var idx=-1; for(var i=0;i<SPORTS.length;i++){ if(SPORTS[i].k===S.sport){ idx=i; break; } }
+      if(idx<0)return; var ni=idx+dir; if(ni<0||ni>=SPORTS.length)return;   // 양끝에서는 넘기지 않음(탭과 동일)
+      var nk=SPORTS[ni].k; if(nk===S.sport)return;
+      S.sport=nk; S.country=""; S.leagueF=""; load();
+      // 활성 탭이 보이도록 탭바 가로 스크롤
+      try{ var tb=$("#sporttabs"); var btn=tb&&tb.querySelectorAll(".stab")[ni]; if(btn&&btn.scrollIntoView)btn.scrollIntoView({inline:"center",block:"nearest"}); }catch(_){}
+      snapView();
+    }
+    document.addEventListener("touchstart", function(e){
+      if(!e.touches||e.touches.length!==1){ active=false; return; }
+      if(document.querySelector(".detail")){ active=false; return; }   // 상세/오버레이 열림 → 무시
+      if(!listScreen()){ active=false; return; }
+      if(horizScrollAncestor(e.target)){ active=false; return; }
+      var t=e.touches[0]; sx=t.clientX; sy=t.clientY; st=Date.now(); active=true;
+    }, {passive:true});
+    document.addEventListener("touchend", function(e){
+      if(!active)return; active=false;
+      if(document.querySelector(".detail")||!listScreen())return;
+      var t=(e.changedTouches&&e.changedTouches[0]); if(!t)return;
+      var dx=t.clientX-sx, dy=t.clientY-sy, dt=Date.now()-st;
+      if(dt>700)return;                                   // 너무 느린 제스처 제외
+      if(Math.abs(dx)<60)return;                          // 이동량 부족
+      if(Math.abs(dx)<Math.abs(dy)*1.8)return;            // 세로 스크롤과 구분
+      switchBy(dx<0?1:-1);                                // 왼쪽으로 밀면 다음 종목
+    }, {passive:true});
+  })();
+
   // 경기 공유 딥링크 ?ev=<sport>:<id> — 종목 먼저 설정 후 로드, 경기 로드되면 상세 자동 오픈
   var _evDeep=(function(){ try{ var m=(location.search.match(/[?&]ev=([^&]+)/)||[])[1]; if(!m)return null; m=decodeURIComponent(m); var p=m.split(":"); var sp=p[0], id=p.slice(1).join(":"); if(!sp||!id)return null; var SPK={football:1,baseball:1,basketball:1,volleyball:1,hockey:1,esports:1}; if(!SPK[sp])return null; S.sport=sp; S.date=todayStr(); return {sp:sp,id:id}; }catch(e){ return null; } })();
+
+  // 명령서2: 저장된 보던 화면 복원(딥링크가 있으면 딥링크 우선). load() 전에 S를 복원해야 올바른 종목·날짜로 로드됨.
+  var _restoreView=null;
+  if(!_evDeep){
+    var _vw=readView();
+    if(_vw&&_vw.v===1){
+      var SPK2={football:1,baseball:1,basketball:1,volleyball:1,hockey:1,esports:1};
+      if(SPK2[_vw.sport]) S.sport=_vw.sport;
+      if(typeof _vw.date==="string"&&/^\d{4}-\d{2}-\d{2}$/.test(_vw.date)) S.date=_vw.date;
+      if(_vw.filter) S.filter=_vw.filter;
+      if(_vw.screen) S.screen=_vw.screen;
+      if(_vw.base) S.base=_vw.base;
+      S.country=_vw.country||""; S.leagueF=_vw.leagueF||"";
+      if(_vw.pin){ S.pinLeague[S.sport]=_vw.pin; }
+      _restoreView=_vw;   // 스크롤·상세 재오픈은 데이터 로드 후 복원
+    }
+  }
   bind(); load();
+  // 명령서2: 데이터가 들어오면 스크롤 위치 복원 + (열려 있던) 매치 상세 자동 재오픈
+  if(_restoreView){ (function(rv){
+    var tries=0, want=rv.sport+"|"+rv.date;
+    var iv=setInterval(function(){
+      tries++;
+      var d=S.data[key()];
+      var ready=(key()===want)&&d&&(d.games||d.error||d.unsupported||d.needKey);
+      if(ready){
+        clearInterval(iv);
+        // 상세가 열려 있었다면 해당 경기를 찾아 재오픈(없으면 조용히 목록만 복원)
+        if(rv.detail&&rv.detail.id!=null&&d.games){
+          var g=d.games.filter(function(x){return String(x.id)===String(rv.detail.id);})[0];
+          if(g){ try{ openDetail(g, rv.detail.tab==="box"?"pitchers":(rv.detail.tab==="lineup"?"lineup":(rv.detail.tab==="chat"?"chat":null))); }catch(e){} return; }
+        }
+        // 목록 화면이면 보던 스크롤로 복원
+        if(S.screen==="home"||S.screen==="live"||S.screen==="fav"){ try{ window.scrollTo(0, rv.scroll||0); }catch(e){} }
+      } else if(tries>16){ clearInterval(iv); }
+    }, 250);
+  })(_restoreView); }
   if(_evDeep){ var _tries=0; var _dl=setInterval(function(){ _tries++; var d=S.data[_evDeep.sp+"|"+S.date]; if(d&&d.games){ var g=d.games.filter(function(x){return String(x.id)===String(_evDeep.id);})[0]; clearInterval(_dl); if(g){ openDetail(g); } else { toastMsg(tl({en:"Match not found or already finished.",ko:"경기를 찾지 못했거나 종료되었습니다.",ja:"試合が見つからないか終了しました。",zh:"未找到或已结束。",es:"Partido no encontrado o finalizado.",hi:"मैच नहीं मिला।",vi:"Không tìm thấy trận.",th:"ไม่พบแมตช์",ru:"Матч не найден.",de:"Spiel nicht gefunden.",fr:"Match introuvable.",it:"Partita non trovata."}),1); } } else if(_tries>14){ clearInterval(_dl); } },500); }
   // PWA: 서비스워커 등록(설치형 앱·오프라인 폴백) — 네트워크 우선이라 항상 최신 우선
   if("serviceWorker" in navigator){ try{ navigator.serviceWorker.register("/sw.js").catch(function(){}); navigator.serviceWorker.addEventListener("message",function(e){ var m=e.data||{}; if(m.type==="push"){ addInbox({title:m.title,body:m.body,ev:m.ev||""}); } else if(m.type==="openEvent"&&m.gameId){ /* 알림 클릭 → 경기 열기 */ } }); }catch(e){} }
