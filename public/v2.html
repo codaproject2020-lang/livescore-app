@@ -1191,15 +1191,30 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
       var stage = BIG_STAGE_RE.test(String(g.league||"")+" "+String(g.round||g.stage||""))?1:0;
       cand.push({g:g,r:r,stRank:stRank,stage:stage,dt:g.date?new Date(g.date).getTime():0});
     });
-    if(!cand.length) return null;
-    cand.sort(function(a,b){
-      if(a.stRank!==b.stRank) return a.stRank-b.stRank;                 // 진행 → 예정 → 종료
-      if(b.stage!==a.stage) return b.stage-a.stage;                     // 결승·PO 우선
-      if(a.r!==b.r) return a.r-b.r;                                     // 리그 우선순위
-      if(a.stRank===1) return (a.dt||1e15)-(b.dt||1e15);                // 예정은 임박순
-      return (b.dt||0)-(a.dt||0);                                       // 진행/종료는 최신순
+    if(cand.length){
+      cand.sort(function(a,b){
+        if(a.stRank!==b.stRank) return a.stRank-b.stRank;               // 진행 → 예정 → 종료
+        if(b.stage!==a.stage) return b.stage-a.stage;                   // 결승·PO 우선
+        if(a.r!==b.r) return a.r-b.r;                                   // 리그 우선순위
+        if(a.stRank===1) return (a.dt||1e15)-(b.dt||1e15);              // 예정은 임박순
+        return (b.dt||0)-(a.dt||0);                                     // 진행/종료는 최신순
+      });
+      return cand[0].g;
+    }
+    // 🔶 폴백: 빅리그 후보가 없어도 '경기가 있으면 무조건' 그나마 제일 나은 경기를 배너로 노출.
+    //    우선순위: 정상 라이브 > 예정 > (오래된 0:0 의심) 라이브 > 종료. 같은 등급이면 리그 랭크 → 라이브·종료는 최신, 예정은 임박순.
+    var fb=games.map(function(g){
+      var st=stateOf(g), liveOk=(st==="live"&&!isStaleLive(g));
+      var stRank= liveOk?0 : (st==="scheduled"?1 : (st==="live"?2:3));
+      return { g:g, r:leagueRank(sp,g.league,g.country), stRank:stRank, dt:g.date?new Date(g.date).getTime():0 };
     });
-    return cand[0].g;
+    fb.sort(function(a,b){
+      if(a.stRank!==b.stRank) return a.stRank-b.stRank;
+      if(a.r!==b.r) return a.r-b.r;
+      if(a.stRank===1) return (a.dt||1e15)-(b.dt||1e15);
+      return (b.dt||0)-(a.dt||0);
+    });
+    return fb.length?fb[0].g:null;
   }
 
   // ====== 빅매치 배너 ======
@@ -3983,9 +3998,13 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
   }
   // 기기/브라우저 '뒤로가기'를 앱 내비게이션으로 사용(레이어 우선 닫힘, 홈에서는 이탈 허용)
   try{ history.replaceState({lu:0},""); history.pushState({lu:1},""); }catch(e){}
+  function luArm(){ try{ history.pushState({lu:1},""); }catch(e){} }
   window.addEventListener("popstate",function(){
     var closed=topClose();
-    if(closed){ try{ history.pushState({lu:1},""); }catch(e){} } // 아직 레이어/화면 남아있을 수 있으니 가드 재삽입
+    // ⚠️ 삼성 인터넷/일부 안드로이드 웹뷰는 popstate 핸들러 '안에서' 호출한 pushState를 무시한다.
+    //    그 결과 가드가 재삽입되지 않아, 상세+팝업처럼 2단 이상 쌓였을 때 뒤로가기 한두 번에 사이트를 이탈(구글로 빠짐)했다.
+    //    → 재삽입을 setTimeout(0)으로 popstate 콜스택 밖으로 빼서 확실히 적용되게 한다. 레이어가 남아있는 한 가드는 항상 복원된다.
+    if(closed){ setTimeout(luArm,0); }
   });
 
   // 최근 수신 라벨 주기 갱신
@@ -4072,7 +4091,7 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
         try{ var cs=getComputedStyle(e); var ox=cs.overflowX;
           if((ox==="auto"||ox==="scroll")&&e.scrollWidth>e.clientWidth+4) return true;
         }catch(_){}
-        if(e.className&&/sporttabs|cchips|rk-chips|news-seg|dt-tabs|bm-|shotwrap|flowwrap|hl-|carousel|segb|seg\b/.test(String(e.className))) return true;
+        if(e.className&&/sporttabs|cchips|rk-chips|news-seg|dt-tabs|shotwrap|flowwrap|hl-|carousel|segb|seg\b/.test(String(e.className))) return true;
         if(e.tagName==="TABLE"||e.tagName==="SVG"||e.tagName==="CANVAS"||e.tagName==="INPUT"||e.tagName==="TEXTAREA"||e.tagName==="SELECT") return true;
       }
       return false;
