@@ -467,6 +467,35 @@ html[data-theme="dark"] table.rank tr.rk-hl{background:rgba(156,194,255,.1)}
 .cb.y{background:var(--amber)}.cb.r{background:var(--red)}.cb.z{background:var(--soft2);color:var(--muted)}
 .fbrow .posbar{flex:1;height:6px;border-radius:4px;background:var(--soft2);display:flex;overflow:hidden}
 .fbrow .posbar .ph{background:var(--navy)}.fbrow .posbar .pa{background:var(--red);margin-left:auto}
+/* ===== 축구 리스트 카드 (시안 동일: 상태+시작시각 / 팀별 점유율·슈팅·유효·카드 / 하단 점유율바) ===== */
+.fgm{position:relative;display:flex;align-items:stretch;border-top:1px solid var(--line);cursor:pointer}
+.fgm:first-child{border-top:none}
+.fgm-left{flex:0 0 72px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;padding:10px 5px;border-right:1px solid var(--line)}
+.fgm-badge{background:var(--red);color:#fff;font-weight:800;font-size:12px;border-radius:8px;padding:4px 6px;white-space:nowrap;text-align:center;line-height:1.25}
+.fgm-badge.sch{background:var(--soft2);color:var(--navy)}
+.fgm-badge.fin{background:var(--soft2);color:var(--muted)}
+.fgm-start{font-size:10px;color:var(--muted);white-space:nowrap}
+.fgm-main{flex:1;min-width:0;padding:7px 9px 9px}
+.fgm-trow{display:flex;align-items:center;gap:6px;min-width:0;padding:4px 0}
+.fgm-lg{width:30px;height:30px;object-fit:contain;flex:0 0 auto}
+.fgm-lg.ph{display:flex;align-items:center;justify-content:center;font-size:16px;background:var(--soft);border-radius:50%}
+.fgm-trow .ha{flex:0 0 auto;margin-top:0}
+.fgm-tx{flex:1;min-width:0}
+.fgm-nm{font-weight:800;font-size:15px;color:var(--navy);line-height:1.15;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.fgm-st{font-size:10px;color:var(--muted);font-weight:600;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;letter-spacing:-.2px}
+.fgm-cards{flex:0 0 auto;display:flex;gap:3px;align-items:center}
+.fgm-cards .cb{min-width:15px;font-size:10px;padding:1px 3px;margin:0}
+.fgm-sc{flex:0 0 auto;font-weight:900;font-size:22px;color:var(--navy);min-width:18px;text-align:right}
+.fgm-sc.red{color:var(--navy)}
+.fgm-fav{flex:0 0 auto;background:none;border:none;border-left:1px solid var(--line);color:#d2d9e4;font-size:16px;cursor:pointer;padding:0 0 0 7px;margin-left:2px;line-height:1}
+.fgm-fav.on{color:var(--amber)}
+.fgm-poss{display:flex;align-items:center;gap:8px;margin-top:7px;padding-top:9px;border-top:1px dashed var(--line);font-size:11.5px;font-weight:800;color:var(--navy)}
+.fgm-poss .pl{color:var(--muted);font-weight:700;flex:0 0 auto}
+.fgm-poss .pv{flex:0 0 auto}
+.fgm-poss .pbar{flex:1;height:8px;border-radius:5px;background:var(--soft2);display:flex;overflow:hidden}
+.fgm-poss .pbar .ph{background:var(--navy)}
+.fgm-poss .pbar .pa{background:var(--red);margin-left:auto}
+html[data-theme="dark"] .fgm-poss .pbar{background:#2c3a54}
 .bso{display:flex;gap:10px;align-items:center;font-size:11px;font-weight:800;color:var(--navy)}
 .bso .b{display:flex;gap:3px;align-items:center}
 .bso .d{width:8px;height:8px;border-radius:50%;background:var(--line)}
@@ -1586,7 +1615,46 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
   function fmtScore(g){ if(SET.hideScores&&stateOf(g)!=="scheduled") return "· : ·"; return (g.hs==null?"-":g.hs)+" : "+(g.as==null?"-":g.as); }
   // 🂠 2행 경기 카드(C01~C03): 좌측 상태/시간 열 + 팀 2행(각 행: H/A배지·로고·팀명·오른쪽 점수) + 관심별 + 보조라인.
   //   팀명은 말줄임 없이 줄바꿈(C02). H=홈/A=원정은 API 실제 홈·원정 기준.
+  // ====== 축구 시안형 리스트 카드 ======
+  // 좌측: 상태(후반 72:35 등) + 시작시각 / 각 팀: 로고·H·A·이름 + (점유율·슈팅·유효) + 카드(옐로/레드) + 점수 + 별 / 하단: 점유율 바
+  // 데이터는 실데이터(S.fbLive[g.id])만 사용 — 없는 값은 가짜로 채우지 않고 생략(0 주입 금지).
+  function fbGameCard(g){
+    var sch=stateOf(g)==="scheduled", live=stateOf(g)==="live", fin=stateOf(g)==="finished";
+    var card=el("div","fgm");
+    var startLbl=tl({en:"Start",ko:"시작",ja:"開始",zh:"开始",es:"Inicio",hi:"शुरू",vi:"Bắt đầu",th:"เริ่ม",ru:"Старт",de:"Start",fr:"Début",it:"Inizio"});
+    var badgeCls=sch?"fgm-badge sch":(fin?"fgm-badge fin":"fgm-badge");
+    var badgeHtml=sch?hhmm(g.date):statusText(g);
+    var left='<div class="fgm-left"><div class="'+badgeCls+'">'+badgeHtml+'</div>'+(sch?'':'<div class="fgm-start">'+startLbl+' '+hhmm(g.date)+'</div>')+'</div>';
+    var ls=(live&&S.fbLive&&S.fbLive[g.id])||null; var H=ls?(ls.home||{}):{}, A=ls?(ls.away||{}):{};
+    var possLbl=t("possLbl");
+    var shotLbl=tl({en:"Shots",ko:"슈팅",ja:"シュート",zh:"射门",es:"Tiros",hi:"शॉट",vi:"Sút",th:"ยิง",ru:"Удары",de:"Schüsse",fr:"Tirs",it:"Tiri"});
+    var sotLbl=tl({en:"On tgt",ko:"유효",ja:"枠内",zh:"射正",es:"A puerta",hi:"ऑन",vi:"Trúng",th:"เข้ากรอบ",ru:"В створ",de:"aufs Tor",fr:"Cadrés",it:"In porta"});
+    function pct(v){ if(v==null)return null; var n=String(v).replace(/[^\d.]/g,""); return n?(n+"%"):null; }
+    function statLine(o){ var p=[]; var pc=pct(o.poss); if(pc)p.push(possLbl+" "+pc); if(o.shots!=null)p.push(shotLbl+" "+o.shots); if(o.sot!=null)p.push(sotLbl+" "+o.sot); return p.join(" · "); }
+    function cardsBox(o){ if(o.yc==null&&o.rc==null)return ""; return '<span class="fgm-cards"><i class="cb y">'+(o.yc!=null?o.yc:0)+'</i><i class="cb r">'+(o.rc!=null?o.rc:0)+'</i></span>'; }
+    var hidden=(SET.hideScores&&!sch);
+    function scoreStr(v){ return sch?'':(hidden?'·':(v==null?'-':v)); }
+    function trow(name,logo,away,sv,o){
+      var st=statLine(o);
+      return '<div class="fgm-trow">'+
+        (logo?'<img class="fgm-lg" src="'+esc(logo)+'" onerror="this.outerHTML=\'<div class=\\\'fgm-lg ph\\\'>🛡️</div>\'">':'<div class="fgm-lg ph">🛡️</div>')+
+        haBadge(away,g.neutral)+
+        '<div class="fgm-tx"><div class="fgm-nm">'+esc(name||"")+'</div>'+(st?'<div class="fgm-st">'+st+'</div>':'')+'</div>'+
+        cardsBox(o)+
+        '<span class="fgm-sc'+(live&&!sch?' red':'')+'">'+scoreStr(sv)+'</span>'+
+        '<button class="fgm-fav'+(S.favs.has(gid(g))?' on':'')+'" aria-label="★">★</button></div>';
+    }
+    var hp=pct(H.poss), ap=pct(A.poss), poss='';
+    if(hp||ap){ var hn=parseFloat(H.poss)||0, an=parseFloat(A.poss)||0, tot=(hn+an)||1;
+      poss='<div class="fgm-poss"><span class="pl">'+possLbl+'</span><span class="pv">'+(hp||'-')+'</span><span class="pbar"><i class="ph" style="width:'+(hn/tot*100).toFixed(0)+'%"></i><i class="pa" style="width:'+(an/tot*100).toFixed(0)+'%"></i></span><span class="pv">'+(ap||'-')+'</span></div>';
+    }
+    card.innerHTML=left+'<div class="fgm-main">'+trow(g.home,g.homeLogo,false,g.hs,H)+trow(g.away,g.awayLogo,true,g.as,A)+poss+'</div>';
+    card.querySelectorAll(".fgm-fav").forEach(function(fb){ fb.onclick=function(e){ e.stopPropagation(); if(S.favs.has(gid(g)))S.favs.delete(gid(g)); else S.favs.add(gid(g)); saveFavs(); if(S.filter==="fav"||S.screen==="fav")renderHome(); else card.querySelectorAll(".fgm-fav").forEach(function(x){ x.classList.toggle("on",S.favs.has(gid(g))); }); }; });
+    card.onclick=function(e){ if(e.target.closest(".fgm-fav"))return; openDetail(g); };
+    return card;
+  }
   function gameCard(g){
+    if(S.sport==="football") return fbGameCard(g);   // 축구는 시안형 전용 카드(팀별 점유율·슈팅·유효·카드 + 점유율바)
     var card=el("div","gm2");
     var sch=stateOf(g)==="scheduled", live=stateOf(g)==="live";
     function g2row(name,logo,away,score){
@@ -1709,6 +1777,7 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
   var _dtTok=0; // 빠른 전환 시 이전 조회 결과가 섞이지 않도록 하는 토큰
   function dtFresh(tk){ return tk===_dtTok && $("#dtBody"); }
   function openDetail(g,focus){
+    luArm();   // 뒤로가기 가드: 상세를 열 때 히스토리 엔트리 1개 적립(뒤로가기 1번=상세 닫고 직전 화면)
     _dt={ g:g, sport:S.sport, tab:(focus==="chat"?"chat":(focus==="pitchers"?"box":(focus==="lineup"?"lineup":"overview"))), cache:{}, hl:undefined };
     document.body.style.overflow="hidden";
     pushRecent(g,S.sport);
@@ -2863,7 +2932,7 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
   function tzLabel(){ var off=-(new Date().getTimezoneOffset())/60; var w=tl({en:"Local time",ko:"현지 시간",ja:"現地時間",zh:"本地时间",es:"Hora local",hi:"स्थानीय समय",vi:"Giờ địa phương",th:"เวลาท้องถิ่น",ru:"Местное время",de:"Ortszeit",fr:"Heure locale",it:"Ora locale"}); return w+" (UTC"+(off>=0?"+":"")+off+")"; }
   function menuGo(k){
     if(k==="rank") return openStandings(S.sport,"");
-    if(k==="insight"){ document.body.style.overflow=""; S.insightFromMenu=true; S.screen="insight"; render(); return; }
+    if(k==="insight"){ luArm(); document.body.style.overflow=""; S.insightFromMenu=true; S.screen="insight"; render(); return; }
     if(k==="favleague") return openFavLeagues();
     if(k==="news") return openNews();
     if(k==="login"||k==="my") return openLogin();
@@ -2899,7 +2968,7 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
   function closeMenu(){ document.body.style.overflow=""; S.screen="home"; render(); }
 
   // ====== 순위 화면 ======
-  function overlay(id){ var o=$("#"+id); if(o)o.remove(); o=el("div","detail"); o.id=id; document.body.appendChild(o); document.body.style.overflow="hidden"; return o; }
+  function overlay(id){ var o=$("#"+id); var reuse=!!o; if(o)o.remove(); o=el("div","detail"); o.id=id; document.body.appendChild(o); document.body.style.overflow="hidden"; if(!reuse)luArm(); /* 새 오버레이 열 때만 뒤로가기 가드 1개 적립 */ return o; }
   function closeOverlay(id){ var o=$("#"+id); if(o)o.remove(); document.body.style.overflow=(S.screen==="menu"?"hidden":""); }
   var RK_SPORTS=[["football","⚽"],["basketball","🏀"],["baseball","⚾"],["volleyball","🏐"],["hockey","🏒"]];
   // 종목별 바로 선택할 수 있는 주요 리그(이름=리그 파라미터). 데이터가 없으면 '준비 중' 정직 표기.
@@ -3973,8 +4042,8 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
     document.querySelectorAll(".bn").forEach(function(b){
       b.onclick=function(){
         var nv=b.dataset.nav;
-        if(nv==="menu"){ S.scroll=window.scrollY; S.screen="menu"; render(); window.scrollTo(0,0); return; }
-        if(nv==="insight"){ S.scroll=window.scrollY; S.insightFromMenu=false; S.screen="insight"; render(); window.scrollTo(0,0); return; }
+        if(nv==="menu"){ if(S.screen!=="menu")luArm(); S.scroll=window.scrollY; S.screen="menu"; render(); window.scrollTo(0,0); return; }
+        if(nv==="insight"){ if(S.screen!=="insight")luArm(); S.scroll=window.scrollY; S.insightFromMenu=false; S.screen="insight"; render(); window.scrollTo(0,0); return; }
         if(S.screen==="menu"||S.screen==="insight") document.body.style.overflow="";
         // 하단 '라이브' = 오늘 날짜의 진행 중 (현재 종목·국가 필터 유지)
         if(nv==="live"){ if(S.date!==todayStr()){ S.date=todayStr(); S.base="live"; S.screen="live"; load(); window.scrollTo(0,0); return; } }
@@ -3998,14 +4067,14 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
     return false;
   }
   // 기기/브라우저 '뒤로가기'를 앱 내비게이션으로 사용(레이어 우선 닫힘, 홈에서는 이탈 허용)
-  try{ history.replaceState({lu:0},""); history.pushState({lu:1},""); }catch(e){}
-  function luArm(){ try{ history.pushState({lu:1},""); }catch(e){} }
+  // ⚠️ 삼성 인터넷/안드로이드 웹뷰는 popstate '안에서' 호출한 pushState를 무시한다 → 과거엔 가드 재삽입이 안 돼
+  //    상세+팝업처럼 2단 이상 쌓였을 때 뒤로가기에 사이트를 이탈(구글로 빠짐)했다.
+  //    해결: 가드를 '레이어가 열릴 때'(luArm, popstate 밖) 미리 쌓는다. 그러면 각 뒤로가기는 쌓인 가드를 먼저 소비하므로
+  //    레이어가 하나라도 열려 있는 한 절대 사이트를 벗어나지 않고, 홈에서만 이탈한다.
+  try{ history.replaceState({lu:0},""); }catch(e){}
+  function luArm(){ try{ history.pushState({lu:1},""); }catch(e){} }   // 레이어/화면 열 때마다 호출(아래 opener들)
   window.addEventListener("popstate",function(){
-    var closed=topClose();
-    // ⚠️ 삼성 인터넷/일부 안드로이드 웹뷰는 popstate 핸들러 '안에서' 호출한 pushState를 무시한다.
-    //    그 결과 가드가 재삽입되지 않아, 상세+팝업처럼 2단 이상 쌓였을 때 뒤로가기 한두 번에 사이트를 이탈(구글로 빠짐)했다.
-    //    → 재삽입을 setTimeout(0)으로 popstate 콜스택 밖으로 빼서 확실히 적용되게 한다. 레이어가 남아있는 한 가드는 항상 복원된다.
-    if(closed){ setTimeout(luArm,0); }
+    topClose();   // 최상위 레이어/화면 하나 닫기. push는 열 때 미리 했으므로 여기선 하지 않는다.
   });
 
   // 최근 수신 라벨 주기 갱신
