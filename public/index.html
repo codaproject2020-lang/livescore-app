@@ -3954,9 +3954,11 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
   // ====== 뒤로가기(히스토리 기반) : 레이어/화면을 한 번에 하나씩 닫기 ======
   // 열려있는 가장 위 레이어 하나만 닫고 true, 닫을 게 없으면 false
   function topClose(){
-    if($("#detail")){ closeDetail(); return true; }
-    var ids=["ovLang","ovShare","ovPlayer","ovAlerts","ovFav","ovFavLg","ovChat","ovInfo","ovSet","ovAct","ovInbox","ovSearch","ovTeam","ovRank","ovNews","ovLogin"];
-    for(var i=0;i<ids.length;i++){ if($("#"+ids[i])){ closeOverlay(ids[i]); return true; } }
+    // 🔙 팝업/상세는 모두 body에 쌓인 .detail 요소 → DOM 마지막(최상위)부터 하나씩 닫아 실제 방문 순서대로 복귀.
+    //    (기존엔 #detail을 먼저 닫아, 위에 쌓인 팀/선수/순위 오버레이보다 아래를 닫아 '한 번 눌러도 반응 없음' 발생)
+    var layers=document.querySelectorAll(".detail");
+    if(layers.length){ var top=layers[layers.length-1]; var id=top.id||"";
+      if(id==="detail") closeDetail(); else closeOverlay(id); return true; }
     if(S.screen==="insight"){ document.body.style.overflow=""; if(S.insightFromMenu){ S.insightFromMenu=false; S.screen="menu"; } else { S.screen=(S.base&&S.base!=="insight"&&S.base!=="menu")?S.base:"home"; } render(); window.scrollTo(0,S.scroll||0); return true; }
     if(S.screen==="menu"){ document.body.style.overflow=""; S.screen=(S.base&&S.base!=="menu"&&S.base!=="insight")?S.base:"home"; render(); window.scrollTo(0,S.scroll||0); return true; }
     return false;
