@@ -541,6 +541,20 @@ html[data-theme="dark"] .fgm-poss .pbar{background:#2c3a54}
 .psbar{display:flex;height:26px;border-radius:7px;overflow:hidden;font-size:13px;font-weight:900;color:#fff}
 .psbar .psh{background:var(--navy);display:flex;align-items:center;padding:0 10px}
 .psbar .psa{background:var(--red);display:flex;align-items:center;justify-content:flex-end;padding:0 10px;margin-left:auto}
+/* 라인업 좌표형 경기장(선수사진+평점칩) */
+.pitchv{position:relative;width:100%;aspect-ratio:3/4;border-radius:12px;margin:8px 0 4px;overflow:hidden;
+  background:linear-gradient(180deg,#2e8b57,#1f6e43);
+  background-image:repeating-linear-gradient(180deg,rgba(255,255,255,.05) 0 10%,rgba(0,0,0,.03) 10% 20%),linear-gradient(180deg,#2e8b57,#1f6e43)}
+.pitchv:before{content:"";position:absolute;left:8%;right:8%;top:49.3%;height:1.4%;border:1.5px solid rgba(255,255,255,.3);border-radius:50%;pointer-events:none}
+.pitchv:after{content:"";position:absolute;left:0;right:0;top:50%;height:1px;background:rgba(255,255,255,.3)}
+.pv{position:absolute;transform:translate(-50%,-50%);display:flex;flex-direction:column;align-items:center;width:62px;cursor:pointer}
+.pv-av{position:relative;width:38px;height:38px;border-radius:50%;background:#fff;box-shadow:0 1px 4px rgba(0,0,0,.35)}
+.pv-av img{width:38px;height:38px;border-radius:50%;object-fit:cover}
+.pv-ph{width:38px;height:38px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:18px;background:#eef1f6}
+.pv-rt{position:absolute;left:50%;bottom:-6px;transform:translateX(-50%);color:#fff;font-size:9.5px;font-weight:900;border-radius:4px;padding:0 4px;line-height:1.4;white-space:nowrap;box-shadow:0 1px 2px rgba(0,0,0,.3)}
+.pv-cap{position:absolute;top:-3px;right:-3px;background:var(--amber);color:#fff;font-size:8px;font-weight:900;width:14px;height:14px;border-radius:50%;display:flex;align-items:center;justify-content:center;border:1.5px solid #fff}
+.pv-no{color:#fff;font-size:10px;font-weight:800;margin-top:7px;text-shadow:0 1px 2px rgba(0,0,0,.5)}
+.pv-nm{color:#fff;font-size:10.5px;font-weight:700;text-align:center;line-height:1.1;max-width:66px;text-shadow:0 1px 2px rgba(0,0,0,.6);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .bso{display:flex;gap:10px;align-items:center;font-size:11px;font-weight:800;color:var(--navy)}
 .bso .b{display:flex;gap:3px;align-items:center}
 .bso .d{width:8px;height:8px;border-radius:50%;background:var(--line)}
@@ -2396,7 +2410,7 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
       var luSel=0;
       function renderLu(){
         var tm=teams[luSel]; if(!tm){ dtBody('<div class="msg"><div class="big">📋</div>'+t("notProvided")+'</div>'); return; }
-        var toggle='<div class="lu-tg">'+teams.map(function(tt,i){ return '<button class="lu-tb'+(i===luSel?" on":"")+'" data-i="'+i+'">'+esc(tt.team||("Team "+(i+1)))+'</button>'; }).join("")+'</div>';
+        var toggle='<div class="lu-tg">'+teams.map(function(tt,i){ return '<button class="lu-tb'+(i===luSel?" on":"")+'" data-i="'+i+'">'+esc(tt.team||(i===0?g.home:g.away)||("Team "+(i+1)))+'</button>'; }).join("")+'</div>';
         var formLine=tm.formation?'<div class="lu-form"><b>'+t("formation")+'</b> '+esc(tm.formation)+'</div>':'';
         // ③ 직전 경기 선발(참고용) 배너 — '확정'/'예상'으로 둔갑시키지 않고 당시 날짜·상대 + 다를 수 있음 안내.
         var kindBanner='';
@@ -2415,7 +2429,24 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
       renderLu();
     }).catch(function(){ dtBody('<div class="msg"><div class="big">⚠️</div>'+t("m_luFail")+'</div>'); });
   }
+  function ratingColor(r){ var n=parseFloat(r); if(isNaN(n))return 'var(--muted)'; if(n>=8)return '#0e8a46'; if(n>=7)return '#1aa65a'; if(n>=6)return '#e0a500'; return '#e5603a'; }
   function pitchHtml(xi){
+    // 좌표(x,y) 전부 있으면 TheSports 실제 포지션으로 배치(경쟁사 라인업 동일) + 선수사진·평점칩
+    var hasXY=xi.length&&xi.every(function(p){return p.x!=null&&p.y!=null;});
+    if(hasXY){
+      var ph='<div class="pitchv">';
+      xi.forEach(function(p){ var pid=p.id!=null?String(p.id):"";
+        var rt=(p.rating!=null&&p.rating!=="")?p.rating:null;
+        ph+='<div class="pv'+(pid?' pl-c':'')+'" style="left:'+p.x+'%;top:'+p.y+'%" data-pid="'+esc(pid)+'" data-pnm="'+esc(p.name||"")+'">'+
+          '<div class="pv-av">'+(p.photo?'<img src="'+esc(p.photo)+'" onerror="this.outerHTML=\'<div class=\\\'pv-ph\\\'>👤</div>\'">':'<div class="pv-ph">👤</div>')+
+          (p.captain?'<span class="pv-cap">C</span>':'')+
+          (rt?'<span class="pv-rt" style="background:'+ratingColor(rt)+'">'+esc(rt)+'</span>':'')+'</div>'+
+          '<div class="pv-no">#'+(p.number!==""?p.number:"")+'</div>'+
+          '<div class="pv-nm">'+esc(p.name)+'</div></div>';
+      });
+      ph+='</div>';
+      return ph;
+    }
     // grid "row:col" 있으면 행별 배치, 없으면 4줄 균등
     var rows={};
     var hasGrid=xi.some(function(p){return p.grid&&/^\d+:\d+$/.test(p.grid)});

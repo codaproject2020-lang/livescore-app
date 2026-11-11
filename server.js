@@ -21,7 +21,7 @@ const app = express();
 const server = http.createServer(app);
 
 const PORT = process.env.PORT || 3000;
-const APP_VERSION = 'v458';
+const APP_VERSION = 'v459';
 
 // ============================================================
 //  📏 성능 계측(instrumentation) — 엔드포인트 지연·캐시·공급사·WS·이벤트루프
@@ -3845,7 +3845,7 @@ async function tsFbPlayer(pid) {
 const tsFbIsStarter = p => p.first === 1 || p.first === true || p.first === '1' || p.type === 1 || p.on_bench === 0;
 async function tsFbBuildSide(arr) {
   if (!Array.isArray(arr)) return { xi: [], subs: [] };
-  const mk = async p => { const pid = p.id || p.player_id || p.uuid; const info = await tsFbPlayer(pid); return { id: pid, name: p.name || info.name || '', number: (p.shirt_number != null ? p.shirt_number : (p.number != null ? p.number : '')), pos: p.position || p.pos || '', grid: '', photo: p.logo || info.logo || '' }; };
+  const mk = async p => { const pid = p.id || p.player_id || p.uuid; const info = await tsFbPlayer(pid); return { id: pid, name: p.name || info.name || '', number: (p.shirt_number != null ? p.shirt_number : (p.number != null ? p.number : '')), pos: p.position || p.pos || '', grid: '', photo: p.logo || info.logo || '', rating: (p.rating != null && p.rating !== '') ? String(p.rating) : null, x: (p.x != null ? p.x : null), y: (p.y != null ? p.y : null), captain: p.captain ? 1 : 0 }; };
   const st = arr.filter(tsFbIsStarter), sb = arr.filter(p => !tsFbIsStarter(p));
   return { xi: await Promise.all(st.slice(0, 11).map(mk)), subs: await Promise.all(sb.slice(0, 12).map(mk)) };
 }
