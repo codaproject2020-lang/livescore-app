@@ -21,7 +21,7 @@ const app = express();
 const server = http.createServer(app);
 
 const PORT = process.env.PORT || 3000;
-const APP_VERSION = 'v459';
+const APP_VERSION = 'v460';
 
 // ============================================================
 //  📏 성능 계측(instrumentation) — 엔드포인트 지연·캐시·공급사·WS·이벤트루프
@@ -4352,6 +4352,30 @@ app.get('/api/football/tsstanding', async (req, res) => {
       }))
     }));
     res.json({ found: true, seasonId, seasonName, groups });
+  } catch (e) { res.json({ found: false, error: String((e && e.message) || e) }); }
+});
+// ⚽ 팀 상세(TheSports) — 팀정보(team/additional) + 최근/다음 경기(match/recent/list) + 폼. 10분 캐시.
+app.get('/api/football/tsteam', async (req, res) => {
+  let id = String(req.query.id || '').replace(/^ts(?=[a-z0-9]{10,})/, '');
+  if (!id) return res.status(400).json({ error: 'need id' });
+  try {
+    const [tj, mj] = await Promise.all([
+      tsFootTeam(id),
+      tsFetch('/football/match/recent/list', { team_id: id }, 600000, 12000).catch(() => null)
+    ]);
+    const list = (mj && mj.results) || [];
+    const dec = m => ({ id: m.id, comp: m.competition_id, season: m.season_id, status: m.status_id, time: m.match_time, home: m.home_team_id, away: m.away_team_id, hs: (m.home_scores && m.home_scores[0] != null ? m.home_scores[0] : null), as: (m.away_scores && m.away_scores[0] != null ? m.away_scores[0] : null) });
+    const all = list.map(dec);
+    const past = all.filter(m => m.status === 8).sort((a, b) => b.time - a.time);
+    const future = all.filter(m => m.status === 1 || m.status === 0).sort((a, b) => a.time - b.time);
+    const recent = past.slice(0, 10), next = future.slice(0, 5);
+    let w = 0, d = 0, l = 0;
+    recent.forEach(m => { const iH = String(m.home) === String(id); const my = iH ? m.hs : m.as, op = iH ? m.as : m.hs; if (my == null || op == null) return; if (my > op) w++; else if (my < op) l++; else d++; });
+    const ids = []; recent.concat(next).forEach(m => { ids.push(m.home); ids.push(m.away); });
+    const nm = await tsNames(ids);
+    const addN = m => Object.assign({}, m, { homeName: (nm[m.home] && nm[m.home].name) || '', awayName: (nm[m.away] && nm[m.away].name) || '', homeLogo: (nm[m.home] && nm[m.home].logo) || '', awayLogo: (nm[m.away] && nm[m.away].logo) || '' });
+    const latestLeague = past.find(m => m.season);
+    res.json({ found: !!tj, team: tj, form: { w, d, l, n: recent.length }, recent: recent.map(addN), next: next.map(addN), seasonId: (latestLeague && latestLeague.season) || '' });
   } catch (e) { res.json({ found: false, error: String((e && e.message) || e) }); }
 });
 // ⚽ 경기 통계(TheSports detail_live stats) — 공격·위험공격·점유율·유효슈팅·빗나간·코너·카드.

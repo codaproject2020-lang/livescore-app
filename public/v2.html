@@ -541,7 +541,21 @@ html[data-theme="dark"] .fgm-poss .pbar{background:#2c3a54}
 .psbar{display:flex;height:26px;border-radius:7px;overflow:hidden;font-size:13px;font-weight:900;color:#fff}
 .psbar .psh{background:var(--navy);display:flex;align-items:center;padding:0 10px}
 .psbar .psa{background:var(--red);display:flex;align-items:center;justify-content:flex-end;padding:0 10px;margin-left:auto}
-/* 라인업 좌표형 경기장(선수사진+평점칩) */
+/* 축구 팀 상세 헤더 */
+.ft-hd{display:flex;flex-direction:column;align-items:center;gap:6px;padding:16px 12px 12px;background:linear-gradient(135deg,var(--navy),#223a63);color:#fff;position:relative}
+.ft-lg{width:58px;height:58px;object-fit:contain}
+.ft-lg.ph{display:flex;align-items:center;justify-content:center;font-size:30px;background:rgba(255,255,255,.12);border-radius:50%}
+.ft-nm{font-size:18px;font-weight:900;text-align:center}
+.ft-fl{height:14px;border-radius:2px}
+.ft-meta{display:flex;gap:18px;margin-top:6px}
+.ft-mi{text-align:center}
+.ft-mi b{display:block;font-size:16px;font-weight:900}
+.ft-mi span{font-size:10.5px;opacity:.75}
+.ft-info{display:flex;justify-content:space-between;padding:9px 4px;border-bottom:1px solid var(--line);font-size:13px}
+.ft-info span{color:var(--muted)}
+.ft-info b{color:var(--navy)}
+.ft-note{margin-top:16px;padding:10px 12px;background:var(--soft);border-radius:10px;font-size:11.5px;color:var(--muted);line-height:1.5}
+#ftBody .dt-tabs{position:sticky;top:0;z-index:2}
 .pitchv{position:relative;width:100%;aspect-ratio:3/4;border-radius:12px;margin:8px 0 4px;overflow:hidden;
   background:linear-gradient(180deg,#2e8b57,#1f6e43);
   background-image:repeating-linear-gradient(180deg,rgba(255,255,255,.05) 0 10%,rgba(0,0,0,.03) 10% 20%),linear-gradient(180deg,#2e8b57,#1f6e43)}
@@ -1896,7 +1910,7 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
     $("#dtBack").onclick=closeDetail;
     var dsh=$("#dtShare"); if(dsh)dsh.onclick=function(){ openMatchShare(g,sport); };
     d.querySelectorAll(".dt-tab").forEach(function(b){ b.onclick=function(){ _dt.tab=b.dataset.dt; renderDetail(); }; });
-    var cols=d.querySelectorAll(".dt-head .tcol"); if(cols[0]){cols[0].style.cursor="pointer";cols[0].onclick=function(){openTeam(g.home,sport)};} if(cols[1]){cols[1].style.cursor="pointer";cols[1].onclick=function(){openTeam(g.away,sport)};}
+    var cols=d.querySelectorAll(".dt-head .tcol"); if(cols[0]){cols[0].style.cursor="pointer";cols[0].onclick=function(){ if(sport==="football"&&g.homeTid)openFootballTeam(g.homeTid,g.home,g.homeLogo); else openTeam(g.home,sport); };} if(cols[1]){cols[1].style.cursor="pointer";cols[1].onclick=function(){ if(sport==="football"&&g.awayTid)openFootballTeam(g.awayTid,g.away,g.awayLogo); else openTeam(g.away,sport); };}
     renderDetailBody();
   }
   function dtBody(h){ var b=$("#dtBody"); if(b)b.innerHTML=h; }
@@ -3392,6 +3406,88 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
       h+='<div class="sv-foot">'+tl({en:"Player profile from API-Sports.",ko:"선수 정보는 API-Sports 제공.",ja:"選手情報はAPI-Sports。",zh:"球员资料来自 API-Sports。",es:"Datos de API-Sports.",hi:"API-Sports से।",vi:"Dữ liệu từ API-Sports.",th:"จาก API-Sports",ru:"Данные API-Sports.",de:"Daten API-Sports.",fr:"Données API-Sports.",it:"Dati API-Sports."})+'</div></div>';
       $("#plBody").innerHTML=h;
     }).catch(function(){ if($("#plBody"))$("#plBody").innerHTML='<div class="msg"><div class="big">⚠️</div>'+t("loadFailRetry")+'</div>'; });
+  }
+  // ====== 축구 팀 상세(TheSports 실데이터) — 개요·경기·순위. 경쟁사 팀 화면 재현(권한 있는 데이터만) ======
+  function fmtMV(v,cur){ if(!v)return null; var s=cur||"€"; if(v>=1e6)return s+(v/1e6).toFixed(v>=1e7?0:1)+"M"; if(v>=1e3)return s+Math.round(v/1e3)+"k"; return s+v; }
+  function fbTeamMatchRow(m,teamId){
+    var d=new Date((m.time||0)*1000); var md=(d.getMonth()+1)+'/'+d.getDate();
+    var sched=(m.status===1||m.status===0);
+    var iH=String(m.home)===String(teamId);
+    var my=iH?m.hs:m.as, op=iH?m.as:m.hs;
+    var res=sched?'<span class="wdlc s" style="background:#9aa1ad">·</span>':((my==null||op==null)?'':(my>op?'<span class="wdlc w">'+t("win")+'</span>':(my<op?'<span class="wdlc l">'+t("lose")+'</span>':'<span class="wdlc d">'+t("draw")+'</span>')));
+    var sc=sched?hhmm(new Date((m.time||0)*1000).toISOString()):((m.hs==null?'-':m.hs)+'–'+(m.as==null?'-':m.as));
+    var bold=function(id,nm){ return String(id)===String(teamId)?'<b>'+esc(nm||'')+'</b>':esc(nm||''); };
+    return '<div class="rl-row"><span class="rl-dt">'+md+'</span><span class="rl-tm" style="text-align:right">'+bold(m.home,m.homeName)+'</span><b class="rl-sc">'+sc+'</b><span class="rl-tm">'+bold(m.away,m.awayName)+'</span>'+res+'</div>';
+  }
+  function openFootballTeam(teamId,teamName,teamLogo){
+    luArm(); var o=overlay("ovFbTeam");
+    o.innerHTML='<div class="dt-bar"><button class="bk" id="ftBack">‹</button><div class="ti">'+esc(teamName||"")+'</div></div><div class="dt-body" id="ftBody"><div class="msg"><div class="big">⏳</div>'+t("loading")+'</div></div>';
+    $("#ftBack").onclick=function(){ closeOverlay("ovFbTeam"); };
+    fetch("/api/football/tsteam?id="+encodeURIComponent(teamId)).then(function(r){return r.json();}).then(function(j){
+      if(!$("#ftBody"))return;
+      if(!j||!j.found||!j.team){ $("#ftBody").innerHTML='<div class="msg"><div class="big">📋</div>'+t("noRecentRec")+'</div>'; return; }
+      var tm=j.team, sel="overview", standCache=null;
+      function header(){
+        var mv=fmtMV(tm.marketValue,tm.marketCur);
+        var rec=j.form?('<span style="color:#1aa65a">'+j.form.w+'</span>-'+j.form.d+'-<span style="color:var(--red)">'+j.form.l+'</span>'):'-';
+        return '<div class="ft-hd">'+(teamLogo||tm.logo?'<img class="ft-lg" src="'+esc(teamLogo||tm.logo)+'" onerror="this.outerHTML=\'<div class=\\\'ft-lg ph\\\'>🛡️</div>\'">':'<div class="ft-lg ph">🛡️</div>')+
+          '<div class="ft-nm">'+esc(tm.name||teamName||"")+'</div>'+
+          (tm.countryLogo?'<img class="ft-fl" src="'+esc(tm.countryLogo)+'">':'')+
+          '<div class="ft-meta">'+
+            '<div class="ft-mi"><b>'+rec+'</b><span>'+tl({en:"Last 10",ko:"최근 10",ja:"直近10",zh:"近10场",es:"Últimos 10",hi:"पिछले 10",vi:"10 trận",th:"10 นัด",ru:"10 матчей",de:"Letzte 10",fr:"10 derniers",it:"Ultime 10"})+'</span></div>'+
+            (mv?'<div class="ft-mi"><b>'+mv+'</b><span>'+tl({en:"Market value",ko:"시장가치",ja:"市場価値",zh:"身价",es:"Valor",hi:"मूल्य",vi:"Giá trị",th:"มูลค่า",ru:"Стоимость",de:"Marktwert",fr:"Valeur",it:"Valore"})+'</span></div>':'')+
+            (tm.totalPlayers?'<div class="ft-mi"><b>'+tm.totalPlayers+'</b><span>'+tl({en:"Players",ko:"선수",ja:"選手",zh:"球员",es:"Jugadores",hi:"खिलाड़ी",vi:"Cầu thủ",th:"นักเตะ",ru:"Игроки",de:"Spieler",fr:"Joueurs",it:"Giocatori"})+'</span></div>':'')+
+          '</div></div>';
+      }
+      function tabs(){ var T=[["overview",t("overview")],["matches",tl({en:"Matches",ko:"경기",ja:"試合",zh:"比赛",es:"Partidos",hi:"मैच",vi:"Trận",th:"แมตช์",ru:"Матчи",de:"Spiele",fr:"Matchs",it:"Partite"})],["rank",t("leagueRank")]];
+        return '<div class="dt-tabs" id="ftTabs">'+T.map(function(x){return '<button class="dt-tab'+(x[0]===sel?" on":"")+'" data-ft="'+x[0]+'">'+x[1]+'</button>';}).join("")+'</div>'; }
+      function body(){
+        if(sel==="overview"){
+          var h='';
+          if(j.form&&j.form.n){ h+='<div class="dt-sec-t">📈 '+t("recentForm")+'</div><div class="wdl-row" style="padding:2px">'+j.recent.slice(0,5).map(function(m){ var iH=String(m.home)===String(teamId); var my=iH?m.hs:m.as,op=iH?m.as:m.hs; var c=(my==null||op==null)?"d":(my>op?"w":(my<op?"l":"d")); return '<span class="wdlc '+c+'">'+(my==null?'-':my)+':'+(op==null?'-':op)+'</span>'; }).join("")+'</div>'; }
+          if(j.next&&j.next.length){ h+='<div class="dt-sec-t" style="margin-top:14px">📅 '+t("next5")+'</div><div class="rec-list">'+j.next.map(function(m){return fbTeamMatchRow(m,teamId);}).join("")+'</div>'; }
+          if(j.recent&&j.recent.length){ h+='<div class="dt-sec-t" style="margin-top:14px">🕘 '+t("recentMatches")+'</div><div class="rec-list">'+j.recent.slice(0,5).map(function(m){return fbTeamMatchRow(m,teamId);}).join("")+'</div>'; }
+          // 기본 정보
+          var info=[];
+          if(tm.foundation) info.push([tl({en:"Founded",ko:"창단",ja:"創設",zh:"成立",es:"Fundado",hi:"स्थापना",vi:"Thành lập",th:"ก่อตั้ง",ru:"Основан",de:"Gegründet",fr:"Fondé",it:"Fondato"}), new Date(tm.foundation*1000).getFullYear()]);
+          if(tm.foreignPlayers) info.push([tl({en:"Foreign players",ko:"외국인 선수",ja:"外国人選手",zh:"外援",es:"Extranjeros",hi:"विदेशी",vi:"Ngoại binh",th:"ต่างชาติ",ru:"Легионеры",de:"Ausländer",fr:"Étrangers",it:"Stranieri"}), tm.foreignPlayers]);
+          if(info.length){ h+='<div class="dt-sec-t" style="margin-top:14px">ℹ️ '+t("matchInfo")+'</div>'+info.map(function(r){return '<div class="ft-info"><span>'+r[0]+'</span><b>'+esc(String(r[1]))+'</b></div>';}).join(""); }
+          // 미제공 안내(플랜)
+          h+='<div class="ft-note">'+tl({en:"Squad / player stats / bracket require the TheSports player package.",ko:"선수단·선수데이터·토너먼트는 TheSports 선수 데이터 패키지 권한이 필요합니다.",ja:"選手名鑑はTheSports選手パッケージが必要です。",zh:"阵容/球员数据需TheSports球员套餐。",es:"Plantilla requiere paquete de jugadores.",hi:"स्क्वाड हेतु प्लेयर पैकेज चाहिए।",vi:"Cần gói cầu thủ TheSports.",th:"ต้องใช้แพ็กเกจผู้เล่น",ru:"Нужен пакет игроков.",de:"Benötigt Spielerpaket.",fr:"Nécessite le pack joueurs.",it:"Richiede pacchetto giocatori."})+'</div>';
+          return h||('<div class="msg"><div class="big">📋</div>'+t("noRecentRec")+'</div>');
+        }
+        if(sel==="matches"){
+          var all=(j.next||[]).slice().reverse().concat(j.recent||[]);
+          if(!all.length)return '<div class="msg"><div class="big">📋</div>'+t("noRecentRec")+'</div>';
+          return '<div class="rec-list">'+all.map(function(m){return fbTeamMatchRow(m,teamId);}).join("")+'</div>';
+        }
+        if(sel==="rank"){ return '<div id="ftRank"><div class="msg"><div class="big">⏳</div>'+t("loading")+'</div></div>'; }
+        return '';
+      }
+      function paint(){
+        $("#ftBody").innerHTML=header()+tabs()+'<div id="ftTabBody">'+body()+'</div>';
+        $("#ftBody").querySelectorAll(".dt-tab").forEach(function(b){ b.onclick=function(){ sel=b.dataset.ft; paint(); }; });
+        if(sel==="rank"){ loadFtRank(); }
+      }
+      function loadFtRank(){
+        var box=$("#ftRank"); if(!box)return;
+        if(standCache){ box.innerHTML=standCache; bindRank(); return; }
+        if(!j.seasonId){ box.innerHTML='<div class="msg"><div class="big">📊</div>'+t("noStatsShow")+'</div>'; return; }
+        fetch("/api/football/tsstanding?season="+encodeURIComponent(j.seasonId)).then(function(r){return r.json();}).then(function(s){
+          var box2=$("#ftRank"); if(!box2)return;
+          if(!s||!s.found||!s.groups){ box2.innerHTML='<div class="msg"><div class="big">📊</div>'+t("noStatsShow")+'</div>'; return; }
+          var h=''; s.groups.forEach(function(grp){
+            h+='<table class="lgtbl"><tr><th>#</th><th style="text-align:left">'+tl({en:"Team",ko:"팀",ja:"チーム",zh:"球队",es:"Equipo",hi:"टीम",vi:"Đội",th:"ทีม",ru:"Команда",de:"Team",fr:"Équipe",it:"Squadra"})+'</th><th>P</th><th>'+t("win")+'</th><th>'+t("draw")+'</th><th>'+t("lose")+'</th><th>±</th><th>PTS</th></tr>';
+            grp.rows.forEach(function(r){ var mine=String(r.teamId)===String(teamId); var gd=(r.gd>0?"+":"")+r.gd;
+              h+='<tr class="'+(mine?"lg-me":"")+'"><td class="lg-ps">'+r.pos+'</td><td class="lg-tm">'+(r.logo?'<img src="'+esc(r.logo)+'" onerror="this.style.display=\'none\'">':'')+'<span>'+esc(r.team||("#"+r.pos))+'</span></td><td>'+r.played+'</td><td>'+r.w+'</td><td>'+r.d+'</td><td>'+r.l+'</td><td>'+esc(gd)+'</td><td class="lg-pt">'+r.pts+'</td></tr>'; });
+            h+='</table>';
+          });
+          standCache=h; box2.innerHTML=h;
+        }).catch(function(){ var b=$("#ftRank"); if(b)b.innerHTML='<div class="msg"><div class="big">⚠️</div>'+t("loadFailRetry")+'</div>'; });
+      }
+      function bindRank(){}
+      paint();
+    }).catch(function(){ if($("#ftBody"))$("#ftBody").innerHTML='<div class="msg"><div class="big">⚠️</div>'+t("loadFailRetry")+'</div>'; });
   }
   function openTeam(name,sport,teamId,ctx){
     if(!name)return;
