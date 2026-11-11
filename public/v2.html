@@ -527,6 +527,14 @@ html[data-theme="dark"] .fgm-poss .pbar{background:#2c3a54}
 .mmt-lg span{display:flex;align-items:center;gap:5px}
 .mmt-lg i{width:10px;height:10px;border-radius:3px;display:inline-block}
 .mmt-lg .mut{color:var(--muted);font-weight:600}
+/* 개요 게이지(공격/위험공격/점유율) */
+.gg-wrap{display:flex;justify-content:space-around;gap:8px;margin:12px 0 6px}
+.gg{flex:1;text-align:center;min-width:0}
+.gg-l{font-size:11px;color:var(--muted);font-weight:700;margin-bottom:5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.gg-row{display:flex;align-items:center;justify-content:center;gap:6px}
+.gg-sv{width:46px;height:46px;flex:0 0 auto}
+.gg-n{font-size:15px;font-weight:900}
+.gg-n.hn{color:var(--navy)}.gg-n.an{color:var(--red)}
 .bso{display:flex;gap:10px;align-items:center;font-size:11px;font-weight:800;color:var(--navy)}
 .bso .b{display:flex;gap:3px;align-items:center}
 .bso .d{width:8px;height:8px;border-radius:50%;background:var(--line)}
@@ -2105,7 +2113,47 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
     }).catch(function(){ var bx=$("#ovFlow"); if(bx)bx.innerHTML=''; });
   }
   // 개요용 핵심 통계 요약(점유율·슈팅·유효슈팅·경고·퇴장) — fbstats 1회 호출(탭과 동일 캐시)
+  // 개요 핵심 통계 — TheSports detail_live stats(공격·위험공격·점유율·유효/빗나간슈팅·코너·카드). 경쟁사 개요 게이지 재현.
   function loadOverviewStats(g){
+    var tk=_dtTok;
+    fetch("/api/football/tsstats?id="+encodeURIComponent(g.tsid||g.id)).then(function(r){return r.json();}).then(function(j){
+      if(tk!==_dtTok)return; var box=$("#ovStats"); if(!box)return;
+      if(!j||!j.found){ loadOverviewStatsAS(g); return; }
+      var H=j.home||{}, A=j.away||{};
+      var any=['attacks','dangerAttacks','poss','sot','shotsOff','shots','corners','yc','rc'].some(function(k){return H[k]!=null||A[k]!=null;});
+      if(!any){ loadOverviewStatsAS(g); return; }
+      var h='<div class="dt-sec-t" style="margin-top:18px">📊 '+t("keyStats")+'</div>';
+      // 원형 게이지(공격/위험공격/점유율)
+      function gauge(label,hv,av,unit){
+        if(hv==null&&av==null)return '';
+        var hn=+hv||0,an=+av||0,tot=hn+an||1,hp=hn/tot; var C=2*Math.PI*15.5;
+        return '<div class="gg"><div class="gg-l">'+label+'</div><div class="gg-row">'+
+          '<span class="gg-n hn">'+(hv==null?'-':hv)+'</span>'+
+          '<svg viewBox="0 0 40 40" class="gg-sv"><circle cx="20" cy="20" r="15.5" fill="none" stroke="var(--red)" stroke-width="5"/>'+
+          '<circle cx="20" cy="20" r="15.5" fill="none" stroke="var(--navy)" stroke-width="5" stroke-linecap="round" stroke-dasharray="'+(C*hp).toFixed(1)+' '+(C*(1-hp)).toFixed(1)+'" transform="rotate(-90 20 20)"/>'+
+          (unit?'<text x="20" y="24.5" text-anchor="middle" font-size="11" fill="#8a93a3">'+unit+'</text>':'')+'</svg>'+
+          '<span class="gg-n an">'+(av==null?'-':av)+'</span></div></div>';
+      }
+      var gauges='';
+      if(H.attacks!=null||A.attacks!=null) gauges+=gauge(tl({en:"Attacks",ko:"공격",ja:"攻撃",zh:"进攻",es:"Ataques",hi:"अटैक",vi:"Tấn công",th:"บุก",ru:"Атаки",de:"Angriffe",fr:"Attaques",it:"Attacchi"}),H.attacks,A.attacks,'›');
+      if(H.dangerAttacks!=null||A.dangerAttacks!=null) gauges+=gauge(tl({en:"Dangerous",ko:"위험 공격",ja:"危険攻撃",zh:"危险进攻",es:"Peligrosos",hi:"खतरनाक",vi:"Nguy hiểm",th:"อันตราย",ru:"Опасные",de:"Gefährlich",fr:"Dangereuses",it:"Pericolosi"}),H.dangerAttacks,A.dangerAttacks,'»');
+      if(H.poss!=null||A.poss!=null) gauges+=gauge(t("possLbl"),H.poss,A.poss,'%');
+      if(gauges) h+='<div class="gg-wrap">'+gauges+'</div>';
+      // 바(유효슈팅/빗나간/코너)
+      function bar(label,hv,av){ if(hv==null&&av==null)return ''; var hn=+hv||0,an=+av||0,tot=hn+an||1; return '<div class="stbar"><div class="lab"><span>'+(hv==null?'-':hv)+'</span><span style="color:#8a93a3">'+label+'</span><span>'+(av==null?'-':av)+'</span></div><div class="tr"><div class="h" style="width:'+(hn/tot*100)+'%"></div><div class="a" style="width:'+(an/tot*100)+'%"></div></div></div>'; }
+      var body='';
+      body+=bar(tl({en:"Shots on target",ko:"유효 슈팅",ja:"枠内シュート",zh:"射正",es:"Tiros a puerta",hi:"ऑन टारगेट",vi:"Sút trúng đích",th:"ยิงเข้ากรอบ",ru:"Удары в створ",de:"Schüsse aufs Tor",fr:"Tirs cadrés",it:"Tiri in porta"}),H.sot,A.sot);
+      body+=bar(tl({en:"Shots off target",ko:"빗나간 슈팅",ja:"枠外シュート",zh:"射偏",es:"Tiros fuera",hi:"ऑफ टारगेट",vi:"Sút ra ngoài",th:"ยิงออกนอกกรอบ",ru:"Мимо",de:"Schüsse daneben",fr:"Tirs non cadrés",it:"Tiri fuori"}),H.shotsOff,A.shotsOff);
+      body+=bar(tl({en:"Corners",ko:"코너킥",ja:"コーナー",zh:"角球",es:"Córners",hi:"कॉर्नर",vi:"Phạt góc",th:"เตะมุม",ru:"Угловые",de:"Ecken",fr:"Corners",it:"Calci d'angolo"}),H.corners,A.corners);
+      if((H.yc!=null||A.yc!=null)||(H.rc!=null||A.rc!=null)){
+        var cell=function(s){ var y=s.yc,r=s.rc,o=''; if(y!=null)o+='<span class="cdc y">🟨 '+y+'</span>'; if(r!=null)o+='<span class="cdc r">🟥 '+r+'</span>'; return o||'<span class="cdc z">-</span>'; };
+        body+='<div class="cards-row"><span class="cc">'+cell(H)+'</span><span class="cl">'+tl({en:"Cards",ko:"경고/퇴장",ja:"カード",zh:"牌",es:"Tarjetas",hi:"कार्ड",vi:"Thẻ",th:"ใบ",ru:"Карточки",de:"Karten",fr:"Cartons",it:"Cartellini"})+'</span><span class="cc">'+cell(A)+'</span></div>';
+      }
+      box.innerHTML=h+body;
+    }).catch(function(){ loadOverviewStatsAS(g); });
+  }
+  // 폴백: TheSports 통계 미제공 → 기존 API-Sports fbstats
+  function loadOverviewStatsAS(g){
     var tk=_dtTok;
     fetch("/api/asports/fbstats?fixture="+encodeURIComponent(g.apiFixture||g.id)).then(function(r){return r.json()}).then(function(j){
       if(tk!==_dtTok)return; var box=$("#ovStats"); if(!box)return;

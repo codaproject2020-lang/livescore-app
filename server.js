@@ -21,7 +21,7 @@ const app = express();
 const server = http.createServer(app);
 
 const PORT = process.env.PORT || 3000;
-const APP_VERSION = 'v456';
+const APP_VERSION = 'v457';
 
 // ============================================================
 //  📏 성능 계측(instrumentation) — 엔드포인트 지연·캐시·공급사·WS·이벤트루프
@@ -4352,6 +4352,29 @@ app.get('/api/football/tsstanding', async (req, res) => {
       }))
     }));
     res.json({ found: true, seasonId, seasonName, groups });
+  } catch (e) { res.json({ found: false, error: String((e && e.message) || e) }); }
+});
+// ⚽ 경기 통계(TheSports detail_live stats) — 공격·위험공격·점유율·유효슈팅·빗나간·코너·카드.
+//    stat type: 2=코너,3=옐로,4=레드,5=오프사이드,7=프리킥,8=골킥,9=PK,21=유효슈팅,22=빗나간,23=공격,24=위험공격,25=점유율
+const _FB_STAT_TYPE = { 2: 'corners', 3: 'yc', 4: 'rc', 5: 'offsides', 7: 'freeKicks', 8: 'goalKicks', 9: 'penalty', 21: 'sot', 22: 'shotsOff', 23: 'attacks', 24: 'dangerAttacks', 25: 'poss' };
+app.get('/api/football/tsstats', async (req, res) => {
+  let id = String(req.query.id || ''); id = id.replace(/^ts(?=[a-z0-9]{10,})/, '');
+  if (!id) return res.status(400).json({ error: 'need id' });
+  try {
+    const lv = await tsFetch('/football/match/detail_live', {}, 5000, 9000).catch(() => null);
+    const list = (lv && lv.results) || [];
+    const item = list.find(x => x && String(x.id) === String(id));
+    let stats = item && item.stats;
+    if (!stats || !stats.length) {   // 오래된 종료 경기 → live/history 폴백
+      const h = await tsFetch('/football/match/live/history', { uuid: id }, 300000, 9000).catch(() => null);
+      const R = h && h.results; stats = (R && (R.stats || (R.detail && R.detail.stats))) || null;
+    }
+    if (!stats || !stats.length) return res.json({ found: false });
+    const home = {}, away = {};
+    stats.forEach(s => { const k = _FB_STAT_TYPE[s.type]; if (k) { home[k] = s.home; away[k] = s.away; } });
+    if (home.sot != null || home.shotsOff != null) home.shots = (home.sot || 0) + (home.shotsOff || 0);
+    if (away.sot != null || away.shotsOff != null) away.shots = (away.sot || 0) + (away.shotsOff || 0);
+    res.json({ found: true, home, away });
   } catch (e) { res.json({ found: false, error: String((e && e.message) || e) }); }
 });
 // ⚽ 경기 흐름(모멘텀) — TheSports trend/detail. 반별 분당 모멘텀(-100~100, +홈/−원정). 라이브 20초 캐시.
