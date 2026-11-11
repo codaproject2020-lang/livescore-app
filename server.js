@@ -21,7 +21,7 @@ const app = express();
 const server = http.createServer(app);
 
 const PORT = process.env.PORT || 3000;
-const APP_VERSION = 'v453';
+const APP_VERSION = 'v454';
 
 // ============================================================
 //  📏 성능 계측(instrumentation) — 엔드포인트 지연·캐시·공급사·WS·이벤트루프
@@ -4296,6 +4296,60 @@ app.get('/api/football/tsanalysis', async (req, res) => {
       vs, homeRecent: homeRec, awayRecent: awayRec, future,
       homeForm: form(homeRec, homeId), awayForm: form(awayRec, awayId)
     });
+  } catch (e) { res.json({ found: false, error: String((e && e.message) || e) }); }
+});
+// ⚽ TheSports 팀 정보 캐시(이름·로고·국가·시장가치·창단·스쿼드수) — 순위표/팀상세 이름 해석에 재사용
+const _tsTeamCache = new Map();
+async function tsFootTeam(id) {
+  if (!id) return null;
+  if (_tsTeamCache.has(id)) return _tsTeamCache.get(id);
+  let out = null;
+  try {
+    const r = await tsFetch('/football/team/additional/list', { uuid: id }, 86400000, 9000).catch(() => null);
+    const t = r && r.results && r.results[0];
+    if (t) out = { id: t.id, name: t.name || t.short_name || '', logo: t.logo || '', countryLogo: t.country_logo || '', countryId: t.country_id || '', national: t.national || 0, foundation: t.foundation_time || 0, marketValue: t.market_value || 0, marketCur: t.market_value_currency || '', totalPlayers: t.total_players || 0, foreignPlayers: t.foreign_players || 0, coachId: t.coach_id || '', venueId: t.venue_id || '' };
+  } catch (e) {}
+  _tsTeamCache.set(id, out);
+  return out;
+}
+async function tsNames(ids) {
+  const uniq = [...new Set(ids.filter(Boolean))];
+  const map = {};
+  // 과도한 동시호출 방지: 8개씩 끊어서
+  for (let i = 0; i < uniq.length; i += 8) {
+    const chunk = uniq.slice(i, i + 8);
+    const got = await Promise.all(chunk.map(tsFootTeam));
+    got.forEach((t, k) => { if (t) map[chunk[k]] = t; });
+  }
+  return map;
+}
+// ⚽ 순위표(TheSports season table) — match uuid → season → table → 팀명 해석. 10분 캐시.
+app.get('/api/football/tsstanding', async (req, res) => {
+  const id = String(req.query.id || ''), seasonQ = String(req.query.season || '');
+  if (!id && !seasonQ) return res.status(400).json({ error: 'need id or season' });
+  try {
+    let seasonId = seasonQ, seasonName = '';
+    if (!seasonId) {
+      const a = await tsFetch('/football/match/analysis', { uuid: id }, 300000, 9000).catch(() => null);
+      const info = a && a.results && a.results.info;
+      seasonId = (info && info[9] && info[9][0]) || '';
+      seasonName = (info && info[9] && info[9][1]) || '';
+    }
+    if (!seasonId) return res.json({ found: false });
+    const r = await tsFetch('/football/season/recent/table/detail', { uuid: seasonId }, 600000, 9000).catch(() => null);
+    const tables = (r && r.results && r.results.tables) || [];
+    if (!tables.length) return res.json({ found: false, seasonId });
+    const allIds = [];
+    tables.forEach(tb => (tb.rows || []).forEach(rw => allIds.push(rw.team_id)));
+    const nm = await tsNames(allIds);
+    const groups = tables.map(tb => ({
+      group: tb.group || 0,
+      rows: (tb.rows || []).sort((a, b) => a.position - b.position).map(rw => ({
+        pos: rw.position, teamId: rw.team_id, team: (nm[rw.team_id] && nm[rw.team_id].name) || '', logo: (nm[rw.team_id] && nm[rw.team_id].logo) || '',
+        played: rw.total, w: rw.won, d: rw.draw, l: rw.loss, gf: rw.goals, ga: rw.goals_against, gd: rw.goal_diff, pts: rw.points, note: rw.note || ''
+      }))
+    }));
+    res.json({ found: true, seasonId, seasonName, groups });
   } catch (e) { res.json({ found: false, error: String((e && e.message) || e) }); }
 });
 // ⚽ 메인카드용 라이브 요약 통계 — 진행 중 경기만 서버에서 묶어서 1회 응답(개별 호출 금지 규칙 준수)

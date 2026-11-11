@@ -508,6 +508,18 @@ html[data-theme="dark"] .fgm-poss .pbar{background:#2c3a54}
 .trd th{color:var(--muted);font-weight:700;font-size:11px;padding:5px 8px;border-bottom:1px solid var(--line)}
 .trd td{padding:7px 8px;border-bottom:1px solid var(--line);text-align:right;font-weight:700;color:var(--navy)}
 .trd td:first-child{text-align:left;color:var(--muted);font-weight:600}
+/* 순위표 */
+.st-grp{font-weight:800;font-size:12.5px;color:var(--navy);margin:12px 0 4px}
+.lgtbl{width:100%;border-collapse:collapse;font-size:12px}
+.lgtbl th{color:var(--muted);font-weight:700;font-size:10.5px;padding:6px 3px;border-bottom:1px solid var(--line);text-align:center}
+.lgtbl td{padding:7px 3px;border-bottom:1px solid var(--line);text-align:center;color:var(--navy);font-weight:600}
+.lgtbl .lg-ps{font-weight:800;width:22px}
+.lgtbl .lg-tm{text-align:left;display:flex;align-items:center;gap:6px;font-weight:700}
+.lgtbl .lg-tm img{width:18px;height:18px;object-fit:contain;flex:0 0 auto}
+.lgtbl .lg-tm span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:120px}
+.lgtbl .lg-pt{font-weight:900;color:var(--navy)}
+.lgtbl tr.lg-me{background:rgba(223,18,59,.07)}
+.lgtbl tr.lg-me .lg-ps{color:var(--red)}
 .bso{display:flex;gap:10px;align-items:center;font-size:11px;font-weight:800;color:var(--navy)}
 .bso .b{display:flex;gap:3px;align-items:center}
 .bso .d{width:8px;height:8px;border-radius:50%;background:var(--line)}
@@ -1824,7 +1836,7 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
   var TRK=["football","basketball","volleyball","baseball"];   // TheSports Live Match Tracker 지원 종목
   function trkTab(){ return ["tracker","🎥 "+t("trackerTab")]; }
   function detailTabs(sport){
-    if(sport==="football") return [["overview",t("overview")],trkTab(),["stats",t("statsTab")],["lineup",t("lineup")],["events",t("eventsTab")],["fbh2h","H2H"],["record",t("recordTab")],["chat",t("chat")]];
+    if(sport==="football") return [["overview",t("overview")],trkTab(),["stats",t("statsTab")],["lineup",t("lineup")],["events",t("eventsTab")],["fbh2h","H2H"],["fbrank",t("leagueRank")],["record",t("recordTab")],["chat",t("chat")]];
     if(sport==="baseball") return [["overview",t("overview")],trkTab(),["box",t("boxTab")],["chat",t("chat")]];
     if(sport==="basketball") return [["overview",t("overview")],trkTab(),["bsklineup",t("lineup")],["box",t("playerRec")],["bskteam",t("teamStat")],["bskflow",t("flowTab")],["bskrec",t("recordTab")],["chat",t("chat")]];
     if(sport==="volleyball") return [["overview",t("overview")],trkTab(),["vbstats",t("statsTab")],["vbh2h",t("h2hTab")],["vbrank",t("standings")],["chat",t("chat")]];
@@ -1920,6 +1932,7 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
       if(tab==="events") return loadFootballEvents(g);
       if(tab==="stats") return loadFootballStats(g);
       if(tab==="fbh2h") return loadFootballH2H(g);
+      if(tab==="fbrank") return loadFootballStanding(g);
       if(tab==="record") return loadFootballRecord(g);
     }
     if(sport==="baseball"&&tab==="box"){ return renderBaseballBox(g); }
@@ -2201,6 +2214,30 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
         }).join("")+'</div>';
       }
       if(!h) h='<div class="msg"><div class="big">📋</div>'+t("noRecentRec")+'</div>';
+      dtBody('<div style="padding:4px 2px">'+h+'</div>');
+    }).catch(function(){ if(tk===_dtTok&&$("#dtBody"))dtBody('<div class="msg"><div class="big">⚠️</div>'+t("loadFailRetry")+'</div>'); });
+  }
+  // ====== 축구 순위표 (TheSports season table 실데이터) — 경쟁사 순위표 화면 재현 ======
+  function loadFootballStanding(g){
+    dtLoading(); var tk=_dtTok;
+    fetch("/api/football/tsstanding?id="+encodeURIComponent(g.id)).then(function(r){ if(!r.ok)throw 0; return r.json(); }).then(function(j){
+      if(tk!==_dtTok||!$("#dtBody"))return;
+      if(!j||!j.found||!j.groups||!j.groups.length){ dtBody('<div class="msg"><div class="big">📊</div>'+t("noStatsShow")+'</div>'); return; }
+      var hid=String(g.homeId||""), aid=String(g.awayId||"");
+      var h='';
+      if(j.seasonName) h+='<div class="dt-sec-t">🏆 '+esc(j.seasonName)+'</div>';
+      j.groups.forEach(function(grp){
+        if(j.groups.length>1) h+='<div class="st-grp">'+tl({en:"Group",ko:"그룹",ja:"グループ",zh:"小组",es:"Grupo",hi:"समूह",vi:"Bảng",th:"กลุ่ม",ru:"Группа",de:"Gruppe",fr:"Groupe",it:"Girone"})+' '+grp.group+'</div>';
+        h+='<table class="lgtbl"><tr><th>#</th><th style="text-align:left">'+tl({en:"Team",ko:"팀",ja:"チーム",zh:"球队",es:"Equipo",hi:"टीम",vi:"Đội",th:"ทีม",ru:"Команда",de:"Team",fr:"Équipe",it:"Squadra"})+'</th><th>P</th><th>'+t("win")+'</th><th>'+t("draw")+'</th><th>'+t("lose")+'</th><th>'+tl({en:"GD",ko:"득실",ja:"得失",zh:"净胜",es:"DG",hi:"GD",vi:"HS",th:"ลต",ru:"РМ",de:"TD",fr:"Diff",it:"DR"})+'</th><th>'+tl({en:"PTS",ko:"승점",ja:"勝点",zh:"积分",es:"PTS",hi:"अंक",vi:"Đ",th:"แต้ม",ru:"О",de:"Pkt",fr:"PTS",it:"PTI"})+'</th></tr>';
+        grp.rows.forEach(function(r){
+          var mine=(String(r.teamId)===hid||String(r.teamId)===aid);
+          var gdv=(r.gd>0?"+":"")+r.gd;
+          h+='<tr class="'+(mine?"lg-me":"")+'"><td class="lg-ps">'+r.pos+'</td>'+
+             '<td class="lg-tm">'+(r.logo?'<img src="'+esc(r.logo)+'" onerror="this.style.display=\'none\'">':'')+'<span>'+esc(r.team||("#"+r.pos))+'</span></td>'+
+             '<td>'+r.played+'</td><td>'+r.w+'</td><td>'+r.d+'</td><td>'+r.l+'</td><td>'+esc(gdv)+'</td><td class="lg-pt">'+r.pts+'</td></tr>';
+        });
+        h+='</table>';
+      });
       dtBody('<div style="padding:4px 2px">'+h+'</div>');
     }).catch(function(){ if(tk===_dtTok&&$("#dtBody"))dtBody('<div class="msg"><div class="big">⚠️</div>'+t("loadFailRetry")+'</div>'); });
   }
