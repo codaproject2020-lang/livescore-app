@@ -1910,7 +1910,7 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
     $("#dtBack").onclick=closeDetail;
     var dsh=$("#dtShare"); if(dsh)dsh.onclick=function(){ openMatchShare(g,sport); };
     d.querySelectorAll(".dt-tab").forEach(function(b){ b.onclick=function(){ _dt.tab=b.dataset.dt; renderDetail(); }; });
-    var cols=d.querySelectorAll(".dt-head .tcol"); if(cols[0]){cols[0].style.cursor="pointer";cols[0].onclick=function(){ if(sport==="football"&&g.homeTid)openFootballTeam(g.homeTid,g.home,g.homeLogo); else openTeam(g.home,sport); };} if(cols[1]){cols[1].style.cursor="pointer";cols[1].onclick=function(){ if(sport==="football"&&g.awayTid)openFootballTeam(g.awayTid,g.away,g.awayLogo); else openTeam(g.away,sport); };}
+    var cols=d.querySelectorAll(".dt-head .tcol"); if(cols[0]){cols[0].style.cursor="pointer";cols[0].onclick=function(){ if(sport==="football"&&g.homeTid)openFootballTeam(g.homeTid,g.home,g.homeLogo,(g.tsid||g.id),"home"); else openTeam(g.home,sport); };} if(cols[1]){cols[1].style.cursor="pointer";cols[1].onclick=function(){ if(sport==="football"&&g.awayTid)openFootballTeam(g.awayTid,g.away,g.awayLogo,(g.tsid||g.id),"away"); else openTeam(g.away,sport); };}
     renderDetailBody();
   }
   function dtBody(h){ var b=$("#dtBody"); if(b)b.innerHTML=h; }
@@ -3419,11 +3419,11 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
     var bold=function(id,nm){ return String(id)===String(teamId)?'<b>'+esc(nm||'')+'</b>':esc(nm||''); };
     return '<div class="rl-row"><span class="rl-dt">'+md+'</span><span class="rl-tm" style="text-align:right">'+bold(m.home,m.homeName)+'</span><b class="rl-sc">'+sc+'</b><span class="rl-tm">'+bold(m.away,m.awayName)+'</span>'+res+'</div>';
   }
-  function openFootballTeam(teamId,teamName,teamLogo){
+  function openFootballTeam(teamId,teamName,teamLogo,matchTsid,side){
     luArm(); var o=overlay("ovFbTeam");
     o.innerHTML='<div class="dt-bar"><button class="bk" id="ftBack">‹</button><div class="ti">'+esc(teamName||"")+'</div></div><div class="dt-body" id="ftBody"><div class="msg"><div class="big">⏳</div>'+t("loading")+'</div></div>';
     $("#ftBack").onclick=function(){ closeOverlay("ovFbTeam"); };
-    fetch("/api/football/tsteam?id="+encodeURIComponent(teamId)).then(function(r){return r.json();}).then(function(j){
+    fetch("/api/football/tsteam?id="+encodeURIComponent(teamId)+"&match="+encodeURIComponent(matchTsid||"")+"&side="+encodeURIComponent(side||"home")).then(function(r){return r.json();}).then(function(j){
       if(!$("#ftBody"))return;
       if(!j||!j.found||!j.team){ $("#ftBody").innerHTML='<div class="msg"><div class="big">📋</div>'+t("noRecentRec")+'</div>'; return; }
       var tm=j.team, sel="overview", standCache=null;
@@ -3472,8 +3472,9 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
       function loadFtRank(){
         var box=$("#ftRank"); if(!box)return;
         if(standCache){ box.innerHTML=standCache; bindRank(); return; }
-        if(!j.seasonId){ box.innerHTML='<div class="msg"><div class="big">📊</div>'+t("noStatsShow")+'</div>'; return; }
-        fetch("/api/football/tsstanding?season="+encodeURIComponent(j.seasonId)).then(function(r){return r.json();}).then(function(s){
+        var su=j.seasonId?("season="+encodeURIComponent(j.seasonId)):(matchTsid?("id="+encodeURIComponent(matchTsid)):"");
+        if(!su){ box.innerHTML='<div class="msg"><div class="big">📊</div>'+t("noStatsShow")+'</div>'; return; }
+        fetch("/api/football/tsstanding?"+su).then(function(r){return r.json();}).then(function(s){
           var box2=$("#ftRank"); if(!box2)return;
           if(!s||!s.found||!s.groups){ box2.innerHTML='<div class="msg"><div class="big">📊</div>'+t("noStatsShow")+'</div>'; return; }
           var h=''; s.groups.forEach(function(grp){
