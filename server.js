@@ -21,7 +21,7 @@ const app = express();
 const server = http.createServer(app);
 
 const PORT = process.env.PORT || 3000;
-const APP_VERSION = 'v455';
+const APP_VERSION = 'v456';
 
 // ============================================================
 //  📏 성능 계측(instrumentation) — 엔드포인트 지연·캐시·공급사·WS·이벤트루프
@@ -4352,6 +4352,17 @@ app.get('/api/football/tsstanding', async (req, res) => {
       }))
     }));
     res.json({ found: true, seasonId, seasonName, groups });
+  } catch (e) { res.json({ found: false, error: String((e && e.message) || e) }); }
+});
+// ⚽ 경기 흐름(모멘텀) — TheSports trend/detail. 반별 분당 모멘텀(-100~100, +홈/−원정). 라이브 20초 캐시.
+app.get('/api/football/trend', async (req, res) => {
+  let id = String(req.query.id || ''); if (!id) return res.status(400).json({ error: 'need id' });
+  id = id.replace(/^ts(?=[a-z0-9]{10,})/, '');
+  try {
+    const r = await tsFetch('/football/match/trend/detail', { uuid: id }, 20000, 9000).catch(() => null);
+    const R = r && r.results;
+    if (!R || !R.data || !R.data.length) return res.json({ found: false });
+    res.json({ found: true, count: R.count || R.data.length, per: R.per || 45, data: R.data });
   } catch (e) { res.json({ found: false, error: String((e && e.message) || e) }); }
 });
 // ⚽ 메인카드용 라이브 요약 통계 — 진행 중 경기만 서버에서 묶어서 1회 응답(개별 호출 금지 규칙 준수)

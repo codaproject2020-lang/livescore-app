@@ -520,6 +520,13 @@ html[data-theme="dark"] .fgm-poss .pbar{background:#2c3a54}
 .lgtbl .lg-pt{font-weight:900;color:var(--navy)}
 .lgtbl tr.lg-me{background:rgba(223,18,59,.07)}
 .lgtbl tr.lg-me .lg-ps{color:var(--red)}
+/* 경기 흐름(모멘텀) 그래프 */
+.mmt-wrap{margin-top:6px}
+.mmt-svg{width:100%;height:120px;display:block;background:linear-gradient(180deg,rgba(43,108,240,.05),rgba(28,166,90,.05));border-radius:10px}
+.mmt-lg{display:flex;gap:14px;align-items:center;justify-content:center;flex-wrap:wrap;font-size:11.5px;font-weight:700;color:var(--navy);margin-top:6px}
+.mmt-lg span{display:flex;align-items:center;gap:5px}
+.mmt-lg i{width:10px;height:10px;border-radius:3px;display:inline-block}
+.mmt-lg .mut{color:var(--muted);font-weight:600}
 .bso{display:flex;gap:10px;align-items:center;font-size:11px;font-weight:800;color:var(--navy)}
 .bso .b{display:flex;gap:3px;align-items:center}
 .bso .d{width:8px;height:8px;border-radius:50%;background:var(--line)}
@@ -2025,9 +2032,40 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
   }
   // F01/F02: 축구 경기 흐름 그래프 — API-Football 이벤트(득점·카드·교체의 실제 분)로 득점 진행 타임라인.
   //  시간대별 모멘텀 파형은 공급사 미제공이라 생성하지 않음(명령서 F02). 데이터 없으면 '미제공' 명시.
+  // 경기 흐름(모멘텀) — TheSports trend/detail 실데이터. 반별 분당 모멘텀(+홈/−원정)을 파랑/초록 파형으로.
   function loadFootballFlow(g){
+    var box=$("#ovFlow"); if(!box)return; var tk=_dtTok;
+    fetch("/api/football/trend?id="+encodeURIComponent(g.tsid||g.id)).then(function(r){return r.json();}).then(function(j){
+      if(tk!==_dtTok)return; var bx=$("#ovFlow"); if(!bx)return;
+      if(!j||!j.found||!j.data||!j.data.length){ loadFootballFlowGoals(g); return; }
+      var vals=[]; (j.data||[]).forEach(function(arr){ vals=vals.concat(arr||[]); });
+      if(!vals.length){ loadFootballFlowGoals(g); return; }
+      var len0=(j.data[0]||[]).length;
+      var n=vals.length, W=328,H=120,PL=4,PR=4,PT=6,PB=16,iw=W-PL-PR,ih=H-PT-PB,midY=PT+ih/2;
+      var X=function(i){ return PL+(n<=1?0:i/(n-1))*iw; };
+      var Yv=function(v){ v=Math.max(-100,Math.min(100,v)); return midY-(v/100)*(ih/2); };
+      var up='M'+X(0)+' '+midY, dn='M'+X(0)+' '+midY;
+      for(var i=0;i<n;i++){ up+=' L'+X(i).toFixed(1)+' '+Yv(Math.max(0,vals[i])).toFixed(1); }
+      up+=' L'+X(n-1).toFixed(1)+' '+midY+' Z';
+      for(i=0;i<n;i++){ dn+=' L'+X(i).toFixed(1)+' '+Yv(Math.min(0,vals[i])).toFixed(1); }
+      dn+=' L'+X(n-1).toFixed(1)+' '+midY+' Z';
+      var htX=X(len0).toFixed(1);
+      var title='<div class="dt-sec-t">📈 '+t("matchFlow")+'</div>';
+      var svg='<svg viewBox="0 0 '+W+' '+H+'" class="mmt-svg" preserveAspectRatio="none">'+
+        '<path d="'+up+'" fill="rgba(43,108,240,.85)"/>'+
+        '<path d="'+dn+'" fill="rgba(28,166,90,.85)"/>'+
+        '<line x1="'+PL+'" y1="'+midY+'" x2="'+(W-PR)+'" y2="'+midY+'" stroke="rgba(0,0,0,.12)" stroke-width="1"/>'+
+        '<line x1="'+htX+'" y1="'+PT+'" x2="'+htX+'" y2="'+(H-PB)+'" stroke="rgba(0,0,0,.14)" stroke-dasharray="3 3"/>'+
+        '<text x="'+htX+'" y="'+(H-3)+'" font-size="8" text-anchor="middle" fill="#9aa6b6">45\'</text>'+
+        '<text x="'+(W-PR-2)+'" y="'+(H-3)+'" font-size="8" text-anchor="end" fill="#9aa6b6">90\'</text></svg>';
+      var lg='<div class="mmt-lg"><span><i style="background:#2b6cf0"></i>'+esc(g.home)+'</span><span><i style="background:#1ca65a"></i>'+esc(g.away)+'</span><span class="mut">'+tl({en:"Attack momentum",ko:"공격 모멘텀",ja:"攻撃の勢い",zh:"进攻势头",es:"Impulso de ataque",hi:"अटैक मोमेंटम",vi:"Đà tấn công",th:"โมเมนตัมบุก",ru:"Импульс атаки",de:"Angriffsmomentum",fr:"Élan offensif",it:"Spinta offensiva"})+'</span></div>';
+      bx.innerHTML=title+'<div class="mmt-wrap">'+svg+lg+'</div>';
+    }).catch(function(){ loadFootballFlowGoals(g); });
+  }
+  // 폴백: 모멘텀 미제공 시 기존 득점 진행(계단) 그래프(API-Sports 이벤트 기반)
+  function loadFootballFlowGoals(g){
     var box=$("#ovFlow"); if(!box)return;
-    if(!g.apiFixture){ box.innerHTML=''; return; }   // fixmap 해석 전/실패 → 개요의 다른 실데이터는 그대로
+    if(!g.apiFixture){ box.innerHTML=''; return; }
     var tk=_dtTok;
     fetch("/api/asports/events?fixture="+encodeURIComponent(g.apiFixture)).then(function(r){return r.json();}).then(function(j){
       if(tk!==_dtTok)return; var bx=$("#ovFlow"); if(!bx)return;
