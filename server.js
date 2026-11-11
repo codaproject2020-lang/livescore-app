@@ -21,7 +21,7 @@ const app = express();
 const server = http.createServer(app);
 
 const PORT = process.env.PORT || 3000;
-const APP_VERSION = 'v454';
+const APP_VERSION = 'v455';
 
 // ============================================================
 //  📏 성능 계측(instrumentation) — 엔드포인트 지연·캐시·공급사·WS·이벤트루프
@@ -4258,7 +4258,8 @@ app.get('/api/football/teamanalysis', async (req, res) => {
 // ⚽ TheSports 경기 분석(H2H·최근전적·득점분포·향후일정) — 경쟁사 H2H 화면 실데이터. match uuid 기반, 5분 캐시.
 //    match 배열 포맷: [id, comp, status, time, neutral, [homeId,"",final,ht,red,corner,...], [awayId,...], odds[], [note,?,?], [seasonId,seasonName]]
 app.get('/api/football/tsanalysis', async (req, res) => {
-  const id = String(req.query.id || ''); if (!id) return res.status(400).json({ error: 'need id' });
+  let id = String(req.query.id || ''); if (!id) return res.status(400).json({ error: 'need id' });
+  id = id.replace(/^ts(?=[a-z0-9]{10,})/, '');   // 프론트 g.id 접두사('ts') 제거 → 순수 TheSports uuid
   try {
     const r = await tsFetch('/football/match/analysis', { uuid: id }, 300000, 9000).catch(() => null);
     const R = r && r.results;
@@ -4325,7 +4326,8 @@ async function tsNames(ids) {
 }
 // ⚽ 순위표(TheSports season table) — match uuid → season → table → 팀명 해석. 10분 캐시.
 app.get('/api/football/tsstanding', async (req, res) => {
-  const id = String(req.query.id || ''), seasonQ = String(req.query.season || '');
+  let id = String(req.query.id || ''); const seasonQ = String(req.query.season || '');
+  id = id.replace(/^ts(?=[a-z0-9]{10,})/, '');
   if (!id && !seasonQ) return res.status(400).json({ error: 'need id or season' });
   try {
     let seasonId = seasonQ, seasonName = '';

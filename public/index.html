@@ -2164,7 +2164,7 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
   // ====== 축구 H2H (TheSports analysis 실데이터: 득점분포·트렌드·상대전적) — 경쟁사 H2H 화면 재현 ======
   function loadFootballH2H(g){
     dtLoading(); var tk=_dtTok;
-    fetch("/api/football/tsanalysis?id="+encodeURIComponent(g.id)).then(function(r){ if(!r.ok)throw 0; return r.json(); }).then(function(j){
+    fetch("/api/football/tsanalysis?id="+encodeURIComponent(g.tsid||g.id)).then(function(r){ if(!r.ok)throw 0; return r.json(); }).then(function(j){
       if(tk!==_dtTok||!$("#dtBody"))return;
       if(!j||!j.found){ dtBody('<div class="msg"><div class="big">📋</div>'+t("noRecentRec")+'</div>'); return; }
       var H=esc(g.home||""), A=esc(g.away||"");
@@ -2220,7 +2220,7 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
   // ====== 축구 순위표 (TheSports season table 실데이터) — 경쟁사 순위표 화면 재현 ======
   function loadFootballStanding(g){
     dtLoading(); var tk=_dtTok;
-    fetch("/api/football/tsstanding?id="+encodeURIComponent(g.id)).then(function(r){ if(!r.ok)throw 0; return r.json(); }).then(function(j){
+    fetch("/api/football/tsstanding?id="+encodeURIComponent(g.tsid||g.id)).then(function(r){ if(!r.ok)throw 0; return r.json(); }).then(function(j){
       if(tk!==_dtTok||!$("#dtBody"))return;
       if(!j||!j.found||!j.groups||!j.groups.length){ dtBody('<div class="msg"><div class="big">📊</div>'+t("noStatsShow")+'</div>'); return; }
       var hid=String(g.homeId||""), aid=String(g.awayId||"");
