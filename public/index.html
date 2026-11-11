@@ -1633,11 +1633,14 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
     if(!games.length) games=d.games.filter(function(g){ return (g.league||"")===lk; });
     if(q) games=games.filter(function(g){ return ((g.home||"")+" "+(g.away||"")+" "+(g.league||"")+" "+(g.country||"")).toLowerCase().indexOf(q)>=0; });
     if(_ag.status==="live") games=games.filter(function(g){ return stateOf(g)==="live"; });
-    // 상태 정렬: 진행 → 예정(임박순) → 종료
-    games.sort(function(a,b){ var ra=agStRank(a),rb=agStRank(b); if(ra!==rb)return ra-rb; return (a.date||"")<(b.date||"")?-1:1; });
+    // 상태 정렬: 진행 → 예정(임박순) → 종료, 같은 상태면 데이터(라인업·라이브) 있는 경기 우선
+    games.sort(gameOrderCmp);
     games.forEach(function(g){ bd.appendChild(gameCard(g)); });
   }
   function agStRank(g){ var s=stateOf(g); return s==="live"?0:(s==="scheduled"?1:2); }
+  // 데이터(라인업·라이브 커버리지) 있는 경기를 같은 상태 안에서 앞으로
+  function covRank(g){ return (g&&g.cov&&(g.cov.mlive||g.cov.lineup))?0:1; }
+  function gameOrderCmp(a,b){ var ra=agStRank(a),rb=agStRank(b); if(ra!==rb)return ra-rb; var ca=covRank(a),cb=covRank(b); if(ca!==cb)return ca-cb; return (a.date||"")<(b.date||"")?-1:1; }
   function agShiftDate(ds,delta){ try{ var p=ds.split("-"); var d=new Date(+p[0],+p[1]-1,+p[2]); d.setDate(d.getDate()+delta); var mm=("0"+(d.getMonth()+1)).slice(-2),dd=("0"+d.getDate()).slice(-2); return d.getFullYear()+"-"+mm+"-"+dd; }catch(e){ return ds; } }
 
   // ====== 리그 블록 ======
@@ -1646,9 +1649,12 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
     list.forEach(function(g){ var k=(g.country?g.country+" · ":"")+(g.league||tl({en:"Other",ko:"기타",ja:"その他",zh:"其他",es:"Otros",hi:"अन्य",vi:"Khác",th:"อื่นๆ",ru:"Другое",de:"Sonstige",fr:"Autres",it:"Altro"})); if(!m[k]){m[k]={name:k,logo:g.leagueLogo,games:[],lg:g.league,co:g.country};order.push(k);} m[k].games.push(g); });
     var groups=order.map(function(k){return m[k]});
     // #8: 빅리그 우선 정렬(버튼과 동일 규칙). 같은 순위면 경기수↓·이름순 → 갱신마다 순서 고정(마이너가 앞에 안 옴).
+    function grpCov(grp){ var n=0; grp.games.forEach(function(g){ if(g.cov&&(g.cov.mlive||g.cov.lineup))n++; }); return n; }
     groups.sort(function(a,b){
       var ra=leagueRank(S.sport,a.lg,a.co),rb=leagueRank(S.sport,b.lg,b.co);
       if(ra!==rb)return ra-rb;
+      var ca=grpCov(a),cb=grpCov(b);
+      if(cb!==ca)return cb-ca;   // 데이터(라인업·라이브) 있는 리그를 메인 상단으로
       if(b.games.length!==a.games.length)return b.games.length-a.games.length;
       return a.name<b.name?-1:(a.name>b.name?1:0);
     });
@@ -1670,7 +1676,7 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
     var jumpBtn='<button class="lgpin'+(pinned?" on":"")+'" title="'+esc(pinned?t("restorePos"):t("pinTop"))+'">'+(pinned?"↓":"↑")+'</button>';
     h.innerHTML=(grp.logo?'<img src="'+esc(grp.logo)+'" onerror="this.outerHTML=\'<div class=lph>🏆</div>\'">':'<div class="lph">🏆</div>')+'<span>'+esc(grp.name)+'</span>'+cnt+jumpBtn+'<button class="lgcol" title="'+esc(collapsed?t("expand"):t("collapse"))+'"><span class="chev">▾</span></button>';
     var body=el("div","lg-body"+(collapsed?" collapsed":""));
-    grp.games.forEach(function(g){ body.appendChild(gameCard(g)); });
+    grp.games.slice().sort(gameOrderCmp).forEach(function(g){ body.appendChild(gameCard(g)); });
     // 접기/펼치기 — 경기 목록만 숨김(제목·로고·경기수는 유지). 이동 버튼과 독립 동작.
     function toggleCol(){ S.collapsed[ck]=!S.collapsed[ck]; h.classList.toggle("collapsed"); body.classList.toggle("collapsed"); var cb=h.querySelector(".lgcol"); if(cb)cb.title=S.collapsed[ck]?t("expand"):t("collapse"); }
     h.querySelector(".lgcol").onclick=function(e){ e.stopPropagation(); toggleCol(); };
@@ -1857,18 +1863,22 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
   function dtFresh(tk){ return tk===_dtTok && $("#dtBody"); }
   function openDetail(g,focus){
     luArm();   // 뒤로가기 가드: 상세를 열 때 히스토리 엔트리 1개 적립(뒤로가기 1번=상세 닫고 직전 화면)
-    _dt={ g:g, sport:S.sport, tab:(focus==="chat"?"chat":(focus==="pitchers"?"box":(focus==="lineup"?"lineup":"overview"))), cache:{}, hl:undefined };
+    _dt={ g:g, sport:S.sport, tab:(focus==="chat"?"chat":(focus==="pitchers"?"box":(focus==="lineup"?"lineup":"overview"))), cache:{}, hl:undefined, avail:{} };
     document.body.style.overflow="hidden";
     pushRecent(g,S.sport);
     renderDetail();
+    // ⚽ 축구: 이벤트 데이터 실제 유무 확인 → 있을 때만 '이벤트' 탭 노출(빈 탭 방지)
+    if(S.sport==="football"&&stateOf(g)!=="scheduled") probeFbEvents(g);
     // 🔗 축구(TheSports 소스) → API-Football fixture/team id 1회 해석(평점·통계·H2H 연결). 공유 캐시 사용.
     if(S.sport==="football"&&!g.homeId&&!g._fixTried){
       g._fixTried=true;
       fetch("/api/football/fixmap?home="+encodeURIComponent(g.home)+"&away="+encodeURIComponent(g.away)+"&date="+encodeURIComponent(S.date)).then(function(r){return r.json();}).then(function(j){
         if(!_dt||_dt.g!==g||!j||!j.found)return;
         g.homeId=j.homeId; g.awayId=j.awayId; g.apiFixture=j.fixtureId;
+        // API-Football fixture 해석 후 이벤트 재확인(TheSports 비어도 API쪽에 있을 수 있음)
+        if(!(_dt.avail&&_dt.avail.events===true)) probeFbEvents(g);
         // 현재 열려있는 탭이 이 데이터로 채워지는 탭이면 재렌더
-        if(["overview","stats","record","events"].indexOf(_dt.tab)>=0) renderDetailBody();
+        if(["overview","stats","record"].indexOf(_dt.tab)>=0) renderDetailBody();
       }).catch(function(){});
     }
     // 🏐 배구(TheSports) → API-Sports 팀/리그/시즌 id 1회 해석(순위·맞대결·일정 연결). 공유 캐시.
@@ -1893,11 +1903,13 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
   function detailTabs(sport,g){
     if(sport==="football"){
       // 데이터 커버리지에 따라 탭 노출(없는 메뉴는 숨김). cov 없으면 안전하게 모두 노출.
+      // av: 실제 데이터 조회 결과(없으면 숨김). av.events는 '확인됨(true)'일 때만 노출(빈 이벤트 탭 방지).
       var cov=g&&g.cov; var mlive=(!cov||cov.mlive), hasLu=(!cov||cov.lineup);
+      var av=(_dt&&_dt.avail)||{};
       var a=[["overview",t("overview")],trkTab()];
-      if(mlive)a.push(["stats",t("statsTab")]);
-      if(hasLu)a.push(["lineup",t("lineup")]);
-      if(mlive)a.push(["events",t("eventsTab")]);
+      if(mlive&&av.stats!==false)a.push(["stats",t("statsTab")]);
+      if(hasLu&&av.lineup!==false)a.push(["lineup",t("lineup")]);
+      if(mlive&&av.events===true)a.push(["events",t("eventsTab")]);
       a.push(["fbh2h","H2H"]); a.push(["fbrank",t("leagueRank")]); a.push(["chat",t("chat")]);
       return a;
     }
@@ -1905,6 +1917,45 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
     if(sport==="basketball") return [["overview",t("overview")],trkTab(),["bsklineup",t("lineup")],["box",t("playerRec")],["bskteam",t("teamStat")],["bskflow",t("flowTab")],["bskrec",t("recordTab")],["chat",t("chat")]];
     if(sport==="volleyball") return [["overview",t("overview")],trkTab(),["vbstats",t("statsTab")],["vbh2h",t("h2hTab")],["vbrank",t("standings")],["chat",t("chat")]];
     return [["overview",t("overview")],["chat",t("chat")]];
+  }
+  // 최종 탭 목록(트래커 상단고정 제외 + 숨겨진 탭 선택 시 개요 복귀 + 하이라이트 삽입)
+  function computeTabs(){
+    var g=_dt.g, sport=_dt.sport;
+    var pinTrk=TRK.indexOf(sport)>=0&&stateOf(g)!=="finished";
+    var _tabs=detailTabs(sport,g);
+    if(pinTrk) _tabs=_tabs.filter(function(x){return x[0]!=="tracker";});   // 경기장은 상단 고정 → 탭에서 제거
+    if(!_tabs.some(function(x){return x[0]===_dt.tab;})) _dt.tab="overview";  // 선택 탭이 숨겨졌으면 개요
+    if(_dt.hl){ _tabs=_tabs.slice(); _tabs.splice(_tabs.length-1,0,["highlight","🎬 "+tl({en:"Highlights",ko:"하이라이트",ja:"ハイライト",zh:"集锦",es:"Resumen",hi:"हाइलाइट",vi:"Điểm nhấn",th:"ไฮไลต์",ru:"Хайлайты",de:"Highlights",fr:"Résumé",it:"Highlights"})]); }
+    return _tabs;
+  }
+  function tabsHtml(_tabs){ return '<div class="dt-tabs">'+_tabs.map(function(t){return '<button class="dt-tab'+(_dt.tab===t[0]?" on":"")+'" data-dt="'+t[0]+'">'+t[1]+'</button>'}).join("")+'</div>'; }
+  function bindTabBar(){ var d=$("#detail"); if(!d)return; d.querySelectorAll(".dt-tab").forEach(function(b){ b.onclick=function(){ _dt.tab=b.dataset.dt; d.querySelectorAll(".dt-tab").forEach(function(x){x.classList.toggle("on",x===b);}); renderDetailBody(); }; }); }
+  // 탭 바만 다시 그림(상단 고정 경기장·본문 iframe은 유지). 데이터 가용성 확인 후 빈 탭 숨김/표시에 사용.
+  function refreshTabsBar(){
+    if(!_dt)return; var d=$("#detail"); if(!d)return; var bar=d.querySelector(".dt-tabs"); if(!bar)return;
+    var prev=_dt.tab; var _tabs=computeTabs();
+    bar.outerHTML=tabsHtml(_tabs); bindTabBar();
+    if(_dt.tab!==prev) renderDetailBody();   // 보던 탭이 숨겨졌으면 개요로 전환
+  }
+  // 이벤트(사건) 데이터 실제 유무 확인 → 있을 때만 '이벤트' 탭/바로가기 노출(빈 탭 방지).
+  function probeFbEvents(g){
+    if(!g)return;
+    function done(has){
+      if(!_dt||_dt.g!==g)return; _dt.avail=_dt.avail||{};
+      if(_dt.avail.events===!!has)return; _dt.avail.events=!!has;
+      var be=$("#ovjEvents"); if(be)be.style.display=has?"":"none";
+      refreshTabsBar();
+    }
+    var id=String(g.id||"");
+    if(id.indexOf("ts")===0){
+      fetch("/api/football/live?id="+encodeURIComponent(g.id)).then(function(r){return r.json();}).then(function(j){
+        var ev=(j&&j.events)||[]; if(ev.length)return done(true);
+        if(g.apiFixture){ fetch("/api/asports/events?fixture="+encodeURIComponent(g.apiFixture)).then(function(r){return r.json();}).then(function(k){ done(!!(k&&k.events&&k.events.length)); }).catch(function(){ done(false); }); return; }
+        done(false);
+      }).catch(function(){ done(false); });
+    }else{
+      fetch("/api/asports/events?fixture="+encodeURIComponent(g.apiFixture||g.id)).then(function(r){return r.json();}).then(function(k){ done(!!(k&&k.events&&k.events.length)); }).catch(function(){ done(false); });
+    }
   }
   function renderDetail(){
     var g=_dt.g, sport=_dt.sport;
@@ -1926,17 +1977,11 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
           '<div class="tcol">'+(g.awayLogo?'<img src="'+esc(g.awayLogo)+'" onerror="this.outerHTML=\'<div class=ph>🛡️</div>\'">':'<div class="ph">🛡️</div>')+'<div class="nm">'+esc(g.away||"")+'</div>'+haBadge(true,g.neutral)+'</div>'+
         '</div></div>';
     }
-    var _tabs=detailTabs(sport,g);
-    if(pinTrk) _tabs=_tabs.filter(function(x){return x[0]!=="tracker";});   // 경기장은 상단 고정 → 탭에서 제거
-    // 현재 선택 탭이 숨겨졌으면 개요로 복귀
-    if(!_tabs.some(function(x){return x[0]===_dt.tab;})) _dt.tab="overview";
-    if(_dt.hl){ _tabs=_tabs.slice(); _tabs.splice(_tabs.length-1,0,["highlight","🎬 "+tl({en:"Highlights",ko:"하이라이트",ja:"ハイライト",zh:"集锦",es:"Resumen",hi:"हाइलाइट",vi:"Điểm nhấn",th:"ไฮไลต์",ru:"Хайлайты",de:"Highlights",fr:"Résumé",it:"Highlights"})]); }
-    var tabs='<div class="dt-tabs">'+_tabs.map(function(t){return '<button class="dt-tab'+(_dt.tab===t[0]?" on":"")+'" data-dt="'+t[0]+'">'+t[1]+'</button>'}).join("")+'</div>';
-    d.innerHTML=head+tabs+'<div class="dt-body" id="dtBody"></div>';
+    var _tabs=computeTabs();
+    d.innerHTML=head+tabsHtml(_tabs)+'<div class="dt-body" id="dtBody"></div>';
     $("#dtBack").onclick=closeDetail;
     var dsh=$("#dtShare"); if(dsh)dsh.onclick=function(){ openMatchShare(g,sport); };
-    // 탭 전환은 본문(dtBody)만 다시 그린다 → 상단 고정 경기장(iframe)은 리로드되지 않음
-    d.querySelectorAll(".dt-tab").forEach(function(b){ b.onclick=function(){ _dt.tab=b.dataset.dt; d.querySelectorAll(".dt-tab").forEach(function(x){x.classList.toggle("on",x===b);}); renderDetailBody(); }; });
+    bindTabBar();
     var cols=d.querySelectorAll(".dt-head .tcol"); if(cols[0]){cols[0].style.cursor="pointer";cols[0].onclick=function(){ if(sport==="football"&&g.homeTid)openFootballTeam(g.homeTid,g.home,g.homeLogo,(g.tsid||g.id),"home"); else openTeam(g.home,sport); };} if(cols[1]){cols[1].style.cursor="pointer";cols[1].onclick=function(){ if(sport==="football"&&g.awayTid)openFootballTeam(g.awayTid,g.away,g.awayLogo,(g.tsid||g.id),"away"); else openTeam(g.away,sport); };}
     if(pinTrk) loadTrackerPinned(g,sport);
     renderDetailBody();
@@ -2081,11 +2126,12 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
       h+='<div id="ovFlow"></div>';
       h+='<div id="ovStats"><div class="dt-sec-t" style="margin-top:18px">📊 '+t("keyStats")+'</div><p style="color:#8a93a3;font-size:13px">'+t("loading")+'</p></div>';
       h+='<div id="ovStars"></div>';
-      h+='<div class="ov-jump">'+
-         '<button class="ovj" data-go="lineup">👥 '+t("lineup")+' ›</button>'+
-         '<button class="ovj" data-go="events">⚽ '+t("eventsTab")+' ›</button>'+
-         '<button class="ovj" data-go="stats">📊 '+t("statsTab")+' ›</button>'+
-         '</div>';
+      var _cov=g.cov, _mlive=(!_cov||_cov.mlive), _hasLu=(!_cov||_cov.lineup), _av=(_dt&&_dt.avail)||{};
+      var _jb='';
+      if(_hasLu&&_av.lineup!==false) _jb+='<button class="ovj" data-go="lineup">👥 '+t("lineup")+' ›</button>';
+      _jb+='<button class="ovj" id="ovjEvents" data-go="events" style="display:'+(_av.events===true?'':'none')+'">⚽ '+t("eventsTab")+' ›</button>';
+      if(_mlive&&_av.stats!==false) _jb+='<button class="ovj" data-go="stats">📊 '+t("statsTab")+' ›</button>';
+      h+='<div class="ov-jump">'+_jb+'</div>';
     } else if(sport==="football"){
       h+='<div class="ov-jump"><button class="ovj" data-go="lineup">👥 '+t("lineup")+' ›</button></div>';
     }
@@ -2544,7 +2590,7 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
       fetch("/api/football/live?id="+encodeURIComponent(g.id)).then(function(r){return r.json()}).then(function(j){
         if(!dtFresh(tk))return;
         var ev=(j&&j.events)||[];
-        if(!ev.length){ if(g.apiFixture){ loadFootballEvents(g,true); return; } var m=stateOf(g)==="scheduled"?t("eventsAfterStart"):t("noEventsLive"); dtBody('<div class="msg"><div class="big">⚽</div>'+m+'</div>'); return; }
+        if(!ev.length){ if(g.apiFixture){ loadFootballEvents(g,true); return; } _dt.avail=_dt.avail||{}; if(_dt.avail.events!==false){ _dt.avail.events=false; var be0=$("#ovjEvents"); if(be0)be0.style.display="none"; refreshTabsBar(); return; } var m=stateOf(g)==="scheduled"?t("eventsAfterStart"):t("noEventsLive"); dtBody('<div class="msg"><div class="big">⚽</div>'+m+'</div>'); return; }
         var h='<div class="flow">'+ev.map(function(e){ var who=e.team===1?"h":(e.team===2?"a":""); return '<div class="fe '+who+'"><span class="fcl">'+esc(e.minute?(e.minute+"'"):"")+'</span><span class="ftx">'+esc(e.text||"")+'</span></div>'; }).join("")+'</div>';
         dtBody(h);
       }).catch(function(){ if(g.apiFixture){ loadFootballEvents(g,true); return; } dtBody('<div class="msg"><div class="big">⚠️</div>'+t("m_evFail")+'</div>'); });
