@@ -193,7 +193,7 @@ img{display:block}
 @media(min-width:560px){.trk-frame{height:480px}}
 /* 상단 경기장(트래커) — 위젯(3D 경기장+점수)이 가로형이라 컨테이너 폭에 맞춘 4:3 비율로 고정해 상·하 잘림 방지 */
 .dt-head-slim{padding:8px 12px 6px!important}
-.dt-trkpin{width:100%;background:#0b1220;overflow:hidden;aspect-ratio:3/2;max-height:420px}
+.dt-trkpin{width:100%;background:#0b1220;overflow:hidden;aspect-ratio:10/9;max-height:480px}
 .dt-trkpin .trk-frame{height:100%}
 .dt-trkpin .trk-ph{height:100%;display:flex;align-items:center;justify-content:center;color:#8a93a3;font-size:13px}
 #detail .dt-tabs{position:sticky;top:0;z-index:6;background:var(--bg)}
@@ -1910,8 +1910,8 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
     var g=_dt.g, sport=_dt.sport;
     var d=$("#detail"); if(!d){ d=el("div","detail"); d.id="detail"; document.body.appendChild(d); }
     var live=stateOf(g)==="live";
-    // 🎥 라이브(트래커 지원 종목)면 점수 배너 대신 경기장(트래커)을 상단에 고정 — 점수는 트래커가 표시.
-    var pinTrk=live&&TRK.indexOf(sport)>=0;
+    // 🎥 트래커 지원 종목이면(라이브·예정 모두) 점수 배너 대신 경기장(트래커)을 상단에 고정 — 점수/시작시간은 트래커가 표시.
+    var pinTrk=TRK.indexOf(sport)>=0&&stateOf(g)!=="finished";
     var bar='<div class="dt-bar"><button class="bk" id="dtBack">‹</button><div class="ti">'+esc(g.home||"")+' vs '+esc(g.away||"")+'</div><button class="bk" id="dtShare" title="'+esc(t("shareApp"))+'" style="margin-left:auto">⤴</button></div>';
     var lgline='<div class="dt-lg">'+leagueIcon(g)+esc((g.country?g.country+" · ":"")+(g.league||""))+'</div>';
     var head;
