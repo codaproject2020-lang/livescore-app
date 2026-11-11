@@ -1890,7 +1890,7 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
   var TRK=["football","basketball","volleyball","baseball"];   // TheSports Live Match Tracker 지원 종목
   function trkTab(){ return ["tracker","🎥 "+t("trackerTab")]; }
   function detailTabs(sport){
-    if(sport==="football") return [["overview",t("overview")],trkTab(),["stats",t("statsTab")],["lineup",t("lineup")],["events",t("eventsTab")],["fbh2h","H2H"],["fbrank",t("leagueRank")],["record",t("recordTab")],["chat",t("chat")]];
+    if(sport==="football") return [["overview",t("overview")],trkTab(),["stats",t("statsTab")],["lineup",t("lineup")],["events",t("eventsTab")],["fbh2h","H2H"],["fbrank",t("leagueRank")],["chat",t("chat")]];
     if(sport==="baseball") return [["overview",t("overview")],trkTab(),["box",t("boxTab")],["chat",t("chat")]];
     if(sport==="basketball") return [["overview",t("overview")],trkTab(),["bsklineup",t("lineup")],["box",t("playerRec")],["bskteam",t("teamStat")],["bskflow",t("flowTab")],["bskrec",t("recordTab")],["chat",t("chat")]];
     if(sport==="volleyball") return [["overview",t("overview")],trkTab(),["vbstats",t("statsTab")],["vbh2h",t("h2hTab")],["vbrank",t("standings")],["chat",t("chat")]];
@@ -2347,6 +2347,27 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
            '<tr><td>'+tl({en:"W-D-L",ko:"승-무-패",ja:"勝分敗",zh:"胜平负",es:"V-E-D",hi:"जी-ड्र-हा",vi:"T-H-B",th:"ช-ส-พ",ru:"В-Н-П",de:"S-U-N",fr:"V-N-D",it:"V-N-P"})+'</td><td>'+fmtF(j.homeForm)+'</td><td>'+fmtF(j.awayForm)+'</td></tr>'+
            '<tr><td>'+t("gfShort")+'</td><td><b>'+(j.homeForm?j.homeForm.gf:"-")+'</b></td><td><b>'+(j.awayForm?j.awayForm.gf:"-")+'</b></td></tr>'+
            '<tr><td>'+t("gaShort")+'</td><td>'+(j.homeForm?j.homeForm.ga:"-")+'</td><td>'+(j.awayForm?j.awayForm.ga:"-")+'</td></tr></table>';
+      }
+      // ── 추가 트렌드(연승·무패흐름·2.5골 이상·양팀 득점) : 최근 경기 점수로 계산 ──
+      function teamMetrics(list,teamId){
+        var n=0,ov=0,bt=0,ws=0,ub=0,wsDone=false,ubDone=false;
+        (list||[]).slice(0,10).forEach(function(m){
+          var iH=String(m.home)===String(teamId); var my=iH?m.hs:m.as,op=iH?m.as:m.hs;
+          if(my==null||op==null)return; n++;
+          if((my+op)>2.5)ov++; if(my>0&&op>0)bt++;
+          if(!wsDone){ if(my>op)ws++; else wsDone=true; }
+          if(!ubDone){ if(my>=op)ub++; else ubDone=true; }
+        });
+        return {n:n,ov:ov,bt:bt,ws:ws,ub:ub};
+      }
+      var hmM=teamMetrics(j.homeRecent,j.homeId), awM=teamMetrics(j.awayRecent,j.awayId);
+      if(hmM.n||awM.n){
+        function dcell(v,tot){ return (tot?v+'/'+tot:'-'); }
+        h+='<table class="trd" style="margin-top:4px">'+
+          '<tr><td>🔥 '+tl({en:"Win streak",ko:"연승",ja:"連勝",zh:"连胜",es:"Racha V",hi:"जीत स्ट्रीक",vi:"Chuỗi thắng",th:"ชนะติด",ru:"Серия побед",de:"Siegesserie",fr:"Série V",it:"Serie V"})+'</td><td><b>'+(hmM.ws||'-')+'</b></td><td><b>'+(awM.ws||'-')+'</b></td></tr>'+
+          '<tr><td>🔥 '+tl({en:"Unbeaten",ko:"무패 흐름",ja:"無敗",zh:"不败",es:"Invicto",hi:"अपराजित",vi:"Bất bại",th:"ไม่แพ้",ru:"Без поражений",de:"Ungeschlagen",fr:"Invaincu",it:"Imbattuto"})+'</td><td><b>'+(hmM.ub||'-')+'</b></td><td><b>'+(awM.ub||'-')+'</b></td></tr>'+
+          '<tr><td>'+tl({en:"Over 2.5 goals",ko:"2.5골 이상",ja:"2.5点超",zh:"大于2.5球",es:"Más de 2.5",hi:"2.5+ गोल",vi:"Trên 2.5 bàn",th:"เกิน 2.5",ru:"Больше 2.5",de:"Über 2.5 Tore",fr:"Plus de 2.5",it:"Over 2.5"})+'</td><td>'+dcell(hmM.ov,hmM.n)+'</td><td>'+dcell(awM.ov,awM.n)+'</td></tr>'+
+          '<tr><td>'+tl({en:"Both teams scored",ko:"양 팀 득점",ja:"両チーム得点",zh:"双方进球",es:"Ambos marcan",hi:"दोनों ने गोल",vi:"Cả hai ghi bàn",th:"ยิงทั้งคู่",ru:"Обе забили",de:"Beide treffen",fr:"Les deux marquent",it:"Entrambe segnano"})+'</td><td>'+dcell(hmM.bt,hmM.n)+'</td><td>'+dcell(awM.bt,awM.n)+'</td></tr></table>';
       }
       // ── 상대전적 (VS) ──
       var vs=j.vs||[];
