@@ -1916,7 +1916,8 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
     var lgline='<div class="dt-lg">'+leagueIcon(g)+esc((g.country?g.country+" · ":"")+(g.league||""))+'</div>';
     var head;
     if(pinTrk){
-      head=bar+'<div class="dt-head dt-head-slim">'+lgline+'</div><div id="dtTrk" class="dt-trkpin"><div class="trk-ph">🎥 '+t("loading")+'</div></div>';
+      // 리그 배너 제거 → 경기장이 상단 타이틀 바로 아래부터 바로 보이게(트래커가 리그/점수 표시)
+      head=bar+'<div id="dtTrk" class="dt-trkpin"><div class="trk-ph">🎥 '+t("loading")+'</div></div>';
     }else{
       head=bar+'<div class="dt-head">'+lgline+
         '<div class="dt-sc">'+
