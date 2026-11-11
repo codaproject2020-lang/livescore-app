@@ -21,7 +21,7 @@ const app = express();
 const server = http.createServer(app);
 
 const PORT = process.env.PORT || 3000;
-const APP_VERSION = 'v452';
+const APP_VERSION = 'v453';
 
 // ============================================================
 //  📏 성능 계측(instrumentation) — 엔드포인트 지연·캐시·공급사·WS·이벤트루프
@@ -4254,6 +4254,49 @@ app.get('/api/football/teamanalysis', async (req, res) => {
       goalsForTotal: s.goals && s.goals.for && s.goals.for.total, goalsAgainstTotal: s.goals && s.goals.against && s.goals.against.total
     });
   } catch (e) { res.json({ found: false, error: String(e.message || e) }); }
+});
+// ⚽ TheSports 경기 분석(H2H·최근전적·득점분포·향후일정) — 경쟁사 H2H 화면 실데이터. match uuid 기반, 5분 캐시.
+//    match 배열 포맷: [id, comp, status, time, neutral, [homeId,"",final,ht,red,corner,...], [awayId,...], odds[], [note,?,?], [seasonId,seasonName]]
+app.get('/api/football/tsanalysis', async (req, res) => {
+  const id = String(req.query.id || ''); if (!id) return res.status(400).json({ error: 'need id' });
+  try {
+    const r = await tsFetch('/football/match/analysis', { uuid: id }, 300000, 9000).catch(() => null);
+    const R = r && r.results;
+    if (!R || !R.info) return res.json({ found: false });
+    const info = R.info;
+    const homeId = (info[5] && info[5][0]) || '', awayId = (info[6] && info[6][0]) || '';
+    function decM(a) {
+      if (!a || !a.length) return null;
+      const h = a[5] || [], aw = a[6] || [];
+      return {
+        id: a[0], comp: a[1], status: a[2], time: a[3],
+        home: h[0], away: aw[0],
+        hs: (h[2] != null ? h[2] : null), as: (aw[2] != null ? aw[2] : null),
+        hht: (h[3] != null ? h[3] : null), aht: (aw[3] != null ? aw[3] : null),
+        note: (a[8] && a[8][0]) || '', season: (a[9] && a[9][1]) || ''
+      };
+    }
+    const hist = R.history || {};
+    const vs = (hist.vs || []).map(decM).filter(Boolean);
+    const homeRec = (hist.home || []).map(decM).filter(Boolean);
+    const awayRec = (hist.away || []).map(decM).filter(Boolean);
+    const future = { home: ((R.future && R.future.home) || []).map(decM).filter(Boolean), away: ((R.future && R.future.away) || []).map(decM).filter(Boolean) };
+    function form(list, teamId) {
+      let w = 0, d = 0, l = 0, gf = 0, ga = 0, n = 0;
+      list.slice(0, 10).forEach(m => {
+        const iAmHome = String(m.home) === String(teamId);
+        const my = iAmHome ? m.hs : m.as, op = iAmHome ? m.as : m.hs;
+        if (my == null || op == null) return; n++; gf += my; ga += op;
+        if (my > op) w++; else if (my < op) l++; else d++;
+      });
+      return { w, d, l, gf, ga, n };
+    }
+    res.json({
+      found: true, homeId, awayId, goalDist: R.goal_distribution || null,
+      vs, homeRecent: homeRec, awayRecent: awayRec, future,
+      homeForm: form(homeRec, homeId), awayForm: form(awayRec, awayId)
+    });
+  } catch (e) { res.json({ found: false, error: String((e && e.message) || e) }); }
 });
 // ⚽ 메인카드용 라이브 요약 통계 — 진행 중 경기만 서버에서 묶어서 1회 응답(개별 호출 금지 규칙 준수)
 //    각 경기 stats 는 asRaw 캐시(60s) + 전체 응답 45s 캐시로 호출 제한을 지킴. 미제공은 null(0으로 채우지 않음).
