@@ -4711,7 +4711,9 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
     if(_vw&&_vw.v===1){
       var SPK2={football:1,baseball:1,basketball:1,volleyball:1,hockey:1,esports:1};
       if(SPK2[_vw.sport]) S.sport=_vw.sport;
-      if(typeof _vw.date==="string"&&/^\d{4}-\d{2}-\d{2}$/.test(_vw.date)) S.date=_vw.date;
+      // 저장된 날짜가 '오늘 이후'일 때만 복원. 지난 날짜(날짜가 넘어가 어제가 된 경우)면 오늘로 스냅 →
+      //   자정 지나 다시 열면 어제 화면이 고정되어 '진행중'이 비는 문제 방지.
+      if(typeof _vw.date==="string"&&/^\d{4}-\d{2}-\d{2}$/.test(_vw.date)){ S.date=(_vw.date>=todayStr())?_vw.date:todayStr(); _vw.date=S.date; }
       if(_vw.filter) S.filter=_vw.filter;
       if(_vw.screen) S.screen=_vw.screen;
       if(_vw.base) S.base=_vw.base;
