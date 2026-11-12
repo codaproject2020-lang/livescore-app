@@ -679,6 +679,20 @@ html[data-theme="dark"] .fgm-poss .pbar{background:#2c3a54}
 .dt-tab.on{background:var(--navy);color:#fff}
 .dt-body{padding:14px 16px}
 .dt-sec-t{font-weight:900;font-size:14px;margin:16px 0 8px;display:flex;align-items:center;gap:7px}
+.brc-tog{display:flex;gap:8px;margin:4px 0 12px}
+.brc-tg{flex:1;padding:9px 6px;border:1px solid var(--line);background:var(--card);border-radius:10px;font-weight:800;font-size:12.5px;color:var(--muted);cursor:pointer;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.brc-tg.on{background:#2b6cf0;border-color:#2b6cf0;color:#fff}
+.brc-sum{background:var(--card2,rgba(127,127,127,.06));border:1px solid var(--line);border-radius:12px;padding:12px 14px;display:flex;flex-direction:column;gap:8px}
+.brc-rec{font-weight:800;font-size:14px;display:flex;align-items:center}
+.brc-pts{font-size:13px;color:var(--muted)}.brc-pts b{color:#e8830c;background:rgba(232,131,12,.12);padding:1px 6px;border-radius:5px;font-size:11px;margin-right:4px}.brc-pts span{font-size:11px;margin-left:4px}
+.brc-b{display:inline-block;min-width:20px;height:20px;line-height:20px;text-align:center;border-radius:50%;color:#fff;font-size:11px;font-weight:800;padding:0 4px}
+.brc-b.w{background:#1aa65a}.brc-b.l{background:#df123b}
+.brc-row{display:flex;align-items:center;gap:8px;padding:8px 2px;border-bottom:1px solid var(--line);font-size:12.5px}
+.brc-d{color:#8a93a3;font-size:11px;width:52px;flex:0 0 auto}
+.brc-lg{width:20px;height:20px;object-fit:contain;flex:0 0 auto;border-radius:3px}
+.brc-opp{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600}
+.brc-ha{font-size:10px;color:#8a93a3;background:rgba(127,127,127,.12);padding:0 4px;border-radius:4px;margin-left:3px}
+.brc-sc{font-weight:900;color:var(--navy);width:60px;text-align:center;flex:0 0 auto}
 .dt-sec-t:first-child{margin-top:0}
 /* 라인업 피치 */
 .pitch{background:linear-gradient(#1f8a4c,#176b3b);border-radius:14px;padding:18px 6px;position:relative;margin:6px 0;overflow:hidden}
@@ -3315,10 +3329,45 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
     render();
   }
   // 전적 (양 팀 최근 경기 + 순위 링크)
+  var _bskRecSel=0, _bskRecData=null, _bskRecG=null;
+  function bskRecDate(ms){ if(!ms)return ""; var d=new Date(ms); var p=function(n){return(n<10?"0":"")+n;}; return (String(d.getFullYear()).slice(2))+"/"+p(d.getMonth()+1)+"/"+p(d.getDate()); }
+  function bskWL(win){ return win?'<span class="brc-b w">'+t("win")+'</span>':'<span class="brc-b l">'+t("lose")+'</span>'; }
+  function bskRecRows(games){
+    if(!games||!games.length) return '<p style="color:#8a93a3;font-size:13px;padding:10px 2px">'+t("noRecentRec")+'</p>';
+    return games.map(function(m){
+      var opp=tnTeam(m.opp||"")||("—");
+      var lg=m.oppLogo?'<img src="'+esc(m.oppLogo)+'" class="brc-lg" onerror="this.style.display=\'none\'">':'<span class="brc-lg"></span>';
+      var ha=m.isHome?'':'<span class="brc-ha">'+tl({en:"A",ko:"원정",ja:"A",zh:"客",es:"V",hi:"A",vi:"K",th:"เยือน",ru:"Г",de:"A",fr:"E",it:"T"})+'</span>';
+      return '<div class="brc-row"><span class="brc-d">'+bskRecDate(m.date)+'</span>'+lg+'<span class="brc-opp">'+esc(opp)+' '+ha+'</span><span class="brc-sc">'+m.my+' - '+m.op+'</span>'+bskWL(m.win)+'</div>';
+    }).join("");
+  }
+  function renderBskRec(){
+    var j=_bskRecData, g=_bskRecG; if(!j||!g)return;
+    var sel=_bskRecSel; var side=sel===0?j.home:j.away;
+    var hN=tnTeam(g.home||""), aN=tnTeam(g.away||"");
+    var h='<div class="brc-tog"><button class="brc-tg'+(sel===0?" on":"")+'" data-s="0">'+esc(hN)+'</button><button class="brc-tg'+(sel===1?" on":"")+'" data-s="1">'+esc(aN)+'</button></div>';
+    var s=side.summary||{w:0,l:0,n:0,pf:0,pa:0};
+    h+='<div class="brc-sum"><div class="brc-rec"><span class="brc-b w">'+t("win")+'</span>×'+s.w+'<span class="brc-b l" style="margin-left:10px">'+t("lose")+'</span>×'+s.l+'</div>';
+    h+='<div class="brc-pts"><b>PTS</b> '+s.pf.toFixed(1)+' - '+s.pa.toFixed(1)+' <span>'+tl({en:"per game avg",ko:"경기 당 평균",ja:"1試合平均",zh:"场均",es:"promedio",hi:"प्रति मैच",vi:"TB mỗi trận",th:"เฉลี่ยต่อเกม",ru:"в среднем",de:"pro Spiel",fr:"par match",it:"a partita"})+'</span></div></div>';
+    h+='<div class="dt-sec-t" style="margin-top:14px">📋 '+t("recentMatches")+'</div>'+bskRecRows(side.games);
+    if(j.h2h&&j.h2h.length){
+      var hw=0,aw=0; j.h2h.forEach(function(m){ var hWin=m.hs>m.as; var homeIsG=(tnTeam(m.hName||"")===hN)||(m.hName===g.home); if(homeIsG){ if(hWin)hw++; else aw++; } else { if(hWin)aw++; else hw++; } });
+      h+='<div class="dt-sec-t" style="margin-top:16px">🤝 '+t("h2hTitle")+' <span style="font-weight:600;color:#8a93a3;font-size:12px">('+esc(hN)+' '+hw+t("win")+' '+aw+t("lose")+')</span></div>';
+      h+=j.h2h.map(function(m){ return '<div class="brc-row"><span class="brc-d">'+bskRecDate(m.date)+'</span><span class="brc-opp" style="flex:1;text-align:right">'+esc(tnTeam(m.hName||""))+'</span><span class="brc-sc">'+m.hs+' - '+m.as+'</span><span class="brc-opp" style="flex:1">'+esc(tnTeam(m.aName||""))+'</span></div>'; }).join("");
+    }
+    h+='<div class="dt-sec-t" style="margin-top:16px">🏆 '+t("leagueRank")+'</div><p style="color:#2b6cf0;font-weight:700;cursor:pointer" id="goRank">'+esc(tnLeague(g.league||""))+' ›</p>';
+    dtBody(h);
+    var db=$("#dtBody"); if(db){ db.querySelectorAll(".brc-tg").forEach(function(b){ b.onclick=function(){ _bskRecSel=+b.dataset.s; renderBskRec(); }; }); var gr=$("#goRank"); if(gr)gr.onclick=function(){ openStandings("basketball",(g.leagueId||g.league),g); }; }
+  }
   function loadBasketballRecord(g){
-    dtBody('<div id="ovForm"><div class="msg"><div class="big">⏳</div>'+t("loading")+'</div></div><div class="dt-sec-t" style="margin-top:18px">🏆 '+t("leagueRank")+'</div><p style="color:#2b6cf0;font-weight:700;cursor:pointer" id="goRank">'+esc(g.league||"")+' ›</p>');
-    var gr=$("#goRank"); if(gr)gr.onclick=function(){ openStandings("basketball",(g.leagueId||g.league),g); };
-    loadForm(g,"basketball");
+    _bskRecSel=0; _bskRecData=null; _bskRecG=g;
+    if(!g.homeTid||!g.awayTid){ dtBody('<div class="msg"><div class="big">📋</div>'+t("noRecentRec")+'</div><div class="dt-sec-t" style="margin-top:18px">🏆 '+t("leagueRank")+'</div><p style="color:#2b6cf0;font-weight:700;cursor:pointer" id="goRank">'+esc(tnLeague(g.league||""))+' ›</p>'); var gr0=$("#goRank"); if(gr0)gr0.onclick=function(){ openStandings("basketball",(g.leagueId||g.league),g); }; return; }
+    dtLoading(); var tk=_dtTok;
+    fetch("/api/basketball/teamrecent?home="+encodeURIComponent(g.homeTid)+"&away="+encodeURIComponent(g.awayTid)+"&mid="+encodeURIComponent(g.tsid||"")).then(function(r){return r.json();}).then(function(j){
+      if(!dtFresh(tk))return;
+      if(!j||!j.found||(!(j.home&&j.home.games&&j.home.games.length)&&!(j.away&&j.away.games&&j.away.games.length)&&!(j.h2h&&j.h2h.length))){ dtDrop("bskrec"); return; }
+      _bskRecData=j; renderBskRec();
+    }).catch(function(){ dtBody('<div class="msg">⚠️ '+t("loadFailRetry")+'</div>'); });
   }
   // 채팅 (WebSocket /ws, 경기방 event:<id>)
   // 참여한 채팅 기록(기준: 채팅 탭을 연 경기 = '방문'). 중복 없이 최신순 저장.
