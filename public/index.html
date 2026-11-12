@@ -1898,7 +1898,7 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
   function closeDetail(){ if(_dt&&_dt.ws){try{_dt.ws.close()}catch(e){}} _dt=null; document.body.style.overflow=""; var d=$("#detail"); if(d)d.remove();
     // §5: 목록 재진입 시 데이터가 오래됐으면(>20초) 즉시 갱신 요청. 기존 자료는 유지, 성공해야 라벨 갱신(실패 시 '방금'으로 안 바뀜). 폴링 중복 없음.
     try{ var _k=key(), _at=S.recvAt[_k]||0; if((S.screen==="home"||S.screen==="live"||S.screen==="fav")&&document.visibilityState==="visible"&&(Date.now()-_at>20000)) pollSync(); }catch(e){} }
-  var TRK=["football","basketball","volleyball","baseball"];   // TheSports Live Match Tracker 지원 종목
+  var TRK=["football","basketball","volleyball","baseball","hockey","esports"];   // TheSports Live Match Tracker 지원 종목
   function trkTab(){ return ["tracker","🎥 "+t("trackerTab")]; }
   function detailTabs(sport,g){
     if(sport==="football"){
@@ -1916,6 +1916,8 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
     if(sport==="baseball") return [["overview",t("overview")],trkTab(),["box",t("boxTab")],["chat",t("chat")]];
     if(sport==="basketball") return [["overview",t("overview")],trkTab(),["bsklineup",t("lineup")],["box",t("playerRec")],["bskteam",t("teamStat")],["bskflow",t("flowTab")],["bskrec",t("recordTab")],["chat",t("chat")]];
     if(sport==="volleyball") return [["overview",t("overview")],trkTab(),["vbstats",t("statsTab")],["vbh2h",t("h2hTab")],["vbrank",t("standings")],["chat",t("chat")]];
+    if(sport==="hockey") return [["overview",t("overview")],trkTab(),["hkyev",t("eventsTab")],["chat",t("chat")]];
+    if(sport==="esports"){ var ea=[["overview",t("overview")],trkTab()]; if(g&&g.game==="csgo")ea.push(["esmaps",tl({en:"Maps",ko:"맵",ja:"マップ",zh:"地图",es:"Mapas",hi:"मैप",vi:"Bản đồ",th:"แมป",ru:"Карты",de:"Maps",fr:"Cartes",it:"Mappe"})]); ea.push(["chat",t("chat")]); return ea; }
     return [["overview",t("overview")],["chat",t("chat")]];
   }
   // 최종 탭 목록(트래커 상단고정 제외 + 숨겨진 탭 선택 시 개요 복귀 + 하이라이트 삽입)
@@ -1990,7 +1992,7 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
   function loadTrackerPinned(g,sport){
     var box=$("#dtTrk"); if(!box)return; var tk=_dtTok;
     var uuid=trkUuid(g,sport);
-    var u="/api/tracker?sport="+encodeURIComponent(sport)+"&id="+encodeURIComponent(g.id)+(uuid?"&uuid="+encodeURIComponent(uuid):"")+"&home="+encodeURIComponent(g.home||"")+"&away="+encodeURIComponent(g.away||"")+"&date="+encodeURIComponent(S.date)+"&lang="+encodeURIComponent(LANG);
+    var u="/api/tracker?sport="+encodeURIComponent(sport)+"&id="+encodeURIComponent(g.id)+(uuid?"&uuid="+encodeURIComponent(uuid):"")+(sport==="esports"&&g.game?"&game="+encodeURIComponent(g.game):"")+"&home="+encodeURIComponent(g.home||"")+"&away="+encodeURIComponent(g.away||"")+"&date="+encodeURIComponent(S.date)+"&lang="+encodeURIComponent(LANG);
     fetch(u,{cache:"no-store"}).then(function(r){return r.json();}).then(function(j){
       var b=$("#dtTrk"); if(!b)return;
       if(!j||!j.url){ b.remove(); return; }   // 트래커 없으면 고정영역 제거(상세 본문은 그대로)
@@ -2038,7 +2040,7 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
   function loadTracker(g,sport){
     dtLoading(); var tk=_dtTok;
     var uuid=trkUuid(g,sport);
-    var u="/api/tracker?sport="+encodeURIComponent(sport)+"&id="+encodeURIComponent(g.id)+(uuid?"&uuid="+encodeURIComponent(uuid):"")+"&home="+encodeURIComponent(g.home||"")+"&away="+encodeURIComponent(g.away||"")+"&date="+encodeURIComponent(S.date)+"&lang="+encodeURIComponent(LANG);
+    var u="/api/tracker?sport="+encodeURIComponent(sport)+"&id="+encodeURIComponent(g.id)+(uuid?"&uuid="+encodeURIComponent(uuid):"")+(sport==="esports"&&g.game?"&game="+encodeURIComponent(g.game):"")+"&home="+encodeURIComponent(g.home||"")+"&away="+encodeURIComponent(g.away||"")+"&date="+encodeURIComponent(S.date)+"&lang="+encodeURIComponent(LANG);
     fetch(u,{cache:"no-store"}).then(function(r){return r.json();}).then(function(j){
       if(!dtFresh(tk))return;
       if(!j||!j.url){
@@ -2048,13 +2050,54 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
       dtBody('<div class="trk-wrap"><iframe class="trk-frame" src="'+esc(j.url)+'" allow="autoplay; fullscreen" referrerpolicy="no-referrer-when-downgrade" loading="lazy"></iframe></div>');
     }).catch(function(){ if(dtFresh(tk))dtBody('<div class="msg">⚠️ '+t("loadFailRetry")+'</div>'); });
   }
+  // 🏒 하키 득점/페널티 타임라인 (TheSports detail_live incidents)
+  function loadHockeyEvents(g){
+    dtLoading(); var tk=_dtTok;
+    fetch("/api/hockey/live?id="+encodeURIComponent(g.id)).then(function(r){return r.json();}).then(function(j){
+      if(!dtFresh(tk))return;
+      var ev=(j&&j.events)||[];
+      if(!ev.length){ var m=stateOf(g)==="scheduled"?t("eventsAfterStart"):t("noEventsLive"); dtBody('<div class="msg"><div class="big">🏒</div>'+m+'</div>'); return; }
+      function mmss(s){ s=+s||0; var m=Math.floor(s/60); return m+"'"; }
+      var rows=ev.slice().reverse().map(function(e){
+        var ic=e.kind==="goal"?"🥅":"🟨"; var side=e.team==="home"?"h":(e.team==="away"?"a":"");
+        var lbl=e.kind==="goal"?(tl({en:"Goal",ko:"득점",ja:"ゴール",zh:"进球",es:"Gol",hi:"गोल",vi:"Bàn",th:"ประตู",ru:"Гол",de:"Tor",fr:"But",it:"Gol"})+(e.hs!=null?(" "+e.hs+"–"+e.as):"")):(tl({en:"Penalty",ko:"페널티",ja:"ペナルティ",zh:"犯规",es:"Penal",hi:"पेनल्टी",vi:"Phạt",th:"ลงโทษ",ru:"Штраф",de:"Strafe",fr:"Pénalité",it:"Penalità"})+(e.minute?(" "+e.minute+"'"):""));
+        return '<div class="fe '+side+'"><span class="fcl">'+mmss(e.second)+'</span><span class="ftx">'+ic+' '+esc(lbl)+'</span></div>';
+      }).join("");
+      dtBody('<div class="flow">'+rows+'</div>');
+    }).catch(function(){ if(dtFresh(tk))dtBody('<div class="msg">⚠️ '+t("loadFailRetry")+'</div>'); });
+  }
+  // 🎮 e스포츠 개요 — 시리즈 스코어 + Bo
+  function renderEsportsOverview(g){
+    var sch=stateOf(g)==="scheduled";
+    var gameNm=g.gameName||({lol:"LoL",dota2:"DOTA2",csgo:"CS2"})[g.game]||"";
+    var h='<div class="dt-sec-t">🎮 '+esc(gameNm)+(g.bestOf?' · BO'+g.bestOf:'')+'</div>';
+    if(sch){ h+='<p style="color:#5a6577">'+esc(dateLabel(S.date))+' '+hhmm(g.date)+'</p>'; }
+    else { h+='<p style="font-size:16px;font-weight:800;text-align:center;margin:12px 0 4px">'+esc(g.home)+' <span style="color:var(--accent)">'+(g.hs==null?0:g.hs)+' : '+(g.as==null?0:g.as)+'</span> '+esc(g.away)+'</p><p style="text-align:center;color:'+(stateOf(g)==="live"?"#e5402a":"#8a93a3")+';font-weight:700">'+esc(statusText(g))+'</p>'; }
+    if(g.bestOf){ var need=Math.floor(g.bestOf/2)+1; h+='<p style="text-align:center;color:#8a93a3;font-size:12px;margin-top:8px">'+tl({en:"First to",ko:"먼저",ja:"先取",zh:"率先",es:"Primero a",hi:"पहले",vi:"Trước",th:"ถึงก่อน",ru:"До",de:"Zuerst",fr:"Premier à",it:"Primo a"})+' '+need+' '+tl({en:"maps wins",ko:"맵 승리 시 승",ja:"マップ先取",zh:"张地图获胜",es:"mapas gana",hi:"मैप जीत",vi:"thắng",th:"ชนะ",ru:"карт — победа",de:"Maps gewinnt",fr:"cartes gagne",it:"mappe vince"})+'</p>'; }
+    dtBody(h);
+  }
+  // 🎮 CS2 맵별 로스터/스코어 (TheSports detail_live) — 지표 인덱스 미검증 항목은 생략(이름·맵점수만)
+  function loadEsportsMaps(g){
+    dtLoading(); var tk=_dtTok;
+    fetch("/api/esports/live?game="+encodeURIComponent(g.game||"")+"&id="+encodeURIComponent(g.id)).then(function(r){return r.json();}).then(function(j){
+      if(!dtFresh(tk))return;
+      var maps=(j&&j.maps)||[];
+      if(!maps.length){ dtBody('<div class="msg"><div class="big">🎮</div>'+(stateOf(g)==="scheduled"?t("eventsAfterStart"):t("noEventsLive"))+'</div>'); return; }
+      function roster(players,teamNm){ if(!players||!players.length)return ''; var chips=players.map(function(p){return '<span class="subchip">'+esc(p.name||"")+'</span>';}).join(""); return '<div style="font-weight:800;margin:8px 0 4px">'+esc(teamNm)+'</div><div class="subs">'+chips+'</div>'; }
+      var mapLbl=tl({en:"Map",ko:"맵",ja:"マップ",zh:"地图",es:"Mapa",hi:"मैप",vi:"Bản đồ",th:"แมป",ru:"Карта",de:"Map",fr:"Carte",it:"Mappa"});
+      var h=maps.map(function(mp,i){ return '<div class="dt-sec-t">'+mapLbl+' '+(mp.box_num||i+1)+' · '+(mp.homeScore!=null?mp.homeScore:"-")+' : '+(mp.awayScore!=null?mp.awayScore:"-")+'</div>'+roster(mp.homePlayers,g.home)+roster(mp.awayPlayers,g.away); }).join("");
+      dtBody('<div style="padding:2px">'+h+'</div>');
+    }).catch(function(){ if(dtFresh(tk))dtBody('<div class="msg">⚠️ '+t("loadFailRetry")+'</div>'); });
+  }
   function renderDetailBody(){
     _dtTok++;   // 새 탭/경기 렌더마다 토큰 증가 → 이전 요청 응답 무시
     var g=_dt.g, sport=_dt.sport, tab=_dt.tab;
     if(tab==="chat"){ return renderChat(g); }
     if(tab==="highlight"){ return renderHighlight(g); }
     if(tab==="tracker"){ return loadTracker(g,sport); }
-    if(tab==="overview"){ if(sport==="volleyball") return loadVolleyOverview(g); return renderOverview(g,sport); }
+    if(tab==="overview"){ if(sport==="volleyball") return loadVolleyOverview(g); if(sport==="esports") return renderEsportsOverview(g); return renderOverview(g,sport); }
+    if(sport==="hockey"&&tab==="hkyev"){ return loadHockeyEvents(g); }
+    if(sport==="esports"&&tab==="esmaps"){ return loadEsportsMaps(g); }
     if(sport==="volleyball"){
       if(tab==="vbstats") return loadVolleyStats(g);
       if(tab==="vbh2h") return loadVolleyH2H(g);

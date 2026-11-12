@@ -21,7 +21,7 @@ const app = express();
 const server = http.createServer(app);
 
 const PORT = process.env.PORT || 3000;
-const APP_VERSION = 'v469';
+const APP_VERSION = 'v471';
 
 // ============================================================
 //  📏 성능 계측(instrumentation) — 엔드포인트 지연·캐시·공급사·WS·이벤트루프
@@ -1334,7 +1334,8 @@ const AS = {
   hockey: { host: 'v1.hockey.api-sports.io', ko: '하키', em: '🏒', path: '/games' },
   handball: { host: 'v1.handball.api-sports.io', ko: '핸드볼', em: '🤾', path: '/games' },
   rugby: { host: 'v1.rugby.api-sports.io', ko: '럭비', em: '🏉', path: '/games' },
-  mma: { host: 'v1.mma.api-sports.io', ko: '격투기', em: '🥊', path: '/fights' }
+  mma: { host: 'v1.mma.api-sports.io', ko: '격투기', em: '🥊', path: '/fights' },
+  esports: { host: '', ko: 'e스포츠', em: '🎮', path: '' }   // TheSports 전용(LOL/DOTA2/CS2) — API-Sports 미사용
 };
 
 // 타임존 쿼리: API-Sports는 "Asia/Seoul"처럼 슬래시가 살아있어야 인식. encodeURIComponent는 슬래시를 %2F로 바꿔
@@ -1749,8 +1750,15 @@ let TRACKER_URLS = {
   football: process.env.TRACKER_FOOTBALL || 'https://widgets.thesports01.com/{language}/{version}/football?profile=3nhwvkzvj0adhkkoly8x&uuid={match_uuid}',
   basketball: process.env.TRACKER_BASKETBALL || 'https://widgets.thesports01.com/{language}/{version}/basketball?profile=jztx9nz9w6tphkkldw3d&uuid={match_uuid}',
   volleyball: process.env.TRACKER_VOLLEYBALL || 'https://widgets.thesports01.com/{language}/{version}/volleyball?profile=kdhek83k67a6hnn0jej8&uuid={match_uuid}',
-  baseball: process.env.TRACKER_BASEBALL || 'https://widgets.thesports01.com/{language}/baseball?profile=j7sx9nz9w6tphkkldg24&uuid={match_uuid}'
+  baseball: process.env.TRACKER_BASEBALL || 'https://widgets.thesports01.com/{language}/baseball?profile=j7sx9nz9w6tphkkldg24&uuid={match_uuid}',
+  // 🆕 체험 활성화 종목 — 대시보드 발급 Online URL(profile 포함). env 로 재정의 가능.
+  hockey: process.env.TRACKER_HOCKEY || 'https://widgets.thesports01.com/{language}/{version}/ice-hockey?profile=2lbxngvn34tjhnnwk606&uuid={match_uuid}',
+  lol: process.env.TRACKER_LOL || 'https://widgets.thesports01.com/{language}/lol?profile=g5efe4kv49oa4hx&uuid={match_uuid}',
+  dota2: process.env.TRACKER_DOTA2 || 'https://widgets.thesports01.com/{language}/dota2?profile=d9xh0gj4g5ncjh5&uuid={match_uuid}',
+  csgo: process.env.TRACKER_CSGO || 'https://widgets.thesports01.com/{language}/csgo?profile=086hjk5xkolb6he&uuid={match_uuid}'
 };
+// e스포츠 트래커는 종목(게임)별 템플릿 사용 — req.query.game 으로 선택
+function esTrackerKey(game) { return ES_GAMES && ES_GAMES[game] ? game : ''; }
 const TRACKER_LANGS = { en: 1, ko: 1, ja: 1, zh: 1, es: 1, ru: 1, de: 1, fr: 1, it: 1, th: 1, vi: 1 };  // 위젯 지원 추정 언어(미지원은 en)
 function trackerTemplate(sport) {
   if (TRACKER_URLS[sport]) return TRACKER_URLS[sport];
@@ -1791,7 +1799,9 @@ async function resolveBaseballTsid(home, away, date) {
 }
 app.get('/api/tracker', async (req, res) => {
   const sport = String(req.query.sport || 'football').toLowerCase();
-  const tmpl = trackerTemplate(sport);
+  // 🎮 e스포츠는 종목(게임)별 트래커 템플릿 사용(lol/dota2/csgo)
+  const tmplKey = (sport === 'esports') ? esTrackerKey(String(req.query.game || '').toLowerCase()) : sport;
+  const tmpl = tmplKey ? trackerTemplate(tmplKey) : '';
   if (!tmpl) return res.json({ url: '', note: 'not-configured' });
   let uuid = String(req.query.uuid || '');
   if (!uuid && sport === 'baseball') uuid = await resolveBaseballTsid(req.query.home, req.query.away, req.query.date);
@@ -2974,6 +2984,178 @@ async function tsBasketballGames(date, tz) {
   }
   return out;
 }
+// ============================================================================
+// 🏒 아이스하키 (TheSports ice_hockey) — 리스트/라이브/상세
+//   status_id 스킴 불확실성 회피: detail_live 진행여부 + status_id + 경기시각으로 상태 판정.
+//   scores: {ft:[h,a], p1,p2,p3,(ot)}  / detail_live: score[3]=scores, timer=[run,period,upd_ts,cap]
+// ============================================================================
+const TS_HKY_FIN = new Set([100, 110, 115, 120, 125, 11, 12, 13]);   // 종료 계열 코드(과대 포함, 라이브맵보다 우선)
+function tsHkyState(st, inLive, m) {
+  const now = Math.floor(Date.now() / 1000);
+  if (st != null && TS_HKY_FIN.has(st)) return 'finished';
+  if (inLive) return 'live';
+  if (st === 1 || st === 0 || st == null) {
+    if (m && m.match_time && m.match_time > now - 3600) return 'scheduled';
+  }
+  if (m && m.match_time && m.match_time > now) return 'scheduled';
+  const hasFt = m && m.scores && m.scores.ft && m.scores.ft[0] != null;
+  if (hasFt && m && m.match_time && m.match_time < now - 2 * 3600) return 'finished';
+  return hasFt ? 'finished' : 'scheduled';
+}
+function hkySetScores(scores) {
+  if (!scores) return null;
+  const out = [];
+  for (let i = 1; i <= 7; i++) { const k = 'p' + i; if (scores[k]) out.push({ home: (+scores[k][0] || 0), away: (+scores[k][1] || 0) }); }
+  if (scores.ot) out.push({ home: (+scores.ot[0] || 0), away: (+scores.ot[1] || 0), ot: true });
+  return out.length ? out : null;
+}
+async function tsHockeyGames(date, tz) {
+  tz = canonTz(tz);
+  const toYmd = d => String(d).replace(/-/g, '');
+  const prev = new Date(Date.parse(date + 'T12:00:00Z') - 864e5).toISOString().slice(0, 10);
+  const next = new Date(Date.parse(date + 'T12:00:00Z') + 864e5).toISOString().slice(0, 10);
+  const comp = {}, team = {}, out = [], seen = new Set();
+  let liveMap = {};
+  try { const lv = await tsFetch('/ice_hockey/match/detail_live', {}, 3000); ((lv && lv.results) || []).forEach(r => { const id = r.id || (r.score && r.score[0]); if (id) liveMap[id] = r; }); } catch (e) {}
+  const _diaries = await Promise.all([prev, date, next].map(dt => tsFetch('/ice_hockey/match/diary', { date: toYmd(dt) }, 8000).catch(() => null)));
+  for (const d of _diaries) {
+    if (!d) continue;
+    const ex = (d && d.results_extra) || {};
+    (ex.competition || []).forEach(c => { comp[c.id] = { name: c.name, logo: c.logo || '', country: (c.country || '') }; });
+    (ex.unique_tournament || []).forEach(c => { if (!comp[c.id]) comp[c.id] = { name: c.name, logo: c.logo || '', country: (c.country || '') }; });
+    (ex.team || []).forEach(t => { team[t.id] = { name: t.name, logo: t.logo || '' }; });
+    for (const m of (d && d.results) || []) {
+      const id = m.id; if (!id || seen.has(id)) continue;
+      const iso = m.match_time ? new Date(m.match_time * 1000).toISOString() : null;
+      if (iso && ymdInTz(iso, tz) !== date) continue;
+      seen.add(id);
+      const cid = m.competition_id || m.unique_tournament_id;
+      const hc = comp[cid] || {}, ht = team[m.home_team_id] || {}, at = team[m.away_team_id] || {};
+      const lv = liveMap[id];
+      const inLive = !!lv;
+      const state = tsHkyState(m.status_id, inLive, m);
+      let scores = m.scores || null;
+      let period = null, timerSec = null, timerRun = 0, timerUpd = 0;
+      if (lv) {
+        if (lv.score && lv.score[3]) scores = lv.score[3];
+        if (lv.timer) { timerRun = lv.timer[0] || 0; period = lv.timer[1] || null; timerUpd = lv.timer[2] || 0; const cap = lv.timer[3] || 1200; const el = timerUpd ? Math.max(0, Math.floor(Date.now() / 1000) - timerUpd) : 0; timerSec = Math.max(0, cap - el); }
+      }
+      const hs = scores && scores.ft ? (+scores.ft[0] || 0) : null;
+      const as = scores && scores.ft ? (+scores.ft[1] || 0) : null;
+      const setScores = hkySetScores(scores);
+      const periodLabel = (state === 'live' && period) ? (period <= 3 ? 'P' + period : (period === 4 ? 'OT' : 'SO')) : '';
+      out.push({
+        id: 'ts' + id, tsid: id, sport: 'hockey',
+        league: hc.name || 'Ice Hockey', leagueOrig: hc.name || '', leagueLogo: hc.logo || '', country: hc.country || '',
+        home: ht.name || '', homeLogo: ht.logo || '', away: at.name || '', awayLogo: at.logo || '',
+        homeTid: m.home_team_id, awayTid: m.away_team_id,
+        hs, as, status: periodLabel, statusLong: String(m.status_id), period, periodLabel,
+        timer: (timerSec != null && state === 'live') ? fmtClockSec(timerSec) : null,
+        timerSec: state === 'live' ? timerSec : null, timerRun, timerUpd,
+        setScores, date: iso, state, cov: m.coverage ? { mlive: m.coverage.mlive ? 1 : 0 } : null, _src: 'thesports'
+      });
+    }
+  }
+  return out;
+}
+// 🏒 하키 라이브 상세 — detail_live: 득점/페널티 타임라인 + 피리어드 점수(통계 id 매핑 불명은 생략)
+app.get('/api/hockey/live', async (req, res) => {
+  res.set('Cache-Control', 'no-store');
+  const raw = String(req.query.id || ''); if (!/^ts/.test(raw)) return res.json({ found: false, note: 'not-thesports' });
+  const id = raw.replace(/^ts/, '');
+  try {
+    const lv = await tsFetch('/ice_hockey/match/detail_live', {}, 5000).catch(() => null);
+    const arr = (lv && lv.results) || []; const mine = arr.find(x => String(x && x.id) === String(id));
+    if (!mine) return res.json({ found: false });
+    const scores = (mine.score && mine.score[3]) || null;
+    const events = [];
+    (mine.incidents || []).forEach(ic => {
+      if (ic.type === 2) events.push({ kind: 'goal', second: ic.second || 0, team: ic.position === 1 ? 'home' : (ic.position === 2 ? 'away' : ''), hs: ic.home_score, as: ic.away_score, player: ic.player_id || '', assist: ic.assists1_id || '' });
+      else if (ic.type === 3) events.push({ kind: 'penalty', second: ic.second || 0, team: ic.position === 1 ? 'home' : (ic.position === 2 ? 'away' : ''), minute: ic.card_minute || 0, player: ic.player_id || '' });
+    });
+    res.json({ found: true, scores, periods: hkySetScores(scores), events, rawStats: (req.query.debug ? mine.stats : undefined) });
+  } catch (e) { res.status(502).json({ error: String(e.message || e) }); }
+});
+// ============================================================================
+// 🎮 e스포츠 (TheSports lol / dota2 / csgo=CS2) — 리스트/라이브
+//   diary: {id,tournament_id,home_team_id,away_team_id,box(=Bo),home_score,away_score(=맵승),status_id,bp_data}
+//   status_id: 1=예정, 2=진행, 3=종료
+// ============================================================================
+const ES_GAMES = { lol: { slug: 'lol', name: 'LoL' }, dota2: { slug: 'dota2', name: 'DOTA2' }, csgo: { slug: 'csgo', name: 'CS2' } };
+function tsEsState(st, m) {
+  const now = Math.floor(Date.now() / 1000);
+  if (st === 2) return 'live';
+  if (st === 3) return 'finished';
+  if (st === 1 || st === 0 || st == null) { if (m && m.match_time && m.match_time > now - 7200) return 'scheduled'; }
+  if (m && m.match_time && m.match_time > now) return 'scheduled';
+  if (st != null && st > 3) return 'finished';
+  const played = m && (m.home_score || m.away_score);
+  return played ? 'finished' : 'scheduled';
+}
+async function tsEsportsGamesOne(gameKey, date, tz) {
+  const g = ES_GAMES[gameKey]; if (!g) return [];
+  tz = canonTz(tz);
+  const toYmd = d => String(d).replace(/-/g, '');
+  const prev = new Date(Date.parse(date + 'T12:00:00Z') - 864e5).toISOString().slice(0, 10);
+  const next = new Date(Date.parse(date + 'T12:00:00Z') + 864e5).toISOString().slice(0, 10);
+  const team = {}, tour = {}, out = [], seen = new Set();
+  let liveSet = new Set();
+  try { const lv = await tsFetch('/' + g.slug + '/match/detail_live', {}, 3000); ((lv && lv.results) || []).forEach(r => { const mid = r.match_id || r.id; if (mid) liveSet.add(String(mid)); }); } catch (e) {}
+  const _diaries = await Promise.all([prev, date, next].map(dt => tsFetch('/' + g.slug + '/match/diary', { date: toYmd(dt) }, 8000).catch(() => null)));
+  for (const d of _diaries) {
+    if (!d) continue;
+    const ex = (d && d.results_extra) || {};
+    (ex.team || []).forEach(t => { team[t.id] = { name: t.name, logo: t.logo || '' }; });
+    (ex.tournament || []).forEach(t => { tour[t.id] = { name: t.name, logo: t.logo || '' }; });
+    (ex.unique_tournament || []).forEach(t => { if (!tour[t.id]) tour[t.id] = { name: t.name, logo: t.logo || '' }; });
+    for (const m of (d && d.results) || []) {
+      const id = m.id; if (!id || seen.has(id)) continue;
+      const iso = m.match_time ? new Date(m.match_time * 1000).toISOString() : null;
+      if (iso && ymdInTz(iso, tz) !== date) continue;
+      seen.add(id);
+      const ht = team[m.home_team_id] || {}, at = team[m.away_team_id] || {}, tt = tour[m.tournament_id] || {};
+      let state = tsEsState(m.status_id, m);
+      if (state !== 'finished' && liveSet.has(String(id))) state = 'live';
+      out.push({
+        id: 'ts' + id, tsid: id, game: gameKey, sport: 'esports',
+        league: tt.name || g.name, leagueOrig: tt.name || '', leagueLogo: tt.logo || '', country: g.name, gameName: g.name,
+        home: ht.name || '', homeLogo: ht.logo || '', away: at.name || '', awayLogo: at.logo || '',
+        homeTid: m.home_team_id, awayTid: m.away_team_id,
+        hs: (m.home_score != null ? m.home_score : null), as: (m.away_score != null ? m.away_score : null),
+        box: m.box || 0, bestOf: m.box || 0,
+        status: '', statusLong: String(m.status_id), date: iso, state, _src: 'thesports'
+      });
+    }
+  }
+  return out;
+}
+async function tsEsportsGames(date, tz) {
+  const all = await Promise.all(Object.keys(ES_GAMES).map(k => tsEsportsGamesOne(k, date, tz).catch(() => [])));
+  return [].concat.apply([], all);
+}
+// 🎮 e스포츠 라이브 상세 — 현재 맵/라운드 + (CS2) 선수 K/D/A
+app.get('/api/esports/live', async (req, res) => {
+  res.set('Cache-Control', 'no-store');
+  const game = String(req.query.game || '').toLowerCase(); const g = ES_GAMES[game];
+  const raw = String(req.query.id || ''); if (!g || !/^ts/.test(raw)) return res.json({ found: false });
+  const id = raw.replace(/^ts/, '');
+  try {
+    const lv = await tsFetch('/' + g.slug + '/match/detail_live', {}, 5000).catch(() => null);
+    const arr = (lv && lv.results) || []; const mine = arr.filter(x => String(x.match_id || x.id) === String(id));
+    if (!mine.length) return res.json({ found: false });
+    const maps = mine.map(mp => {
+      const home = mp.home || {}, away = mp.away || {};
+      const mkP = p => ({ id: p.id, name: p.name || '', stats: p.stats || [] });
+      return {
+        box_num: mp.box_num, status: mp.single_status_id || mp.status_id, round: mp.round_num,
+        homeScore: home.score, awayScore: away.score,
+        homePlayers: (home.players || []).map(mkP), awayPlayers: (away.players || []).map(mkP),
+        timer: mp.timer || null
+      };
+    });
+    res.json({ found: true, game, maps });
+  } catch (e) { res.status(502).json({ error: String(e.message || e) }); }
+});
 // TheSports 농구 선수 기록 디코드. stat 문자열(^ 구분) 인덱스는 실데이터로 검증:
 //  0=출전분, 1=야투(성공-시도), 2=3점, 3=자유투, 4=공격리바, 5=수비리바, 6=리바운드,
 //  7=어시스트, 8=스틸, 9=블록, 10=턴오버, 11=개인파울, 13=득점  (득점 합 = 팀 점수로 검증 완료)
@@ -3289,8 +3471,27 @@ async function tsVolleyballGames(date, tz) {
   return out;
 }
 async function buildGamesCore(sport, date, tz) {
+  // 🎮 e스포츠(LOL/DOTA2/CS2) = 더스포츠 전용(세 게임 병합). API-Sports 폴백 없음.
+  if (sport === 'esports') {
+    let games = []; try { games = await tsEsportsGames(date, tz); } catch (e) {}
+    const gk = 'TS|esports|' + date + '|' + (canonTz(tz) || '');
+    if (games.length) { _lastGoodMinor.set(gk, { t: Date.now(), list: games.slice() }); return { games, j: { results: games.length, src: 'thesports' } }; }
+    const prev = _lastGoodMinor.get(gk);
+    if (prev && prev.list && prev.list.length && Date.now() - prev.t < 120000) return { games: prev.list.slice(), j: { results: prev.list.length, src: 'thesports-cache' } };
+    return { games: [], j: { results: 0, src: 'thesports' } };
+  }
   const cfg = AS[sport]; if (!cfg) return { games: [], j: {} };
   tz = canonTz(tz);
+  // 🏒 하키 = 더스포츠(ice_hockey) 우선 — NHL·KHL 등 풀커버리지+경기장. 비면 아래 API-Sports 폴백.
+  if (sport === 'hockey' && !tsCircuitOpen('hockey')) {
+    let games = []; try { games = await tsHockeyGames(date, tz); } catch (e) {}
+    tsCircuitNote('hockey', games.length > 0);
+    const gk = 'TS|hockey|' + date + '|' + (tz || '');
+    if (games.length) { _lastGoodMinor.set(gk, { t: Date.now(), list: games.slice() }); return { games, j: { results: games.length, src: 'thesports' } }; }
+    const prev = _lastGoodMinor.get(gk);
+    if (prev && prev.list && prev.list.length && Date.now() - prev.t < 90000) return { games: prev.list.slice(), j: { results: prev.list.length, src: 'thesports-cache' } };
+    // 폴백: 아래 API-Sports 하키
+  }
   // ⚽ 축구 = 더스포츠 (CFG.ftbSrc). 비면 아래 API-Sports 폴백.
   if (sport === 'football' && CFG.ftbSrc === 'thesports' && !tsCircuitOpen('football')) {
     let games = [];
@@ -3681,7 +3882,7 @@ function warmFeeds() {
 setTimeout(warmFeeds, 1500); setInterval(warmFeeds, 20000);
 app.get('/api/asports/games', async (req, res) => {
   // 🏀 농구는 Goalserve 사용(API-Sports 키 불필요) → 키 없어도 통과
-  if (!APISPORTS_KEY && req.query.sport !== 'basketball') return res.json({ needKey: true, games: [] });
+  if (!APISPORTS_KEY && !['basketball', 'esports', 'hockey'].includes(req.query.sport)) return res.json({ needKey: true, games: [] });
   const sport = req.query.sport || 'football';
   const date = req.query.date || new Date().toISOString().slice(0, 10);
   const cfg = AS[sport]; if (!cfg) return res.status(400).json({ error: 'bad sport' });
