@@ -21,7 +21,7 @@ const app = express();
 const server = http.createServer(app);
 
 const PORT = process.env.PORT || 3000;
-const APP_VERSION = 'v475';
+const APP_VERSION = 'v476';
 
 // ============================================================
 //  📏 성능 계측(instrumentation) — 엔드포인트 지연·캐시·공급사·WS·이벤트루프
@@ -2694,13 +2694,15 @@ app.get('/api/thesports/liveprobe', async (req, res) => {
 app.get('/api/thesports/raw', async (req, res) => {
   const sport = req.query.sport || 'baseball';
   const ymd = (req.query.date || new Date().toISOString().slice(0, 10)).replace(/-/g, '');
+  const langParam = req.query.lang ? { lang: String(req.query.lang) } : {};   // 🔎 한글 등 다국어 이름 지원 여부 테스트용
   try {
-    const d = await tsFetch(`/${sport}/match/diary`, { date: ymd }, 3000);
+    const d = await tsFetch(`/${sport}/match/diary`, Object.assign({ date: ymd }, langParam), 3000);
     const lv = await tsFetch(`/${sport}/match/detail_live`, {}, 3000).catch(() => ({}));
     const ex = d.results_extra || {};
     res.json({
       code: d.code, total: d.query && d.query.total,
       allLeagues: (ex.unique_tournament || []).map(u => u.name),
+      teamNames: (ex.team || []).slice(0, 8).map(t => t.name),
       diarySample: (d.results || []).slice(0, 1),
       liveSample: (lv.results || []).slice(0, 2)
     });
