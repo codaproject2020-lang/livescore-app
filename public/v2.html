@@ -2410,7 +2410,10 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
         +gauge(tl({en:"FT",ko:"자유투",ja:"FT",zh:"罚球",es:"TL",hi:"FT",vi:"NP",th:"ฟรีโธรว์",ru:"ШБ",de:"FW",fr:"LF",it:"TL"}),H.ftm,A.ftm);
       var bars=bar(tl({en:"Rebounds",ko:"리바운드",ja:"リバウンド",zh:"篮板",es:"Rebotes",hi:"रिबाउंड",vi:"Bắt bóng",th:"รีบาวด์",ru:"Подборы",de:"Rebounds",fr:"Rebonds",it:"Rimbalzi"}),H.reb,A.reb)
         +bar(tl({en:"Assists",ko:"어시스트",ja:"アシスト",zh:"助攻",es:"Asist.",hi:"असिस्ट",vi:"Kiến tạo",th:"แอสซิสต์",ru:"Передачи",de:"Assists",fr:"Passes",it:"Assist"}),H.ast,A.ast)
-        +bar(tl({en:"Turnovers",ko:"턴오버",ja:"ターンオーバー",zh:"失误",es:"Pérdidas",hi:"टर्नओवर",vi:"Mất bóng",th:"เทิร์นโอเวอร์",ru:"Потери",de:"Ballverluste",fr:"Pertes",it:"Palle perse"}),H.to,A.to,true);
+        +bar(tl({en:"Turnovers",ko:"턴오버",ja:"ターンオーバー",zh:"失误",es:"Pérdidas",hi:"टर्नओवर",vi:"Mất bóng",th:"เทิร์นโอเวอร์",ru:"Потери",de:"Ballverluste",fr:"Pertes",it:"Palle perse"}),H.to,A.to,true)
+        +bar(tl({en:"Steals",ko:"스틸",ja:"スティール",zh:"抢断",es:"Robos",hi:"स्टील",vi:"Cướp bóng",th:"สตีล",ru:"Перехваты",de:"Steals",fr:"Interceptions",it:"Palle rubate"}),H.stl,A.stl)
+        +bar(tl({en:"Blocks",ko:"블록",ja:"ブロック",zh:"盖帽",es:"Tapones",hi:"ब्लॉक",vi:"Chặn bóng",th:"บล็อก",ru:"Блок-шоты",de:"Blocks",fr:"Contres",it:"Stoppate"}),H.blk,A.blk)
+        +bar(tl({en:"Fouls",ko:"반칙",ja:"ファウル",zh:"犯规",es:"Faltas",hi:"फ़ाउल",vi:"Lỗi",th:"ฟาวล์",ru:"Фолы",de:"Fouls",fr:"Fautes",it:"Falli"}),H.pf,A.pf,true);
       b.innerHTML='<div class="dt-sec-t" style="margin-top:18px">📊 '+t("keyStats")+'</div>'+
         '<div style="display:flex;justify-content:space-between;font-weight:800;margin:2px 2px 8px;font-size:13px"><span>'+esc(g.home)+'</span><span>'+esc(g.away)+'</span></div>'+
         '<div class="gg-wrap">'+gg+'</div>'+bars;
