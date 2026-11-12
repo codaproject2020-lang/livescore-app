@@ -287,6 +287,12 @@ img{display:block}
 /* 보조 라인(라인스코어/세트/BSO) */
 .gm-sub{grid-column:1/-1;padding:2px 2px 2px;display:flex;flex-wrap:wrap;gap:6px;align-items:center;justify-content:center}
 .chipq{font-size:11px;font-weight:700;color:var(--text);background:var(--soft);border-radius:6px;padding:2px 8px;white-space:nowrap}
+.ov-qtw{overflow-x:auto;margin:4px 0 2px}
+.ov-qt{width:100%;border-collapse:collapse;font-size:13px;text-align:center}
+.ov-qt th{color:#8a93a3;font-weight:700;font-size:11.5px;padding:5px 6px;border-bottom:1px solid var(--line)}
+.ov-qt td{padding:7px 6px;border-bottom:1px solid var(--line)}
+.ov-qt .qtm{text-align:left;font-weight:800;white-space:nowrap}
+.ov-qt .qtt{font-weight:800;color:var(--red)}
 .fbflow{margin:4px 0 6px}
 .fbflow-svg{width:100%;height:auto;display:block}
 .fbflow-lg{display:flex;flex-wrap:wrap;gap:12px;justify-content:center;margin-top:4px;font-size:11px;font-weight:700;color:var(--muted)}
@@ -1024,7 +1030,8 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
       // 초 미제공 → 분만 정직하게 표시(임의 :00 금지)
       var e=g.elapsed; if(e!=null){ var half=(e<=45)?t("fh"):t("sh"); return half+" "+e+"'"; }
       var fs=String(g.status||"").toUpperCase(); if(fs==="1H")return t("fh"); if(fs==="2H")return t("sh"); if(fs==="ET")return tl({en:"Extra Time",ko:"연장",ja:"延長",zh:"加时",es:"Prórroga",hi:"अतिरिक्त समय",vi:"Hiệp phụ",th:"ต่อเวลา",ru:"Доп. время",de:"Verlängerung",fr:"Prolongation",it:"Supplementari"}); return t("inplay"); }
-    if(sp==="baseball"){ var inn=g.curInning; if(!inn)return t("inplay"); var h=g.inningHalf==="top"?t("topShort"):(g.inningHalf==="bottom"?t("botShort"):""); return ko?(inn+"회"+h):((h?h+" ":"")+inn); }
+    // 야구: 초/말(top/bottom) 표기 제거 — 회차만 표시(세부 진행은 경기장 트래커에서 확인). 공급사 초/말 정합성 이슈 회피.
+    if(sp==="baseball"){ var inn=g.curInning; if(!inn)return t("inplay"); var inL=tl({en:"Inn",ko:"회",ja:"回",zh:"局",es:"Ent",hi:"पारी",vi:"Hiệp",th:"อินนิ่ง",ru:"инн",de:"Inn",fr:"Man.",it:"Inn"}); return ko?(inn+inL):(inL+" "+inn); }
     return _statusText(g,sp);
   }
   // 기간별 점수표 컬럼 라벨(쿼터제: Q1~Q4·OT1~ / 하프제: H1·H2·OT1~ / 하키: P / 배구: S)
@@ -2071,7 +2078,7 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
     var gameNm=g.gameName||({lol:"LoL",dota2:"DOTA2",csgo:"CS2"})[g.game]||"";
     var h='<div class="dt-sec-t">🎮 '+esc(gameNm)+(g.bestOf?' · BO'+g.bestOf:'')+'</div>';
     if(sch){ h+='<p style="color:#5a6577">'+esc(dateLabel(S.date))+' '+hhmm(g.date)+'</p>'; }
-    else { h+='<p style="font-size:16px;font-weight:800;text-align:center;margin:12px 0 4px">'+esc(g.home)+' <span style="color:var(--accent)">'+(g.hs==null?0:g.hs)+' : '+(g.as==null?0:g.as)+'</span> '+esc(g.away)+'</p><p style="text-align:center;color:'+(stateOf(g)==="live"?"#e5402a":"#8a93a3")+';font-weight:700">'+esc(statusText(g))+'</p>'; }
+    else { h+='<p style="font-size:16px;font-weight:800;text-align:center;margin:12px 0 4px">'+esc(g.home)+' <span style="color:var(--red)">'+(g.hs==null?0:g.hs)+' : '+(g.as==null?0:g.as)+'</span> '+esc(g.away)+'</p><p style="text-align:center;color:'+(stateOf(g)==="live"?"#e5402a":"#8a93a3")+';font-weight:700">'+esc(statusText(g))+'</p>'; }
     if(g.bestOf){ var need=Math.floor(g.bestOf/2)+1; h+='<p style="text-align:center;color:#8a93a3;font-size:12px;margin-top:8px">'+tl({en:"First to",ko:"먼저",ja:"先取",zh:"率先",es:"Primero a",hi:"पहले",vi:"Trước",th:"ถึงก่อน",ru:"До",de:"Zuerst",fr:"Premier à",it:"Primo a"})+' '+need+' '+tl({en:"maps wins",ko:"맵 승리 시 승",ja:"マップ先取",zh:"张地图获胜",es:"mapas gana",hi:"मैप जीत",vi:"thắng",th:"ชนะ",ru:"карт — победа",de:"Maps gewinnt",fr:"cartes gagne",it:"mappe vince"})+'</p>'; }
     dtBody(h);
   }
@@ -2140,8 +2147,9 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
       var idxA=tb.findIndex(function(r){var tn=norm(r.team||r.name);return tn&&(tn.indexOf(na)>=0||na.indexOf(tn)>=0);});
       var ids=[idxH,idxA].filter(function(i){return i>=0;});
       var rows;
-      if(ids.length){ var lo=Math.max(0,Math.min.apply(null,ids)-1), hi=Math.min(tb.length,Math.max.apply(null,ids)+2); rows=tb.slice(lo,hi); }
-      else rows=tb.slice(0,6);
+      // 1위부터 두 팀까지 연속 표시(경쟁사와 동일). 두 팀 못 찾으면 상위 8팀.
+      if(ids.length){ var hi=Math.min(tb.length,Math.max.apply(null,ids)+2); rows=tb.slice(0,hi); }
+      else rows=tb.slice(0,8);
       var seasonTag=(j&&j.season)?' · '+esc(String(j.season)):'';
       var warn=ids.length?'':('<div class="rk-note" style="color:#b06a00;font-size:11.5px;margin-bottom:4px">'+tl({en:"(Couldn't match both teams — showing top of table.)",ko:"(두 팀을 찾지 못해 상위 순위를 표시합니다.)",ja:"(2チーム未特定、上位を表示)",zh:"(未匹配两队，显示前排)",es:"(Equipos no hallados; cima.)",hi:"(टीमें नहीं मिलीं; शीर्ष)",vi:"(Không khớp đội; đầu bảng)",th:"(จับคู่ไม่ได้ แสดงบนสุด)",ru:"(Команды не найдены; верх.)",de:"(Teams nicht gefunden; oben.)",fr:"(Équipes introuvables; haut.)",it:"(Squadre non trovate; vertice.)"})+'</div>');
       var html='<div style="font-size:11.5px;color:var(--muted);margin-bottom:6px">'+esc(g.league||"")+seasonTag+'</div>'+warn+rankTableHtml(sport,rows,[g.home,g.away])+
@@ -2160,8 +2168,8 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
       h+='<p style="font-size:15px;font-weight:700">'+esc(g.home)+' '+fmtScore(g)+' '+esc(g.away)+' · '+statusText(g)+'</p>';
       // 야구 라인스코어/BSO
       if(sport==="baseball"&&g.box){ var ls=lineScore(g); h+='<div class="dt-sec-t">'+t("scoreByInning")+'</div>'; dtBody(h); var b=$("#dtBody"); b.appendChild(ls); return; }
-      // 농구/배구/하키 세트/쿼터
-      if(g.setScores&&g.setScores.length){ var lab=sport==="basketball"?t("quarterScore"):(sport==="hockey"?t("periodScore"):t("setScore")); h+='<div class="dt-sec-t">'+lab+'</div><div style="display:flex;flex-wrap:wrap;gap:6px">'+g.setScores.map(function(p,i){return '<span class="chipq"><b class="qk">'+periodColLabel(sport,i,g.isHalves)+'</b>'+(p.home==null?"-":p.home)+":"+(p.away==null?"-":p.away)+'</span>'}).join("")+'</div>'; }
+      // 농구는 아래에서 쿼터 '표'로 표시(경쟁사 동일). 배구/하키는 기존 칩.
+      if(g.setScores&&g.setScores.length&&sport!=="basketball"){ var lab=(sport==="hockey"?t("periodScore"):t("setScore")); h+='<div class="dt-sec-t">'+lab+'</div><div style="display:flex;flex-wrap:wrap;gap:6px">'+g.setScores.map(function(p,i){return '<span class="chipq"><b class="qk">'+periodColLabel(sport,i,g.isHalves)+'</b>'+(p.home==null?"-":p.home)+":"+(p.away==null?"-":p.away)+'</span>'}).join("")+'</div>'; }
     }
     // 축구 개요 요약: 경기 흐름 그래프(F01) → 핵심 통계 → 이벤트 → 최근성적/순위
     if(sport==="football"&&stateOf(g)!=="scheduled"){
@@ -2177,11 +2185,13 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
     } else if(sport==="football"){
       h+='<div class="ov-jump"><button class="ovj" data-go="lineup">👥 '+t("lineup")+' ›</button></div>';
     }
-    // 농구 개요: 현재 기간 팀파울 요약 + 데이터 탭 바로가기
+    // 농구 개요: 쿼터 표 + 팀 통계 게이지(경쟁사 구성) + 데이터 탭 바로가기
     if(sport==="basketball"){
+      if(stateOf(g)!=="scheduled") h+=bskQuarterTable(g);
       if(stateOf(g)==="live"&&(g.homeFouls!=null||g.awayFouls!=null)){
         h+='<div class="dt-sec-t" style="margin-top:16px">🙌 '+t("teamFoul")+(g.periodLabel?' ('+esc(g.periodLabel)+')':'')+'</div><p style="font-weight:800">'+esc(g.home)+' '+(g.homeFouls==null?"-":g.homeFouls)+' : '+(g.awayFouls==null?"-":g.awayFouls)+' '+esc(g.away)+'</p>';
       }
+      if(stateOf(g)!=="scheduled") h+='<div id="ovBskStats"></div>';
       h+='<div class="ov-jump">'+
          '<button class="ovj" data-go="box">👤 '+t("playerRec")+' ›</button>'+
          '<button class="ovj" data-go="bskteam">📊 '+t("teamStat")+' ›</button>'+
@@ -2197,7 +2207,42 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
     // 개요 → 탭 이동 버튼
     var db=$("#dtBody"); if(db){ db.querySelectorAll(".ovj").forEach(function(btn){ btn.onclick=function(){ _dt.tab=btn.dataset.go; renderDetail(); }; }); }
     if(sport==="football"&&stateOf(g)!=="scheduled"){ loadOverviewStats(g); loadOverviewStars(g); loadFootballFlow(g); }
+    if(sport==="basketball"&&stateOf(g)!=="scheduled"){ loadOverviewBskStats(g); }
     loadForm(g,sport);
+  }
+  // 농구 개요: 쿼터 득점 표(팀 행 × 쿼터 + 합계) — 경쟁사 동일 구성
+  function bskQuarterTable(g){
+    if(!g.setScores||!g.setScores.length) return '';
+    var n=g.setScores.length;
+    var totLbl=tl({en:"Total",ko:"합계",ja:"合計",zh:"合计",es:"Total",hi:"कुल",vi:"Tổng",th:"รวม",ru:"Итог",de:"Ges.",fr:"Total",it:"Tot."});
+    var head='<th></th>'; for(var i=0;i<n;i++)head+='<th>'+periodColLabel("basketball",i,g.isHalves)+'</th>'; head+='<th class="qtt">'+totLbl+'</th>';
+    function row(nm,side){ var tot=0,tds=''; g.setScores.forEach(function(p){ var v=side==="home"?p.home:p.away; if(v!=null)tot+=+v; tds+='<td>'+(v==null?"-":v)+'</td>'; }); return '<tr><td class="qtm">'+esc(nm||"")+'</td>'+tds+'<td class="qtt">'+tot+'</td></tr>'; }
+    return '<div class="dt-sec-t">'+t("quarterScore")+'</div><div class="ov-qtw"><table class="ov-qt"><thead><tr>'+head+'</tr></thead><tbody>'+row(g.home,"home")+row(g.away,"away")+'</tbody></table></div>';
+  }
+  // 농구 개요: 핵심 팀 통계(2점/3점/자유투 게이지 + 리바운드·어시스트·턴오버 막대) — 박스스코어 합계 기준
+  function loadOverviewBskStats(g){
+    var box=$("#ovBskStats"); if(!box)return; var tk=_dtTok;
+    bskBox(g,function(j){ if(tk!==_dtTok)return; var b=$("#ovBskStats"); if(!b)return;
+      if(!bskHasBox(j)){ b.innerHTML=''; return; }
+      function sum(arr){ var o={reb:0,oreb:0,dreb:0,ast:0,stl:0,blk:0,to:0,pf:0,fgm:0,fga:0,tpm:0,tpa:0,ftm:0,fta:0}; (arr||[]).forEach(function(p){o.reb+=p.reb;o.oreb+=p.oreb;o.dreb+=p.dreb;o.ast+=p.ast;o.stl+=p.stl;o.blk+=p.blk;o.to+=p.to;o.pf+=p.pf; var fg=String(p.fg).split('-'),tp=String(p.p3).split('-'),ft=String(p.ft).split('-'); o.fgm+=+fg[0]||0;o.fga+=+fg[1]||0;o.tpm+=+tp[0]||0;o.tpa+=+tp[1]||0;o.ftm+=+ft[0]||0;o.fta+=+ft[1]||0;}); return o; }
+      var H=sum(j.home),A=sum(j.away);
+      var H2=H.fgm-H.tpm, A2=A.fgm-A.tpm;   // 2점 성공 = FG성공 - 3점성공
+      function gauge(label,hv,av){ var hn=+hv||0,an=+av||0,tot=hn+an||1,hp=hn/tot; var C=2*Math.PI*15.5;
+        return '<div class="gg"><div class="gg-l">'+label+'</div><div class="gg-row"><span class="gg-n hn">'+hv+'</span>'+
+          '<svg viewBox="0 0 40 40" class="gg-sv"><circle cx="20" cy="20" r="15.5" fill="none" stroke="var(--red)" stroke-width="5"/>'+
+          '<circle cx="20" cy="20" r="15.5" fill="none" stroke="var(--navy)" stroke-width="5" stroke-linecap="round" stroke-dasharray="'+(C*hp).toFixed(1)+' '+(C*(1-hp)).toFixed(1)+'" transform="rotate(-90 20 20)"/></svg>'+
+          '<span class="gg-n an">'+av+'</span></div></div>'; }
+      function bar(label,hv,av,lower){ var hn=+hv||0,an=+av||0,tot=hn+an||1; var hw=(hn===an)?0:((lower?hn<an:hn>an)?1:-1); return '<div class="stbar"><div class="lab"><span class="'+(hw>0?'stw':'')+'">'+hv+'</span><span style="color:#8a93a3">'+label+'</span><span class="'+(hw<0?'stw':'')+'">'+av+'</span></div><div class="tr"><div class="h" style="width:'+(hn/tot*100)+'%"></div><div class="a" style="width:'+(an/tot*100)+'%"></div></div></div>'; }
+      var gg=gauge(tl({en:"2PT",ko:"2점슛",ja:"2P",zh:"2分",es:"2P",hi:"2P",vi:"2Đ",th:"2แต้ม",ru:"2о",de:"2P",fr:"2P",it:"2P"}),H2,A2)
+        +gauge(tl({en:"3PT",ko:"3점슛",ja:"3P",zh:"3分",es:"3P",hi:"3P",vi:"3Đ",th:"3แต้ม",ru:"3о",de:"3P",fr:"3P",it:"3P"}),H.tpm,A.tpm)
+        +gauge(tl({en:"FT",ko:"자유투",ja:"FT",zh:"罚球",es:"TL",hi:"FT",vi:"NP",th:"ฟรีโธรว์",ru:"ШБ",de:"FW",fr:"LF",it:"TL"}),H.ftm,A.ftm);
+      var bars=bar(tl({en:"Rebounds",ko:"리바운드",ja:"リバウンド",zh:"篮板",es:"Rebotes",hi:"रिबाउंड",vi:"Bắt bóng",th:"รีบาวด์",ru:"Подборы",de:"Rebounds",fr:"Rebonds",it:"Rimbalzi"}),H.reb,A.reb)
+        +bar(tl({en:"Assists",ko:"어시스트",ja:"アシスト",zh:"助攻",es:"Asist.",hi:"असिस्ट",vi:"Kiến tạo",th:"แอสซิสต์",ru:"Передачи",de:"Assists",fr:"Passes",it:"Assist"}),H.ast,A.ast)
+        +bar(tl({en:"Turnovers",ko:"턴오버",ja:"ターンオーバー",zh:"失误",es:"Pérdidas",hi:"टर्नओवर",vi:"Mất bóng",th:"เทิร์นโอเวอร์",ru:"Потери",de:"Ballverluste",fr:"Pertes",it:"Palle perse"}),H.to,A.to,true);
+      b.innerHTML='<div class="dt-sec-t" style="margin-top:18px">📊 '+t("keyStats")+'</div>'+
+        '<div style="display:flex;justify-content:space-between;font-weight:800;margin:2px 2px 8px;font-size:13px"><span>'+esc(g.home)+'</span><span>'+esc(g.away)+'</span></div>'+
+        '<div class="gg-wrap">'+gg+'</div>'+bars;
+    });
   }
   // F01/F02: 축구 경기 흐름 그래프 — API-Football 이벤트(득점·카드·교체의 실제 분)로 득점 진행 타임라인.
   //  시간대별 모멘텀 파형은 공급사 미제공이라 생성하지 않음(명령서 F02). 데이터 없으면 '미제공' 명시.
