@@ -21,7 +21,7 @@ const app = express();
 const server = http.createServer(app);
 
 const PORT = process.env.PORT || 3000;
-const APP_VERSION = 'v478';
+const APP_VERSION = 'v479';
 
 // ============================================================
 //  📏 성능 계측(instrumentation) — 엔드포인트 지연·캐시·공급사·WS·이벤트루프
@@ -2126,6 +2126,21 @@ app.get('/api/ts/raw', async (req, res) => {
 });
 // 🔬 진단(read-only): TheSports 임의 GET 리소스 구조 프로브 — 고급 화면(모멘텀/분석/순위/팀/선수) 필드 디코드용.
 //    키/시크릿은 tsFetch 내부에서만 붙으며 응답에 노출하지 않는다. 허용 경로만 통과.
+// 🔬 유연 프로브(read-only, 비밀키 비노출) — 번역/사전 등 임의 경로 1회 배포로 여러 후보 탐색용.
+//    경로는 /a/b 형태만, 파라미터는 화이트리스트만 전달. 응답은 8KB로 절단.
+app.get('/api/ts/anyprobe', async (req, res) => {
+  if (!TS_ON) return res.json({ on: false });
+  let path = String(req.query.path || '');
+  if (!/^\/[a-z0-9_]+(\/[a-z0-9_]+)*$/i.test(path)) return res.json({ err: 'bad path', got: path });
+  const params = {};
+  ['uuid', 'id', 'ids', 'team_id', 'player_id', 'competition_id', 'season_id', 'match_id', 'coach_id', 'date', 'lang', 'language', 'time', 'page', 'type', 'sport_id', 'category_id'].forEach(k => { if (req.query[k] != null) params[k] = String(req.query[k]); });
+  try {
+    const r = await tsFetch(path, params, 4000, 9000).catch(e => ({ err: String((e && e.message) || e) }));
+    const results = (r && r.results);
+    const rawStr = JSON.stringify(results != null ? results : r);
+    res.json({ on: true, path, params, topKeys: (r && typeof r === 'object') ? Object.keys(r) : null, err: r && (r.err || r.msg || r.error) || null, resultsType: Array.isArray(results) ? ('array(' + results.length + ')') : typeof results, sample: Array.isArray(results) ? results.slice(0, 3) : results, rawTruncated: rawStr && rawStr.length > 8000 ? (rawStr.slice(0, 8000) + '…[' + rawStr.length + ']') : rawStr });
+  } catch (e) { res.json({ on: true, path, err: String((e && e.message) || e) }); }
+});
 app.get('/api/ts/probe', async (req, res) => {
   if (!TS_ON) return res.json({ on: false, msg: 'TheSports 키 미설정' });
   let path = String(req.query.path || '');
