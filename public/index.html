@@ -968,6 +968,28 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
     {k:"esports",label:"e스포츠",ic:"🎮"}
   ];
   var TZ=(Intl.DateTimeFormat().resolvedOptions().timeZone)||"Asia/Seoul";
+  // ====== 이름 한글화(핵심 테이블) — TheSports는 영어만 제공 → 현재 언어=한국어일 때만 매핑, 없으면 영어 유지 ======
+  //   국가/국가대표, 한국 팀·리그, 세계 주요 리그·클럽, NBA·KBO. 점진 확장용.
+  var KN_TEAM={
+    // 국가(=국가대표)
+    "south korea":"대한민국","korea republic":"대한민국","north korea":"북한","korea dpr":"북한","japan":"일본","china":"중국","china pr":"중국","india":"인도","new zealand":"뉴질랜드","australia":"호주","united states":"미국","usa":"미국","canada":"캐나다","mexico":"멕시코","brazil":"브라질","argentina":"아르헨티나","uruguay":"우루과이","chile":"칠레","colombia":"콜롬비아","peru":"페루","ecuador":"에콰도르","paraguay":"파라과이","venezuela":"베네수엘라","bolivia":"볼리비아","england":"잉글랜드","france":"프랑스","germany":"독일","spain":"스페인","italy":"이탈리아","portugal":"포르투갈","netherlands":"네덜란드","belgium":"벨기에","croatia":"크로아티아","switzerland":"스위스","austria":"오스트리아","poland":"폴란드","denmark":"덴마크","sweden":"스웨덴","norway":"노르웨이","finland":"핀란드","czech republic":"체코","czechia":"체코","serbia":"세르비아","scotland":"스코틀랜드","wales":"웨일스","republic of ireland":"아일랜드","ireland":"아일랜드","turkey":"튀르키예","turkiye":"튀르키예","greece":"그리스","russia":"러시아","ukraine":"우크라이나","romania":"루마니아","hungary":"헝가리","saudi arabia":"사우디아라비아","iran":"이란","iraq":"이라크","qatar":"카타르","united arab emirates":"아랍에미리트","uae":"아랍에미리트","egypt":"이집트","morocco":"모로코","algeria":"알제리","tunisia":"튀니지","nigeria":"나이지리아","ghana":"가나","senegal":"세네갈","cameroon":"카메룬","ivory coast":"코트디부아르","cote d'ivoire":"코트디부아르","south africa":"남아프리카공화국","thailand":"태국","vietnam":"베트남","indonesia":"인도네시아","malaysia":"말레이시아","singapore":"싱가포르","philippines":"필리핀","uzbekistan":"우즈베키스탄","iceland":"아이슬란드","costa rica":"코스타리카","honduras":"온두라스","jamaica":"자메이카","panama":"파나마",
+    // 한국 축구
+    "ulsan hyundai":"울산 HD","ulsan hd":"울산 HD","jeonbuk hyundai motors":"전북 현대","jeonbuk":"전북 현대","pohang steelers":"포항 스틸러스","fc seoul":"FC 서울","suwon samsung bluewings":"수원 삼성","incheon united":"인천 유나이티드","daegu fc":"대구 FC","gangwon fc":"강원 FC","gwangju fc":"광주 FC","jeju united":"제주 유나이티드","jeju sk":"제주 SK","gimcheon sangmu":"김천 상무","daejeon hana citizen":"대전 하나 시티즌","suwon fc":"수원 FC","seongnam fc":"성남 FC","fc anyang":"FC 안양","hannam university":"한남대학교","honam university":"호남대학교","tongmyong university":"동명대학교","songho college":"송호대학교",
+    // KBO
+    "doosan bears":"두산 베어스","lg twins":"LG 트윈스","kia tigers":"KIA 타이거즈","samsung lions":"삼성 라이온즈","lotte giants":"롯데 자이언츠","hanwha eagles":"한화 이글스","ssg landers":"SSG 랜더스","kiwoom heroes":"키움 히어로즈","nc dinos":"NC 다이노스","kt wiz":"KT 위즈",
+    // 유럽 주요 클럽
+    "manchester city":"맨체스터 시티","manchester united":"맨체스터 유나이티드","liverpool":"리버풀","arsenal":"아스널","chelsea":"첼시","tottenham hotspur":"토트넘","tottenham":"토트넘","newcastle united":"뉴캐슬","aston villa":"아스톤 빌라","west ham united":"웨스트햄","brighton & hove albion":"브라이튼","everton":"에버튼","real madrid":"레알 마드리드","barcelona":"바르셀로나","atletico madrid":"아틀레티코 마드리드","sevilla":"세비야","valencia":"발렌시아","bayern munich":"바이에른 뮌헨","bayern munchen":"바이에른 뮌헨","borussia dortmund":"보루시아 도르트문트","borussia monchengladbach":"묀헨글라트바흐","rb leipzig":"RB 라이프치히","bayer leverkusen":"레버쿠젠","juventus":"유벤투스","inter milan":"인터 밀란","internazionale":"인터 밀란","ac milan":"AC 밀란","napoli":"나폴리","as roma":"AS 로마","roma":"AS 로마","paris saint germain":"파리 생제르맹","psg":"파리 생제르맹","ajax":"아약스","benfica":"벤피카","porto":"포르투","celtic":"셀틱","rangers":"레인저스",
+    // NBA
+    "los angeles lakers":"LA 레이커스","los angeles clippers":"LA 클리퍼스","golden state warriors":"골든스테이트 워리어스","boston celtics":"보스턴 셀틱스","new york knicks":"뉴욕 닉스","brooklyn nets":"브루클린 네츠","philadelphia 76ers":"필라델피아 세븐식서스","toronto raptors":"토론토 랩터스","chicago bulls":"시카고 불스","cleveland cavaliers":"클리블랜드 캐벌리어스","milwaukee bucks":"밀워키 벅스","indiana pacers":"인디애나 페이서스","detroit pistons":"디트로이트 피스톤스","miami heat":"마이애미 히트","orlando magic":"올랜도 매직","atlanta hawks":"애틀랜타 호크스","washington wizards":"워싱턴 위저즈","charlotte hornets":"샬럿 호네츠","denver nuggets":"덴버 너기츠","minnesota timberwolves":"미네소타 팀버울브스","oklahoma city thunder":"오클라호마시티 썬더","portland trail blazers":"포틀랜드 트레일블레이저스","utah jazz":"유타 재즈","dallas mavericks":"댈러스 매버릭스","houston rockets":"휴스턴 로키츠","memphis grizzlies":"멤피스 그리즐리스","new orleans pelicans":"뉴올리언스 펠리컨스","phoenix suns":"피닉스 선즈","sacramento kings":"새크라멘토 킹스","san antonio spurs":"샌안토니오 스퍼스"
+  };
+  var KN_LEAGUE={
+    "premier league":"프리미어리그","english premier league":"프리미어리그","la liga":"라리가","laliga":"라리가","serie a":"세리에 A","bundesliga":"분데스리가","ligue 1":"리그 1","uefa champions league":"UEFA 챔피언스리그","champions league":"챔피언스리그","uefa europa league":"UEFA 유로파리그","europa league":"유로파리그","k league 1":"K리그1","k league 2":"K리그2","k-league 1":"K리그1","kbo":"KBO 리그","kbo league":"KBO 리그","nba":"NBA","wnba":"WNBA","nba g league":"NBA G리그","euroleague":"유로리그","south korea university championship":"대한민국 대학 축구 선수권대회","india bangalore super division":"인도 방갈로르 슈퍼 디비전","india mumbai super division":"인도 뭄바이 슈퍼 디비전","national hockey league":"NHL","american hockey league":"AHL","kontinental hockey league":"KHL"
+  };
+  function knorm(s){ return String(s||"").trim().toLowerCase().replace(/\s+/g," "); }
+  function tnTeam(name){ if(LANG!=="ko"||!name)return name; return KN_TEAM[knorm(name)]||name; }
+  function tnLeague(name){ if(LANG!=="ko"||!name)return name; return KN_LEAGUE[knorm(name)]||name; }
+  // '국가 · 리그' 조합 표시명 한글화(국가=팀맵, 리그=리그맵)
+  function tnGroup(country,league){ var c=country?tnTeam(country):"", l=tnLeague(league||""); return (c?c+" · ":"")+l; }
   // ====== 환경 설정 (테마·글자크기·결과숨기기) ======
   function lsGet(k,d){ try{ var v=localStorage.getItem(k); return v==null?d:v; }catch(e){ return d; } }
   function lsSet(k,v){ try{ localStorage.setItem(k,v); }catch(e){} }
@@ -1946,7 +1968,7 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
   // 최종 탭 목록(트래커 상단고정 제외 + 숨겨진 탭 선택 시 개요 복귀 + 하이라이트 삽입)
   function computeTabs(){
     var g=_dt.g, sport=_dt.sport;
-    var pinTrk=TRK.indexOf(sport)>=0&&stateOf(g)!=="finished";
+    var pinTrk=TRK.indexOf(sport)>=0;   // 라이브·예정·종료 모두 경기장 상단 고정(종목 무관)
     var _tabs=detailTabs(sport,g);
     if(pinTrk) _tabs=_tabs.filter(function(x){return x[0]!=="tracker";});   // 경기장은 상단 고정 → 탭에서 제거
     if(!_tabs.some(function(x){return x[0]===_dt.tab;})) _dt.tab="overview";  // 선택 탭이 숨겨졌으면 개요
@@ -1987,7 +2009,7 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
     var d=$("#detail"); if(!d){ d=el("div","detail"); d.id="detail"; document.body.appendChild(d); }
     var live=stateOf(g)==="live";
     // 🎥 트래커 지원 종목이면(라이브·예정 모두) 점수 배너 대신 경기장(트래커)을 상단에 고정 — 점수/시작시간은 트래커가 표시.
-    var pinTrk=TRK.indexOf(sport)>=0&&stateOf(g)!=="finished";
+    var pinTrk=TRK.indexOf(sport)>=0;   // 라이브·예정·종료 모두 경기장 상단 고정(종목 무관)
     var bar='<div class="dt-bar"><button class="bk" id="dtBack">‹</button><div class="ti">'+esc(g.home||"")+' vs '+esc(g.away||"")+'</div><button class="bk" id="dtShare" title="'+esc(t("shareApp"))+'" style="margin-left:auto">⤴</button></div>';
     var lgline='<div class="dt-lg">'+leagueIcon(g)+esc((g.country?g.country+" · ":"")+(g.league||""))+'</div>';
     var head;

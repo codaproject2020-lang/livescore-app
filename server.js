@@ -21,7 +21,7 @@ const app = express();
 const server = http.createServer(app);
 
 const PORT = process.env.PORT || 3000;
-const APP_VERSION = 'v477';
+const APP_VERSION = 'v478';
 
 // ============================================================
 //  📏 성능 계측(instrumentation) — 엔드포인트 지연·캐시·공급사·WS·이벤트루프
@@ -2134,7 +2134,7 @@ app.get('/api/ts/probe', async (req, res) => {
   }
   // 통과 허용 파라미터만 전달(토큰류 금지)
   const params = {};
-  ['uuid', 'id', 'team_id', 'player_id', 'competition_id', 'season_id', 'match_id', 'coach_id', 'date'].forEach(k => { if (req.query[k] != null) params[k] = String(req.query[k]); });
+  ['uuid', 'id', 'team_id', 'player_id', 'competition_id', 'season_id', 'match_id', 'coach_id', 'date', 'lang', 'language'].forEach(k => { if (req.query[k] != null) params[k] = String(req.query[k]); });
   try {
     const r = await tsFetch(path, params, 4000, 9000).catch(e => ({ err: String((e && e.message) || e) }));
     const results = (r && r.results);
