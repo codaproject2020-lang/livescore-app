@@ -1553,7 +1553,6 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
     var k=_ag.sport+"|"+_ag.date;
     if(S.data[k]&&!S.data[k].error){ cb(S.data[k]); return; }
     cb(null); // 로딩 표시용
-    if(_ag.sport==="esports"){ S.data[k]={unsupported:true,games:[]}; if(_ag)agRender(); return; }
     fetchGames(_ag.sport,_ag.date).then(function(res){ S.data[k]=res; S.recvAt[k]=Date.now(); S.demo[k]=!!res._demo; if(_ag&&_ag.sport+"|"+_ag.date===k)agRender(); })
       .catch(function(){ S.data[k]={error:true,games:[]}; if(_ag&&_ag.sport+"|"+_ag.date===k)agRender(); });
   }
@@ -4459,7 +4458,7 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
   }
   function fetchGames(sport,date){
     // 🚫 운영 화면엔 예시/가짜 경기를 쓰지 않는다(명령서 1). 미연동 종목=미지원, 조회 실패=오류, 키 없음=오류로 구분.
-    if(sport==="esports") return Promise.resolve({ unsupported:true, games:[], count:0, _demo:false }); // 서버 미연동 → 미지원(예시 금지)
+    // e스포츠(LOL/DOTA2/CS2)는 TheSports 실데이터 연동됨 — 일반 경로로 조회
     var url="/api/asports/games?sport="+encodeURIComponent(sport)+"&date="+encodeURIComponent(date)+"&tz="+encodeURIComponent(TZ);
     return fetch(url,{headers:{"accept":"application/json"},cache:"no-store"}).then(function(r){ if(!r.ok)throw 0; return r.json(); })
       .then(function(j){
