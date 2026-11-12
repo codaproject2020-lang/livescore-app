@@ -21,7 +21,7 @@ const app = express();
 const server = http.createServer(app);
 
 const PORT = process.env.PORT || 3000;
-const APP_VERSION = 'v476';
+const APP_VERSION = 'v477';
 
 // ============================================================
 //  📏 성능 계측(instrumentation) — 엔드포인트 지연·캐시·공급사·WS·이벤트루프
@@ -2901,7 +2901,7 @@ function tsBskParseEvents(lv) {
     let raw = String(s[1] || '').trim(), clk = raw;
     if (/^\d{1,2}:\d{2}$/.test(raw)) { clk = raw; }
     else if (/^\d+(\.\d+)?$/.test(raw)) { const sec = Math.min(59, Math.round(parseFloat(raw))); clk = '0:' + (sec < 10 ? '0' : '') + sec; }
-    evs.push({ clock: clk, rawClock: raw, team: +s[2] || 0, away: (sc[0] !== undefined ? +sc[0] : null), home: (sc[1] !== undefined ? +sc[1] : null), text });
+    evs.push({ clock: clk, rawClock: raw, team: +s[2] || 0, away: (sc[0] !== undefined ? +sc[0] : null), home: (sc[1] !== undefined ? +sc[1] : null), text, pids: s[6] || '' });
   });
   return evs;   // 오래된→최신 순
 }
@@ -3200,7 +3200,7 @@ async function tsBskHistory(tsid) {
   return { id: tsid, home: home.sort(byPts), away: away.sort(byPts),
     homePts: home.reduce((a, b) => a + b.pts, 0), awayPts: away.reduce((a, b) => a + b.pts, 0),
     hasStarters: (stH === 5 && stA === 5), source: 'history',
-    flow: flow.reverse().slice(0, 300), shots, quarters: { home: hq, away: aq } };
+    flow: flow.reverse().slice(0, 900), shots, quarters: { home: hq, away: aq } };   // 전체 경기(1쿼터 포함) 유지 — 900개 상한
 }
 async function tsBasketballLineup(tsid) {
   // lineup_live 는 (uuid 를 줘도) 여러 경기를 배열로 반환 → 반드시 요청한 경기 id 와 일치하는 항목만 사용.
@@ -3269,7 +3269,7 @@ app.get('/api/basketball/live', async (req, res) => {
       const hist = await tsBskHistory(id).catch(() => null);
       if (hist && hist.flow && hist.flow.length) {
         const payload = { found: true, fromHistory: true, period: null, isHalves: false, homeFouls: null, awayFouls: null,
-          quarters: hist.quarters, events: hist.flow.map(e => ({ period: e.period, clock: e.clock, team: e.team, home: e.home, away: e.away, text: e.text })) };
+          quarters: hist.quarters, events: hist.flow.map(e => ({ period: e.period, clock: e.clock, team: e.team, home: e.home, away: e.away, text: e.text, pids: e.pids || '' })) };
         _snapSet('flow|' + id, payload);
         return res.json(payload);
       }
@@ -3287,8 +3287,8 @@ app.get('/api/basketball/live', async (req, res) => {
       period: (statePer && !info.isHalves) ? statePer : (info ? info.curP : null), isHalves: info ? info.isHalves : false,
       homeFouls: foulsOk ? info.hf : null, awayFouls: foulsOk ? info.af : null,
       quarters: { home: sc[3] || [], away: sc[4] || [] },
-      // 최신순, 최대 150개. 점수는 "홈-원정"으로 정렬해 전달
-      events: (info ? info.events : []).slice(-150).reverse().map(e => ({ period: e.period, clock: e.clock, team: e.team, home: e.home, away: e.away, text: e.text }))
+      // 최신순, 최대 600개(1쿼터부터 포함). 점수는 "홈-원정"으로 정렬해 전달. pids=선수ID(사진 매핑용)
+      events: (info ? info.events : []).slice(-600).reverse().map(e => ({ period: e.period, clock: e.clock, team: e.team, home: e.home, away: e.away, text: e.text, pids: e.pids || '' }))
     };
     if (payload.events.length || (payload.quarters.home && payload.quarters.home.length)) _snapSet('flow|' + id, payload);
     res.json(payload);

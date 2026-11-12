@@ -301,6 +301,11 @@ img{display:block}
 .opc-meta{font-size:11.5px;color:var(--muted);font-weight:700;margin-bottom:3px}
 .opc-tx{font-size:13.5px;font-weight:700;color:var(--text);line-height:1.3}
 .opc-sc{font-size:17px;font-weight:900;color:var(--navy);margin-top:4px}
+.opc-av{display:block;width:40px;height:40px;border-radius:50%;overflow:hidden;margin:0 auto 5px;border:2px solid var(--bg);box-shadow:0 1px 3px rgba(0,0,0,.2);background:var(--line)}
+.opc-av img{width:100%;height:100%;object-fit:cover;display:block}
+.bskgraph{width:100%;height:120px}
+.fe .feav{display:inline-block;width:20px;height:20px;border-radius:50%;overflow:hidden;vertical-align:middle;margin-right:5px;background:var(--line)}
+.fe .feav img{width:100%;height:100%;object-fit:cover;display:block}
 .fbflow{margin:4px 0 6px}
 .fbflow-svg{width:100%;height:auto;display:block}
 .fbflow-lg{display:flex;flex-wrap:wrap;gap:12px;justify-content:center;margin-top:4px;font-size:11px;font-weight:700;color:var(--muted)}
@@ -728,6 +733,9 @@ html[data-theme="dark"] .fe.sc{background:rgba(156,194,255,.08)}
 .cpl{position:absolute;transform:translate(-50%,-50%);text-align:center;cursor:pointer;width:62px}
 .cpl .cno{display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;border-radius:50%;color:#fff;font-weight:900;font-size:12px}
 .cpl.h .cno{background:var(--navy)}.cpl.a .cno{background:var(--red)}
+.cpl .cav{display:inline-flex;align-items:center;justify-content:center;width:32px;height:32px;border-radius:50%;overflow:hidden;color:#fff;font-weight:900;font-size:12px;border:2px solid #fff;box-shadow:0 1px 3px rgba(0,0,0,.25)}
+.cpl.h .cav{background:var(--navy)}.cpl.a .cav{background:var(--red)}
+.cpl .cav img{width:100%;height:100%;object-fit:cover;display:block}
 .cpl .cnm{display:block;font-size:10.5px;font-weight:700;margin-top:2px;line-height:1.1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .cpl .cpt{display:block;font-size:9.5px;color:#64707f}
 html[data-theme="dark"] .bcourt{background:linear-gradient(#1b2740,#141f33);border-color:#2c3a54}
@@ -2202,6 +2210,7 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
         h+='<div class="dt-sec-t" style="margin-top:16px">🙌 '+t("teamFoul")+(g.periodLabel?' ('+esc(g.periodLabel)+')':'')+'</div><p style="font-weight:800">'+esc(g.home)+' '+(g.homeFouls==null?"-":g.homeFouls)+' : '+(g.awayFouls==null?"-":g.awayFouls)+' '+esc(g.away)+'</p>';
       }
       if(stateOf(g)!=="scheduled") h+='<div id="ovBskStats"></div>';
+      if(stateOf(g)!=="scheduled") h+='<div id="ovBskGraph"></div>';
       h+='<div class="ov-jump">'+
          '<button class="ovj" data-go="box">👤 '+t("playerRec")+' ›</button>'+
          '<button class="ovj" data-go="bskteam">📊 '+t("teamStat")+' ›</button>'+
@@ -2220,9 +2229,12 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
     if(sport==="basketball"&&stateOf(g)!=="scheduled"){ loadOverviewBskPlay(g); loadOverviewBskStats(g); }
     loadForm(g,sport);
   }
-  // 농구 개요: '현재 플레이' 카드(최신 플레이 + 좌우 탐색) — 경쟁사 동일
+  // 농구 개요: '현재 플레이' 카드(선수 사진 + 좌우 탐색) + 득점 흐름 그래프 — 경쟁사 동일
   function loadOverviewBskPlay(g){
     var box=$("#ovBskPlay"); if(!box)return; var tk=_dtTok;
+    var photoMap={}; var _redraw=null;
+    // 선수 사진 맵(박스스코어 id→photo) — 득점 플레이에 얼굴 표시용
+    try{ bskBox(g,function(bj){ if(tk!==_dtTok)return; if(bskHasBox(bj)){ (bj.home||[]).concat(bj.away||[]).forEach(function(p){ if(p.id!=null&&p.photo)photoMap[String(p.id)]=p.photo; }); if(_redraw)_redraw(); } }); }catch(e){}
     fetch("/api/basketball/live?id="+encodeURIComponent(g.id)).then(function(r){return r.json()}).then(function(j){
       if(tk!==_dtTok)return; var b=$("#ovBskPlay"); if(!b)return;
       var raw=(j&&j.events)||[]; if(!raw.length){ b.innerHTML=''; return; }
@@ -2235,20 +2247,43 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
       var plays=ev.filter(function(e){ return (e.text||'').trim(); }); if(!plays.length){ b.innerHTML=''; return; }
       var idx=plays.length-1; var isH=(j&&j.isHalves)||false;
       var ttl=tl({en:"Live play",ko:"현재 플레이",ja:"現在のプレー",zh:"当前回合",es:"Jugada en vivo",hi:"लाइव प्ले",vi:"Pha hiện tại",th:"จังหวะปัจจุบัน",ru:"Текущий момент",de:"Aktuelle Aktion",fr:"Action en direct",it:"Azione dal vivo"});
-      function draw(){
+      function pPhoto(e){ var pid=String(e.pids||'').split(',')[0]; return (pid&&photoMap[pid])||''; }
+      function draw(){ var b2=$("#ovBskPlay"); if(!b2)return;
         var e=plays[idx]; var who=e.team===1?g.home:(e.team===2?g.away:'');
         var lbl=periodColLabel("basketball",(e.period||1)-1,isH);
         var sc=(e.home!=null&&e.away!=null)?('<div class="opc-sc">'+e.home+' - '+e.away+'</div>'):'';
         var plus=(e._scored&&e._d>0)?' · <b style="color:#0a8a46">+'+e._d+'</b>':'';
-        b.innerHTML='<div class="dt-sec-t" style="margin-top:16px">▶ '+ttl+'</div>'+
+        var pho=pPhoto(e); var av=pho?('<span class="opc-av"><img src="'+esc(pho)+'" onerror="this.parentNode.style.display=\'none\'"></span>'):'';
+        b2.innerHTML='<div class="dt-sec-t" style="margin-top:16px">▶ '+ttl+'</div>'+
           '<div class="opc"><button class="opc-nav" id="opcPrev"'+(idx<=0?' disabled':'')+'>‹</button>'+
-          '<div class="opc-mid"><div class="opc-meta">'+esc(who)+(who?' · ':'')+esc(lbl)+(e.clock?' · '+esc(e.clock):'')+plus+'</div>'+
+          '<div class="opc-mid">'+av+'<div class="opc-meta">'+esc(who)+(who?' · ':'')+esc(lbl)+(e.clock?' · '+esc(e.clock):'')+plus+'</div>'+
           '<div class="opc-tx">'+esc(e.text||'')+'</div>'+sc+'</div>'+
           '<button class="opc-nav" id="opcNext"'+(idx>=plays.length-1?' disabled':'')+'>›</button></div>';
         var p=$("#opcPrev"),n=$("#opcNext"); if(p)p.onclick=function(){ if(idx>0){idx--;draw();} }; if(n)n.onclick=function(){ if(idx<plays.length-1){idx++;draw();} };
       }
-      draw();
-    }).catch(function(){ var b=$("#ovBskPlay"); if(b)b.innerHTML=''; });
+      _redraw=draw; draw();
+      // 득점 흐름 그래프(양 팀 누적 점수 라인) — 경기흐름
+      var gbox=$("#ovBskGraph");
+      if(gbox){
+        var sp=ev.filter(function(e){return e.home!=null&&e.away!=null;});
+        if(sp.length>=2){
+          var W=330,Hh=120,PL=6,PR=6,PT=10,PB=14,iw=W-PL-PR,ih=Hh-PT-PB;
+          var maxv=1; sp.forEach(function(e){ maxv=Math.max(maxv,e.home,e.away); });
+          var X=function(i){ return PL+(i/(sp.length-1))*iw; };
+          var Y=function(v){ return PT+ih-(v/maxv)*ih; };
+          function path(key){ return sp.map(function(e,i){ return (i?'L':'M')+X(i).toFixed(1)+' '+Y(e[key]).toFixed(1); }).join(' '); }
+          var last=sp[sp.length-1];
+          var svg='<svg viewBox="0 0 '+W+' '+Hh+'" class="bskgraph" preserveAspectRatio="none">'+
+            '<line x1="'+PL+'" y1="'+Y(0)+'" x2="'+(W-PR)+'" y2="'+Y(0)+'" stroke="var(--line)"/>'+
+            '<path d="'+path('home')+'" fill="none" stroke="var(--navy)" stroke-width="2"/>'+
+            '<path d="'+path('away')+'" fill="none" stroke="var(--red)" stroke-width="2"/>'+
+            '<circle cx="'+X(sp.length-1).toFixed(1)+'" cy="'+Y(last.home).toFixed(1)+'" r="3.2" fill="var(--navy)"/>'+
+            '<circle cx="'+X(sp.length-1).toFixed(1)+'" cy="'+Y(last.away).toFixed(1)+'" r="3.2" fill="var(--red)"/></svg>';
+          var lg='<div class="fbflow-lg"><span><i style="background:var(--navy)"></i>'+esc(g.home)+' '+last.home+'</span><span><i style="background:var(--red)"></i>'+esc(g.away)+' '+last.away+'</span></div>';
+          gbox.innerHTML='<div class="dt-sec-t" style="margin-top:18px">📈 '+t("flowTab")+'</div><div class="fbflow">'+svg+lg+'</div>';
+        } else gbox.innerHTML='';
+      }
+    }).catch(function(){ var b=$("#ovBskPlay"); if(b)b.innerHTML=''; var gb=$("#ovBskGraph"); if(gb)gb.innerHTML=''; });
   }
   // 농구 개요: 쿼터 득점 표(팀 행 × 쿼터 + 합계) — 경쟁사 동일 구성
   function bskQuarterTable(g){
@@ -2996,7 +3031,9 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
     function pickFive(arr,useStarters){ if(useStarters){ var st=arr.filter(function(p){return p.starter;}); if(st.length===5) return st; } return arr.slice().sort(function(a,b){return mnum(b)-mnum(a);}).slice(0,5); }
     function court(arr,nm,away,useStarters){ if(!arr.length)return '';
       var five=pickFive(arr,useStarters);
-      var dots=five.map(function(p,i){ var c=pos(p,i,away); return '<div class="cpl'+(away?" a":" h")+'" data-pid="'+esc(String(p.id||""))+'" style="left:'+c.x+'%;top:'+c.y+'%"><span class="cno">'+(p.number!==""?esc(String(p.number)):"-")+'</span><span class="cnm">'+esc(lastName(p.name))+'</span><span class="cpt">'+p.pts+'·'+p.min+"'</span></div>"; }).join("");
+      var dots=five.map(function(p,i){ var c=pos(p,i,away); var num=(p.number!==""?esc(String(p.number)):"-");
+        var av=p.photo?('<span class="cav"><img src="'+esc(p.photo)+'" onerror="this.parentNode.textContent=\''+num+'\'"></span>'):'<span class="cav">'+num+'</span>';
+        return '<div class="cpl'+(away?" a":" h")+'" data-pid="'+esc(String(p.id||""))+'" style="left:'+c.x+'%;top:'+c.y+'%">'+av+'<span class="cnm">'+esc(lastName(p.name))+'</span><span class="cpt">'+p.pts+'·'+p.min+"'</span></div>"; }).join("");
       return '<div class="dt-sec-t">'+esc(nm)+'</div><div class="bcourt">'+dots+'</div>';
     }
     function tbl(arr,nm){ if(!arr.length)return '';
@@ -3081,8 +3118,10 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
   // 경기 흐름(플레이바이플레이) — Q01~Q06: 쿼터별 그룹 + 접기/펼치기 + 전체/득점만 필터
   var _flowMode="all"; // all | score
   function loadBasketballFlow(g){
-    dtLoading(); var tk=_dtTok;
-    fetch("/api/basketball/live?id="+encodeURIComponent(g.id)).then(function(r){return r.json()}).then(function(j){
+    dtLoading(); var tk=_dtTok; var _flowPhoto={};
+    // 선수 사진 맵(득점 플레이 얼굴용) 먼저 채운 뒤 흐름 렌더
+    (new Promise(function(res){ try{ bskBox(g,function(bj){ try{ if(bskHasBox(bj)){ (bj.home||[]).concat(bj.away||[]).forEach(function(p){ if(p.id!=null&&p.photo)_flowPhoto[String(p.id)]=p.photo; }); } }catch(e){} res(); }); }catch(e){ res(); } }))
+    .then(function(){ return fetch("/api/basketball/live?id="+encodeURIComponent(g.id)).then(function(r){return r.json()}); }).then(function(j){
       if(!dtFresh(tk))return;
       var raw=(j&&j.events)||[];
       if(!raw.length){ dtBody('<div class="msg"><div class="big">📜</div>'+t("noFlow")+'</div>'); return; }
@@ -3118,7 +3157,8 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
         var who=e.team===1?"h":(e.team===2?"a":"");
         var sc=(e.home!=null&&e.away!=null)?('<span class="fsc">'+e.home+'-'+e.away+'</span>'):'';
         var pl=(e._scored&&(e._dh+e._da)>0)?('<span class="fpl">+'+(e._dh+e._da)+'</span>'):'';
-        return '<div class="fe '+who+(e._scored?' sc':'')+'"><span class="fcl">'+esc(e.clock||"")+'</span><span class="ftx">'+esc(e.text)+'</span>'+pl+sc+'</div>';
+        var av=''; if(e._scored){ var pid=String(e.pids||'').split(',')[0]; var pho=pid&&_flowPhoto[pid]; if(pho)av='<span class="feav"><img src="'+esc(pho)+'" onerror="this.parentNode.remove()"></span>'; }
+        return '<div class="fe '+who+(e._scored?' sc':'')+'"><span class="fcl">'+esc(e.clock||"")+'</span>'+av+'<span class="ftx">'+esc(e.text)+'</span>'+pl+sc+'</div>';
       }).join("")||('<div class="fe"><span class="ftx" style="color:#8a93a3">'+t("noScorePlays")+'</span></div>'); }
       var filt='<div class="flw-filt"><button class="fchip'+(_flowMode==="all"?" on":"")+'" data-m="all">'+t("filterAll")+'</button><button class="fchip'+(_flowMode==="score"?" on":"")+'" data-m="score">'+t("scoreOnly")+'</button></div>';
       var body=rows.map(function(r){
