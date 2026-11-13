@@ -2052,7 +2052,7 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
       fetch("/api/basketball/teamstats?home="+encodeURIComponent(g.home||"")+"&away="+encodeURIComponent(g.away||"")+"&date="+encodeURIComponent(String(g.date||"").slice(0,10))+"&league="+encodeURIComponent(g.league||"")).then(function(r){return r.json()}).then(function(j){ if(!_dt||_dt.g!==g)return; var ok=j&&!j.note&&!j.error&&(j.home||j.away||(j.rows&&j.rows.length)); if(!ok) dtDrop("bskteam"); }).catch(function(){ if(_dt&&_dt.g===g) dtDrop("bskteam"); });
       // 전적(H2H) 데이터 없으면 숨김
       if(!g.homeTid||!g.awayTid){ dtDrop("bskrec"); }
-      else fetch("/api/basketball/teamrecent?home="+encodeURIComponent(g.homeTid)+"&away="+encodeURIComponent(g.awayTid)+"&mid="+encodeURIComponent(g.tsid||"")).then(function(r){return r.json()}).then(function(j){ if(!_dt||_dt.g!==g)return; var has=j&&j.found&&((j.home&&j.home.games&&j.home.games.length)||(j.away&&j.away.games&&j.away.games.length)||(j.h2h&&j.h2h.length)); if(!has)dtDrop("bskrec"); else{ _bskRecData=j; _bskRecG=g; } }).catch(function(){});
+      else fetch("/api/basketball/teamrecent?home="+encodeURIComponent(g.homeTid)+"&away="+encodeURIComponent(g.awayTid)+"&mid="+encodeURIComponent(g.tsid||"")+"&date="+encodeURIComponent(String(g.date||"").slice(0,10)||S.date)).then(function(r){return r.json()}).then(function(j){ if(!_dt||_dt.g!==g)return; var has=j&&j.found&&((j.home&&j.home.games&&j.home.games.length)||(j.away&&j.away.games&&j.away.games.length)||(j.h2h&&j.h2h.length)); if(!has)dtDrop("bskrec"); else{ _bskRecData=j; _bskRecG=g; } }).catch(function(){});
     } else if(sport==="hockey"){
       fetch("/api/hockey/live?id="+encodeURIComponent(g.id)).then(function(r){return r.json()}).then(function(j){ if(!_dt||_dt.g!==g)return; var ev=(j&&j.events)||[]; if(!ev.length&&stateOf(g)!=="scheduled") dtDrop("hkyev"); }).catch(function(){});
     } else if(sport==="esports"&&g.game==="csgo"){
@@ -3371,6 +3371,8 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
   }
   // 전적(H2H) — 경쟁사 동일: 서브메뉴(투표·맞대결·팀A·팀B) + 리그 그룹 목록 + 승패/평균
   var _bskRecData=null, _bskRecG=null, _bskRecView="h2h", _bskRecN=6;
+  // 전적 응답의 한글명(hKo/aKo/leagueKo)을 사전에 등록 → tnTeam/tnLeague가 한국어 표시
+  function bskRecRegisterKo(j){ if(!j)return; var all=[].concat((j.home&&j.home.games)||[],(j.away&&j.away.games)||[],j.h2h||[]); all.forEach(function(m){ if(m.hKo&&m.hName)KN_TEAM[knorm(m.hName)]=m.hKo; if(m.aKo&&m.aName)KN_TEAM[knorm(m.aName)]=m.aKo; if(m.leagueKo&&m.league)KN_LEAGUE[knorm(m.league)]=m.leagueKo; }); }
   function bskRecDate(ms){ if(!ms)return ""; var d=new Date(ms); var p=function(n){return(n<10?"0":"")+n;}; return (String(d.getFullYear()).slice(2))+"/"+p(d.getMonth()+1)+"/"+p(d.getDate()); }
   // ref 관점으로 경기 한 줄 렌더(홈/원정 2줄 + 스코어 + 승패 뱃지). 승자팀 이름 볼드.
   function bskRecMatchRow(m,refTid){
@@ -3448,9 +3450,10 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
     _bskRecView="h2h"; _bskRecN=6; _bskRecData=null; _bskRecG=g;
     if(!g.homeTid||!g.awayTid){ dtBody('<div class="msg"><div class="big">📋</div>'+t("noRecentRec")+'</div><div class="dt-sec-t" style="margin-top:18px">🏆 '+t("leagueRank")+'</div><p style="color:#2b6cf0;font-weight:700;cursor:pointer" id="goRank">'+esc(tnLeague(g.league||""))+' ›</p>'); var gr0=$("#goRank"); if(gr0)gr0.onclick=function(){ openStandings("basketball",(g.leagueId||g.league),g); }; return; }
     dtLoading(); var tk=_dtTok;
-    fetch("/api/basketball/teamrecent?home="+encodeURIComponent(g.homeTid)+"&away="+encodeURIComponent(g.awayTid)+"&mid="+encodeURIComponent(g.tsid||"")).then(function(r){return r.json();}).then(function(j){
+    fetch("/api/basketball/teamrecent?home="+encodeURIComponent(g.homeTid)+"&away="+encodeURIComponent(g.awayTid)+"&mid="+encodeURIComponent(g.tsid||"")+"&date="+encodeURIComponent(String(g.date||"").slice(0,10)||S.date)).then(function(r){return r.json();}).then(function(j){
       if(!dtFresh(tk))return;
       if(!j||!j.found||(!(j.home&&j.home.games&&j.home.games.length)&&!(j.away&&j.away.games&&j.away.games.length)&&!(j.h2h&&j.h2h.length))){ dtDrop("bskrec"); return; }
+      bskRecRegisterKo(j);   // 상대팀·리그 한글명 등록(한국어 설정 시 표시)
       _bskRecData=j;
       // 맞대결 데이터 없으면 홈팀 최근경기로 기본 전환
       if(!(j.h2h&&j.h2h.length)) _bskRecView="home";
