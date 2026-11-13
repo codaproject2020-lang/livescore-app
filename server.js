@@ -21,7 +21,7 @@ const app = express();
 const server = http.createServer(app);
 
 const PORT = process.env.PORT || 3000;
-const APP_VERSION = 'v489';
+const APP_VERSION = 'v490';
 
 // ============================================================
 //  📏 성능 계측(instrumentation) — 엔드포인트 지연·캐시·공급사·WS·이벤트루프
@@ -3975,6 +3975,11 @@ function coreBuildOnce(k, sport, date, tz) {
   return p;
 }
 async function buildGamesCoreCached(sport, date, tz, ttl = sportTtl(sport)) {
+  const v = await _buildGamesCoreCachedRaw(sport, date, tz, ttl);
+  try { if (v && v.games) attachKo(sport, v.games); } catch (e) {}   // 🌐 모든 경로 공통: 한글명 부착(캐시 적중 시에도 매번)
+  return v;
+}
+async function _buildGamesCoreCachedRaw(sport, date, tz, ttl = sportTtl(sport)) {
   const k = sport + '|' + date + '|' + (tz || '');
   const hit = gamesCoreCache.get(k), now = Date.now();
   if (hit) {
