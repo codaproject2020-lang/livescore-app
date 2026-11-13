@@ -21,7 +21,7 @@ const app = express();
 const server = http.createServer(app);
 
 const PORT = process.env.PORT || 3000;
-const APP_VERSION = 'v491';
+const APP_VERSION = 'v492';
 
 // ============================================================
 //  📏 성능 계측(instrumentation) — 엔드포인트 지연·캐시·공급사·WS·이벤트루프
@@ -2991,7 +2991,7 @@ async function tsBasketballGames(date, tz) {
       let foulsOk = false;
       if (info) { if (isHalves) foulsOk = info.curP != null; else foulsOk = (info.curP != null && (statePer ? info.curP >= statePer : true)); }
       out.push({
-        id: 'ts' + id, tsid: id, league: tsLeagueDisplay('basketball', hc.name) || 'Basketball', leagueOrig: hc.name || '', leagueLogo: hc.logo || '', country: '',
+        id: 'ts' + id, tsid: id, league: tsLeagueDisplay('basketball', hc.name) || 'Basketball', leagueOrig: hc.name || '', leagueLogo: hc.logo || '', country: '', leagueId: m.competition_id || '', seasonId: m.season_id || '',
         home: ht.name || '', homeLogo: ht.logo || '', away: at.name || '', awayLogo: at.logo || '',
         homeTid: m.home_team_id, awayTid: m.away_team_id,
         hs, as, status: periodLabel, statusLong: String(st),
@@ -3357,6 +3357,56 @@ app.get('/api/basketball/teamrecent', async (req, res) => {
       home: { summary: summ(sortD(bucket[homeId]), homeId), games: sortD(bucket[homeId]).map(mapGame) },
       away: { summary: summ(sortD(bucket[awayId]), awayId), games: sortD(bucket[awayId]).map(mapGame) },
       h2h: sortD(h2h).map(mapGame) });
+  } catch (e) { res.json({ found: false, error: String((e && e.message) || e) }); }
+});
+// 🏀 농구 순위표 — TheSports 순위 엔드포인트 미인가 → diary(날짜별)에서 '해당 대회' 경기를 모아 승패 집계.
+//   대회 ID 기준이라 '엉뚱한 리그' 섞임 없음. 대회별 30분 캐시.
+const _bskStandCache = new Map();
+app.get('/api/basketball/standing', async (req, res) => {
+  res.set('Cache-Control', 'no-store');
+  const comp = String(req.query.comp || '');
+  if (!comp) return res.json({ found: false, error: 'no comp' });
+  const hitc = _bskStandCache.get(comp);
+  if (hitc && Date.now() - hitc.t < 1800000) return res.json(hitc.v);
+  const baseDate = /^\d{4}-\d{2}-\d{2}$/.test(String(req.query.date || '')) ? req.query.date : new Date().toISOString().slice(0, 10);
+  const now = Date.now();
+  const sumSc = arr => (arr || []).reduce((a, b) => a + (+b || 0), 0);
+  const MAX_DAYS = 140, BATCH = 12;
+  const teamMap = {}, rec = {}; let compName = '', compLogo = '';
+  const ymdOf = i => new Date(Date.parse(baseDate + 'T12:00:00Z') - i * 864e5).toISOString().slice(0, 10).replace(/-/g, '');
+  function ingest(d) {
+    if (!d) return;
+    ((d.results_extra || {}).team || []).forEach(t => { if (t && t.id) teamMap[t.id] = { name: t.name || '', logo: t.logo || '' }; });
+    ((d.results_extra || {}).competition || []).forEach(c => { if (c && c.id === comp) { compName = c.name || compName; compLogo = c.logo || compLogo; } });
+    (d.results || []).forEach(x => {
+      if (!x || x.competition_id !== comp) return;
+      const t = x.match_time ? x.match_time * 1000 : 0;
+      const played = (x.status_id === 10 || x.status_id === 12 || x.status_id === 100) || (t && t < now - 3 * 3600e3);
+      const hs = sumSc(x.home_scores), as = sumSc(x.away_scores);
+      if (!played || (hs + as) === 0) return;
+      const H = x.home_team_id, A = x.away_team_id; if (!H || !A) return;
+      rec[H] = rec[H] || { w: 0, l: 0, pf: 0, pa: 0 }; rec[A] = rec[A] || { w: 0, l: 0, pf: 0, pa: 0 };
+      if (hs > as) { rec[H].w++; rec[A].l++; } else { rec[A].w++; rec[H].l++; }
+      rec[H].pf += hs; rec[H].pa += as; rec[A].pf += as; rec[A].pa += hs;
+    });
+  }
+  try {
+    for (let start = 0; start < MAX_DAYS; start += BATCH) {
+      const days = []; for (let i = start; i < Math.min(start + BATCH, MAX_DAYS); i++) days.push(ymdOf(i));
+      const ds = await Promise.all(days.map(ymd => tsFetch('/basketball/match/diary', { date: ymd }, 3600000, 8000).catch(() => null)));
+      ds.forEach(ingest);
+    }
+    const KL = TS_LANG['basketball'] || { team: {}, comp: {} };
+    const table = Object.keys(rec).map(tid => {
+      const r = rec[tid], g = r.w + r.l;
+      return { teamId: tid, team: (teamMap[tid] && teamMap[tid].name) || '', teamKo: (KL.team && KL.team[tid]) || '',
+        logo: (teamMap[tid] && teamMap[tid].logo) || '', played: g, win: r.w, loss: r.l,
+        pct: g ? +(r.w / g).toFixed(3) : 0, pf: g ? +(r.pf / g).toFixed(1) : 0, pa: g ? +(r.pa / g).toFixed(1) : 0 };
+    }).filter(r => r.played > 0).sort((a, b) => (b.pct - a.pct) || (b.win - a.win) || (b.pf - a.pf));
+    table.forEach((r, i) => r.rank = i + 1);
+    const v = { found: table.length > 0, league: compName, leagueKo: (KL.comp && KL.comp[comp]) || '', leagueLogo: compLogo, table };
+    if (table.length) _bskStandCache.set(comp, { t: Date.now(), v });
+    res.json(v);
   } catch (e) { res.json({ found: false, error: String((e && e.message) || e) }); }
 });
 app.get('/api/basketball/lineup', async (req, res) => {
