@@ -3382,9 +3382,9 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
     var refIsHome=(m.homeId===refTid), homeWin=m.hs>m.as, refWin=(refIsHome?homeWin:!homeWin);
     var tnm=function(n){return esc(tnTeam(n||"")||"—");};
     var logo=function(u){return u?'<img src="'+esc(u)+'" class="brc-lg" onerror="this.style.display=\'none\'">':'<span class="brc-lg"></span>';};
-    var line=function(name,logoU,sc,win){ return '<div class="brc-tm">'+logo(logoU)+'<span class="brc-nm'+(win?' wn':'')+'">'+tnm(name)+'</span><span class="brc-sv'+(win?' wn':'')+'">'+sc+'</span></div>'; };
+    var line=function(name,logoU,sc,win,tid){ return '<div class="brc-tm" data-bt="'+esc(tid||"")+'" data-bn="'+esc(name||"")+'">'+logo(logoU)+'<span class="brc-nm'+(win?' wn':'')+'">'+tnm(name)+'</span><span class="brc-sv'+(win?' wn':'')+'">'+sc+'</span></div>'; };
     return '<div class="brc-mrow"><div class="brc-dt"><span class="brc-d">'+bskRecDate(m.date)+'</span><span class="brc-fin">'+t("finished")+'</span></div>'+
-      '<div class="brc-tms">'+line(m.hName,m.hLogo,m.hs,homeWin)+line(m.aName,m.aLogo,m.as,!homeWin)+'</div>'+
+      '<div class="brc-tms">'+line(m.hName,m.hLogo,m.hs,homeWin,m.homeId)+line(m.aName,m.aLogo,m.as,!homeWin,m.awayId)+'</div>'+
       '<span class="brc-b '+(refWin?'w':'l')+'">'+(refWin?t("win"):t("lose"))+'</span></div>';
   }
   // 리그 그룹 목록
@@ -3447,7 +3447,27 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
       db.querySelectorAll(".brc-chip").forEach(function(b){ b.onclick=function(){ _bskRecView=b.dataset.v; renderBskRec(); }; });
       var ns=$("#brcN"); if(ns)ns.onchange=function(){ _bskRecN=+ns.value; renderBskRec(); };
       var gr=$("#goRank"); if(gr)gr.onclick=function(){ openStandings("basketball",(g.leagueId||g.league),g); };
+      db.querySelectorAll(".brc-tm[data-bt]").forEach(function(tm){ tm.style.cursor="pointer"; tm.onclick=function(){ var tid=tm.dataset.bt; if(tid)openBskTeam(tid,tm.dataset.bn,"",g.date); }; });
     }
+  }
+  // 🏀 농구 팀 상세 — 최근경기(전적) 오버레이. H2H/순위표 팀 클릭 시.
+  function openBskTeam(tid,name,logo,date){
+    if(!tid)return;
+    var o=overlay("ovBskTeam");
+    o.innerHTML='<div class="dt-bar"><button class="bk" id="btBack">‹</button><div class="ti">'+esc(tnTeam(name||""))+'</div></div><div class="dt-body" id="btBody" style="padding:14px 14px 40px"><div class="msg"><div class="big">⏳</div>'+t("loading")+'</div></div>';
+    var bb=$("#btBack"); if(bb)bb.onclick=function(){ closeOverlay("ovBskTeam"); };
+    fetch("/api/basketball/teamgames?tid="+encodeURIComponent(tid)+"&date="+encodeURIComponent(date?String(date).slice(0,10):S.date)).then(function(r){return r.json();}).then(function(j){
+      var b=$("#btBody"); if(!b)return;
+      if(!j||!j.found||!j.games||!j.games.length){ b.innerHTML='<div class="msg"><div class="big">📋</div>'+t("noRecentRec")+'</div>'; return; }
+      if(j.nameKo&&j.name)KN_TEAM[knorm(j.name)]=j.nameKo;
+      j.games.forEach(function(m){ if(m.hKo&&m.hName)KN_TEAM[knorm(m.hName)]=m.hKo; if(m.aKo&&m.aName)KN_TEAM[knorm(m.aName)]=m.aKo; if(m.leagueKo&&m.league)KN_LEAGUE[knorm(m.league)]=m.leagueKo; });
+      var s=j.summary||{w:0,l:0,pf:0,pa:0};
+      var h='<div class="dt-sec-t">'+t("recentForm")+'</div>';
+      h+='<div class="brc-sum"><div class="brc-rec"><span class="brc-b w">'+t("win")+'</span>×'+s.w+'<span class="brc-b l" style="margin-left:10px">'+t("lose")+'</span>×'+s.l+'</div><div class="brc-pts"><b>PTS</b> '+s.pf.toFixed(1)+' - '+s.pa.toFixed(1)+' <span>'+tl({en:"per game avg",ko:"경기 당 평균",ja:"1試合平均",zh:"场均",es:"promedio",hi:"प्रति मैच",vi:"TB mỗi trận",th:"เฉลี่ยต่อเกม",ru:"в среднем",de:"pro Spiel",fr:"par match",it:"a partita"})+'</span></div></div>';
+      h+='<div class="dt-sec-t" style="margin-top:14px">📋 '+t("recentMatches")+'</div><div class="brc-mlist">'+bskRecList(j.games,tid)+'</div>';
+      b.innerHTML=h;
+      b.querySelectorAll(".brc-tm[data-bt]").forEach(function(tm){ tm.style.cursor="pointer"; tm.onclick=function(){ var t2=tm.dataset.bt; if(t2&&t2!==tid)openBskTeam(t2,tm.dataset.bn,"",date); }; });
+    }).catch(function(){ var b=$("#btBody"); if(b)b.innerHTML='<div class="msg">⚠️ '+t("loadFailRetry")+'</div>'; });
   }
   function loadBasketballRecord(g){
     _bskRecView="h2h"; _bskRecN=6; _bskRecData=null; _bskRecG=g;
@@ -3476,9 +3496,10 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
       var h='<div class="dt-sec-t">🏆 '+esc(tnLeague(j.league||g.league||""))+'</div>';
       h+='<table class="rank"><thead><tr><th>#</th><th style="text-align:left">'+t("team")+'</th><th>'+t("playedShort")+'</th><th>'+t("winShort")+'</th><th>'+t("lossShort")+'</th><th>PCT</th></tr></thead><tbody>';
       h+=j.table.map(function(r){ var hl=(r.teamId===hT||r.teamId===aT);
-        return '<tr class="'+(hl?"rk-hl":"")+'"><td>'+r.rank+'</td><td class="tm" style="text-align:left">'+(r.logo?'<img src="'+esc(r.logo)+'" class="rk-lg" onerror="this.style.display=\'none\'">':"")+'<span>'+esc(tnTeam(r.team||""))+'</span></td><td>'+r.played+'</td><td>'+r.win+'</td><td>'+r.loss+'</td><td style="font-weight:800">'+(r.pct*100).toFixed(1)+'</td></tr>'; }).join("");
+        return '<tr class="'+(hl?"rk-hl":"")+'" data-bt="'+esc(r.teamId||"")+'" data-bn="'+esc(r.team||"")+'" style="cursor:pointer"><td>'+r.rank+'</td><td class="tm" style="text-align:left">'+(r.logo?'<img src="'+esc(r.logo)+'" class="rk-lg" onerror="this.style.display=\'none\'">':"")+'<span>'+esc(tnTeam(r.team||""))+'</span></td><td>'+r.played+'</td><td>'+r.win+'</td><td>'+r.loss+'</td><td style="font-weight:800">'+(r.pct*100).toFixed(1)+'</td></tr>'; }).join("");
       h+='</tbody></table>';
       dtBody(h);
+      var rdb=$("#dtBody"); if(rdb)rdb.querySelectorAll("tr[data-bt]").forEach(function(tr){ tr.onclick=function(){ var tid=tr.dataset.bt; if(tid)openBskTeam(tid,tr.dataset.bn,"",g.date); }; });
     }).catch(function(){ dtBody('<div class="msg">⚠️ '+t("loadFailRetry")+'</div>'); });
   }
   // 채팅 (WebSocket /ws, 경기방 event:<id>)

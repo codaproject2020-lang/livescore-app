@@ -21,7 +21,7 @@ const app = express();
 const server = http.createServer(app);
 
 const PORT = process.env.PORT || 3000;
-const APP_VERSION = 'v492';
+const APP_VERSION = 'v493';
 
 // ============================================================
 //  📏 성능 계측(instrumentation) — 엔드포인트 지연·캐시·공급사·WS·이벤트루프
@@ -3357,6 +3357,53 @@ app.get('/api/basketball/teamrecent', async (req, res) => {
       home: { summary: summ(sortD(bucket[homeId]), homeId), games: sortD(bucket[homeId]).map(mapGame) },
       away: { summary: summ(sortD(bucket[awayId]), awayId), games: sortD(bucket[awayId]).map(mapGame) },
       h2h: sortD(h2h).map(mapGame) });
+  } catch (e) { res.json({ found: false, error: String((e && e.message) || e) }); }
+});
+// 🏀 농구 팀 상세용 — 한 팀의 최근경기(diary 집계). H2H/순위표에서 팀 클릭 시 사용.
+app.get('/api/basketball/teamgames', async (req, res) => {
+  res.set('Cache-Control', 'no-store');
+  const tid = String(req.query.tid || '');
+  if (!tid) return res.json({ found: false });
+  const baseDate = /^\d{4}-\d{2}-\d{2}$/.test(String(req.query.date || '')) ? req.query.date : new Date().toISOString().slice(0, 10);
+  const now = Date.now();
+  const sumSc = arr => (arr || []).reduce((a, b) => a + (+b || 0), 0);
+  const WANT = 15, MAX_DAYS = 70, BATCH = 12;
+  const teamMap = {}, compMap = {}; const games = []; const seen = new Set();
+  const ymdOf = i => new Date(Date.parse(baseDate + 'T12:00:00Z') - i * 864e5).toISOString().slice(0, 10).replace(/-/g, '');
+  function ingest(d) {
+    if (!d) return;
+    ((d.results_extra || {}).team || []).forEach(t => { if (t && t.id) teamMap[t.id] = { name: t.name || '', logo: t.logo || '' }; });
+    ((d.results_extra || {}).competition || []).forEach(c => { if (c && c.id) compMap[c.id] = { name: c.name || '', logo: c.logo || '' }; });
+    (d.results || []).forEach(x => {
+      if (!x || (x.home_team_id !== tid && x.away_team_id !== tid) || seen.has(x.id) || games.length >= WANT) return;
+      const t = x.match_time ? x.match_time * 1000 : 0;
+      const played = (x.status_id === 10 || x.status_id === 12 || x.status_id === 100) || (t && t < now - 3 * 3600e3);
+      const hs = sumSc(x.home_scores), as = sumSc(x.away_scores);
+      if (!played || (hs + as) === 0) return;
+      seen.add(x.id);
+      const isHome = x.home_team_id === tid;
+      games.push({ id: x.id, date: t, compId: x.competition_id || '', homeId: x.home_team_id, awayId: x.away_team_id, hs, as, win: isHome ? hs > as : as > hs, isHome });
+    });
+  }
+  try {
+    for (let start = 0; start < MAX_DAYS && games.length < WANT; start += BATCH) {
+      const days = []; for (let i = start; i < Math.min(start + BATCH, MAX_DAYS); i++) days.push(ymdOf(i));
+      const ds = await Promise.all(days.map(ymd => tsFetch('/basketball/match/diary', { date: ymd }, 3600000, 8000).catch(() => null)));
+      ds.forEach(ingest);
+    }
+    games.sort((a, b) => b.date - a.date);
+    const KL = TS_LANG['basketball'] || { team: {}, comp: {} };
+    const nm = id => (teamMap[id] && teamMap[id].name) || '';
+    const lg = id => (teamMap[id] && teamMap[id].logo) || '';
+    const cn = id => (compMap[id] && compMap[id].name) || '';
+    let w = 0, l = 0, pf = 0, pa = 0; games.slice(0, 10).forEach(m => { const my = m.isHome ? m.hs : m.as, op = m.isHome ? m.as : m.hs; if (my > op) w++; else l++; pf += my; pa += op; });
+    const n = Math.min(10, games.length) || 1;
+    res.json({ found: games.length > 0, tid, name: nm(tid), nameKo: (KL.team && KL.team[tid]) || '', logo: lg(tid),
+      summary: { w, l, n: Math.min(10, games.length), pf: +(pf / n).toFixed(1), pa: +(pa / n).toFixed(1) },
+      games: games.map(m => ({ date: m.date, league: cn(m.compId), leagueKo: (KL.comp && KL.comp[m.compId]) || '',
+        homeId: m.homeId, awayId: m.awayId, hName: nm(m.homeId), aName: nm(m.awayId),
+        hKo: (KL.team && KL.team[m.homeId]) || '', aKo: (KL.team && KL.team[m.awayId]) || '',
+        hLogo: lg(m.homeId), aLogo: lg(m.awayId), hs: m.hs, as: m.as, win: m.win, isHome: m.isHome })) });
   } catch (e) { res.json({ found: false, error: String((e && e.message) || e) }); }
 });
 // 🏀 농구 순위표 — TheSports 순위 엔드포인트 미인가 → diary(날짜별)에서 '해당 대회' 경기를 모아 승패 집계.
