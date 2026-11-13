@@ -21,7 +21,7 @@ const app = express();
 const server = http.createServer(app);
 
 const PORT = process.env.PORT || 3000;
-const APP_VERSION = 'v486';
+const APP_VERSION = 'v487';
 
 // ============================================================
 //  📏 성능 계측(instrumentation) — 엔드포인트 지연·캐시·공급사·WS·이벤트루프
@@ -3265,9 +3265,29 @@ async function bskTeamInfo(id) {
 async function bskResolveNames(ids) {
   const uniq = [...new Set(ids.filter(Boolean))];
   const miss = uniq.filter(id => !_bskTeamName.has(id));
-  // 과도한 동시호출 방지: 최대 24개까지만 해결(그 이상은 이름없이 표시)
-  await Promise.all(miss.slice(0, 24).map(id => bskTeamInfo(id)));
+  // 과도한 동시호출 방지: 최대 48개까지만 해결(그 이상은 이름없이 표시)
+  await Promise.all(miss.slice(0, 48).map(id => bskTeamInfo(id)));
   const out = {}; uniq.forEach(id => { const v = _bskTeamName.get(id); if (v) out[id] = v; });
+  return out;
+}
+// 🏀 농구 대회명 캐시(개별 uuid) — 전적 리그 그룹 라벨용. 24h 캐시.
+const _bskCompName = new Map();
+async function bskCompInfo(id) {
+  if (!id) return null;
+  if (_bskCompName.has(id)) return _bskCompName.get(id);
+  try {
+    const r = await tsFetch('/basketball/competition/list', { uuid: id }, 24 * 3600 * 1000, 8000).catch(() => null);
+    const c = r && r.results && r.results[0];
+    const v = c ? { name: c.name || '', logo: c.logo || '' } : null;
+    _bskCompName.set(id, v);
+    return v;
+  } catch (e) { return null; }
+}
+async function bskResolveComps(ids) {
+  const uniq = [...new Set(ids.filter(Boolean))];
+  const miss = uniq.filter(id => !_bskCompName.has(id));
+  await Promise.all(miss.slice(0, 24).map(id => bskCompInfo(id)));
+  const out = {}; uniq.forEach(id => { const v = _bskCompName.get(id); if (v) out[id] = v; });
   return out;
 }
 // 🏀 농구 전적(H2H) — 두 팀 최근경기 + 맞대결 + 평균득실. TheSports recent/list(팀당 1콜) 사용.
@@ -3293,36 +3313,40 @@ app.get('/api/basketball/teamrecent', async (req, res) => {
       const isHome = x.home_team_id === tid;
       const my = sumSc(isHome ? x.home_scores : x.away_scores);
       const op = sumSc(isHome ? x.away_scores : x.home_scores);
-      return { id: x.id, date: (x.match_time || 0) * 1000, oppId: isHome ? x.away_team_id : x.home_team_id,
+      return { id: x.id, date: (x.match_time || 0) * 1000, compId: x.competition_id || '',
+        oppId: isHome ? x.away_team_id : x.home_team_id,
         homeId: x.home_team_id, awayId: x.away_team_id, hs: sumSc(x.home_scores), as: sumSc(x.away_scores),
         my, op, win: my > op, isHome };
     });
   }
+  const N = 20;   // 각 팀 최대 보관 경기수(프론트에서 개수 선택)
   try {
-    const [hg, ag] = await Promise.all([teamGames(homeId), teamGames(awayId)]);
+    const [hg0, ag0] = await Promise.all([teamGames(homeId), teamGames(awayId)]);
+    const hg = hg0.slice(0, N), ag = ag0.slice(0, N);
     // 맞대결: 두 팀이 함께 등장한 경기(중복 제거)
     const h2hMap = {};
-    [...hg, ...ag].forEach(m => {
+    [...hg0, ...ag0].forEach(m => {
       const ids = [m.homeId, m.awayId];
       if (ids.includes(homeId) && ids.includes(awayId)) h2hMap[m.id] = m;
     });
-    const h2h = Object.values(h2hMap).sort((a, b) => b.date - a.date).slice(0, 10);
+    const h2h = Object.values(h2hMap).sort((a, b) => b.date - a.date).slice(0, N);
     // 요약: 최근 최대 10경기 승패 + 평균 득/실
     const summ = list => { const g = list.slice(0, 10); let w = 0, l = 0, pf = 0, pa = 0; g.forEach(m => { if (m.win) w++; else l++; pf += m.my; pa += m.op; }); const n = g.length || 1; return { w, l, n: g.length, pf: +(pf / n).toFixed(1), pa: +(pa / n).toFixed(1) }; };
-    // 상대팀 이름 해결(최근 각 8경기 + h2h 범위)
-    const needIds = [];
-    hg.slice(0, 8).forEach(m => needIds.push(m.oppId));
-    ag.slice(0, 8).forEach(m => needIds.push(m.oppId));
-    h2h.forEach(m => { needIds.push(m.homeId, m.awayId); });
-    const names = await bskResolveNames(needIds);
+    // 이름/대회명 해결(표시 범위 전체)
+    const needIds = [], needComps = [];
+    [...hg, ...ag, ...h2h].forEach(m => { needIds.push(m.homeId, m.awayId); needComps.push(m.compId); });
+    const [names, comps] = await Promise.all([bskResolveNames(needIds), bskResolveComps(needComps)]);
     const nm = id => (names[id] && names[id].name) || '';
     const lg = id => (names[id] && names[id].logo) || '';
-    const mapGame = m => ({ date: m.date, opp: nm(m.oppId), oppLogo: lg(m.oppId), my: m.my, op: m.op, win: m.win, isHome: m.isHome });
-    const mapH2H = m => ({ date: m.date, homeId: m.homeId, awayId: m.awayId, hName: nm(m.homeId), aName: nm(m.awayId), hLogo: lg(m.homeId), aLogo: lg(m.awayId), hs: m.hs, as: m.as });
+    const cn = id => (comps[id] && comps[id].name) || '';
+    const cl = id => (comps[id] && comps[id].logo) || '';
+    const mapGame = m => ({ date: m.date, league: cn(m.compId), leagueLogo: cl(m.compId),
+      homeId: m.homeId, awayId: m.awayId, hName: nm(m.homeId), aName: nm(m.awayId),
+      hLogo: lg(m.homeId), aLogo: lg(m.awayId), hs: m.hs, as: m.as, win: m.win, isHome: m.isHome });
     res.json({ found: true,
-      home: { summary: summ(hg), games: hg.slice(0, 8).map(mapGame) },
-      away: { summary: summ(ag), games: ag.slice(0, 8).map(mapGame) },
-      h2h: h2h.map(mapH2H) });
+      home: { summary: summ(hg), games: hg.map(mapGame) },
+      away: { summary: summ(ag), games: ag.map(mapGame) },
+      h2h: h2h.map(mapGame) });
   } catch (e) { res.json({ found: false, error: String((e && e.message) || e) }); }
 });
 app.get('/api/basketball/lineup', async (req, res) => {
