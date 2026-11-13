@@ -21,7 +21,7 @@ const app = express();
 const server = http.createServer(app);
 
 const PORT = process.env.PORT || 3000;
-const APP_VERSION = 'v493';
+const APP_VERSION = 'v494';
 
 // ============================================================
 //  📏 성능 계측(instrumentation) — 엔드포인트 지연·캐시·공급사·WS·이벤트루프
@@ -2909,9 +2909,10 @@ function fmtClockSec(sec) { sec = Math.max(0, Math.round(+sec || 0)); const m = 
 // detail_live.tlive(플레이바이플레이) 파싱 → 이벤트 배열 + 현재기간 팀파울 + 전후반/쿼터 판별
 //  이벤트 라인 형식(^ 구분): [기간(0-base), "MM:SS", 팀(1=홈·2=원정), ?, "원정-홈 점수", 설명, ...]
 function tsBskParseEvents(lv) {
-  let lines = [];
-  const tl = lv && lv.tlive;
-  if (Array.isArray(tl) && tl.length) lines = Array.isArray(tl[0]) ? tl[0] : tl;
+  // ⚠️ tlive 는 [[1쿼터...],[2쿼터...],...] 구조. 예전엔 tl[0](1쿼터)만 읽어 라이브 경기가 1쿼터만 나왔음.
+  //    → 전 쿼터를 평탄화해서 읽고, 각 이벤트의 period(s[0])도 담는다(아코디언 쿼터 그룹용).
+  const tl = lv && lv.tlive; let lines = [];
+  if (Array.isArray(tl)) { if (tl.length && Array.isArray(tl[0])) tl.forEach(q => { if (Array.isArray(q)) lines = lines.concat(q); }); else lines = tl; }
   const evs = [];
   lines.forEach(L => {
     const s = String(L).split('^');
@@ -2921,9 +2922,9 @@ function tsBskParseEvents(lv) {
     let raw = String(s[1] || '').trim(), clk = raw;
     if (/^\d{1,2}:\d{2}$/.test(raw)) { clk = raw; }
     else if (/^\d+(\.\d+)?$/.test(raw)) { const sec = Math.min(59, Math.round(parseFloat(raw))); clk = '0:' + (sec < 10 ? '0' : '') + sec; }
-    evs.push({ clock: clk, rawClock: raw, team: +s[2] || 0, away: (sc[0] !== undefined ? +sc[0] : null), home: (sc[1] !== undefined ? +sc[1] : null), text, pids: s[6] || '' });
+    evs.push({ period: +s[0] || 0, clock: clk, rawClock: raw, team: +s[2] || 0, away: (sc[0] !== undefined ? +sc[0] : null), home: (sc[1] !== undefined ? +sc[1] : null), text, pids: s[6] || '' });
   });
-  return evs;   // 오래된→최신 순
+  return evs;   // 오래된→최신 순(전 쿼터 포함)
 }
 function tsBskLiveInfo(lv) {
   const evs = tsBskParseEvents(lv);

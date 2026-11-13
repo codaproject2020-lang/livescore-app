@@ -3408,8 +3408,10 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
     var j=_bskRecData, g=_bskRecG; if(!j||!g)return;
     var hN=tnTeam(g.home||""), aN=tnTeam(g.away||"");
     var view=_bskRecView, N=_bskRecN;
-    // 서브메뉴 칩
-    var chips=[["vote",t("voteTab")],["h2h",t("h2hMatch")],["home",hN],["away",aN]];
+    var hasH2H=!!(j.h2h&&j.h2h.length);
+    if(view==="h2h"&&!hasH2H)view=_bskRecView="home";   // 맞대결 없으면 홈팀 뷰로
+    // 서브메뉴 칩 (맞대결은 데이터 있을 때만)
+    var chips=[["vote",t("voteTab")]]; if(hasH2H)chips.push(["h2h",t("h2hMatch")]); chips.push(["home",hN],["away",aN]);
     var h='<div class="brc-chips">'+chips.map(function(c){ return '<button class="brc-chip'+(view===c[0]?" on":"")+'" data-v="'+c[0]+'">'+esc(c[1])+'</button>'; }).join("")+'</div>';
     if(view==="vote"){
       // 간단 예측 투표(로컬 저장) — 공급사 투표데이터 미제공이라 사용자 예측 집계
@@ -3441,12 +3443,10 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
        '<div class="brc-pts"><b>PTS</b> '+s.pf.toFixed(1)+' - '+s.pa.toFixed(1)+' <span>'+tl({en:"per game avg",ko:"경기 당 평균",ja:"1試合平均",zh:"场均",es:"promedio",hi:"प्रति मैच",vi:"TB mỗi trận",th:"เฉลี่ยต่อเกม",ru:"в среднем",de:"pro Spiel",fr:"par match",it:"a partita"})+'</span></div>'+
        '<div class="brc-nsel"><label>'+t("showCount")+'</label><select id="brcN">'+[6,10,20].map(function(x){return '<option value="'+x+'"'+(N===x?" selected":"")+'>'+x+'</option>';}).join("")+'</select></div></div>';
     h+='<div class="brc-mlist">'+bskRecList(shown,refTid)+'</div>';
-    h+='<div class="dt-sec-t" style="margin-top:16px">🏆 '+t("leagueRank")+'</div><p style="color:#2b6cf0;font-weight:700;cursor:pointer" id="goRank">'+esc(tnLeague(g.league||""))+' ›</p>';
     dtBody(h);
     var db=$("#dtBody"); if(db){
       db.querySelectorAll(".brc-chip").forEach(function(b){ b.onclick=function(){ _bskRecView=b.dataset.v; renderBskRec(); }; });
       var ns=$("#brcN"); if(ns)ns.onchange=function(){ _bskRecN=+ns.value; renderBskRec(); };
-      var gr=$("#goRank"); if(gr)gr.onclick=function(){ openStandings("basketball",(g.leagueId||g.league),g); };
       db.querySelectorAll(".brc-tm[data-bt]").forEach(function(tm){ tm.style.cursor="pointer"; tm.onclick=function(){ var tid=tm.dataset.bt; if(tid)openBskTeam(tid,tm.dataset.bn,"",g.date); }; });
     }
   }
