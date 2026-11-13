@@ -1038,6 +1038,8 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
   function knorm(s){ return String(s||"").trim().toLowerCase().replace(/\s+/g," "); }
   function tnTeam(name){ if(LANG!=="ko"||!name)return name; return KN_TEAM[knorm(name)]||name; }
   function tnLeague(name){ if(LANG!=="ko"||!name)return name; return KN_LEAGUE[knorm(name)]||name; }
+  // 🌐 서버가 더스포츠 한글명(homeKo/awayKo/leagueKo)을 붙여주면 영문명→한글 사전에 등록(한국어 설정일 때 tnTeam/tnLeague가 사용)
+  function regGamesKo(games){ if(!games||!games.length)return; for(var i=0;i<games.length;i++){ var g=games[i]; if(!g)continue; if(g.homeKo&&g.home)KN_TEAM[knorm(g.home)]=g.homeKo; if(g.awayKo&&g.away)KN_TEAM[knorm(g.away)]=g.awayKo; if(g.leagueKo&&g.league)KN_LEAGUE[knorm(g.league)]=g.leagueKo; } }
   // '국가 · 리그' 조합 표시명 한글화(국가=팀맵, 리그=리그맵)
   function tnGroup(country,league){ var c=country?tnTeam(country):"", l=tnLeague(league||""); return (c?c+" · ":"")+l; }
   // ====== 환경 설정 (테마·글자크기·결과숨기기) ======
@@ -4809,7 +4811,8 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
     return fetch(url,{headers:{"accept":"application/json"},cache:"no-store"}).then(function(r){ if(!r.ok)throw 0; return r.json(); })
       .then(function(j){
         if(j&&j.needKey) return { error:true, needKey:true, games:[], count:0, _demo:false }; // 키 미설정 → 오류(예시 아님)
-        return { games:(j&&j.games)||[], count:(j&&j.count)||0, src:(j&&j.src)||null, ageSec:(j&&j.ageSec!=null?j.ageSec:null), delayed:false, _demo:false };
+        var _gs=(j&&j.games)||[]; regGamesKo(_gs);
+        return { games:_gs, count:(j&&j.count)||0, src:(j&&j.src)||null, ageSec:(j&&j.ageSec!=null?j.ageSec:null), delayed:false, _demo:false };
       }).catch(function(){ return { error:true, games:[], count:0, _demo:false }; }); // 조회 실패 → 오류(예시 아님)
   }
 

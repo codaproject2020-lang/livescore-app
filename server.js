@@ -21,7 +21,7 @@ const app = express();
 const server = http.createServer(app);
 
 const PORT = process.env.PORT || 3000;
-const APP_VERSION = 'v488';
+const APP_VERSION = 'v489';
 
 // ============================================================
 //  📏 성능 계측(instrumentation) — 엔드포인트 지연·캐시·공급사·WS·이벤트루프
@@ -100,7 +100,10 @@ let visitorsCol = null;             // 방문자 영속 컬렉션(연결 시)
 // ============================================================
 const ERRLOG = [];                 // 최근 에러 링버퍼(관리자 화면 표시)
 const ERR_MAX = 300;
-let errorsCol = null, configCol = null, adminSubsCol = null, highlightsCol = null, bskSnapCol = null;
+let errorsCol = null, configCol = null, adminSubsCol = null, highlightsCol = null, bskSnapCol = null, langCol = null;
+// 🌐 TheSports 한국어 번역 캐시(팀/리그 id → 한글명). 종목별. 메모리 + Mongo(ts_lang) 영속.
+const TS_LANG = {};
+const TS_LANG_SPORTS = { football: 'football', basketball: 'basketball', baseball: 'baseball', volleyball: 'volleyball', hockey: 'ice_hockey' };
 // 🎬 경기 하이라이트(관리자 수동 등록) — key: "sport:matchId"
 const HIGHLIGHTS = new Map();
 // 공식 채널 허용목록(채널ID·핸들). 자동수집·공식 배지 판정에 사용. 수동 등록은 경고만.
@@ -335,6 +338,8 @@ async function initDB() {
       try { highlightsCol = db.collection('highlights'); await highlightsCol.createIndex({ key: 1 }, { unique: true }).catch(() => {}); const hls = await highlightsCol.find({}).toArray(); for (const h of hls) { if (h.key) HIGHLIGHTS.set(h.key, h); } console.log(`[DB] 하이라이트 ${hls.length}건 로드`); } catch (e) { console.error('[DB] highlights 로드 실패:', e.message); }
       // 🗄️ 농구 종료경기 박스/흐름 스냅샷 영속 저장(서버 재시작 후에도 유지). 48h TTL 자동정리.
       try { bskSnapCol = db.collection('bsk_snap'); await bskSnapCol.createIndex({ at: 1 }, { expireAfterSeconds: 172800 }).catch(() => {}); const cnt = await bskSnapCol.estimatedDocumentCount().catch(() => 0); console.log(`[DB] 농구 스냅샷 컬렉션 준비(보존 ${cnt}건)`); } catch (e) { console.error('[DB] bsk_snap 초기화 실패:', e.message); }
+      // 🌐 TheSports 한국어 번역(팀/리그) 영속 캐시 — 재시작 후에도 유지, 24h마다 갱신
+      try { langCol = db.collection('ts_lang'); for (const sp of Object.keys(TS_LANG_SPORTS)) { const d = await langCol.findOne({ _id: sp }).catch(() => null); if (d && d.team) { TS_LANG[sp] = { team: d.team, comp: d.comp || {}, at: d.at || 0, loading: false }; } } console.log('[DB] TheSports 한국어 번역 캐시 로드'); } catch (e) { console.error('[DB] ts_lang 초기화 실패:', e.message); }
     } catch (e) { console.error('[DB] 운영 컬렉션 초기화 실패:', e.message); }
     const all = await usersCol.find({}).toArray();   // 기존 회원 메모리에 로드
     for (const u of all) {
@@ -3188,8 +3193,8 @@ function tsBskPlayer(p) {
 }
 // 🏀 종료(및 진행) 경기 완전 데이터 — TheSports /basketball/match/live/history (종료 후에도 지속).
 //   box(선발/BLK/STL/사진) + tlive(플레이바이플레이·슛좌표) + 쿼터점수. 라이브 전용 lineup_live/detail_live 와 별개.
-async function tsBskHistory(tsid) {
-  const r = await tsFetch('/basketball/match/live/history', { uuid: tsid }, 1800000).catch(() => null); // 종료경기 1회→30분 캐시
+async function tsBskHistory(tsid, ttl) {
+  const r = await tsFetch('/basketball/match/live/history', { uuid: tsid }, ttl != null ? ttl : 1800000).catch(() => null); // 종료경기 1회→30분 캐시(라이브 병합 시 짧게)
   const item = r && r.results; if (!item || !item.players) return null;
   const pl = item.players;
   const mk = arr => (arr || []).filter(x => Array.isArray(x)).map(tsBskPlayer);
@@ -3397,13 +3402,20 @@ app.get('/api/basketball/live', async (req, res) => {
     const statePer = TS_BSK_PER[sc[1]] || null;
     let foulsOk = false;
     if (info) { if (info.isHalves) foulsOk = info.curP != null; else foulsOk = (info.curP != null && (statePer ? info.curP >= statePer : true)); }
+    // 🔑 라이브 경기도 '전 쿼터'가 나오도록: detail_live(현재 쿼터만)보다 history(1~현재 쿼터 누적)가 많으면 history 사용.
+    //    history는 라이브 중엔 1분 캐시로 신선하게. period/팀파울은 detail_live(실시간) 유지.
+    let liveEvents = (info ? info.events : []) || [];
+    try {
+      const hist = await tsBskHistory(id, 60000).catch(() => null);
+      if (hist && hist.flow && hist.flow.length > liveEvents.length) liveEvents = hist.flow;
+    } catch (e) {}
     const payload = {
       found: true,
       period: (statePer && !info.isHalves) ? statePer : (info ? info.curP : null), isHalves: info ? info.isHalves : false,
       homeFouls: foulsOk ? info.hf : null, awayFouls: foulsOk ? info.af : null,
       quarters: { home: sc[3] || [], away: sc[4] || [] },
-      // 최신순, 최대 600개(1쿼터부터 포함). 점수는 "홈-원정"으로 정렬해 전달. pids=선수ID(사진 매핑용)
-      events: (info ? info.events : []).slice(-600).reverse().map(e => ({ period: e.period, clock: e.clock, team: e.team, home: e.home, away: e.away, text: e.text, pids: e.pids || '' }))
+      // 최신순, 최대 900개(1쿼터부터 포함). 점수는 "홈-원정"으로 정렬해 전달. pids=선수ID(사진 매핑용)
+      events: liveEvents.slice(-900).reverse().map(e => ({ period: e.period, clock: e.clock, team: e.team, home: e.home, away: e.away, text: e.text, pids: e.pids || '' }))
     };
     if (payload.events.length || (payload.quarters.home && payload.quarters.home.length)) _snapSet('flow|' + id, payload);
     res.json(payload);
@@ -3586,6 +3598,49 @@ async function tsVolleyballGames(date, tz) {
     }
   }
   return out;
+}
+// 🌐 TheSports 한국어 번역 로더 — type=4(팀)·type=3(리그) 페이지 순회. 하루 1회, 백그라운드.
+async function tsLangFetchType(slug, type) {
+  const out = {};
+  for (let page = 1; page <= 80; page++) {
+    const r = await tsFetch('/' + slug + '/language/list', { type, page }, 24 * 3600 * 1000, 15000).catch(() => null);
+    const arr = (r && r.results) || [];
+    if (!Array.isArray(arr) || !arr.length) break;
+    for (const e of arr) { if (e && e.id && e.name_ko) out[e.id] = e.name_ko; }
+    if (arr.length < 1000) break;
+  }
+  return out;
+}
+let _tsLangInflight = {};
+async function tsLoadLang(sport) {
+  const slug = TS_LANG_SPORTS[sport]; if (!slug) return;
+  const cur = TS_LANG[sport];
+  if (cur && cur.at && (Date.now() - cur.at < 24 * 3600 * 1000) && Object.keys(cur.team || {}).length) return;
+  if (_tsLangInflight[sport]) return _tsLangInflight[sport];
+  _tsLangInflight[sport] = (async () => {
+    try {
+      const [team, comp] = await Promise.all([tsLangFetchType(slug, 4), tsLangFetchType(slug, 3)]);
+      if (Object.keys(team).length) {
+        TS_LANG[sport] = { team, comp, at: Date.now() };
+        if (langCol) await langCol.updateOne({ _id: sport }, { $set: { team, comp, at: Date.now() } }, { upsert: true }).catch(() => {});
+        console.log(`[lang] ${sport} 한글 번역 로드: 팀 ${Object.keys(team).length} · 리그 ${Object.keys(comp).length}`);
+      }
+    } catch (e) { console.error('[lang]', sport, e.message); }
+    finally { delete _tsLangInflight[sport]; }
+  })();
+  return _tsLangInflight[sport];
+}
+// 게임 배열에 한글명(homeKo/awayKo/leagueKo) 부착 — id 기준(한국어 설정일 때 프론트에서 사용)
+function attachKo(sport, games) {
+  if (!games || !games.length) return;
+  if (TS_LANG_SPORTS[sport]) tsLoadLang(sport).catch(() => {});   // 백그라운드 적재/갱신
+  const L = TS_LANG[sport]; if (!L || !L.team) return;
+  for (const g of games) {
+    if (g.homeTid && L.team[g.homeTid]) g.homeKo = L.team[g.homeTid];
+    if (g.awayTid && L.team[g.awayTid]) g.awayKo = L.team[g.awayTid];
+    const lid = g.leagueId || g.compId || g.competition_id || '';
+    if (lid && L.comp && L.comp[lid]) g.leagueKo = L.comp[lid];
+  }
 }
 async function buildGamesCore(sport, date, tz) {
   // 🎮 e스포츠(LOL/DOTA2/CS2) = 더스포츠 전용(세 게임 병합). API-Sports 폴백 없음.
@@ -3900,6 +3955,7 @@ async function buildGamesCore(sport, date, tz) {
     });
   }
   if (j && !j.src) j.src = 'apisports';   // 계측용 출처 표기(원본/캐시 구분)
+  try { attachKo(sport, games); } catch (e) {}   // 🌐 한글명(id 기준) 부착 — 한국어 설정 시 프론트에서 사용
   return { games, j };
 }
 
