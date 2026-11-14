@@ -21,7 +21,7 @@ const app = express();
 const server = http.createServer(app);
 
 const PORT = process.env.PORT || 3000;
-const APP_VERSION = 'v494';
+const APP_VERSION = 'v496';
 
 // ============================================================
 //  📏 성능 계측(instrumentation) — 엔드포인트 지연·캐시·공급사·WS·이벤트루프
@@ -2554,8 +2554,8 @@ app.get('/api/baseball/teamrecent', async (req, res) => {
     const tmCur = {}; ((dcur.results_extra || {}).team || []).forEach(t => tmCur[t.id] = t.name);
     const homeId = m0.home_team_id, awayId = m0.away_team_id;
     const now = Date.now(); const buckets = { [homeId]: [], [awayId]: [] }; const h2h = [];
-    for (let i = 0; i < 80; i++) {
-      if (buckets[homeId].length >= 10 && buckets[awayId].length >= 10 && h2h.length >= 10) break;
+    for (let i = 0; i < 160; i++) {   // 이전 시즌까지(최소 5경기 보장). 두 팀 충분하면 조기 종료.
+      if (buckets[homeId].length >= 10 && buckets[awayId].length >= 10) break;
       const ymd = new Date(Date.parse(date + 'T12:00:00Z') - i * 864e5).toISOString().slice(0, 10).replace(/-/g, '');
       const d = await tsFetch('/baseball/match/diary', { date: ymd }, 3600000).catch(() => null);
       if (!d) continue;
@@ -3306,11 +3306,11 @@ app.get('/api/basketball/teamrecent', async (req, res) => {
   const baseDate = /^\d{4}-\d{2}-\d{2}$/.test(String(req.query.date || '')) ? req.query.date : new Date().toISOString().slice(0, 10);
   const now = Date.now();
   const sumSc = arr => (arr || []).reduce((a, b) => a + (+b || 0), 0);
-  const WANT = 12, MAX_DAYS = 80, BATCH = 10;
+  const WANT = 12, MAX_DAYS = 150, BATCH = 10;   // 이전 시즌까지 커버(최소 5경기 보장). 활성팀은 아래 enough()로 조기 종료.
   const teamMap = {}, compMap = {};
   const bucket = { [homeId]: [], [awayId]: [] }; const h2h = [];
   const seen = { [homeId]: new Set(), [awayId]: new Set() }; const h2hSeen = new Set();
-  const enough = () => bucket[homeId].length >= WANT && bucket[awayId].length >= WANT && h2h.length >= Math.min(6, WANT);
+  const enough = () => bucket[homeId].length >= WANT && bucket[awayId].length >= WANT;   // 두 팀 다 충분하면 종료(h2h는 그 범위 내 수집)
   const ymdOf = i => new Date(Date.parse(baseDate + 'T12:00:00Z') - i * 864e5).toISOString().slice(0, 10).replace(/-/g, '');
   function ingest(d) {
     if (!d) return;
@@ -3368,7 +3368,7 @@ app.get('/api/basketball/teamgames', async (req, res) => {
   const baseDate = /^\d{4}-\d{2}-\d{2}$/.test(String(req.query.date || '')) ? req.query.date : new Date().toISOString().slice(0, 10);
   const now = Date.now();
   const sumSc = arr => (arr || []).reduce((a, b) => a + (+b || 0), 0);
-  const WANT = 15, MAX_DAYS = 70, BATCH = 12;
+  const WANT = 15, MAX_DAYS = 150, BATCH = 12;   // 이전 시즌까지(최소 5경기 보장). 충분히 모이면 조기 종료.
   const teamMap = {}, compMap = {}; const games = []; const seen = new Set();
   const ymdOf = i => new Date(Date.parse(baseDate + 'T12:00:00Z') - i * 864e5).toISOString().slice(0, 10).replace(/-/g, '');
   function ingest(d) {

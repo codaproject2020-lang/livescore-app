@@ -9,6 +9,8 @@
 <link rel="apple-touch-icon" href="/icon-512.png?v=345">
 <link rel="icon" type="image/svg+xml" href="/favicon.svg?v=345">
 <link rel="icon" href="/icon-192.png?v=345">
+<link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard-dynamic-subset.css">
 <style>
 :root{
   --bg:#ffffff; --navy:#142748; --navy2:#223a63;
@@ -879,14 +881,41 @@ html[data-theme="dark"] .cpl .cpt{color:#9aa6b6}
   .bm-team img,.bm-team .ph{width:74px;height:74px}
   .m-grid{gap:12px}
 }
+/* ===== 디자인 리뉴얼(시안 반영): Pretendard 웨이트(일반400·팀명/버튼500·제목600) + 전체 살짝 축소 + 빅매치 축소(전 종목 동일) ===== */
+.brand{display:flex;flex-direction:column;gap:0;line-height:1.08}
+.logo{font-weight:800;font-size:20px}
+.tagline{margin-left:0;font-weight:500;font-size:11px;margin-top:1px}
+.stab{font-weight:500}
+.stab.on{font-weight:600}
+.datebar .d{font-weight:600;font-size:15px}
+.datebar .today{font-weight:600}
+.fbtn{font-weight:500;font-size:13.5px;padding:10px 8px}
+.fbtn.on{font-weight:600}
+.cchip{font-weight:500}
+.cchip.on{font-weight:600}
+.sec-h .t{font-weight:600;font-size:16.5px}
+.sec-h .t:before{height:16px}
+.ag-lgh .ag-lgnm b{font-weight:600}
+.fgm-nm{font-weight:500;font-size:14.5px}
+.lghd .lgnm,.leaguehd b,.ag-lgnm b{font-weight:600}
+/* 빅매치 축소 — 전 종목 공통(색만 다름) */
+.bigmatch{margin:12px 16px 6px}
+.bigmatch .in{padding:15px 16px 16px}
+.bm-top{font-weight:600;font-size:12px;margin-bottom:10px}
+.bm-team img,.bm-team .ph{width:54px;height:54px}
+.bm-team .nm{font-weight:500;font-size:13px;max-width:112px}
+.bm-league{font-weight:500;font-size:11.5px}
+.bm-score{font-size:27px}
+.bm-time{font-size:23px}
+.bm-state{font-weight:600}
+.bm-cta{font-weight:600;font-size:12.5px;padding:7px 15px;margin-top:11px}
 </style>
 </head>
 <body>
 <div class="app" id="app">
   <!-- 상단바 -->
   <header class="topbar" id="topbar">
-    <div><div class="logo">LIVE <b>UP</b></div></div>
-    <div class="tagline">오늘의 경기를 한눈에</div>
+    <div class="brand"><div class="logo">LIVE <b>UP</b></div><div class="tagline">오늘의 경기를 한눈에</div></div>
     <div class="sp"></div>
     <button class="langbtn" id="btnLang" aria-label="language"></button>
     <button class="iconbtn" id="btnSearch" aria-label="검색">
@@ -1324,6 +1353,7 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
   //   배열 순서 = 정렬 우선순위(위일수록 먼저). 목록·버튼·상단 메인경기 선정이 같은 표를 공유.
   var LEAGUES={
     football:[
+      {re:/world\s*cup|copa\s*am[eé]rica|nations\s*league|european\s*championship|\beuro\s*20\d\d|\bafc\s*asian\s*cup|\basian\s*cup\b|africa\s*cup\s*of\s*nations|\bafcon\b|gold\s*cup|concacaf.*(nations|gold)|international\s*friendly|confederations|olympic\s*(football|tournament|games)/i},   // 국가대표 A매치 최우선(유스·女유스는 SUBTIER로 제외)
       {re:/^(uefa\s+)?champions\s*league$/i},                                              // R004: 국제대회 우선 — UCL
       {re:/^(uefa\s+)?europa\s*league$/i},                                                 // UEL
       {re:/^(eng(land|lish)\s+)?premier\s*league$/i, co:/england|britain|united kingdom|\buk\b|영국|잉글랜드/i},   // EPL (몽골/인도 등 "X Premier League" 배제)
@@ -1337,7 +1367,8 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
       {re:/^(saudi\s+)?(pro|professional)\s*league$|^saudi pro league$/i, co:/saudi|사우디/i},
       {re:/^(jap(an|anese)\s+)?j1[\s-]?league$|^j1$/i, co:/japan|일본/i}
     ],
-    basketball:[   // R005: NBA → KBL → WKBL → 유로리그 → 기타
+    basketball:[   // R005: 국제경기 → NBA → KBL → WKBL → 유로리그 → 기타
+      {re:/fiba|basketball\s*world\s*cup|olympic|eurobasket|asia\s*cup|americup|afrobasket/i},   // 국가대표 국제경기 최우선
       {re:/\bNBA\b|national\s*basketball\s*association/i, co:/usa|united states|america|미국/i, x:/\bg[\s-]?league\b|g\s*리그|development|summer\s*league|2k|preseason|exhibition/i},   // R028/L02: NBA G League·G리그 제외(후순위)
       {re:/\bKBL\b|korean?\s*basketball\s*league/i, co:/korea|한국/i, x:/\bWKBL\b|women/i},
       {re:/\bWKBL\b|women'?s?\s*korean?\s*basketball/i, co:/korea|한국/i},
@@ -1346,6 +1377,7 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
       {re:/\bCBA\b|chinese\s*basketball\s*association/i, co:/china|중국/i}
     ],
     baseball:[
+      {re:/world\s*baseball\s*classic|\bwbc\b|premier\s*12|premier12|olympic|asia\s*professional\s*championship|asian\s*championship|baseball\s*world\s*cup/i},   // 국가대표 국제경기 최우선
       {re:/\bMLB\b|major\s*league\s*baseball|메이저리그/i, co:/usa|united states|america|미국/i},
       {re:/\bKBO\b/i, co:/korea|한국/i},
       {re:/\bNPB\b|nippon/i, co:/japan|일본/i},
@@ -1359,7 +1391,8 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
     ],
     // 배구 목록 정렬(#8): 터키 1부 우선(여자 Sultanlar / 남자 Efeler 구분) → 한국 V리그 → 이탈리아/폴란드 등.
     //   상단 메인경기(#9)는 별도 규칙이지만 한국 V리그·터키 모두 후보 → 아래 표에 함께 포함.
-    volleyball:[   // R006: 국내 V리그 남 → 여 → 해외 주요 → 기타
+    volleyball:[   // R006: 국제경기 → 국내 V리그 남 → 여 → 해외 주요 → 기타
+      {re:/world\s*championship|nations\s*league|\bvnl\b|olympic|volleyball\s*world\s*cup|european\s*championship|asian\s*championship|fivb/i},   // 국가대표 국제경기 최우선
       {re:/(V[\s-]?리그|V[\s-]?League|KOVO).*(남자|men)|남자부/i, co:/korea|한국/i},     // 한국 V리그 남자부
       {re:/(V[\s-]?리그|V[\s-]?League|KOVO).*(여자|women)|여자부/i, co:/korea|한국/i},   // 한국 V리그 여자부
       {re:/V[\s-]?리그|V[\s-]?League|KOVO/i, co:/korea|한국/i},                          // 한국 V리그(성별 미표기)
