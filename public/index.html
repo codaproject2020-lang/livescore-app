@@ -359,6 +359,9 @@ html[data-theme="dark"] .lg-all{background:#1b2740;border-color:#2c3a54}
 .ag-lgh .ag-chev{font-size:14px;color:#b9c0cc;transition:transform .15s;flex:none}
 .ag-lgrow.open .ag-chev{transform:rotate(180deg)}
 .ag-lgbody{padding:0 0 6px}
+.loginbtn{display:inline-flex;align-items:center;gap:4px;border:1px solid var(--line);background:var(--card,#fff);border-radius:16px;padding:4px 10px 4px 8px;cursor:pointer;color:var(--navy);font-weight:500;font-size:12.5px;white-space:nowrap}
+.loginbtn:active{background:var(--soft)}
+html[data-theme="dark"] .loginbtn{background:#1b2740;border-color:#2c3a54}
 .langbtn{display:inline-flex;align-items:center;gap:4px;border:1px solid var(--line);background:var(--card,#fff);border-radius:16px;padding:4px 8px 4px 7px;cursor:pointer;max-width:118px}
 .langbtn .lfl{font-size:15px;line-height:1}
 .langbtn .lnm{font-size:12px;font-weight:800;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -908,6 +911,14 @@ html[data-theme="dark"] .cpl .cpt{color:#9aa6b6}
 .bm-score{font-size:26px}
 .bm-time{font-size:22px}
 .bm-state{font-weight:600}
+/* 전체메뉴 프로모 카드(공유·홈화면추가) */
+.mpromo{display:flex;align-items:center;gap:12px;background:var(--card,#fff);border:1px solid var(--line);border-radius:14px;padding:13px 14px;margin:10px 16px 0;cursor:pointer}
+.mpromo:active{background:var(--soft)}
+.mpromo .mp-ic{width:42px;height:42px;border-radius:50%;background:var(--navy);color:#fff;display:flex;align-items:center;justify-content:center;font-size:19px;flex:0 0 auto}
+.mpromo .mp-tx{min-width:0;flex:1}
+.mpromo .mp-tx b{display:block;font-weight:600;font-size:14.5px;color:var(--navy)}
+.mpromo .mp-tx span{display:block;font-size:12px;color:var(--muted);margin-top:2px}
+.mpromo .mp-ar{color:#c3c9d4;font-size:19px;flex:0 0 auto;font-weight:600}
 </style>
 </head>
 <body>
@@ -917,6 +928,7 @@ html[data-theme="dark"] .cpl .cpt{color:#9aa6b6}
     <div class="brand"><div class="logo">LIVE <b>UP</b></div><div class="tagline">오늘의 경기를 한눈에</div></div>
     <div class="sp"></div>
     <button class="langbtn" id="btnLang" aria-label="language"></button>
+    <button class="loginbtn" id="btnLogin" aria-label="login"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:15px;height:15px"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 4-6 8-6s8 2 8 6"/></svg><span id="btnLoginTx"></span></button>
     <button class="iconbtn" id="btnSearch" aria-label="검색">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4-4"/></svg>
     </button>
@@ -959,6 +971,8 @@ html[data-theme="dark"] .cpl .cpt{color:#9aa6b6}
 
 <script>
 "use strict";
+// PWA 설치 프롬프트 캡처('홈 화면에 추가' 버튼에서 사용)
+window.addEventListener("beforeinstallprompt",function(e){ e.preventDefault(); window._bipEvent=e; });
 (function(){
   /* ===== i18n (기존 app.js 번역 재사용 + 보조사전) ===== */
 var LANGS=["en","ko","ja","zh","es","hi","vi","th","ru","de","fr","it"];
@@ -3740,6 +3754,10 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
     if(me0&&me0.name){ acct.innerHTML='<div class="av">👤</div><div class="tx"><b>'+esc(me0.name)+'</b><span>'+esc(me0.email||"")+'</span></div><button class="go" id="mLogin">'+t("myPage")+'</button>'; }
     else { acct.innerHTML='<div class="av">👤</div><div class="tx"><b>'+t("loginCta1")+'</b><span>'+t("loginCta2")+'</span></div><button class="go" id="mLogin">'+t("login")+'</button>'; }
     m.appendChild(acct);
+    // 프로모 카드: 라이브업 공유하기 + 홈 화면에 추가 (타겟 시안)
+    function pcard(ic,ttl,sub,plus,fn){ var c=el("div","mpromo"); c.innerHTML='<div class="mp-ic">'+ic+'</div><div class="mp-tx"><b>'+esc(ttl)+'</b><span>'+esc(sub)+'</span></div><span class="mp-ar">'+(plus?'＋':'›')+'</span>'; c.onclick=fn; return c; }
+    m.appendChild(pcard('🔗',t("shareApp"),tl({en:"Tell your friends about LIVE UP",ko:"친구에게 라이브업을 알려주세요",ja:"友だちにLIVE UPを教えよう",zh:"把 LIVE UP 分享给朋友",es:"Cuéntales a tus amigos sobre LIVE UP",hi:"दोस्तों को LIVE UP बताएं",vi:"Giới thiệu LIVE UP cho bạn bè",th:"บอกเพื่อนเกี่ยวกับ LIVE UP",ru:"Расскажите друзьям о LIVE UP",de:"Erzähl deinen Freunden von LIVE UP",fr:"Parlez de LIVE UP à vos amis",it:"Racconta LIVE UP agli amici"}),false,function(){ openShare(); }));
+    m.appendChild(pcard('📱',tl({en:"Add to Home Screen",ko:"홈 화면에 추가",ja:"ホーム画面に追加",zh:"添加到主屏幕",es:"Añadir a pantalla de inicio",hi:"होम स्क्रीन पर जोड़ें",vi:"Thêm vào màn hình chính",th:"เพิ่มไปหน้าจอหลัก",ru:"Добавить на главный экран",de:"Zum Startbildschirm",fr:"Ajouter à l'écran d'accueil",it:"Aggiungi a schermata Home"}),tl({en:"Open LIVE UP quickly from a shortcut",ko:"바로가기로 라이브업을 빠르게 열어보세요",ja:"ショートカットで素早く開く",zh:"用快捷方式快速打开",es:"Abre LIVE UP rápido con un acceso directo",hi:"शॉर्टकट से तेज़ी से खोलें",vi:"Mở nhanh bằng lối tắt",th:"เปิดเร็วด้วยทางลัด",ru:"Быстрый доступ с ярлыка",de:"Schnell über Verknüpfung öffnen",fr:"Ouvrir vite via un raccourci",it:"Apri rapido da una scorciatoia"}),true,function(){ menuGo("install"); }));
     // 경기와 분석
     var g1=el("div","m-group");
     g1.appendChild(el("div","m-label",t("grpAnalysis")));
@@ -3767,7 +3785,7 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
     // 이용 안내
     var g4=el("div","m-group"); g4.appendChild(el("div","m-label",t("grpHelp")));
     var l4=el("div","m-list");
-    [[t("shareApp"),"share"],[t("supportLbl"),"support"],[t("notice"),"notice"],[t("download"),"install"]].forEach(function(x){
+    [[t("supportLbl"),"support"],[t("notice"),"notice"]].forEach(function(x){   // 공유·설치는 상단 프로모 카드로 이동
       var r=el("div","m-row",'<span class="mi">'+menuIc(x[1])+'</span>'+x[0]+'<span class="chev">›</span>'); r.onclick=function(){menuGo(x[1])}; l4.appendChild(r);
     });
     g4.appendChild(l4); m.appendChild(g4);
@@ -3793,7 +3811,7 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
     if(k==="settings"||k==="tz") return openSettings();
     if(k==="my") return openLogin();
     if(k==="myact") return openActivity();
-    if(k==="install") return alert(tl({en:"Use your browser's 'Add to Home Screen' to install the app.",ko:"브라우저 메뉴의 '홈 화면에 추가'로 앱처럼 설치할 수 있습니다.",ja:"ブラウザの「ホーム画面に追加」でインストールできます。",zh:"用浏览器的'添加到主屏幕'安装应用。",es:"Usa 'Añadir a pantalla de inicio' del navegador.",hi:"ब्राउज़र के 'होम स्क्रीन में जोड़ें' से इंस्टॉल करें।",vi:"Dùng 'Thêm vào màn hình chính' của trình duyệt.",th:"ใช้ 'เพิ่มลงหน้าจอหลัก' ของเบราว์เซอร์",ru:"Используйте «На главный экран» в браузере.",de:"Nutze 'Zum Startbildschirm' im Browser.",fr:"Utilisez 'Ajouter à l'écran d'accueil'.",it:"Usa 'Aggiungi a Home' del browser."}));
+    if(k==="install"){ if(window._bipEvent){ try{ window._bipEvent.prompt(); window._bipEvent.userChoice.finally(function(){ window._bipEvent=null; }); }catch(e){} return; } return alert(tl({en:"Use your browser's 'Add to Home Screen' to install the app.",ko:"브라우저 메뉴의 '홈 화면에 추가'로 앱처럼 설치할 수 있습니다.",ja:"ブラウザの「ホーム画面に追加」でインストールできます。",zh:"用浏览器的'添加到主屏幕'安装应用。",es:"Usa 'Añadir a pantalla de inicio' del navegador.",hi:"ब्राउज़र के 'होम स्क्रीन में जोड़ें' से इंस्टॉल करें।",vi:"Dùng 'Thêm vào màn hình chính' của trình duyệt.",th:"ใช้ 'เพิ่มลงหน้าจอหลัก' ของเบราว์เซอร์",ru:"Используйте «На главный экран» в браузере.",de:"Nutze 'Zum Startbildschirm' im Browser.",fr:"Utilisez 'Ajouter à l'écran d'accueil'.",it:"Usa 'Aggiungi a Home' del browser."})); }
     if(k==="support") return alert("support@liveup.fans");
     if(k==="notice") return alert(t("notice"));
     alert(k);
@@ -4971,6 +4989,7 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
     $("#dCalL").onclick=function(){ var v=prompt(tl({en:"Select date (YYYY-MM-DD)",ko:"날짜 선택 (YYYY-MM-DD)",ja:"日付選択 (YYYY-MM-DD)",zh:"选择日期 (YYYY-MM-DD)",es:"Elegir fecha (YYYY-MM-DD)",hi:"तारीख चुनें (YYYY-MM-DD)",vi:"Chọn ngày (YYYY-MM-DD)",th:"เลือกวันที่ (YYYY-MM-DD)",ru:"Выберите дату (YYYY-MM-DD)",de:"Datum wählen (YYYY-MM-DD)",fr:"Choisir la date (YYYY-MM-DD)",it:"Scegli data (YYYY-MM-DD)"}),S.date); if(v&&/^\d{4}-\d{2}-\d{2}$/.test(v)){ onDate(v); } };
     $("#btnSearch").onclick=openSearch;
     $("#btnBell").onclick=function(){ openInbox(); };
+    (function(){ var lb=$("#btnLogin"); if(!lb)return; var me=null; try{me=JSON.parse(localStorage.getItem("lu_user")||"null");}catch(e){} var tx=$("#btnLoginTx"); if(tx)tx.textContent=(me&&me.name)?(me.name.length>5?me.name.slice(0,5):me.name):t("login"); lb.onclick=function(){ openLogin(); }; })();
     document.querySelectorAll(".bn").forEach(function(b){
       b.onclick=function(){
         var nv=b.dataset.nav;

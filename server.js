@@ -21,7 +21,7 @@ const app = express();
 const server = http.createServer(app);
 
 const PORT = process.env.PORT || 3000;
-const APP_VERSION = 'v497';
+const APP_VERSION = 'v498';
 
 // ============================================================
 //  📏 성능 계측(instrumentation) — 엔드포인트 지연·캐시·공급사·WS·이벤트루프
@@ -3299,18 +3299,23 @@ async function bskResolveComps(ids) {
 // 🏀 농구 전적(H2H) — 두 팀 최근경기 + 맞대결 + 평균득실.
 //   ⚠️ recent/list 는 '팀 필터' 미지원(전역 목록 반환) → 엉뚱한 리그가 섞임.
 //   따라서 diary(날짜별)를 거슬러 순회하며 '해당 두 팀이 실제로 뛴 경기'만 수집(이름·리그도 diary에서 확보).
+const _bskRecentCache = new Map();
 app.get('/api/basketball/teamrecent', async (req, res) => {
   res.set('Cache-Control', 'no-store');
   const homeId = String(req.query.home || ''), awayId = String(req.query.away || ''), mid = String(req.query.mid || '');
   if (!homeId || !awayId) return res.json({ found: false, error: 'missing team ids' });
   const baseDate = /^\d{4}-\d{2}-\d{2}$/.test(String(req.query.date || '')) ? req.query.date : new Date().toISOString().slice(0, 10);
+  const _ck = homeId + '|' + awayId + '|' + baseDate;
+  const _hit = _bskRecentCache.get(_ck);
+  if (_hit && Date.now() - _hit.t < 1800000) return res.json(_hit.v);   // 30분 캐시(깊은 diary 순회 비용 상각)
   const now = Date.now();
   const sumSc = arr => (arr || []).reduce((a, b) => a + (+b || 0), 0);
-  const WANT = 12, MAX_DAYS = 150, BATCH = 10;   // 이전 시즌까지 커버(최소 5경기 보장). 활성팀은 아래 enough()로 조기 종료.
+  const WANT = 12, MAX_DAYS = 200, BATCH = 10;   // 이전 시즌까지(최소 5경기+맞대결 확보). 캐시로 비용 상각.
   const teamMap = {}, compMap = {};
   const bucket = { [homeId]: [], [awayId]: [] }; const h2h = [];
   const seen = { [homeId]: new Set(), [awayId]: new Set() }; const h2hSeen = new Set();
-  const enough = () => bucket[homeId].length >= WANT && bucket[awayId].length >= WANT;   // 두 팀 다 충분하면 종료(h2h는 그 범위 내 수집)
+  // 두 팀 최근 충분 + 맞대결 5경기까지 확보되면 종료(맞대결 적은 쌍은 MAX_DAYS까지 더 거슬러 올라감)
+  const enough = () => bucket[homeId].length >= WANT && bucket[awayId].length >= WANT && h2h.length >= 5;
   const ymdOf = i => new Date(Date.parse(baseDate + 'T12:00:00Z') - i * 864e5).toISOString().slice(0, 10).replace(/-/g, '');
   function ingest(d) {
     if (!d) return;
@@ -3354,10 +3359,13 @@ app.get('/api/basketball/teamrecent', async (req, res) => {
       homeId: m.homeId, awayId: m.awayId, hName: nm(m.homeId), aName: nm(m.awayId),
       hKo: (KL.team && KL.team[m.homeId]) || '', aKo: (KL.team && KL.team[m.awayId]) || '', leagueKo: (KL.comp && KL.comp[m.compId]) || '',
       hLogo: lg(m.homeId), aLogo: lg(m.awayId), hs: m.hs, as: m.as, win: m.win, isHome: m.isHome });
-    res.json({ found: true,
+    const out = { found: true,
       home: { summary: summ(sortD(bucket[homeId]), homeId), games: sortD(bucket[homeId]).map(mapGame) },
       away: { summary: summ(sortD(bucket[awayId]), awayId), games: sortD(bucket[awayId]).map(mapGame) },
-      h2h: sortD(h2h).map(mapGame) });
+      h2h: sortD(h2h).map(mapGame) };
+    _bskRecentCache.set(_ck, { t: Date.now(), v: out });
+    if (_bskRecentCache.size > 200) { for (const [k, val] of _bskRecentCache) { if (Date.now() - val.t > 1800000) _bskRecentCache.delete(k); } }
+    res.json(out);
   } catch (e) { res.json({ found: false, error: String((e && e.message) || e) }); }
 });
 // 🏀 농구 팀 상세용 — 한 팀의 최근경기(diary 집계). H2H/순위표에서 팀 클릭 시 사용.
@@ -3508,9 +3516,14 @@ app.get('/api/basketball/live', async (req, res) => {
     // 🔑 라이브 경기도 '전 쿼터'가 나오도록: detail_live(현재 쿼터만)보다 history(1~현재 쿼터 누적)가 많으면 history 사용.
     //    history는 라이브 중엔 1분 캐시로 신선하게. period/팀파울은 detail_live(실시간) 유지.
     let liveEvents = (info ? info.events : []) || [];
+    // 🔑 전 쿼터 보장: detail_live(현재만 올 수 있음)보다 '쿼터 수'가 더 많은 소스를 사용.
+    const distinctPeriods = arr => { const s = new Set(); (arr || []).forEach(e => { if (e && e.period) s.add(e.period); }); return s.size; };
     try {
-      const hist = await tsBskHistory(id, 60000).catch(() => null);
-      if (hist && hist.flow && hist.flow.length > liveEvents.length) liveEvents = hist.flow;
+      const hist = await tsBskHistory(id, 45000).catch(() => null);
+      if (hist && hist.flow && hist.flow.length) {
+        const hp = distinctPeriods(hist.flow), lp = distinctPeriods(liveEvents);
+        if (hp > lp || (hp === lp && hist.flow.length > liveEvents.length)) liveEvents = hist.flow;
+      }
     } catch (e) {}
     const payload = {
       found: true,
