@@ -898,17 +898,16 @@ html[data-theme="dark"] .cpl .cpt{color:#9aa6b6}
 .ag-lgh .ag-lgnm b{font-weight:600}
 .fgm-nm{font-weight:500;font-size:14.5px}
 .lghd .lgnm,.leaguehd b,.ag-lgnm b{font-weight:600}
-/* 빅매치 축소 — 전 종목 공통(색만 다름) */
+/* 빅매치 축소 — 전 종목 공통(색만 다름). CTA 버튼 제거로 더 컴팩트 */
 .bigmatch{margin:12px 16px 6px}
-.bigmatch .in{padding:15px 16px 16px}
-.bm-top{font-weight:600;font-size:12px;margin-bottom:10px}
-.bm-team img,.bm-team .ph{width:54px;height:54px}
-.bm-team .nm{font-weight:500;font-size:13px;max-width:112px}
+.bigmatch .in{padding:13px 16px 14px}
+.bm-top{font-weight:600;font-size:12px;margin-bottom:9px}
+.bm-team img,.bm-team .ph{width:52px;height:52px}
+.bm-team .nm{font-weight:500;font-size:12.5px;max-width:110px}
 .bm-league{font-weight:500;font-size:11.5px}
-.bm-score{font-size:27px}
-.bm-time{font-size:23px}
+.bm-score{font-size:26px}
+.bm-time{font-size:22px}
 .bm-state{font-weight:600}
-.bm-cta{font-weight:600;font-size:12.5px;padding:7px 15px;margin-top:11px}
 </style>
 </head>
 <body>
@@ -1418,10 +1417,14 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
   var BIG_STAGE_RE=/final|결승|준결승|semi[-\s]?final|playoff|플레이오프|포스트시즌|post[-\s]?season|grand\s*final|championship|clasico|더비|derby|el\s*clasico/i;
   // 상단 메인경기(#9/#15): 빅리그 안에서만. 진행 경기 → 예정 경기 → 종료 순. 결승·PO 우선. 리그 우선순위는 그 다음.
   //   적합 경기 없으면 null → 영역 숨김(하위리그/무관 경기로 채우지 않음).
+  // 유스 팀 판별(U15~U23 등) — 리그명이 '국제 친선'이어도 팀명이 유스면 빅매치에서 제외
+  var YOUTH_TEAM_RE=/\bU[\s-]?(1[0-9]|2[0-3])\b|유소년|유스\b/i;
+  function isYouthGame(g){ return YOUTH_TEAM_RE.test(String(g.home||"")) || YOUTH_TEAM_RE.test(String(g.away||"")) || YOUTH_TEAM_RE.test(String(g.league||"")); }
   function pickBig(games){
     if(!games||!games.length) return null;
     var sp=S.sport, now=Date.now(), cand=[];
     games.forEach(function(g){
+      if(isYouthGame(g)) return;                                        // 유스(U17·U19·U23 등) 경기는 빅매치 제외
       var r=leagueRank(sp,g.league,g.country); if(r>=900) return;       // 빅리그 아니면 제외
       var st=stateOf(g); if(st==="live"&&isStaleLive(g)) return;        // 오래된 0:0 의심 라이브 제외
       // #2 종료 경기는 '잠시만' 후보 — 킥오프 3.5시간(경기+여유) 지난 종료 빅매치는 상단에서 제외(오래된 결과 잔존 방지)
@@ -1442,7 +1445,7 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
     }
     // 🔶 폴백: 빅리그 후보가 없어도 '경기가 있으면 무조건' 그나마 제일 나은 경기를 배너로 노출.
     //    우선순위: 정상 라이브 > 예정 > (오래된 0:0 의심) 라이브 > 종료. 같은 등급이면 리그 랭크 → 라이브·종료는 최신, 예정은 임박순.
-    var fb=games.map(function(g){
+    var fb=games.filter(function(g){ return !isYouthGame(g); }).map(function(g){
       var st=stateOf(g), liveOk=(st==="live"&&!isStaleLive(g));
       var stRank= liveOk?0 : (st==="scheduled"?1 : (st==="live"?2:3));
       return { g:g, r:leagueRank(sp,g.league,g.country), stRank:stRank, dt:g.date?new Date(g.date).getTime():0 };
@@ -1477,13 +1480,9 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
     row.appendChild(c);
     row.appendChild(teamCol(g.away,g.awayLogo,true,g.neutral));
     inr.appendChild(row);
-    // CTA (축구=라인업, 야구=선발투수)
-    var cta=null;
-    if(S.sport==="football") cta=t("viewLineup")+" ›";
-    else if(S.sport==="baseball") cta=t("viewPitchers")+" ›";
-    if(cta){ var cb=el("button","bm-cta",cta); cb.onclick=function(){openDetail(g,S.sport==="baseball"?"pitchers":"lineup")}; inr.appendChild(document.createElement("div")).appendChild(cb); }
+    // CTA 버튼 제거(의미 없는 버튼). 배너 전체를 탭하면 상세로.
     wrap.appendChild(inr);
-    wrap.onclick=function(e){ if(e.target.closest(".bm-cta"))return; openDetail(g); };
+    wrap.onclick=function(){ openDetail(g); };
     return wrap;
   }
   function teamCol(name,logo,away,neutral){
