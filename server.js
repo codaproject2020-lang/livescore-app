@@ -21,7 +21,7 @@ const app = express();
 const server = http.createServer(app);
 
 const PORT = process.env.PORT || 3000;
-const APP_VERSION = 'v498';
+const APP_VERSION = 'v499';
 
 // ============================================================
 //  📏 성능 계측(instrumentation) — 엔드포인트 지연·캐시·공급사·WS·이벤트루프
@@ -2908,23 +2908,33 @@ function tsBskState(st) { if (st === 1 || st === 15 || st === 0) return 'schedul
 function fmtClockSec(sec) { sec = Math.max(0, Math.round(+sec || 0)); const m = Math.floor(sec / 60), s = sec % 60; return m + ':' + (s < 10 ? '0' : '') + s; }
 // detail_live.tlive(플레이바이플레이) 파싱 → 이벤트 배열 + 현재기간 팀파울 + 전후반/쿼터 판별
 //  이벤트 라인 형식(^ 구분): [기간(0-base), "MM:SS", 팀(1=홈·2=원정), ?, "원정-홈 점수", 설명, ...]
+// 이벤트 문자열 1개 파싱. period 는 호출측(바깥 쿼터 인덱스)에서 넘김.
+function _tsBskEv(L, period) {
+  const s = String(L).split('^');
+  const text = s[5] || ''; if (!text) return null;
+  const sc = String(s[4] || '').split('-');   // "원정-홈"
+  // 시계: "MM:SS"(1분 이상) 또는 "SS.t"(1분 미만 남은 초). MM:SS 로 정규화.
+  let raw = String(s[1] || '').trim(), clk = raw;
+  if (/^\d{1,2}:\d{2}$/.test(raw)) { clk = raw; }
+  else if (/^\d+(\.\d+)?$/.test(raw)) { const sec = Math.min(59, Math.round(parseFloat(raw))); clk = '0:' + (sec < 10 ? '0' : '') + sec; }
+  return { period, clock: clk, rawClock: raw, team: +s[2] || 0, away: (sc[0] !== undefined ? +sc[0] : null), home: (sc[1] !== undefined ? +sc[1] : null), text, pids: s[6] || '' };
+}
+// "End of the Nth Quarter/Half/Period" 경계로 쿼터 번호 산출(평탄 배열 폴백용)
+function _tsBskDerivePeriods(evs) {
+  let cur = 1;
+  for (const e of evs) { e.period = cur; const m = e.text.match(/end of (?:the )?(\d+)(?:st|nd|rd|th)?\s+(quarter|period|half)/i); if (m) cur = parseInt(m[1], 10) + 1; else if (/end of (?:overtime|ot)\b/i.test(e.text)) cur = cur + 1; }
+  return evs;
+}
 function tsBskParseEvents(lv) {
-  // ⚠️ tlive 는 [[1쿼터...],[2쿼터...],...] 구조. 예전엔 tl[0](1쿼터)만 읽어 라이브 경기가 1쿼터만 나왔음.
-  //    → 전 쿼터를 평탄화해서 읽고, 각 이벤트의 period(s[0])도 담는다(아코디언 쿼터 그룹용).
-  const tl = lv && lv.tlive; let lines = [];
-  if (Array.isArray(tl)) { if (tl.length && Array.isArray(tl[0])) tl.forEach(q => { if (Array.isArray(q)) lines = lines.concat(q); }); else lines = tl; }
-  const evs = [];
-  lines.forEach(L => {
-    const s = String(L).split('^');
-    const text = s[5] || ''; if (!text) return;
-    const sc = String(s[4] || '').split('-');   // "원정-홈"
-    // 시계 필드는 두 형태: "MM:SS"(1분 이상) 또는 "SS.t"(1분 미만 남은 초, 예: 33.1 = 33초). 표시용 MM:SS 로 정규화.
-    let raw = String(s[1] || '').trim(), clk = raw;
-    if (/^\d{1,2}:\d{2}$/.test(raw)) { clk = raw; }
-    else if (/^\d+(\.\d+)?$/.test(raw)) { const sec = Math.min(59, Math.round(parseFloat(raw))); clk = '0:' + (sec < 10 ? '0' : '') + sec; }
-    evs.push({ period: +s[0] || 0, clock: clk, rawClock: raw, team: +s[2] || 0, away: (sc[0] !== undefined ? +sc[0] : null), home: (sc[1] !== undefined ? +sc[1] : null), text, pids: s[6] || '' });
-  });
-  return evs;   // 오래된→최신 순(전 쿼터 포함)
+  // ✅ tlive 는 [[1쿼터...],[2쿼터...],...] 중첩 구조 → 바깥 인덱스를 쿼터 번호로 사용(s[0]은 period가 아님).
+  const tl = lv && lv.tlive; const evs = [];
+  if (Array.isArray(tl) && tl.length && Array.isArray(tl[0])) {
+    tl.forEach((q, qi) => { if (Array.isArray(q)) q.forEach(L => { const e = _tsBskEv(L, qi + 1); if (e) evs.push(e); }); });
+    return evs;
+  }
+  // 평탄 배열이면 경계 텍스트로 쿼터 산출
+  (Array.isArray(tl) ? tl : []).forEach(L => { const e = _tsBskEv(L, 1); if (e) evs.push(e); });
+  return _tsBskDerivePeriods(evs);   // 오래된→최신 순
 }
 function tsBskLiveInfo(lv) {
   const evs = tsBskParseEvents(lv);
@@ -3204,17 +3214,18 @@ async function tsBskHistory(tsid, ttl) {
   // tlive: [[q1events...],[q2...],...]. 이벤트 문자열 "period^clock^team^?^away-home^text^pids^isShot^made^pts^x,y"
   const flow = [], shots = [];
   const tl = item.tlive || [];
-  for (const q of tl) {
+  // ✅ 바깥 인덱스(qi)를 쿼터 번호로 사용(f[0]은 period가 아니라 시퀀스 번호라 엉뚱한 OT### 그룹이 생겼었음).
+  tl.forEach((q, qi) => {
     for (const s of (q || [])) {
       const f = String(s).split('^');
       const sc = String(f[4] || '0-0').split('-'); const away2 = +sc[0] || 0, home2 = +sc[1] || 0;
       const xy = String(f[10] || '').split(','); const x = xy[0] !== '' ? +xy[0] : null, y = xy[1] != null && xy[1] !== '' ? +xy[1] : null;
-      const ev = { period: +f[0] || 0, clock: f[1] || '', team: (f[2] === '1' ? 'home' : 'away'),
+      const ev = { period: qi + 1, clock: f[1] || '', team: (f[2] === '1' ? 'home' : 'away'),
         home: home2, away: away2, text: f[5] || '', pids: f[6] || '', isShot: (f[7] === '1'), made: (f[8] === '1'), pts: +f[9] || 0, x, y };
       flow.push(ev);
       if (ev.isShot && x != null && y != null) shots.push({ period: ev.period, team: ev.team, made: ev.made, x, y, pt: /3pt|3-pt/i.test(ev.text) ? 3 : 2, text: ev.text, pid: (ev.pids.split(',')[0] || '') });
     }
-  }
+  });
   const sc = item.score || []; const hq = sc[3] || [], aq = sc[4] || [];
   const byPts = (a, b) => (b.pts - a.pts) || (b.min - a.min);
   const stH = home.filter(p => p.starter).length, stA = away.filter(p => p.starter).length;
