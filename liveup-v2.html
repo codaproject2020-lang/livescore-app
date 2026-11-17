@@ -1162,7 +1162,7 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
   // 알림 설정(로컬 저장)
   var NOTIF=(function(){ try{ return Object.assign({on:true,pre:true,preMin:"10",start:false,end:true,otcancel:false,sport:"football",quarterEnd:false,close:false,quiet:false,qStart:"23:00",qEnd:"07:00"}, JSON.parse(localStorage.getItem("lu_notif")||"{}")); }catch(e){ return {on:true,pre:true,preMin:"10",start:false,end:true,otcancel:false,sport:"football",quarterEnd:false,close:false,quiet:false,qStart:"23:00",qEnd:"07:00"}; } })();
   function saveNotif(){ try{ localStorage.setItem("lu_notif",JSON.stringify(NOTIF)); }catch(e){} }
-  var S={ sport:"football", date:todayStr(), filter:"live", screen:"home", base:"home", country:"", leagueF:"",
+  var S={ sport:"all", date:todayStr(), filter:"main", screen:"home", base:"home", country:"", leagueF:"",
           favs:loadFavs(), favTeams:loadFavTeams(), collapsed:{}, pinLeague:{}, scroll:0, data:{}, recvAt:{}, demo:{}, fbLive:{} };
 
   // ====== 명령서2: 새로고침 후 보던 화면 유지 ======
