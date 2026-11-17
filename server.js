@@ -21,7 +21,7 @@ const app = express();
 const server = http.createServer(app);
 
 const PORT = process.env.PORT || 3000;
-const APP_VERSION = 'v501';
+const APP_VERSION = 'v502';
 
 // ============================================================
 //  📏 성능 계측(instrumentation) — 엔드포인트 지연·캐시·공급사·WS·이벤트루프
@@ -3476,11 +3476,63 @@ app.get('/api/basketball/standing', async (req, res) => {
     res.json(v);
   } catch (e) { res.json({ found: false, error: String((e && e.message) || e) }); }
 });
+// ⚽ 리그명 → TheSports 대회 ID 해석(국가 힌트로 동명 구분). diary 스캔 + 캐시.
+const FB_LEAGUE_HINT = {
+  'premier league': { names: ['premierleague'], country: ['england'], notName: ['premierleague2', 'u21', 'u19', 'u18', 'u23', 'women', 'reserve'] },
+  'la liga': { names: ['laliga', 'primeradivision', 'ligaespanola', 'laligaea'], country: ['spain'], notName: ['laliga2', 'segunda', 'women', 'femenina'] },
+  'serie a': { names: ['seriea'], country: ['italy'], notName: ['serieb', 'women', 'femminile'] },
+  'bundesliga': { names: ['bundesliga'], country: ['germany'], notName: ['2bundesliga', 'bundesliga2', '3liga', 'women', 'frauen', 'u19', 'u17'] },
+  'ligue 1': { names: ['ligue1'], country: ['france'], notName: ['ligue2', 'women', 'feminine'] },
+  'k league 1': { names: ['kleague1', 'kleague'], country: ['southkorea', 'korea', 'korearepublic'], notName: ['kleague2', 'women', 'wk'] },
+  'j1 league': { names: ['j1league', 'j1'], country: ['japan'], notName: ['j2', 'j3', 'women', 'we'] },
+  'saudi pro league': { names: ['saudiproleague', 'prolearue', 'saudileague'], country: ['saudiarabia', 'saudi'], notName: ['division1', 'women'] },
+  'major league soccer': { names: ['majorleaguesoccer', 'mls'], country: ['usa', 'unitedstates', 'america'], notName: ['nextpro', 'usl', 'women'] }
+};
+const _fbCompResolveCache = new Map();
+async function _fbResolveCompByName(leagueName, baseDate) {
+  const key = _nrm(leagueName);
+  const hit = _fbCompResolveCache.get(key);
+  if (hit && Date.now() - hit.t < 6 * 3600e3) return hit.v;
+  const hint = FB_LEAGUE_HINT[String(leagueName || '').toLowerCase().trim()];
+  const ymdOf = i => new Date(Date.parse(baseDate + 'T12:00:00Z') - i * 864e5).toISOString().slice(0, 10).replace(/-/g, '');
+  const tally = {}; // compId -> {count, name}
+  const nameOk = (cn) => {
+    const n = _nrm(cn);
+    if (hint) {
+      if ((hint.notName || []).some(x => n.includes(x))) return false;
+      return (hint.names || []).some(x => n.includes(x) || x.includes(n));
+    }
+    const target = _nrm(leagueName);
+    return n && (n.includes(target) || target.includes(n));
+  };
+  try {
+    for (let start = 0; start < 28; start += 14) {
+      const days = []; for (let i = start; i < start + 14; i++) days.push(ymdOf(i));
+      const ds = await Promise.all(days.map(ymd => tsFetch('/football/match/diary', { date: ymd }, 3600000, 8000).catch(() => null)));
+      ds.forEach(d => {
+        if (!d) return;
+        const countries = {}; ((d.results_extra || {}).country || []).forEach(c => { if (c && c.id) countries[c.id] = _nrm(c.name); });
+        ((d.results_extra || {}).competition || []).forEach(c => {
+          if (!c || !c.id) return;
+          if (!nameOk(c.name)) return;
+          if (hint && hint.country && hint.country.length) { const cc = countries[c.country_id] || ''; if (!hint.country.some(x => cc.includes(x) || x.includes(cc))) return; }
+          tally[c.id] = tally[c.id] || { count: 0, name: c.name }; tally[c.id].count++;
+        });
+      });
+      if (Object.keys(tally).length) break;   // 찾았으면 더 넓히지 않음
+    }
+  } catch (e) {}
+  const best = Object.keys(tally).sort((a, b) => tally[b].count - tally[a].count)[0] || '';
+  _fbCompResolveCache.set(key, { t: Date.now(), v: best });
+  return best;
+}
 // ⚽ 축구 순위표 — TheSports 대회 ID 기준 diary 집계(순위 전용 엔드포인트 미인증 폴백). 승점=3승+1무.
 const _fbStandCache = new Map();
 app.get('/api/football/dstanding', async (req, res) => {
   res.set('Cache-Control', 'no-store');
-  const comp = String(req.query.comp || '');
+  let comp = String(req.query.comp || '');
+  const baseDate0 = /^\d{4}-\d{2}-\d{2}$/.test(String(req.query.date || '')) ? req.query.date : new Date().toISOString().slice(0, 10);
+  if (!comp && req.query.league) { comp = await _fbResolveCompByName(req.query.league, baseDate0); }
   if (!comp) return res.json({ found: false, error: 'no comp' });
   const hitc = _fbStandCache.get(comp);
   if (hitc && Date.now() - hitc.t < 1800000) return res.json(hitc.v);
