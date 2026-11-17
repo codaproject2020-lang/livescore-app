@@ -1,17 +1,41 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
-    <defs>
-      <linearGradient id="g" x1="0" y1="0" x2="0" y2="1">
-        <stop offset="0" stop-color="#ffffff"/>
-        <stop offset="0.6" stop-color="#ffffff"/>
-        <stop offset="1" stop-color="#eef1f6"/>
-      </linearGradient>
-      <radialGradient id="gloss" cx="0.5" cy="0.18" r="0.8">
-        <stop offset="0" stop-color="#ffffff" stop-opacity="0.95"/>
-        <stop offset="0.5" stop-color="#ffffff" stop-opacity="0.0"/>
-      </radialGradient>
-      <filter id="sh" x="-20%" y="-20%" width="140%" height="140%">
-        <feDropShadow dx="0" dy="10" stdDeviation="14" flood-color="#9aa3b5" flood-opacity="0.35"/>
-      </filter>
-    </defs><rect x="0" y="0" width="512" height="512" rx="112.0" ry="112.0" fill="url(#g)" filter="url(#sh)"/><rect x="0" y="0" width="512" height="512" rx="112.0" ry="112.0" fill="url(#gloss)"/><circle cx="232.0" cy="140.0" r="26.0" fill="#e4262b"/><text x="256.0" y="317.4" font-family="Arial Black, Arial, sans-serif"
-        font-size="232.0" font-weight="900" font-style="italic" fill="#17223f"
-        text-anchor="middle" letter-spacing="-6.0">UP</text><path d="M 168.0 360.0 L 360.0 330.0" stroke="#e4262b" stroke-width="22.0" stroke-linecap="round" fill="none"/></svg>
+  <defs>
+    <linearGradient id="body" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffffff"/>
+      <stop offset="0.55" stop-color="#fbfcfe"/>
+      <stop offset="1" stop-color="#e4e9f1"/>
+    </linearGradient>
+    <linearGradient id="rim" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffffff"/>
+      <stop offset="1" stop-color="#cfd6e2"/>
+    </linearGradient>
+    <radialGradient id="gloss" cx="0.5" cy="0.0" r="0.9">
+      <stop offset="0" stop-color="#ffffff" stop-opacity="0.9"/>
+      <stop offset="0.45" stop-color="#ffffff" stop-opacity="0.25"/>
+      <stop offset="0.75" stop-color="#ffffff" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="botsh" x1="0" y1="0.6" x2="0" y2="1">
+      <stop offset="0" stop-color="#c3cbd9" stop-opacity="0"/>
+      <stop offset="1" stop-color="#b7c0d1" stop-opacity="0.5"/>
+    </linearGradient>
+    <filter id="mksh" x="-30%" y="-30%" width="160%" height="160%">
+      <feDropShadow dx="0" dy="7" stdDeviation="9" flood-color="#1a2440" flood-opacity="0.22"/>
+    </filter>
+  </defs>
+  <!-- 바깥 림(살짝 어두운 가장자리로 입체감) -->
+  <rect x="0" y="0" width="512" height="512" rx="120" ry="120" fill="url(#rim)"/>
+  <!-- 본체(안쪽으로 7px) -->
+  <rect x="7" y="7" width="498" height="498" rx="114" ry="114" fill="url(#body)"/>
+  <!-- 하단 내부 음영(볼록하게) -->
+  <rect x="7" y="7" width="498" height="498" rx="114" ry="114" fill="url(#botsh)"/>
+  <!-- 상단 글로시 하이라이트 -->
+  <rect x="7" y="7" width="498" height="498" rx="114" ry="114" fill="url(#gloss)"/>
+  
+        <g transform="translate(256,262) scale(1.0) translate(-256,-262)">
+          <g filter="url(#mksh)">
+            <text x="256" y="322" font-family="Arial Black, Arial, sans-serif" font-size="236" font-weight="900" font-style="italic" fill="#17223f" text-anchor="middle" letter-spacing="-8">UP</text>
+            <circle cx="232" cy="150" r="27" fill="#e4262b"/>
+            <path d="M 170 372 L 362 340" stroke="#e4262b" stroke-width="23" stroke-linecap="round" fill="none"/>
+          </g>
+        </g>
+</svg>
