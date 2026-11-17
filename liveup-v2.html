@@ -505,6 +505,9 @@ html[data-theme="dark"] table.rank tr.rk-hl{background:rgba(156,194,255,.1)}
 .fgm-badge.sch{background:var(--soft2);color:var(--navy)}
 .fgm-badge.fin{background:var(--soft2);color:var(--muted)}
 .fgm-start{font-size:10px;color:var(--muted);white-space:nowrap}
+/* 라이브 시계: 전반/후반 아래 줄, 고정폭 숫자로 초 변경시 떨림 방지 */
+.fc,.lc{font-variant-numeric:tabular-nums;font-feature-settings:"tnum" 1}
+.fgm-badge .fc,.fgm-badge .lc,.g2st .fc,.g2st .lc{display:block;margin-top:2px;font-size:11px;font-weight:700;letter-spacing:.3px;line-height:1.1;text-align:center}
 .fgm-main{flex:1;min-width:0;padding:7px 9px 9px}
 .fgm-trow{display:flex;align-items:center;gap:6px;min-width:0;padding:4px 0}
 .fgm-lg{width:30px;height:30px;object-fit:contain;flex:0 0 auto}
