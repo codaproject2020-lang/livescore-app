@@ -649,6 +649,11 @@ html[data-theme="dark"] .fgm-poss .pbar{background:#2c3a54}
 .m-row .rv{margin-left:auto;color:var(--muted);font-weight:600;font-size:13px;display:flex;align-items:center;gap:6px}
 .m-row .chev{margin-left:auto;color:#c9d0db;font-size:18px}
 .m-row .rv+.chev{margin-left:8px}
+.m-setcard{display:flex;align-items:center;gap:11px;background:#fff;border:1px solid var(--line);border-radius:14px;padding:15px 15px;font-weight:700;font-size:14.5px;cursor:pointer;margin-top:10px}
+.m-setcard:active{background:var(--soft)}
+.m-setcard .mi{color:var(--navy);font-size:19px;display:inline-flex;align-items:center;justify-content:center}
+.m-setcard .chev{margin-left:auto;color:#c9d0db;font-size:19px}
+.m-setcard>*{pointer-events:none}
 .menu-foot{text-align:center;color:var(--muted);font-size:12px;margin-top:10px}
 .menu-foot b{color:var(--navy);font-weight:900}
 
@@ -3924,6 +3929,8 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
     install:'<path d="M12 3v12M7 11l5 4 5-4M5 20h14"/>'
   };
   function menuIc(name){ return '<svg class="mic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">'+(MENU_ICONS[name]||'')+'</svg>'; }
+  // 이메일 마스킹 — 앞 4자만 노출(tyee****@gmail.com)
+  function maskEmail(e){ e=String(e||""); var i=e.indexOf("@"); if(i<=0)return e; var u=e.slice(0,i); return u.slice(0,Math.min(4,u.length))+"****"+e.slice(i); }
   function renderMenu(){
     var v=$("#view"); v.innerHTML="";
     var m=el("div","menu-screen");
@@ -3935,7 +3942,7 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
     // 계정
     var me0=null; try{ me0=JSON.parse(localStorage.getItem("lu_user")||"null"); }catch(e){}
     var acct=el("div","acct");
-    if(me0&&me0.name){ acct.innerHTML='<div class="av">👤</div><div class="tx"><b>'+esc(me0.name)+'</b><span>'+esc(me0.email||"")+'</span></div><button class="go" id="mLogin">'+t("myPage")+'</button>'; }
+    if(me0&&me0.name){ acct.innerHTML='<div class="av">👤</div><div class="tx"><b>'+esc(me0.name)+'</b><span>'+esc(maskEmail(me0.email||""))+'</span></div><button class="go" id="mLogin">'+t("myPage")+'</button>'; }
     else { acct.innerHTML='<div class="av">👤</div><div class="tx"><b>'+t("loginCta1")+'</b><span>'+t("loginCta2")+'</span></div><button class="go" id="mLogin">'+t("login")+'</button>'; }
     m.appendChild(acct);
     // 프로모 카드: 라이브업 공유하기 + 홈 화면에 추가 (타겟 시안)
@@ -3957,15 +3964,12 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
     [[t("favTeamPlayer"),"favteam"],[t("alarmSet"),"alarm"],[myActLbl,"myact"]].forEach(function(x){
       var r=el("div","m-row",'<span class="mi">'+menuIc(x[1])+'</span>'+x[0]+'<span class="chev">›</span>'); r.onclick=function(){menuGo(x[1])}; l2.appendChild(r);
     });
-    g2.appendChild(l2); m.appendChild(g2);
-    // 환경 설정
-    var g3=el("div","m-group"); g3.appendChild(el("div","m-label",t("grpSettings")));
-    var l3=el("div","m-list");
-    var setRow=el("div","m-row",'<span class="mi">'+menuIc("settings")+'</span>'+t("grpSettings")+'<span class="chev">›</span>'); setRow.onclick=function(){menuGo("settings")};
-    var langRow=el("div","m-row",'<span class="mi">'+menuIc("lang")+'</span>'+t("langLabel")+'<span class="rv">'+esc(LANGNAMES[LANG]||"English")+'</span><span class="chev">›</span>'); langRow.onclick=function(){menuGo("lang")};
-    var tzRow=el("div","m-row",'<span class="mi">'+menuIc("tz")+'</span>'+t("tzMenu")+'<span class="rv">'+tzLabel()+'</span><span class="chev">›</span>'); tzRow.onclick=function(){menuGo("tz")};
-    l3.appendChild(setRow); l3.appendChild(langRow); l3.appendChild(tzRow);
-    g3.appendChild(l3); m.appendChild(g3);
+    g2.appendChild(l2);
+    // 환경 설정 — 단일 카드(언어·시간대는 설정 화면 내부). 시안 디자인.
+    var setCard=el("div","m-setcard",'<span class="mi">'+menuIc("settings")+'</span>'+t("grpSettings")+'<span class="chev">›</span>');
+    setCard.onclick=function(){ menuGo("settings"); };
+    g2.appendChild(setCard);
+    m.appendChild(g2);
     // 이용 안내
     var g4=el("div","m-group"); g4.appendChild(el("div","m-label",t("grpHelp")));
     var l4=el("div","m-list");
