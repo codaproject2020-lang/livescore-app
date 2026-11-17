@@ -21,7 +21,7 @@ const app = express();
 const server = http.createServer(app);
 
 const PORT = process.env.PORT || 3000;
-const APP_VERSION = 'v500';
+const APP_VERSION = 'v501';
 
 // ============================================================
 //  📏 성능 계측(instrumentation) — 엔드포인트 지연·캐시·공급사·WS·이벤트루프
@@ -3473,6 +3473,54 @@ app.get('/api/basketball/standing', async (req, res) => {
     table.forEach((r, i) => r.rank = i + 1);
     const v = { found: table.length > 0, league: compName, leagueKo: (KL.comp && KL.comp[comp]) || '', leagueLogo: compLogo, table };
     if (table.length) _bskStandCache.set(comp, { t: Date.now(), v });
+    res.json(v);
+  } catch (e) { res.json({ found: false, error: String((e && e.message) || e) }); }
+});
+// ⚽ 축구 순위표 — TheSports 대회 ID 기준 diary 집계(순위 전용 엔드포인트 미인증 폴백). 승점=3승+1무.
+const _fbStandCache = new Map();
+app.get('/api/football/dstanding', async (req, res) => {
+  res.set('Cache-Control', 'no-store');
+  const comp = String(req.query.comp || '');
+  if (!comp) return res.json({ found: false, error: 'no comp' });
+  const hitc = _fbStandCache.get(comp);
+  if (hitc && Date.now() - hitc.t < 1800000) return res.json(hitc.v);
+  const baseDate = /^\d{4}-\d{2}-\d{2}$/.test(String(req.query.date || '')) ? req.query.date : new Date().toISOString().slice(0, 10);
+  const now = Date.now();
+  const MAX_DAYS = 220, BATCH = 12;
+  const teamMap = {}, rec = {}; let compName = '', compLogo = '';
+  const ymdOf = i => new Date(Date.parse(baseDate + 'T12:00:00Z') - i * 864e5).toISOString().slice(0, 10).replace(/-/g, '');
+  function ingest(d) {
+    if (!d) return;
+    ((d.results_extra || {}).team || []).forEach(t => { if (t && t.id) teamMap[t.id] = { name: t.name || '', logo: t.logo || '' }; });
+    ((d.results_extra || {}).competition || []).forEach(c => { if (c && c.id === comp) { compName = c.name || compName; compLogo = c.logo || compLogo; } });
+    (d.results || []).forEach(x => {
+      if (!x || x.competition_id !== comp) return;
+      const t = x.match_time ? x.match_time * 1000 : 0;
+      const played = (Number(x.status_id) === 8) || (t && t < now - 3 * 3600e3);
+      const hs = x.home_scores ? +x.home_scores[0] : null, as = x.away_scores ? +x.away_scores[0] : null;
+      if (!played || hs == null || as == null || isNaN(hs) || isNaN(as)) return;
+      const H = x.home_team_id, A = x.away_team_id; if (!H || !A) return;
+      rec[H] = rec[H] || { w: 0, d: 0, l: 0, gf: 0, ga: 0 }; rec[A] = rec[A] || { w: 0, d: 0, l: 0, gf: 0, ga: 0 };
+      if (hs > as) { rec[H].w++; rec[A].l++; } else if (hs < as) { rec[A].w++; rec[H].l++; } else { rec[H].d++; rec[A].d++; }
+      rec[H].gf += hs; rec[H].ga += as; rec[A].gf += as; rec[A].ga += hs;
+    });
+  }
+  try {
+    for (let start = 0; start < MAX_DAYS; start += BATCH) {
+      const days = []; for (let i = start; i < Math.min(start + BATCH, MAX_DAYS); i++) days.push(ymdOf(i));
+      const ds = await Promise.all(days.map(ymd => tsFetch('/football/match/diary', { date: ymd }, 3600000, 8000).catch(() => null)));
+      ds.forEach(ingest);
+    }
+    const KL = TS_LANG['football'] || { team: {}, comp: {} };
+    const table = Object.keys(rec).map(tid => {
+      const r = rec[tid], g = r.w + r.d + r.l;
+      return { teamId: tid, team: (teamMap[tid] && teamMap[tid].name) || '', teamKo: (KL.team && KL.team[tid]) || '',
+        logo: (teamMap[tid] && teamMap[tid].logo) || '', played: g, w: r.w, d: r.d, l: r.l,
+        gf: r.gf, ga: r.ga, gd: r.gf - r.ga, pts: r.w * 3 + r.d };
+    }).filter(r => r.played > 0).sort((a, b) => (b.pts - a.pts) || (b.gd - a.gd) || (b.gf - a.gf));
+    table.forEach((r, i) => r.pos = i + 1);
+    const v = { found: table.length > 0, league: compName, leagueKo: (KL.comp && KL.comp[comp]) || '', leagueLogo: compLogo, groups: [{ group: 0, rows: table }] };
+    if (table.length) _fbStandCache.set(comp, { t: Date.now(), v });
     res.json(v);
   } catch (e) { res.json({ found: false, error: String((e && e.message) || e) }); }
 });
