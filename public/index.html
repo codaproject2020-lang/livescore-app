@@ -1321,14 +1321,14 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
 
   // ====== 홈/라이브/관심 ======
   // ====== '전체' 통합 화면 (전 종목 주요 경기) ======
-  function allIsMain(g){ if(isYouthGame(g)||isDeadGame(g))return false; return leagueRank(g.sport,g.league,g.country)<900; }
+  function allIsMain(g){ if(isYouthGame(g)||isDeadGame(g))return false; return effLeagueRank(g.sport,g)<900; }
   function allStRank(g){ var s=stateOf(g); return s==="live"?0:(s==="scheduled"?1:2); }
   function pickBigAll(games){
     var cand=[];
     (games||[]).forEach(function(g){
       if(isYouthGame(g)||isDeadGame(g))return;
       var st=stateOf(g); if(st==="finished")return; if(st==="live"&&isStaleLive(g))return;
-      var r=leagueRank(g.sport,g.league,g.country); if(r>=900)return;
+      var r=effLeagueRank(g.sport,g); if(r>=900)return;
       var stage=BIG_STAGE_RE.test(String(g.league||"")+" "+String(g.round||g.stage||""))?1:0;
       cand.push({g:g,r:r,stRank:st==="live"?0:1,stage:stage,dt:g.date?new Date(g.date).getTime():0});
     });
@@ -1388,7 +1388,7 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
       else if(eff==="soon") list=list.filter(function(g){ return stateOf(g)==="scheduled"; });
     }
     // 정렬: 진행 → 예정 → (관심의 종료) / 리그 우선 / 날짜
-    list.sort(function(a,b){ var sa=allStRank(a),sb=allStRank(b); if(sa!==sb)return sa-sb; var ra=leagueRank(a.sport,a.league,a.country),rb=leagueRank(b.sport,b.league,b.country); if(ra!==rb)return ra-rb; return (a.date||"")<(b.date||"")?-1:((a.date||"")>(b.date||"")?1:0); });
+    list.sort(function(a,b){ var sa=allStRank(a),sb=allStRank(b); if(sa!==sb)return sa-sb; var ra=effLeagueRank(a.sport,a),rb=effLeagueRank(b.sport,b); if(ra!==rb)return ra-rb; return (a.date||"")<(b.date||"")?-1:((a.date||"")>(b.date||"")?1:0); });
     if(!list.length){
       var msg=(eff==="fav")?t("m_noFavG"):(eff==="live"?tl({en:"No featured matches live right now.",ko:"지금 진행 중인 주요 경기가 없습니다.",ja:"進行中の注目試合はありません。",zh:"暂无进行中的重点比赛。",es:"Sin partidos en vivo.",hi:"अभी कोई लाइव मुख्य मैच नहीं।",vi:"Chưa có trận nổi bật trực tiếp.",th:"ยังไม่มีแมตช์เด่นสด",ru:"Нет live-матчей.",de:"Keine Top-Spiele live.",fr:"Aucun match en direct.",it:"Nessuna partita live."}):tl({en:"No featured matches found.",ko:"주요 경기가 없습니다.",ja:"注目試合がありません。",zh:"暂无重点比赛。",es:"Sin partidos destacados.",hi:"कोई मुख्य मैच नहीं।",vi:"Không có trận nổi bật.",th:"ไม่พบแมตช์เด่น",ru:"Нет главных матчей.",de:"Keine Top-Spiele.",fr:"Aucun match à la une.",it:"Nessuna partita in evidenza."}));
       v.appendChild(el("div","msg",'<div class="big">📭</div>'+msg)); return;
@@ -1594,6 +1594,23 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
   // 취소·연기·중단·몰수 등 '정상 진행 아님' 판별 — 빅매치 후보에서 제외
   var DEAD_RE=/cancel|postpon|abandon|suspend|interrupt|walk\s*over|\bWO\b|\bABD\b|\bSUSP\b|\bPST\b|\bCANC\b|\bAWD\b|취소|연기|중단|몰수/i;
   function isDeadGame(g){ return DEAD_RE.test(String(g.status||"")) || DEAD_RE.test(String(g.statusLong||"")); }
+  // 🌍 성인 국가대표 A매치 판별 — 대회명이 '국제 친선'이 아니어도(중국–바레인처럼 별도 대회 분류) 주요 국제 경기로 인정.
+  //   판별: ① 양 팀 모두 국가(대표팀) 이름  또는 ② 대회 country가 국제(세계/대륙/연맹)로 표시. 유소년·리저브(U/2군/아카데미/대학)는 제외 유지.
+  var _NATIONS=("afghanistan|albania|algeria|andorra|angola|argentina|armenia|australia|austria|azerbaijan|bahrain|bangladesh|belarus|belgium|belize|benin|bhutan|bolivia|bosnia|bosnia and herzegovina|botswana|brazil|brunei|bulgaria|burkina faso|burundi|cambodia|cameroon|canada|cape verde|chad|chile|china|china pr|taiwan|chinese taipei|colombia|comoros|congo|costa rica|croatia|cuba|curacao|cyprus|czechia|czech republic|denmark|djibouti|dominican republic|dr congo|ecuador|egypt|el salvador|england|equatorial guinea|eritrea|estonia|eswatini|ethiopia|faroe islands|fiji|finland|france|gabon|gambia|georgia|germany|ghana|gibraltar|greece|grenada|guatemala|guinea|guinea-bissau|guyana|haiti|honduras|hong kong|hungary|iceland|india|indonesia|iran|iraq|ireland|israel|italy|ivory coast|cote divoire|jamaica|japan|jordan|kazakhstan|kenya|kosovo|kuwait|kyrgyzstan|laos|latvia|lebanon|lesotho|liberia|libya|liechtenstein|lithuania|luxembourg|macau|madagascar|malawi|malaysia|maldives|mali|malta|mauritania|mauritius|mexico|moldova|monaco|mongolia|montenegro|morocco|mozambique|myanmar|namibia|nepal|netherlands|new zealand|nicaragua|niger|nigeria|north korea|korea dpr|north macedonia|norway|oman|pakistan|palestine|panama|papua new guinea|paraguay|peru|philippines|poland|portugal|qatar|romania|russia|rwanda|samoa|san marino|saudi arabia|scotland|senegal|serbia|sierra leone|singapore|slovakia|slovenia|solomon islands|somalia|south africa|south korea|korea republic|south sudan|spain|sri lanka|sudan|suriname|sweden|switzerland|syria|tajikistan|tanzania|thailand|timor-leste|togo|trinidad and tobago|tunisia|turkey|turkiye|turkmenistan|uganda|ukraine|united arab emirates|uae|united states|usa|uruguay|uzbekistan|vanuatu|venezuela|vietnam|wales|yemen|zambia|zimbabwe|대한민국|한국|일본|중국|북한|브라질|아르헨티나|독일|프랑스|스페인|이탈리아|잉글랜드|포르투갈|네덜란드|벨기에|베트남|바레인|사우디아라비아|이란|이라크|우즈베키스탄|키르기스스탄|태국|호주|멕시코").split("|");
+  var NATION_SET=(function(){ var o={}; _NATIONS.forEach(function(x){ var k=x.replace(/[^a-z0-9가-힣]/g,""); if(k)o[k]=1; }); return o; })();
+  function _natNorm(s){ return String(s||"").toLowerCase().replace(/[^a-z0-9가-힣]/g,""); }
+  function teamIsNation(name){ return !!NATION_SET[_natNorm(name)]; }
+  var _CLUBFRIENDLY_RE=/club\s*friendl|클럽\s*친선|friendlies?\s*clubs?|클럽\s*대항/i;
+  function isSeniorIntlGame(g){
+    if(!g||isYouthGame(g)) return false;                    // 유소년·리저브는 제외 유지
+    // ① 양 팀 모두 국가(대표팀) → 대회명 무관하게 성인 A매치로 인정(중국–바레인 등)
+    if(teamIsNation(g.home)&&teamIsNation(g.away)) return true;
+    // ② 대회 country가 국제(세계/대륙/연맹)이고 '클럽 친선'이 아니면 주요 국제대회로 인정
+    if(typeof cIsIntl==="function"&&cIsIntl(g.country)&&!_CLUBFRIENDLY_RE.test(String(g.league||""))) return true;
+    return false;
+  }
+  // 후보 선정용 유효 리그 순위 — 성인 A매치면 대회명 무관하게 국제 최상위(0)로 인정.
+  function effLeagueRank(sp,g){ var r=leagueRank(sp,g.league,g.country); if(r>=900&&isSeniorIntlGame(g)) return 0; return r; }
   // 빅매치 선정: 진행 중 주요 국제경기 → 주요 프로리그 → 곧 시작할 주요 경기.
   //   종료·취소·연기·유스·리저브는 제외. 적합 경기 없으면 null(카드 숨김).
   function pickBig(games){
@@ -1604,7 +1621,7 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
       if(isDeadGame(g)) return;                                         // 취소·연기·중단·몰수 제외
       var st=stateOf(g); if(st==="finished") return;                    // 종료 경기 제외(진행/예정만)
       if(st==="live"&&isStaleLive(g)) return;                           // 오래된 0:0 의심 라이브 제외
-      var r=leagueRank(sp,g.league,g.country); if(r>=900) return;       // 빅리그(국제/주요 프로) 아니면 제외
+      var r=effLeagueRank(sp,g); if(r>=900) return;                     // 빅리그(국제/주요 프로)·성인 A매치 아니면 제외
       var stRank = st==="live"?0:1;                                     // 진행0 < 예정1
       var stage = BIG_STAGE_RE.test(String(g.league||"")+" "+String(g.round||g.stage||""))?1:0;
       cand.push({g:g,r:r,stRank:stRank,stage:stage,dt:g.date?new Date(g.date).getTime():0});
