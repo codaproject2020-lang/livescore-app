@@ -965,6 +965,13 @@ html[data-theme="dark"] .cpl .cpt{color:#9aa6b6}
 .allg-title .live-badge{background:var(--red);color:#fff;font-size:10.5px;font-weight:800;border-radius:5px;padding:2px 6px;letter-spacing:.5px}
 .lg-h .lg-spic{font-size:16px;margin-right:2px;flex:0 0 auto}
 .lg-h.noclick{cursor:default}
+/* 맨 위로 플로팅 버튼 */
+.totop{position:fixed;right:16px;bottom:78px;z-index:60;width:58px;height:58px;border-radius:50%;border:none;background:rgba(27,42,74,.92);color:#fff;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;cursor:pointer;box-shadow:0 4px 14px rgba(0,0,0,.22);font-family:inherit;transition:opacity .2s,transform .2s;backdrop-filter:blur(2px)}
+.totop svg{width:19px;height:19px}
+.totop span{font-size:9.5px;font-weight:600;line-height:1}
+.totop:active{transform:scale(.93)}
+.totop.hide{opacity:0;transform:translateY(12px);pointer-events:none}
+html[data-theme="dark"] .totop{background:rgba(42,58,92,.94)}
 html[data-theme="dark"] .sh-linkrow{background:#141e33}
 html[data-theme="dark"] .sh-lb,html[data-theme="dark"] .sh-qrtx b{color:#e6ecf5}
 </style>
@@ -1007,6 +1014,12 @@ html[data-theme="dark"] .sh-lb,html[data-theme="dark"] .sh-qrtx b{color:#e6ecf5}
   </div>
 
   <main id="view"></main>
+
+  <!-- 맨 위로 플로팅 버튼 (스크롤 많이 내리면 노출) -->
+  <button class="totop hide" id="toTop" aria-label="맨 위로">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V6M6 12l6-6 6 6"/></svg>
+    <span id="toTopTx">맨 위로</span>
+  </button>
 
   <!-- 하단 메뉴 -->
   <nav class="bottomnav" id="bottomnav">
@@ -5310,6 +5323,22 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
   document.addEventListener("visibilitychange", function(){ if(document.visibilityState==="hidden") snapView(); });
   var _svTick=0;
   window.addEventListener("scroll", function(){ var n=Date.now(); if(n-_svTick<400)return; _svTick=n; snapView(); }, {passive:true});
+  // 맨 위로 버튼 — 많이 내리면(약 24경기·4종목 분량) 노출. 목록 화면에서만.
+  (function(){
+    var btn=$("#toTop"); if(!btn)return;
+    var tx=$("#toTopTx"); if(tx)tx.textContent=tl({en:"Top",ko:"맨 위로",ja:"トップ",zh:"顶部",es:"Arriba",hi:"ऊपर",vi:"Lên đầu",th:"บนสุด",ru:"Наверх",de:"Oben",fr:"Haut",it:"Su"});
+    btn.onclick=function(){ window.scrollTo({top:0,behavior:"smooth"}); };
+    function upd(){
+      var listScr=(S.screen==="home"||S.screen==="live"||S.screen==="fav");
+      var y=window.scrollY||document.documentElement.scrollTop||0;
+      var show=listScr&&!document.querySelector("#detail")&&y>1400;
+      btn.classList.toggle("hide", !show);
+    }
+    window.addEventListener("scroll", upd, {passive:true});
+    window.addEventListener("resize", upd, {passive:true});
+    setInterval(upd, 800);
+    upd();
+  })();
 
   // ====== 명령서3: 좌우 스와이프로 종목 전환 ======
   // 목록 화면(홈/라이브/관심)에서만. 상세·오버레이가 열려 있거나, 가로 스크롤 요소(종목탭·리그칩·표·차트) 위에서 시작한 스와이프는 무시.
