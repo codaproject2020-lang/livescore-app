@@ -719,7 +719,11 @@ html[data-theme="dark"] .fgm-poss .pbar{background:#2c3a54}
 .brc-vb.on{border-color:#2b6cf0;background:rgba(43,108,240,.08)}
 .brc-vb b{font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100%}.brc-vb span{font-weight:900;font-size:16px;color:#2b6cf0}
 .brc-vbar{display:flex;height:8px;border-radius:5px;overflow:hidden;background:var(--line)}
-.brc-vbar .vh{background:#2b6cf0}.brc-vbar .va{background:var(--red)}
+.brc-vbar .vh{background:#2b6cf0}.brc-vbar .vd{background:#9aa1ad}.brc-vbar .va{background:var(--red)}
+.brc-b.d{background:#9aa1ad}
+.brc-b.sch{background:var(--soft2);color:var(--muted);font-weight:700;border-radius:7px;min-width:40px}
+.brc-vote3{display:flex;gap:8px;margin:4px 0 8px}
+.brc-vote3 .brc-vb{padding:12px 6px}.brc-vote3 .brc-vb b{font-size:12px}
 .dt-sec-t:first-child{margin-top:0}
 /* 라인업 피치 */
 .pitch{background:linear-gradient(#1f8a4c,#176b3b);border-radius:14px;padding:18px 6px;position:relative;margin:6px 0;overflow:hidden}
@@ -2891,12 +2895,80 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
   function wdlForm(list){ // 최근경기 → W/D/L 칩 (fbFixRow: win/draw)
     return '<div class="wdl-row">'+list.slice(0,5).map(function(r){ var c=r.draw?"d":(r.win?"w":"l"); var ch=r.draw?t("draw"):(r.win?t("win"):t("lose")); return '<span class="wdlc '+c+'">'+ch+'</span>'; }).join("")+'</div>'; }
   // ====== 축구 H2H (TheSports analysis 실데이터: 득점분포·트렌드·상대전적) — 경쟁사 H2H 화면 재현 ======
+  // ====== ⚽ 축구 H2H (경쟁사 재현): 투표 · 맞대결 · 팀홈 · 팀원정 서브칩 ======
+  var _fbH2H=null, _fbH2HG=null, _fbH2HView="match", _fbH2HN=8;
+  function fbH2HRegisterKo(j){ if(!j)return; [].concat(j.vs||[],j.homeRecent||[],j.awayRecent||[],(j.future&&j.future.home)||[],(j.future&&j.future.away)||[]).forEach(function(m){ if(m.hKo&&m.hName)KN_TEAM[knorm(m.hName)]=m.hKo; if(m.aKo&&m.aName)KN_TEAM[knorm(m.aName)]=m.aKo; }); }
+  function fbDate(sec){ if(!sec)return ""; var d=new Date(sec*1000); var p=function(n){return(n<10?"0":"")+n;}; return (String(d.getFullYear()).slice(2))+"/"+p(d.getMonth()+1)+"/"+p(d.getDate()); }
+  // ref 관점 경기 한 줄(홈/원정 2줄 + 승패 뱃지). 예정경기는 시간만.
+  function fbMatchRow(m,refTid){
+    var fin=(m.hs!=null&&m.as!=null);
+    var homeWin=fin&&m.hs>m.as, draw=fin&&m.hs===m.as;
+    var refIsHome=(String(m.home)===String(refTid));
+    var refRes=!fin?"":(draw?"d":((refIsHome?homeWin:!homeWin)?"w":"l"));
+    var tnm=function(n){return esc(tnTeam(n||"")||"—");};
+    var lg=function(u){return u?'<img src="'+esc(u)+'" class="brc-lg" onerror="this.style.display=\'none\'">':'<span class="brc-lg"></span>';};
+    var line=function(name,logoU,sc,win,tid){ return '<div class="brc-tm" data-ft="'+esc(tid||"")+'" data-fn="'+esc(name||"")+'">'+lg(logoU)+'<span class="brc-nm'+(win?' wn':'')+'">'+tnm(name)+'</span><span class="brc-sv'+(win?' wn':'')+'">'+(sc==null?'-':sc)+'</span></div>'; };
+    var badge=!fin?('<span class="brc-b sch">'+hhmm(new Date(m.time*1000).toISOString()).replace(/^0/,"")+'</span>')
+      :(draw?'<span class="brc-b d">'+t("draw")+'</span>':'<span class="brc-b '+(refRes==="w"?"w":"l")+'">'+(refRes==="w"?t("win"):t("lose"))+'</span>');
+    return '<div class="brc-mrow"><div class="brc-dt"><span class="brc-d">'+fbDate(m.time)+'</span>'+(m.season?'<span class="brc-fin" style="background:none;color:#9aa1ad">'+esc(String(m.season).slice(0,12))+'</span>':'')+'</div>'+
+      '<div class="brc-tms">'+line(m.hName,m.hLogo,m.hs,homeWin,m.home)+line(m.aName,m.aLogo,m.as,fin&&!homeWin&&!draw,m.away)+'</div>'+badge+'</div>';
+  }
+  function fbTeamView(side){
+    var j=_fbH2H, g=_fbH2HG; var refTid=(side==="home")?j.homeId:j.awayId; var refName=tnTeam((side==="home")?g.home:g.away);
+    var rec=((side==="home")?j.homeRecent:j.awayRecent)||[]; var fut=((j.future&&(side==="home"?j.future.home:j.future.away))||[]);
+    var f=(side==="home")?j.homeForm:j.awayForm;
+    var N=_fbH2HN, shown=rec.slice(0,N);
+    var h='<div class="brc-ref">'+esc(refName)+'</div>';
+    if(f&&f.n){ h+='<div class="brc-sum"><div class="brc-rec"><span class="brc-b w">'+t("win")+'</span>×'+f.w+'<span class="brc-b d" style="margin-left:8px">'+t("draw")+'</span>×'+f.d+'<span class="brc-b l" style="margin-left:8px">'+t("lose")+'</span>×'+f.l+'</div>'+
+      '<div class="brc-nsel"><label>'+t("showCount")+'</label><select id="fbN">'+[8,12,20].map(function(x){return '<option value="'+x+'"'+(N===x?" selected":"")+'>'+x+'</option>';}).join("")+'</select></div></div>'; }
+    if(fut.length){ h+='<div class="dt-sec-t" style="margin-top:6px">📅 '+tl({en:"Upcoming",ko:"다음 경기",ja:"次の試合",zh:"下场比赛",es:"Próximos",hi:"आगामी",vi:"Sắp tới",th:"นัดถัดไป",ru:"Ближайшие",de:"Nächste",fr:"À venir",it:"Prossime"})+'</div><div class="brc-mlist">'+fut.slice(0,3).map(function(m){return fbMatchRow(m,refTid);}).join("")+'</div>'; }
+    h+='<div class="dt-sec-t" style="margin-top:12px">📋 '+t("recentMatches")+'</div><div class="brc-mlist">'+(shown.length?shown.map(function(m){return fbMatchRow(m,refTid);}).join(""):'<p style="color:#8a93a3;font-size:13px;padding:14px 2px;text-align:center">'+t("noRecentRec")+'</p>')+'</div>';
+    return h;
+  }
+  function renderFbH2H(){
+    var j=_fbH2H, g=_fbH2HG; if(!j)return;
+    var hN=tnTeam(g.home||""), aN=tnTeam(g.away||"");
+    var hasVs=!!(j.vs&&j.vs.length);
+    var view=_fbH2HView; if(view==="match"&&!hasVs&&!j.goalDist&&!j.homeForm)view="home";
+    var chips=[["vote",t("voteTab")]]; chips.push(["match",t("h2hMatch")],["home",hN],["away",aN]);
+    var h='<div class="brc-chips">'+chips.map(function(c){ return '<button class="brc-chip'+(view===c[0]?" on":"")+'" data-fv="'+c[0]+'">'+esc(c[1])+'</button>'; }).join("")+'</div>';
+    if(view==="vote"){
+      var key="lu_fbvote_"+(g.id||""); var store=null; try{store=JSON.parse(localStorage.getItem(key)||"null");}catch(e){}
+      if(!store)store={h:0,d:0,a:0,me:null}; var tot=store.h+store.d+store.a;
+      var pc=function(v){return tot?Math.round(v/tot*100):0;};
+      h+='<div class="dt-sec-t">🗳️ '+t("voteTitle")+'</div>';
+      h+='<div class="brc-vote3">'+[["h",hN],["d",t("draw")],["a",aN]].map(function(x){return '<button class="brc-vb'+(store.me===x[0]?" on":"")+'" data-vt="'+x[0]+'"><b>'+esc(x[1])+'</b><span>'+(tot?pc(store[x[0]])+"%":"")+'</span></button>';}).join("")+'</div>';
+      h+='<div class="brc-vbar"><div class="vh" style="width:'+pc(store.h)+'%"></div><div class="vd" style="width:'+pc(store.d)+'%"></div><div class="va" style="width:'+pc(store.a)+'%"></div></div>';
+      h+='<p style="color:#8a93a3;font-size:12px;margin-top:6px;text-align:center">'+(tot?tot+" "+t("votes"):t("beFirstVote"))+'</p>';
+      dtBody(h);
+      var dv=$("#dtBody"); if(dv){ dv.querySelectorAll(".brc-chip").forEach(function(b){b.onclick=function(){_fbH2HView=b.dataset.fv;renderFbH2H();};});
+        dv.querySelectorAll(".brc-vb").forEach(function(b){b.onclick=function(){var p=b.dataset.vt; if(store.me===p)return; if(store.me)store[store.me]--; store[p]++; store.me=p; try{localStorage.setItem(key,JSON.stringify(store));}catch(e){} renderFbH2H();};}); }
+      return;
+    }
+    if(view==="home"||view==="away"){
+      dtBody(h+fbTeamView(view));
+      var db2=$("#dtBody"); if(db2){ db2.querySelectorAll(".brc-chip").forEach(function(b){b.onclick=function(){_fbH2HView=b.dataset.fv;renderFbH2H();};});
+        var ns=$("#fbN"); if(ns)ns.onchange=function(){_fbH2HN=+ns.value;renderFbH2H();};
+        db2.querySelectorAll(".brc-tm[data-ft]").forEach(function(tm){ tm.style.cursor="pointer"; tm.onclick=function(){ var tid=tm.dataset.ft; if(tid)openTeam(tm.dataset.fn,"football",null,{}); }; }); }
+      return;
+    }
+    // 맞대결(match) 뷰 — 기존 득점분포/트렌드/상대전적
+    dtBody(h+'<div id="fbH2HBody" style="padding:2px 0"></div>');
+    var hb=$("#fbH2HBody"); fbH2HMatchBody(hb,j,g);
+    var db=$("#dtBody"); if(db)db.querySelectorAll(".brc-chip").forEach(function(b){b.onclick=function(){_fbH2HView=b.dataset.fv;renderFbH2H();};});
+  }
   function loadFootballH2H(g){
+    _fbH2HView="match"; _fbH2HN=8; _fbH2H=null; _fbH2HG=g;
     dtLoading(); var tk=_dtTok;
     fetch("/api/football/tsanalysis?id="+encodeURIComponent(g.tsid||g.id)).then(function(r){ if(!r.ok)throw 0; return r.json(); }).then(function(j){
       if(tk!==_dtTok||!$("#dtBody"))return;
       if(!j||!j.found){ dtBody('<div class="msg"><div class="big">📋</div>'+t("noRecentRec")+'</div>'); return; }
-      var H=esc(g.home||""), A=esc(g.away||"");
+      fbH2HRegisterKo(j); _fbH2H=j; _fbH2HG=g; renderFbH2H();
+    }).catch(function(){ if(tk===_dtTok&&$("#dtBody"))dtBody('<div class="msg"><div class="big">⚠️</div>'+t("loadFailRetry")+'</div>'); });
+  }
+  // 맞대결 뷰 본문(기존 콘텐츠) — 컨테이너 el에 주입
+  function fbH2HMatchBody(container,j,g){
+      var H=esc(tnTeam(g.home||"")), A=esc(tnTeam(g.away||""));
       var h='';
       // ── 득점 분포 (시간대별) ──
       var gd=j.goalDist;
@@ -2964,8 +3036,8 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
         }).join("")+'</div>';
       }
       if(!h) h='<div class="msg"><div class="big">📋</div>'+t("noRecentRec")+'</div>';
-      dtBody('<div style="padding:4px 2px">'+h+'</div>');
-    }).catch(function(){ if(tk===_dtTok&&$("#dtBody"))dtBody('<div class="msg"><div class="big">⚠️</div>'+t("loadFailRetry")+'</div>'); });
+      container.innerHTML='<div style="padding:2px 2px">'+h+'</div>';
+      container.querySelectorAll(".brc-tm[data-ft]").forEach(function(tm){ tm.style.cursor="pointer"; tm.onclick=function(){ var tid=tm.dataset.ft; if(tid)openTeam(tm.dataset.fn,"football",null,{}); }; });
   }
   // ====== 축구 순위표 (TheSports season table 실데이터) — 경쟁사 순위표 화면 재현 ======
   function loadFootballStanding(g){

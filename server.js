@@ -21,7 +21,7 @@ const app = express();
 const server = http.createServer(app);
 
 const PORT = process.env.PORT || 3000;
-const APP_VERSION = 'v513';
+const APP_VERSION = 'v514';
 
 // ============================================================
 //  📏 성능 계측(instrumentation) — 엔드포인트 지연·캐시·공급사·WS·이벤트루프
@@ -4899,6 +4899,16 @@ app.get('/api/football/tsanalysis', async (req, res) => {
       });
       return { w, d, l, gf, ga, n };
     }
+    // 팀 이름/로고 해석 — vs·home·away·future 모든 경기의 상대팀 표시용
+    const ids = [];
+    [vs, homeRec, awayRec, future.home, future.away].forEach(a => (a || []).forEach(m => { ids.push(m.home); ids.push(m.away); }));
+    const nm = await tsNames(ids);
+    const attach = m => { const H = nm[m.home] || {}, A = nm[m.away] || {}; m.hName = H.name || ''; m.aName = A.name || ''; m.hLogo = H.logo || ''; m.aLogo = A.logo || ''; return m; };
+    vs.forEach(attach); homeRec.forEach(attach); awayRec.forEach(attach); future.home.forEach(attach); future.away.forEach(attach);
+    // 한국어 팀명(있으면)
+    const KL = (TS_LANG['football'] || { team: {} }).team || {};
+    const attachKo = m => { if (KL[m.home]) m.hKo = KL[m.home]; if (KL[m.away]) m.aKo = KL[m.away]; return m; };
+    vs.forEach(attachKo); homeRec.forEach(attachKo); awayRec.forEach(attachKo); future.home.forEach(attachKo); future.away.forEach(attachKo);
     res.json({
       found: true, homeId, awayId, goalDist: R.goal_distribution || null,
       vs, homeRecent: homeRec, awayRecent: awayRec, future,
