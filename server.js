@@ -21,7 +21,7 @@ const app = express();
 const server = http.createServer(app);
 
 const PORT = process.env.PORT || 3000;
-const APP_VERSION = 'v514';
+const APP_VERSION = 'v515';
 
 // ============================================================
 //  📏 성능 계측(instrumentation) — 엔드포인트 지연·캐시·공급사·WS·이벤트루프
@@ -3473,6 +3473,57 @@ app.get('/api/basketball/standing', async (req, res) => {
     table.forEach((r, i) => r.rank = i + 1);
     const v = { found: table.length > 0, league: compName, leagueKo: (KL.comp && KL.comp[comp]) || '', leagueLogo: compLogo, table };
     if (table.length) _bskStandCache.set(comp, { t: Date.now(), v });
+    res.json(v);
+  } catch (e) { res.json({ found: false, error: String((e && e.message) || e) }); }
+});
+// ⚽ 팀 과거 경기 — 팀 정보 API가 비어도 diary 집계로 '그 전 기록'을 보여준다(이전 시즌까지). 30분 캐시.
+const _fbTeamGamesCache = new Map();
+app.get('/api/football/teamgames', async (req, res) => {
+  res.set('Cache-Control', 'no-store');
+  const tid = String(req.query.tid || '');
+  if (!tid) return res.json({ found: false });
+  const hit = _fbTeamGamesCache.get(tid);
+  if (hit && Date.now() - hit.t < 1800000) return res.json(hit.v);
+  const baseDate = /^\d{4}-\d{2}-\d{2}$/.test(String(req.query.date || '')) ? req.query.date : new Date().toISOString().slice(0, 10);
+  const now = Date.now();
+  const WANT = 15, MAX_DAYS = 220, BATCH = 12;
+  const teamMap = {}, compMap = {}; const games = []; const seen = new Set();
+  const ymdOf = i => new Date(Date.parse(baseDate + 'T12:00:00Z') - i * 864e5).toISOString().slice(0, 10).replace(/-/g, '');
+  function ingest(d) {
+    if (!d) return;
+    ((d.results_extra || {}).team || []).forEach(t => { if (t && t.id) teamMap[t.id] = { name: t.name || '', logo: t.logo || '' }; });
+    ((d.results_extra || {}).competition || []).forEach(c => { if (c && c.id) compMap[c.id] = { name: c.name || '', logo: c.logo || '' }; });
+    (d.results || []).forEach(x => {
+      if (!x || (x.home_team_id !== tid && x.away_team_id !== tid) || seen.has(x.id) || games.length >= WANT) return;
+      const t = x.match_time ? x.match_time * 1000 : 0;
+      const played = (Number(x.status_id) === 8) || (t && t < now - 3 * 3600e3);
+      const hs = x.home_scores ? +x.home_scores[0] : null, as = x.away_scores ? +x.away_scores[0] : null;
+      if (!played || hs == null || as == null || isNaN(hs) || isNaN(as)) return;
+      seen.add(x.id);
+      const isHome = x.home_team_id === tid; const my = isHome ? hs : as, op = isHome ? as : hs;
+      games.push({ id: x.id, date: t, compId: x.competition_id || '', homeId: x.home_team_id, awayId: x.away_team_id, hs, as, res: my > op ? 'w' : (my < op ? 'l' : 'd'), isHome });
+    });
+  }
+  try {
+    for (let start = 0; start < MAX_DAYS && games.length < WANT; start += BATCH) {
+      const days = []; for (let i = start; i < Math.min(start + BATCH, MAX_DAYS); i++) days.push(ymdOf(i));
+      const ds = await Promise.all(days.map(ymd => tsFetch('/football/match/diary', { date: ymd }, 3600000, 8000).catch(() => null)));
+      ds.forEach(ingest);
+    }
+    games.sort((a, b) => b.date - a.date);
+    const KL = (TS_LANG['football'] || { team: {}, comp: {} });
+    const nm = id => (teamMap[id] && teamMap[id].name) || '';
+    const lgo = id => (teamMap[id] && teamMap[id].logo) || '';
+    const cn = id => (compMap[id] && compMap[id].name) || '';
+    let w = 0, d = 0, l = 0, gf = 0, ga = 0; games.slice(0, 10).forEach(m => { const my = m.isHome ? m.hs : m.as, op = m.isHome ? m.as : m.hs; if (m.res === 'w') w++; else if (m.res === 'l') l++; else d++; gf += my; ga += op; });
+    const nn = Math.min(10, games.length) || 1;
+    const v = { found: games.length > 0, tid, name: nm(tid), nameKo: (KL.team && KL.team[tid]) || '', logo: lgo(tid),
+      summary: { w, d, l, n: Math.min(10, games.length), gf: +(gf / nn).toFixed(1), ga: +(ga / nn).toFixed(1) },
+      games: games.map(m => ({ date: m.date, league: cn(m.compId), leagueKo: (KL.comp && KL.comp[m.compId]) || '',
+        homeId: m.homeId, awayId: m.awayId, hName: nm(m.homeId), aName: nm(m.awayId),
+        hKo: (KL.team && KL.team[m.homeId]) || '', aKo: (KL.team && KL.team[m.awayId]) || '',
+        hLogo: lgo(m.homeId), aLogo: lgo(m.awayId), hs: m.hs, as: m.as, res: m.res, isHome: m.isHome })) };
+    if (games.length) _fbTeamGamesCache.set(tid, { t: Date.now(), v });
     res.json(v);
   } catch (e) { res.json({ found: false, error: String((e && e.message) || e) }); }
 });
