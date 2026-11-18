@@ -1021,6 +1021,8 @@ html[data-theme="dark"] .cpl .cpt{color:#9aa6b6}
 .bmcar-t .bar{width:4px;height:16px;border-radius:2px;background:var(--red)}
 .bmcar-n{background:var(--soft2);color:var(--navy);font-size:12px;font-weight:800;border-radius:10px;padding:1px 8px;margin-left:2px}
 .bmcar-sub{font-size:11.5px;color:var(--muted);font-weight:600;white-space:nowrap}
+.bmcar-allbtn{border:none;background:var(--soft);color:var(--navy);font-size:12.5px;font-weight:700;border-radius:16px;padding:7px 12px;cursor:pointer;white-space:nowrap;font-family:inherit;flex:0 0 auto}
+.bmcar-allbtn:active{background:var(--soft2)}
 .bmcar-track{display:flex;gap:11px;overflow-x:auto;scroll-snap-type:x mandatory;-webkit-overflow-scrolling:touch;padding:2px 16px 4px;scrollbar-width:none}
 .bmcar-track::-webkit-scrollbar{display:none}
 .bmc{flex:0 0 43%;min-width:235px;scroll-snap-align:start;background:linear-gradient(150deg,#1b2a4a,#223457);color:#fff;border-radius:14px;padding:12px 13px 13px;cursor:pointer;box-shadow:0 2px 8px rgba(13,21,40,.18)}
@@ -1373,16 +1375,10 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
       n.appendChild(b);
     });
   }
-  // ====== 렌더: 통합 라이브 배너 ======
-  function renderUniLive(){
-    var b=$("#uniLive"); if(!b)return;
-    var show=(S.screen==="home"||S.screen==="live"||S.screen==="fav");
-    b.classList.toggle("hide", !show);
-    b.classList.toggle("on", S.sport==="all");
-    var tx=$("#uniLiveTx"); if(tx)tx.textContent=tl({en:"Unified Live",ko:"통합 라이브",ja:"統合ライブ",zh:"综合直播",es:"En vivo global",hi:"यूनिफाइड लाइव",vi:"Live tổng hợp",th:"ไลฟ์รวม",ru:"Общий лайв",de:"Live gesamt",fr:"Live unifié",it:"Live unificato"});
-    var sub=$("#uniLiveSub"); if(sub)sub.textContent=tl({en:"All sports · starting soon",ko:"전 종목 · 곧 시작",ja:"全種目・まもなく",zh:"全项目·即将开始",es:"Todo · pronto",hi:"सभी · जल्द",vi:"Mọi môn · sắp tới",th:"ทุกกีฬา · เริ่มเร็วๆ",ru:"Все · скоро",de:"Alle · bald",fr:"Tout · bientôt",it:"Tutto · a breve"});
-    b.onclick=function(){ if(S.sport!=="all"){ S.sport="all"; S.country=""; S.leagueF=""; S.filter="main"; if(S.screen==="live"||S.screen==="fav"){ S.base="home"; S.screen="home"; } load(); } };
-  }
+  // 통합 라이브(전 종목 주요 경기) 진입 — D안: 독립 배너 대신 주요 경기 제목 옆 버튼에서 호출
+  function goUnifiedLive(){ if(S.sport!=="all"){ S.sport="all"; S.country=""; S.leagueF=""; S.filter="main"; if(S.screen==="live"||S.screen==="fav"){ S.base="home"; S.screen="home"; } load(); } }
+  // ====== 렌더: 통합 라이브 배너 — D안 적용으로 상시 숨김(진입은 '전체 라이브 보기' 버튼) ======
+  function renderUniLive(){ var b=$("#uniLive"); if(b)b.classList.add("hide"); }
   // ====== 렌더: 날짜바 ======
   function renderDate(){
     $("#dLabel").textContent=dateLabel(S.date);
@@ -1441,26 +1437,55 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
     box.appendChild(h); box.appendChild(body); return box;
   }
   // ====== 오늘의 주요 경기 — 가로 슬라이드(캐러셀) ======
-  // 기존 빅매치 선정 로직 재사용 → 다수 상위 경기를 카드로. 진행 중 → 곧 시작 → 예정, 상위 대회 우선.
+  // 선정 노출/유지 시간은 코드 고정이 아니라 설정값(BIG_CFG)으로 관리.
+  var BIG_CFG={
+    schedTopH:12,      // 최상위 국제대회·결승: 12시간 전부터
+    schedMainH:6,      // 일반 주요 프로리그: 6시간 전부터
+    finTopH:24,        // 최상위 결승 종료 유지(시간)
+    finGeneralH:6,     // 일반 주요 종료 유지(시간)
+    perLeagueMax:4     // 동일 대회 과다 반복 완화
+  };
+  // r<=2 (국가대표 A매치 / UCL / UEL) 또는 결승·라이벌전 = 최상위
   function bigCandidates(games, allMode){
-    var sp=S.sport, cand=[], lgCount={};
+    var sp=S.sport, now=Date.now(), cand=[], lgCount={};
+    function endOfLocalDay(ms){ var d=new Date(ms); d.setHours(23,59,59,999); return d.getTime(); }
     (games||[]).forEach(function(g){
       if(isYouthGame(g)||isDeadGame(g))return;
-      var st=stateOf(g); if(st==="finished")return; if(st==="live"&&isStaleLive(g))return;
       var r=allMode?effLeagueRank(g.sport,g):leagueRank(sp,g.league,g.country); if(r>=900)return;   // 주요(국제/프로)만
-      var stRank=st==="live"?0:1;
+      var st=stateOf(g); if(st==="live"&&isStaleLive(g))return;
+      var kt=g.date?new Date(g.date).getTime():0;
       var stage=BIG_STAGE_RE.test(String(g.league||"")+" "+String(g.round||g.stage||""))?1:0;
-      cand.push({g:g,r:r,stRank:stRank,stage:stage,dt:g.date?new Date(g.date).getTime():0,lg:(g.sport||sp)+"|"+(g.league||"")});
+      var isTop=(r<=2)||stage;                                         // 최상위 국제대회·결승
+      var bucket=-1;
+      if(st==="live"){ bucket=0; }
+      else if(st==="scheduled"){
+        if(!kt){ bucket=-1; }
+        else { var h=(kt-now)/3600e3;
+          if(h<=0.1){ bucket=1; }                                      // 사실상 시작 임박
+          else if(h<=3){ bucket=1; }                                   // 3시간 이내
+          else if(h<=6){ bucket=2; }                                   // 3~6시간
+          else if(h<=BIG_CFG.schedTopH && isTop){ bucket=3; }          // 6~12시간: 최상위만
+          else { bucket=-1; }                                          // 그 외 예정은 제외(너무 이름)
+        }
+      } else { // finished
+        if(!kt){ bucket=-1; }
+        else { var age=now-kt;
+          var keep = isTop ? (age<=BIG_CFG.finTopH*3600e3)             // 최상위 결승: 24h
+            : (now<=endOfLocalDay(kt) || age<=BIG_CFG.finGeneralH*3600e3); // 주요: 해당 날짜 끝까지(또는 6h)
+          if(keep && age<=30*3600e3) bucket=4; else bucket=-1;          // 종료는 뒤쪽 버킷
+        }
+      }
+      if(bucket<0)return;
+      cand.push({g:g,r:r,stage:stage,bucket:bucket,dt:kt,lg:(g.sport||sp)+"|"+(g.league||"")});
     });
     cand.sort(function(a,b){
-      if(a.stRank!==b.stRank)return a.stRank-b.stRank;                 // 진행 → 예정
-      if(a.r!==b.r)return a.r-b.r;                                     // 국제 → 프로
+      if(a.bucket!==b.bucket)return a.bucket-b.bucket;                 // 진행 → 3h → 3-6h → 6-12h최상위 → 종료
+      if(a.r!==b.r)return a.r-b.r;                                     // 리그 중요도(국제 → 프로)
       if(b.stage!==a.stage)return b.stage-a.stage;                     // 결승·라이벌전 우선
-      if(a.stRank===1)return (a.dt||1e15)-(b.dt||1e15);                // 예정은 임박순
-      return (b.dt||0)-(a.dt||0);
+      if(a.bucket>=1&&a.bucket<=3)return (a.dt||1e15)-(b.dt||1e15);    // 예정은 임박순
+      return (b.dt||0)-(a.dt||0);                                      // 진행/종료는 최신
     });
-    // 동일 대회가 과도하게 연속되지 않도록 완화(대회당 최대 4)
-    var out=[]; cand.forEach(function(c){ lgCount[c.lg]=(lgCount[c.lg]||0)+1; if(lgCount[c.lg]<=4)out.push(c.g); });
+    var out=[]; cand.forEach(function(c){ lgCount[c.lg]=(lgCount[c.lg]||0)+1; if(lgCount[c.lg]<=BIG_CFG.perLeagueMax)out.push(c.g); });
     return out;
   }
   function bmCard(g, allMode){
@@ -1482,8 +1507,13 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
     var hd=el("div","bmcar-h");
     var sub = allMode ? tl({en:"All · live + soon",ko:"전 종목 · 진행 중 + 곧 시작",ja:"全種目・進行中+まもなく",zh:"全项目·进行+即将",es:"Todo · en vivo + pronto",hi:"सभी · लाइव + जल्द",vi:"Mọi môn · live + sắp",th:"ทุกกีฬา · สด + เร็วๆ",ru:"Все · live + скоро",de:"Alle · live + bald",fr:"Tout · live + bientôt",it:"Tutto · live + a breve"})
       : (t(S.sport)+" · "+tl({en:"live + starting soon",ko:"진행 중 + 3시간 안에 시작",ja:"進行中+3時間以内開始",zh:"进行中+3小时内开始",es:"en vivo + pronto",hi:"लाइव + जल्द",vi:"live + sắp bắt đầu",th:"สด + เริ่มใน 3 ชม.",ru:"live + скоро",de:"live + bald",fr:"en direct + bientôt",it:"live + a breve"}));
-    hd.innerHTML='<div class="bmcar-t"><span class="bar"></span>'+tl({en:"Today's featured",ko:"오늘의 주요 경기",ja:"今日の注目試合",zh:"今日重点比赛",es:"Destacados de hoy",hi:"आज के मुख्य मैच",vi:"Trận nổi bật hôm nay",th:"แมตช์เด่นวันนี้",ru:"Главные матчи дня",de:"Top-Spiele heute",fr:"Matchs du jour",it:"Partite clou di oggi"})+'<span class="bmcar-n">'+list.length+'</span></div><span class="bmcar-sub">'+esc(sub)+'</span>';
+    var titleTx=tl({en:"Today's featured",ko:"오늘의 주요 경기",ja:"今日の注目試合",zh:"今日重点比赛",es:"Destacados de hoy",hi:"आज के मुख्य मैच",vi:"Trận nổi bật hôm nay",th:"แมตช์เด่นวันนี้",ru:"Главные матчи дня",de:"Top-Spiele heute",fr:"Matchs du jour",it:"Partite clou di oggi"});
+    // D안: 종목별 메인에서는 제목 오른쪽에 '전체 라이브 보기 ›' (통합 라이브 진입)
+    var right = allMode ? ('<span class="bmcar-sub">'+esc(sub)+'</span>')
+      : ('<button class="bmcar-allbtn" id="bmcarAll">'+tl({en:"All live",ko:"전체 라이브 보기",ja:"全ライブ",zh:"查看全部直播",es:"Ver todo en vivo",hi:"सभी लाइव",vi:"Xem tất cả live",th:"ดูไลฟ์ทั้งหมด",ru:"Весь лайв",de:"Alle live",fr:"Tout en direct",it:"Tutto live"})+' ›</button>');
+    hd.innerHTML='<div class="bmcar-t"><span class="bar"></span>'+titleTx+'<span class="bmcar-n">'+list.length+'</span></div>'+right;
     wrap.appendChild(hd);
+    var ab=hd.querySelector("#bmcarAll"); if(ab)ab.onclick=function(){ goUnifiedLive(); };
     var track=el("div","bmcar-track");
     list.forEach(function(g){ track.appendChild(bmCard(g, allMode)); });
     wrap.appendChild(track);
