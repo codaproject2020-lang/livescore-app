@@ -968,6 +968,52 @@ html[data-theme="dark"] .cpl .cpt{color:#9aa6b6}
 .sh-qrtx b{display:block;font-size:14px;font-weight:600;color:var(--navy)}
 .sh-qrtx span{display:block;font-size:11.5px;color:var(--muted);margin-top:3px}
 .sh-qrsave{flex:0 0 auto;text-decoration:none;border:1px solid var(--line);color:var(--navy);border-radius:9px;padding:7px 11px;font-size:12px;font-weight:500}
+/* 전체 경기(전 종목) 화면 */
+.ags-ctrl{position:sticky;top:52px;z-index:5;background:var(--bg);border-bottom:1px solid var(--line);padding:8px 12px}
+.ags-seg{display:flex;gap:6px;background:var(--soft);border-radius:11px;padding:3px;margin-bottom:8px}
+.ags-seg button{flex:1;border:none;background:none;border-radius:9px;padding:8px 6px;font-size:13.5px;font-weight:700;color:var(--muted);cursor:pointer;font-family:inherit}
+.ags-seg button.on{background:var(--navy);color:#fff}
+.ags-date{display:flex;align-items:center;justify-content:center;gap:10px;margin-bottom:8px}
+.ags-date .d{font-size:14px;font-weight:700;color:var(--navy)}
+.ags-date .nav{border:none;background:none;font-size:20px;color:var(--muted);cursor:pointer;padding:0 6px}
+.ags-date .agst{background:var(--red);color:#fff;border:none;border-radius:8px;padding:3px 9px;font-size:12px;font-weight:700;cursor:pointer}
+.ags-fil{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none}
+.ags-fil::-webkit-scrollbar{display:none}
+.ags-fchip{flex:0 0 auto;border:1px solid var(--line);background:var(--card);border-radius:16px;padding:6px 11px;font-size:12.5px;font-weight:700;color:var(--navy);cursor:pointer;display:flex;align-items:center;gap:5px;font-family:inherit}
+.ags-fchip.on{background:var(--navy);color:#fff;border-color:var(--navy)}
+.ags-fchip i{font-style:normal;font-size:11px;opacity:.8;font-weight:800}
+.ags-list{padding:2px 0}
+.ags-row{display:flex;align-items:center;gap:9px;padding:9px 13px;border-bottom:1px solid var(--line);cursor:pointer}
+.ags-row:active{background:var(--soft)}
+.ags-st{flex:0 0 58px;display:flex;flex-direction:column;align-items:flex-start;gap:3px;min-width:0}
+.ags-live{background:var(--red);color:#fff;font-size:9.5px;font-weight:800;border-radius:4px;padding:1px 5px;letter-spacing:.3px}
+.ags-min{font-size:11px;font-weight:700;color:var(--red)}
+.ags-min .fc,.ags-min .lc{color:var(--red)}
+.ags-tm{font-size:13px;font-weight:700;color:var(--navy)}
+.ags-fin{font-size:11.5px;font-weight:700;color:var(--muted)}
+.ags-mid{flex:1;min-width:0}
+.ags-lgh{display:flex;align-items:center;gap:5px;margin-bottom:4px}
+.ags-lgh .ags-ic{font-size:12px}
+.ags-lgn{font-size:11px;color:var(--muted);font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ags-ln{display:flex;align-items:center;gap:7px;min-width:0;padding:2px 0}
+.ags-ha{font-size:9px;font-weight:800;color:#fff;background:#8893a7;border-radius:3px;width:14px;height:14px;line-height:14px;text-align:center;flex:0 0 auto}
+.ags-ha.a{background:#c86b7a}
+.ags-lg{width:18px;height:18px;object-fit:contain;flex:0 0 auto}
+.ags-lg.ph{display:flex;align-items:center;justify-content:center;font-size:11px}
+.ags-nm{flex:1;min-width:0;font-size:13.5px;font-weight:600;color:var(--navy);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ags-sc{flex:0 0 auto;font-size:15px;font-weight:800;color:var(--navy);min-width:16px;text-align:right}
+.ags-sc.live{color:var(--red)}
+.ags-star{flex:0 0 auto;border:none;background:none;color:#cfd5df;font-size:18px;cursor:pointer}
+.ags-star.on{color:#f5b301}
+.ags-lgblk{border-bottom:6px solid var(--soft)}
+.ags-lgbh{display:flex;align-items:center;gap:7px;padding:11px 13px;cursor:pointer;background:var(--card);position:sticky;top:0}
+.ags-lgbh img{width:18px;height:18px;object-fit:contain}
+.ags-lgbh .ags-lgn{flex:1;font-size:14px;font-weight:700;color:var(--navy)}
+.ags-lgbh .ags-cnt{font-style:normal;font-size:12px;color:var(--muted);font-weight:700}
+.ags-lgbh .ags-cnt b{color:var(--red)}
+.ags-lgbh .chev{color:#c3c9d4;font-size:16px;transition:transform .2s}
+.ags-lgbh.collapsed .chev{transform:rotate(-90deg)}
+.ags-lgbd.hide{display:none}
 /* 오늘의 주요 경기 — 가로 슬라이드 */
 .bmcar{margin:12px 0 6px}
 .bmcar-h{display:flex;align-items:baseline;justify-content:space-between;padding:0 16px;margin-bottom:9px}
@@ -1316,6 +1362,11 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
   // ====== 렌더: 종목탭 ======
   function renderTabs(){
     var n=$("#sporttabs"); n.innerHTML="";
+    // '전체 경기' 탭 — 축구 앞. 전 종목 경기를 시간순/리그별로 탐색(전용 화면). 종목 선택은 바꾸지 않음.
+    var agLbl=tl({en:"All games",ko:"전체 경기",ja:"全試合",zh:"全部比赛",es:"Todo",hi:"सभी मैच",vi:"Tất cả",th:"ทั้งหมด",ru:"Все матчи",de:"Alle Spiele",fr:"Tous",it:"Tutte"});
+    var atab=el("button","stab allg-tab",'<span class="ic"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3l9 5-9 5-9-5 9-5z"/><path d="M3 13l9 5 9-5"/></svg></span>'+agLbl);
+    atab.onclick=function(){ openAllSports(); };
+    n.appendChild(atab);
     SPORTS.forEach(function(s){
       var b=el("button","stab"+(s.k===S.sport?" on":""),'<span class="ic">'+s.ic+'</span>'+t(s.k));
       b.onclick=function(){ if(S.sport!==s.k){ S.sport=s.k; S.country=""; S.leagueF=""; S.filter="live"; load(); } };   // 종목 전환 시 진행 중 우선(없으면 자동 전체)
@@ -1931,7 +1982,98 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
     build();
   }
 
-  // ====== 전체 경기 탐색 화면 (A01~A10) ======
+  // ====== 전체 경기(전 종목) 화면 — 시간순 / 리그별 ======
+  var _ags=null;
+  function openAllSports(){
+    _ags={ date:S.date, view:"time", status:"all", open:{}, scroll:0 };
+    var o=overlay("ovAllSports");
+    var ti=tl({en:"All games",ko:"전체 경기",ja:"全試合",zh:"全部比赛",es:"Todos los partidos",hi:"सभी मैच",vi:"Tất cả trận",th:"ทุกแมตช์",ru:"Все матчи",de:"Alle Spiele",fr:"Tous les matchs",it:"Tutte le partite"});
+    o.innerHTML='<div class="dt-bar"><button class="bk" id="asBack">‹</button><div class="ti">'+ti+'</div></div>'+
+      '<div class="ags-ctrl" id="agsCtrl"></div><div class="dt-body" id="agsBody" style="padding:0"></div>';
+    $("#asBack").onclick=function(){ closeOverlay("ovAllSports"); };
+    agsLoad();
+  }
+  function agsLoad(){
+    var k="all|"+_ags.date; var cached=S.data[k];
+    agsRenderCtrl();
+    if(cached&&cached.games&&!cached.error){ agsRenderBody(); return; }
+    var bd=$("#agsBody"); if(bd)bd.innerHTML='<div class="msg"><div class="big">⏳</div>'+t("loading")+'</div>';
+    Promise.all(ALL_SPORTS.map(function(sp){ return fetchGames(sp,_ags.date).then(function(res){ var gs=(res&&!res.error&&res.games)||[]; gs.forEach(function(g){ g.sport=sp; }); return gs; }).catch(function(){ return []; }); })).then(function(lists){
+      if(!$("#ovAllSports"))return;
+      var all=[].concat.apply([],lists); regGamesKo(all);
+      S.data["all|"+_ags.date]={ games:all, count:all.length, _demo:false };
+      agsRenderBody();
+    }).catch(function(){ var b=$("#agsBody"); if(b)b.innerHTML='<div class="msg"><div class="big">⚠️</div>'+t("m_loadfail")+'</div>'; });
+  }
+  function agsCounts(games){
+    var c={all:games.length,live:0,sched:0,fin:0};
+    games.forEach(function(g){ var st=stateOf(g); if(st==="live")c.live++; else if(st==="scheduled")c.sched++; else c.fin++; });
+    return c;
+  }
+  function agsRenderCtrl(){
+    var c=$("#agsCtrl"); if(!c)return;
+    var d=S.data["all|"+_ags.date]; var games=(d&&d.games)||[];
+    var cnt=agsCounts(games);
+    var viewBtns='<div class="ags-seg">'+
+      '<button class="'+(_ags.view==="time"?"on":"")+'" data-v="time">⏱ '+tl({en:"By time",ko:"시간순",ja:"時間順",zh:"按时间",es:"Por hora",hi:"समय",vi:"Theo giờ",th:"ตามเวลา",ru:"По времени",de:"Nach Zeit",fr:"Par heure",it:"Per ora"})+'</button>'+
+      '<button class="'+(_ags.view==="league"?"on":"")+'" data-v="league">🏆 '+tl({en:"By league",ko:"리그별",ja:"リーグ別",zh:"按联赛",es:"Por liga",hi:"लीग",vi:"Theo giải",th:"ตามลีก",ru:"По лигам",de:"Nach Liga",fr:"Par ligue",it:"Per lega"})+'</button></div>';
+    var dateBar='<div class="ags-date"><button class="nav" id="agsPrev">‹</button><span class="d">'+esc(dateLabel(_ags.date))+'</span>'+(_ags.date===todayStr()?'':'<button class="agst" id="agsToday">'+t("today")+'</button>')+'<button class="nav" id="agsNext">›</button></div>';
+    var chips='<div class="ags-fil">'+[["all",t("allGames"),cnt.all],["live",t("inplay"),cnt.live],["sched",tl({en:"Upcoming",ko:"예정",ja:"予定",zh:"未开始",es:"Próximos",hi:"आगामी",vi:"Sắp tới",th:"จะเริ่ม",ru:"Ожид.",de:"Geplant",fr:"À venir",it:"In arrivo"}),cnt.sched],["fin",t("finished"),cnt.fin]].map(function(x){ return '<button class="ags-fchip'+(_ags.status===x[0]?" on":"")+'" data-f="'+x[0]+'">'+x[1]+'<i>'+x[2]+'</i></button>'; }).join("")+'</div>';
+    c.innerHTML=viewBtns+dateBar+chips;
+    c.querySelectorAll("[data-v]").forEach(function(b){ b.onclick=function(){ _ags.view=b.dataset.v; agsRenderCtrl(); agsRenderBody(); }; });
+    c.querySelectorAll("[data-f]").forEach(function(b){ b.onclick=function(){ _ags.status=b.dataset.f; agsRenderCtrl(); agsRenderBody(); }; });
+    var p=$("#agsPrev"); if(p)p.onclick=function(){ _ags.date=addDays(_ags.date,-1); agsLoad(); };
+    var nx=$("#agsNext"); if(nx)nx.onclick=function(){ _ags.date=addDays(_ags.date,1); agsLoad(); };
+    var td=$("#agsToday"); if(td)td.onclick=function(){ _ags.date=todayStr(); agsLoad(); };
+  }
+  function agsFilter(games){
+    var st=_ags.status; if(st==="all")return games;
+    return games.filter(function(g){ var s=stateOf(g); return st==="live"?s==="live":(st==="sched"?s==="scheduled":s==="finished"); });
+  }
+  // 컴팩트 한 줄(전 종목)
+  function agsRow(g,hideLeague){
+    var st=stateOf(g), live=st==="live", sch=st==="scheduled";
+    var sp=g.sport||"football"; var ic=SPORT_ICON[sp]||"🏟";
+    var stHtml= live?('<span class="ags-live">LIVE</span><span class="ags-min">'+statusText(g)+'</span>')
+      : (sch?('<span class="ags-tm">'+hhmm(g.date)+'</span>') : '<span class="ags-fin">'+t("finished")+'</span>');
+    var sc=function(v){ return sch?'':(v==null?'-':v); };
+    function tl2(name,logo,sv,away){ return '<div class="ags-ln"><span class="ags-ha '+(away?"a":"h")+'">'+(away?"A":"H")+'</span>'+(logo?'<img class="ags-lg" src="'+esc(logo)+'" onerror="this.outerHTML=\'<span class=\\\'ags-lg ph\\\'>🛡️</span>\'">':'<span class="ags-lg ph">🛡️</span>')+'<span class="ags-nm">'+esc(tnTeam(name||""))+'</span><span class="ags-sc'+(live?" live":"")+'">'+sc(sv)+'</span></div>'; }
+    var row=el("div","ags-row");
+    row.innerHTML='<div class="ags-st">'+stHtml+'</div><div class="ags-mid">'+
+      (hideLeague?'':'<div class="ags-lgh"><span class="ags-ic">'+ic+'</span><span class="ags-lgn">'+esc(tnLeague(g.league||""))+'</span></div>')+
+      tl2(g.home,g.homeLogo,g.hs,false)+tl2(g.away,g.awayLogo,g.as,true)+'</div>'+
+      '<button class="ags-star'+(S.favs.has(gid(g))?" on":"")+'" aria-label="★">★</button>';
+    row.querySelector(".ags-star").onclick=function(e){ e.stopPropagation(); var k=gid(g); if(S.favs.has(k))S.favs.delete(k); else S.favs.add(k); saveFavs(); e.target.classList.toggle("on",S.favs.has(k)); };
+    row.onclick=function(e){ if(e.target.closest(".ags-star"))return; var sv=S.sport; S.sport=sp; try{ openDetail(g); }finally{ S.sport=sv; } };
+    return row;
+  }
+  function agsRenderBody(){
+    var b=$("#agsBody"); if(!b)return; b.innerHTML="";
+    var d=S.data["all|"+_ags.date];
+    if(!d){ b.innerHTML='<div class="msg"><div class="big">⏳</div>'+t("loading")+'</div>'; return; }
+    var games=agsFilter((d.games||[]).slice());
+    if(!games.length){ b.innerHTML='<div class="msg"><div class="big">📭</div>'+t("m_noSched")+'</div>'; return; }
+    if(_ags.view==="time"){
+      games.sort(function(a,b2){ var sa=(stateOf(a)==="live"?0:(stateOf(a)==="scheduled"?1:2)), sb=(stateOf(b2)==="live"?0:(stateOf(b2)==="scheduled"?1:2)); if(sa!==sb)return sa-sb; return (a.date||"")<(b2.date||"")?-1:((a.date||"")>(b2.date||"")?1:0); });
+      var wrap=el("div","ags-list"); games.forEach(function(g){ wrap.appendChild(agsRow(g,false)); }); b.appendChild(wrap);
+    } else {
+      // 리그별: 종목|리그 그룹, 우선순위 정렬, 접기/펼치기
+      var gm={},order=[];
+      games.forEach(function(g){ var kk=(g.sport||"")+"|"+(g.league||""); if(!gm[kk]){gm[kk]={sport:g.sport,league:g.league,country:g.country,logo:g.leagueLogo,games:[],rank:effLeagueRank(g.sport,g)};order.push(kk);} gm[kk].games.push(g); });
+      order.sort(function(a,b2){ var A=gm[a],B=gm[b2]; if(A.rank!==B.rank)return A.rank-B.rank; if(B.games.length!==A.games.length)return B.games.length-A.games.length; return A.league<B.league?-1:1; });
+      order.forEach(function(kk){ var grp=gm[kk]; var open=_ags.open[kk]!==false; // 기본 펼침
+        var box=el("div","ags-lgblk");
+        var liveN=grp.games.filter(function(g){return stateOf(g)==="live";}).length;
+        var hd=el("div","ags-lgbh"+(open?"":" collapsed"));
+        hd.innerHTML='<span class="ags-ic">'+(SPORT_ICON[grp.sport]||"🏟")+'</span>'+(grp.logo?'<img src="'+esc(grp.logo)+'" onerror="this.remove()">':'')+'<span class="ags-lgn">'+esc(tnLeague(grp.league||""))+'</span><i class="ags-cnt">'+(liveN?'<b>● '+liveN+'</b> · ':'')+grp.games.length+'</i><span class="chev">▾</span>';
+        var body=el("div","ags-lgbd"+(open?"":" hide"));
+        grp.games.sort(function(a,b2){ return (a.date||"")<(b2.date||"")?-1:1; }).forEach(function(g){ body.appendChild(agsRow(g,true)); });
+        hd.onclick=function(){ _ags.open[kk]=!(open); hd.classList.toggle("collapsed"); body.classList.toggle("hide"); };
+        box.appendChild(hd); box.appendChild(body); b.appendChild(box);
+      });
+    }
+  }
+  // ====== 전체 경기 탐색 화면 (A01~A10) — 기존(종목별) ======
   // 홈을 대체하지 않는 별도 화면. 선택 종목·날짜의 "모든" 제공 리그를 세로 목록으로 노출(유소년·리저브·지역 포함).
   var _ag=null, _agHomeSnap=null;
   function agDateLabel(ds){ try{ var p=ds.split("-"); var d=new Date(+p[0],+p[1]-1,+p[2]); var wd=["일","월","화","수","목","금","토"]; var isKo=(LANG==="ko"); return isKo?(p[1]+"/"+p[2]+" ("+wd[d.getDay()]+")"):(p[1]+"/"+p[2]); }catch(e){ return ds; } }
