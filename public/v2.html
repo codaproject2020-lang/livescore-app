@@ -458,6 +458,16 @@ html[data-theme="dark"] table.rank tr.rk-hl{background:rgba(156,194,255,.1)}
 .tl-sub{font-size:12px;line-height:1.35}.tl-sub{color:var(--text)}
 .tl-dt{font-size:10.5px;color:var(--muted)}
 .tl-ht{text-align:center;font-size:11px;font-weight:800;color:var(--muted);background:var(--soft);border-radius:999px;padding:4px 0;margin:8px auto;max-width:72%;position:relative;z-index:1}
+.tl .tl-av{display:inline-flex;vertical-align:middle;margin:0 5px}
+.tl-row.h .tl-l{display:flex;align-items:center;justify-content:flex-end;flex-wrap:wrap;gap:2px}
+.tl-row.a .tl-r{display:flex;align-items:center;flex-wrap:wrap;gap:2px}
+/* 최근 골 배너(시안) */
+.ev-goal{display:flex;align-items:center;gap:12px;background:linear-gradient(90deg,rgba(232,53,46,.08),rgba(232,53,46,.02));border:1px solid rgba(232,53,46,.22);border-left:4px solid var(--red);border-radius:12px;padding:11px 14px;margin:2px 2px 12px}
+.ev-goal .eg-main{display:flex;flex-direction:column;flex:1;min-width:0}
+.ev-goal .eg-t{font-size:12px;font-weight:900;color:var(--red);letter-spacing:.3px}
+.ev-goal .eg-nm{font-size:15px;font-weight:800;color:var(--navy)}
+.ev-goal .eg-as{font-size:11.5px;color:var(--muted);font-weight:600}
+.ev-goal .eg-sc{font-size:20px;font-weight:900;color:var(--navy);letter-spacing:1px}
 .tl-info{margin-top:16px}
 /* 03 전체/전반/후반 세그먼트 */
 .st-seg{display:flex;gap:4px;background:var(--soft);border:1px solid var(--line);border-radius:12px;padding:3px;margin-bottom:12px}
@@ -3614,6 +3624,8 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
     fetch(u).then(function(r){ if(!r.ok)throw 0; return r.json()}).then(function(j){
       if(!dtFresh(tk))return;
       var teams=(j&&j.teams)||[]; var luKind=(j&&j.kind)||"confirmed";
+      // 이벤트 탭에서 선수 얼굴을 쓰도록 이름→사진 맵 저장(라인업에 사진 있을 때)
+      try{ if(_dt){ _dt._fbPhotos=_dt._fbPhotos||{}; teams.forEach(function(tt){ [].concat(tt.startXI||[],tt.subs||[]).forEach(function(p){ if(p&&p.name&&p.photo)_dt._fbPhotos[String(p.name).toLowerCase()]=p.photo; }); }); } }catch(_){}
       var anyXI=teams.some(function(tt){return tt.startXI&&tt.startXI.length;});
       if(!teams.length||!anyXI){
         // 예정 경기 = 아직 미발표 / 진행·종료 경기 = 이 경기는 라인업 미제공 (조회실패와 구분)
@@ -3705,9 +3717,11 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
       // 02 중앙 타임라인 — 필터(전체/골/카드/교체) + 홈/원정 좌우 배치 + 전반종료 구분 + 경기정보.
       var evFilter="all";
       function emoOf(e){ return e._kind==="goal"?(/own/i.test(e.detail)?"⚽":"⚽"):(e._kind==="card"?(/red/i.test(e.detail)?"🟥":"🟨"):(e._kind==="sub"?"🔄":(/var/i.test(e.type)?"📺":"•"))); }
+      function evPhoto(nm){ try{ return (_dt&&_dt._fbPhotos&&_dt._fbPhotos[String(nm||"").toLowerCase()])||null; }catch(_){ return null; } }
       function evInner(e){
         var plink=e.pid?('<span class="who pl-c" data-pid="'+esc(String(e.pid))+'" data-pnm="'+esc(e.player||"")+'">'+esc(e.player||"")+'</span>'):('<span class="who">'+esc(e.player||"")+'</span>');
-        var sub=e._kind==="sub"?('<div class="tl-sub">▲ '+esc(e.player||"")+(e.assist?'<br>▼ '+esc(e.assist):'')+'</div>'):(plink+(e.assist?' <span class="ass">('+esc(e.assist)+')</span>':''));
+        var av=(e.player&&e._kind!=="sub")?('<span class="tl-av">'+avatarHTML(evPhoto(e.player),e.player,null,26)+'</span>'):'';
+        var sub=e._kind==="sub"?('<div class="tl-sub">▲ '+esc(e.player||"")+(e.assist?'<br>▼ '+esc(e.assist):'')+'</div>'):(av+plink+(e.assist?' <span class="ass">('+esc(e.assist)+')</span>':''));
         var detailTxt=(e.detail&&!/normal goal/i.test(e.detail)&&e._kind!=="sub")?'<div class="tl-dt">'+esc(e.detail)+'</div>':'';
         var scoreTag=e._isGoal?'<div class="tl-sc">'+e._hs+' – '+e._as+'</div>':'';
         return sub+detailTxt+scoreTag;
@@ -3735,7 +3749,16 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
         '<div class="sv-row"><div class="sl">🏆 '+tl({en:"Competition",ko:"대회",ja:"大会",zh:"赛事",es:"Competición",hi:"प्रतियोगिता",vi:"Giải",th:"รายการ",ru:"Турнир",de:"Wettbewerb",fr:"Compétition",it:"Competizione"})+'</div><div class="sr">'+esc(g.league||"-")+'</div></div>'+
         '<div class="sv-row"><div class="sl">📅 '+tl({en:"Date",ko:"일시",ja:"日時",zh:"日期",es:"Fecha",hi:"तारीख़",vi:"Ngày",th:"วันที่",ru:"Дата",de:"Datum",fr:"Date",it:"Data"})+'</div><div class="sr">'+esc(dateLabel(S.date))+(g.date?' '+hhmm(g.date):'')+'</div></div>'+
         '</div></div>';
-      dtBody('<div class="tl-chips" id="tlChips">'+chips.map(function(c){return '<button class="fchip'+(c[0]==="all"?" on":"")+'" data-f="'+c[0]+'">'+c[1]+'</button>';}).join("")+'</div><div id="tlBody"></div>'+info);
+      // 🟢 최근 골 배너(시안) — 가장 마지막 득점 강조
+      var lastGoal=null; for(var _gi=seq.length-1;_gi>=0;_gi--){ if(seq[_gi]._isGoal){ lastGoal=seq[_gi]; break; } }
+      var goalBanner='';
+      if(lastGoal){ var _gh=(lastGoal.team===g.home);
+        goalBanner='<div class="ev-goal '+(_gh?"h":"a")+'">'+avatarHTML(evPhoto(lastGoal.player),lastGoal.player,null,46)+
+          '<div class="eg-main"><div class="eg-t">⚽ GOAL · '+esc((lastGoal.minute!=null?lastGoal.minute+(lastGoal.extra?"+"+lastGoal.extra:""):"")+"'")+'</div>'+
+          '<div class="eg-nm">'+esc(lastGoal.player||"")+'</div>'+(lastGoal.assist?'<div class="eg-as">'+tl({en:"Assist",ko:"도움",ja:"アシスト",zh:"助攻",es:"Asist.",hi:"सहायता",vi:"Kiến tạo",th:"แอสซิสต์",ru:"Пас",de:"Vorlage",fr:"Passe",it:"Assist"})+' '+esc(lastGoal.assist)+'</div>':'')+'</div>'+
+          '<div class="eg-sc">'+lastGoal._hs+' – '+lastGoal._as+'</div></div>';
+      }
+      dtBody(goalBanner+'<div class="tl-chips" id="tlChips">'+chips.map(function(c){return '<button class="fchip'+(c[0]==="all"?" on":"")+'" data-f="'+c[0]+'">'+c[1]+'</button>';}).join("")+'</div><div id="tlBody"></div>'+info);
       renderTl();
       $("#tlChips").querySelectorAll(".fchip").forEach(function(b){ b.onclick=function(){ evFilter=b.dataset.f; $("#tlChips").querySelectorAll(".fchip").forEach(function(x){x.classList.toggle("on",x===b);}); renderTl(); }; });
     }).catch(function(){ dtBody('<div class="msg"><div class="big">⚠️</div>'+t("m_evFail")+'</div>'); });
