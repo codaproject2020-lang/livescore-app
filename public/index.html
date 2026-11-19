@@ -71,6 +71,10 @@ img{display:block}
 .datebar .cal{color:var(--navy)}
 
 /* ===== 빅매치 ===== */
+/* 선수 아바타(사진/이니셜 공통) */
+.avw{display:inline-flex;align-items:center;justify-content:center;border-radius:50%;color:#fff;font-weight:800;line-height:1;overflow:hidden;position:relative;flex:0 0 auto;letter-spacing:-.3px;text-transform:uppercase}
+.avw::before{content:attr(data-ini)}
+.avw img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;background:#fff}
 .bigmatch{margin:14px 16px 6px;border-radius:16px;overflow:hidden;position:relative;color:#fff;box-shadow:var(--shadow)}
 .bigmatch .bgwrap{position:absolute;inset:0;background-size:cover;background-position:center}
 .bigmatch .bgwrap:after{content:"";position:absolute;inset:0;background:linear-gradient(180deg,rgba(10,18,38,.45),rgba(10,18,38,.72))}
@@ -1316,6 +1320,18 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
   function $(s,r){return (r||document).querySelector(s)}
   function el(t,c,h){var e=document.createElement(t);if(c)e.className=c;if(h!=null)e.innerHTML=h;return e}
   function esc(s){return String(s==null?"":s).replace(/[&<>"]/g,function(c){return{"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;"}[c]})}
+  // ====== 선수 아바타: 사진 있으면 원형 사진, 없으면 등번호/이니셜 컬러 원형(깨진 이미지 대신 깔끔한 폴백) ======
+  function avInitials(name){ var s=String(name||"").trim(); if(!s)return "•"; var p=s.split(/\s+/); if(p.length>=2)return (p[0].charAt(0)+p[p.length-1].charAt(0)); return s.replace(/\s/g,"").slice(0,2); }
+  var AV_COLORS=["#3b5bdb","#1aa65a","#e8830c","#c2255c","#7048e8","#1098ad","#d6336c","#2b6cf0","#0ca678","#e67700"];
+  function avColor(s){ s=String(s||"?"); var h=0; for(var i=0;i<s.length;i++)h=(h*31+s.charCodeAt(i))>>>0; return AV_COLORS[h%AV_COLORS.length]; }
+  // photo: 사진 URL(없으면 폴백) / name: 이름 / num: 등번호(있으면 우선 표시) / px: 지름 / cls: 추가 클래스
+  function avatarHTML(photo,name,num,px,cls){
+    px=px||36; cls=cls||"";
+    var ini=(num!=null&&num!=="")?esc(String(num)):esc(avInitials(name));
+    var st="width:"+px+"px;height:"+px+"px;font-size:"+Math.round(px*0.42)+"px;background:"+avColor(name||num);
+    var img=photo?'<img src="'+esc(photo)+'" loading="lazy" onerror="this.remove()">':'';
+    return '<span class="avw '+cls+'" data-ini="'+ini+'" style="'+st+'">'+img+'</span>';
+  }
   function todayStr(){ return ymd(new Date()); }
   function ymd(d){ // 기기 타임존 기준 YYYY-MM-DD
     var p=new Intl.DateTimeFormat("en-CA",{timeZone:TZ,year:"numeric",month:"2-digit",day:"2-digit"}).formatToParts(d);
@@ -3262,7 +3278,7 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
       var top=rated.slice(0,3);
       var h='<div class="dt-sec-t" style="margin-top:18px">⭐ '+t("topPlayers")+'</div><div class="ov-stars">';
       top.forEach(function(p){
-        var ph=p.photo?'<img src="'+esc(p.photo)+'" onerror="this.outerHTML=\'<div class=av>👤</div>\'">':'<div class="av">👤</div>';
+        var ph=avatarHTML(p.photo,p.name,null,40,"av");
         var gi=(p.goals?('⚽'+p.goals+' '):'')+(p.assists?('🅰'+p.assists):''); if(!gi)gi=esc(p.pos||'');
         h+='<div class="star-row'+(p.pid?' pl-c':'')+'" data-pid="'+esc(String(p.pid||""))+'" data-pnm="'+esc(p.name)+'">'+ph+'<div class="si"><div class="sn">'+esc(p.name)+'</div><div class="sg">'+gi+'</div></div><div class="sr">'+p.rating.toFixed(1)+'</div></div>';
       });
@@ -3636,7 +3652,7 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
       xi.forEach(function(p){ var pid=p.id!=null?String(p.id):"";
         var rt=(p.rating!=null&&p.rating!=="")?p.rating:null;
         ph+='<div class="pv'+(pid?' pl-c':'')+'" style="left:'+p.x+'%;top:'+p.y+'%" data-pid="'+esc(pid)+'" data-pnm="'+esc(p.name||"")+'">'+
-          '<div class="pv-av">'+(p.photo?'<img src="'+esc(p.photo)+'" onerror="this.outerHTML=\'<div class=\\\'pv-ph\\\'>👤</div>\'">':'<div class="pv-ph">👤</div>')+
+          '<div class="pv-av">'+avatarHTML(p.photo,p.name,p.number,38)+
           (p.captain?'<span class="pv-cap">C</span>':'')+
           (rt?'<span class="pv-rt" style="background:'+ratingColor(rt)+'">'+esc(rt)+'</span>':'')+'</div>'+
           '<div class="pv-no">#'+(p.number!==""?p.number:"")+'</div>'+
@@ -3925,7 +3941,7 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
     var o=overlay("ovPlayer");
     var LPROF=tl({en:"Season/profile data is being prepared.",ko:"시즌 누적·프로필 데이터는 준비 중입니다.",ja:"シーズン・プロフィールは準備中です。",zh:"赛季/资料数据准备中。",es:"Datos de temporada/perfil en preparación.",hi:"सीज़न/प्रोफ़ाइल डेटा तैयार हो रहा है।",vi:"Dữ liệu mùa giải/hồ sơ đang chuẩn bị.",th:"กำลังเตรียมข้อมูลฤดูกาล/โปรไฟล์",ru:"Данные сезона/профиля готовятся.",de:"Saison-/Profildaten werden vorbereitet.",fr:"Données de saison/profil en préparation.",it:"Dati stagione/profilo in preparazione."});
     var cg=tl({en:"This game",ko:"이 경기 기록",ja:"この試合",zh:"本场",es:"Este partido",hi:"इस मैच",vi:"Trận này",th:"เกมนี้",ru:"Эта игра",de:"Dieses Spiel",fr:"Ce match",it:"Questa gara"});
-    var photo=p.photo?'<img src="'+esc(p.photo)+'" style="width:64px;height:64px;border-radius:50%;object-fit:cover" onerror="this.outerHTML=\'<div class=ph style=\\\'width:64px;height:64px\\\'>👤</div>\'">':'<div class="ph" style="width:64px;height:64px">👤</div>';
+    var photo=avatarHTML(p.photo,p.name,p.number,64);
     function st(lbl,v){ return '<div class="pst"><span class="v">'+(v==null?'-':v)+'</span><span class="l">'+lbl+'</span></div>'; }
     o.innerHTML='<div class="dt-bar"><button class="bk" id="plBack">‹</button><div class="ti">'+esc(p.name||"")+'</div></div>'+
       '<div class="dt-body"><div style="display:flex;align-items:center;gap:12px;margin:6px 0 14px">'+photo+'<div><div style="font-weight:800;font-size:16px">'+esc(p.name||"")+'</div><div style="color:var(--muted);font-size:13px">'+(p.number?("#"+esc(String(p.number))+" · "):"")+esc(team||"")+'</div></div></div>'+
@@ -4750,7 +4766,7 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
       if(!$("#plBody"))return;
       var p=j&&j.player;
       if(!p){ $("#plBody").innerHTML='<div class="msg"><div class="big">📭</div>'+tl({en:"Player details aren't available yet.",ko:"선수 상세가 아직 제공되지 않습니다.",ja:"選手詳細は未提供です。",zh:"暂无球员详情。",es:"Sin detalles del jugador.",hi:"खिलाड़ी विवरण नहीं।",vi:"Chưa có chi tiết cầu thủ.",th:"ยังไม่มีรายละเอียด",ru:"Нет данных об игроке.",de:"Keine Spielerdetails.",fr:"Pas de détails joueur.",it:"Nessun dettaglio."})+'<br><span style="font-size:12px;color:#9aa1ad">'+esc(pname||"")+'</span></div>'; return; }
-      var ph=p.photo?'<img src="'+esc(p.photo)+'" style="width:72px;height:72px;border-radius:50%;object-fit:cover" onerror="this.outerHTML=\'<div style=font-size:44px>👤</div>\'">':'<div style="font-size:44px">👤</div>';
+      var ph=avatarHTML(p.photo,p.name,p.number,72);
       var h='<div class="sv-wrap"><div class="sv-prof" style="align-items:center"><div class="sv-av" style="background:#fff">'+ph+'</div><div style="min-width:0;flex:1"><h3 style="margin:0 0 4px;font-size:18px;color:var(--navy)">'+esc(p.name||pname||"")+'</h3><div style="font-size:12.5px;color:var(--muted)">'+(p.nationality?esc(p.nationality):"")+(p.position?(p.nationality?" · ":"")+esc(p.position):"")+(p.team?'<br>'+esc(p.team):"")+'</div></div></div>';
       // 프로필
       var info='';
