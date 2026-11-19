@@ -2181,8 +2181,14 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
     var o=overlay("ovAllSports");
     var ti=tl({en:"All games",ko:"전체 경기",ja:"全試合",zh:"全部比赛",es:"Todos los partidos",hi:"सभी मैच",vi:"Tất cả trận",th:"ทุกแมตช์",ru:"Все матчи",de:"Alle Spiele",fr:"Tous les matchs",it:"Tutte le partite"});
     o.innerHTML='<div class="dt-bar"><button class="bk" id="asBack">‹</button><div class="ti">'+ti+'</div></div>'+
-      '<div class="ags-ctrl" id="agsCtrl"></div><div class="dt-body" id="agsBody" style="padding:0"></div>';
+      '<div class="ags-ctrl" id="agsCtrl"></div><div class="dt-body" id="agsBody" style="padding:0"></div>'+
+      '<button class="totop ov-totop hide" id="agsTop"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M5 12l7-7 7 7"/></svg><span>'+tl({en:"Top",ko:"맨 위로",ja:"トップ",zh:"顶部",es:"Arriba",hi:"ऊपर",vi:"Lên đầu",th:"บนสุด",ru:"Наверх",de:"Oben",fr:"Haut",it:"Su"})+'</span></button>';
     $("#asBack").onclick=function(){ closeOverlay("ovAllSports"); };
+    // 📍 전체 경기 오버레이 전용 '맨 위로' 버튼 — 오버레이가 자체 스크롤 컨테이너라 창 스크롤 버튼이 안 걸림
+    var topBtn=$("#agsTop"); if(topBtn){
+      topBtn.onclick=function(){ try{ o.scrollTo({top:0,behavior:"smooth"}); }catch(e){ o.scrollTop=0; } };
+      o.addEventListener("scroll",function(){ topBtn.classList.toggle("hide", (o.scrollTop||0)<=900); },{passive:true});
+    }
     agsLoad();
   }
   function agsLoad(){
