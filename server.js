@@ -21,7 +21,7 @@ const app = express();
 const server = http.createServer(app);
 
 const PORT = process.env.PORT || 3000;
-const APP_VERSION = 'v519';
+const APP_VERSION = 'v520';
 
 // ============================================================
 //  📏 성능 계측(instrumentation) — 엔드포인트 지연·캐시·공급사·WS·이벤트루프
@@ -139,7 +139,7 @@ async function ytMeta(videoId) {
 const adminSubs = new Map();        // 관리자 알림 구독: endpoint -> subscription
 let _lastErrPush = 0;
 // 기능 토글/메인터넌스 (관리자가 바꾸면 전체 유저에 즉시 반영, 코드/배포 불필요)
-const CFG = { flags: {}, maint: '', bskSrc: 'thesports', ftbSrc: 'thesports', volSrc: 'thesports', bsbSrc: 'thesports', alertsOff: false, alertsNight: false, updatedAt: 0 };
+const CFG = { flags: {}, maint: '', bskSrc: 'thesports', ftbSrc: 'thesports', volSrc: 'thesports', bsbSrc: 'thesports', alertsOff: false, alertsNight: false, bigPin: '', updatedAt: 0 };
 function logError(src, type, msg, extra, force) {
   try {
     const e = { ts: Date.now(), src: src || 'server', type: type || 'error', msg: String((msg && msg.message) || msg || '').slice(0, 600), extra: extra || null };
@@ -324,7 +324,7 @@ async function initDB() {
       errorsCol = db.collection('errors'); await errorsCol.createIndex({ ts: -1 }).catch(() => {});
       configCol = db.collection('config');
       const c = await configCol.findOne({ _id: 'main' });
-      if (c) { CFG.flags = c.flags || {}; CFG.maint = c.maint || ''; CFG.bskSrc = c.bskSrc || 'thesports'; CFG.ftbSrc = c.ftbSrc || 'thesports'; CFG.volSrc = c.volSrc || 'thesports'; CFG.bsbSrc = c.bsbSrc || 'thesports'; CFG.alertsOff = !!c.alertsOff; CFG.alertsNight = !!c.alertsNight; CFG.updatedAt = c.updatedAt || 0;
+      if (c) { CFG.flags = c.flags || {}; CFG.maint = c.maint || ''; CFG.bskSrc = c.bskSrc || 'thesports'; CFG.ftbSrc = c.ftbSrc || 'thesports'; CFG.volSrc = c.volSrc || 'thesports'; CFG.bsbSrc = c.bsbSrc || 'thesports'; CFG.alertsOff = !!c.alertsOff; CFG.alertsNight = !!c.alertsNight; CFG.bigPin = c.bigPin || ''; CFG.updatedAt = c.updatedAt || 0;
         // 🎥 트래커 URL(72시간마다 갱신) 복원 — 관리자가 저장한 값이 하드코딩 기본값을 덮어씀(재배포 불필요)
         if (c.tracker) { ['football', 'basketball', 'volleyball', 'baseball'].forEach(s => { if (typeof c.tracker[s] === 'string' && c.tracker[s]) TRACKER_URLS[s] = c.tracker[s]; }); console.log('[DB] 트래커 URL 복원'); }
       }
@@ -392,7 +392,7 @@ async function sendWelcomeMail(to, name) {
   try { await mailer.sendMail({ from: MAIL_FROM, to, subject: 'LIVE UP 가입을 환영합니다 🎉', html }); }
   catch (e) { console.error('welcome mail failed:', e.message); }
 }
-app.get('/api/config', (req, res) => res.json({ googleClientId: GOOGLE_CLIENT_ID, flags: CFG.flags || {}, maint: CFG.maint || '', bskSrc: CFG.bskSrc || 'auto', ftbSrc: CFG.ftbSrc || 'thesports', volSrc: CFG.volSrc || 'thesports' }));
+app.get('/api/config', (req, res) => res.json({ googleClientId: GOOGLE_CLIENT_ID, flags: CFG.flags || {}, maint: CFG.maint || '', bskSrc: CFG.bskSrc || 'auto', ftbSrc: CFG.ftbSrc || 'thesports', volSrc: CFG.volSrc || 'thesports', bigPin: CFG.bigPin || '' }));
 app.post('/api/auth/google', async (req, res) => {
   const cred = req.body && req.body.credential;
   if (!GOOGLE_CLIENT_ID) return res.json({ ok: false, error: '서버에 GOOGLE_CLIENT_ID 미설정' });
@@ -598,7 +598,7 @@ app.post('/api/clienterror', (req, res) => {
 app.get('/api/admin/errors', (req, res) => { if (!adminOK(req)) return res.status(401).json({ ok: false }); res.json({ ok: true, count: ERRLOG.length, errors: ERRLOG.slice(-150).reverse() }); });
 app.post('/api/admin/errors/clear', (req, res) => { if (!adminOK(req)) return res.status(401).json({ ok: false }); ERRLOG.length = 0; res.json({ ok: true }); });
 // 관리자: 기능 토글 / 메인터넌스 / 농구소스 저장 (전체 유저 즉시 반영)
-app.get('/api/admin/config', (req, res) => { if (!adminOK(req)) return res.status(401).json({ ok: false }); res.json({ ok: true, flags: CFG.flags, maint: CFG.maint, bskSrc: CFG.bskSrc, ftbSrc: CFG.ftbSrc, volSrc: CFG.volSrc, alertsOff: CFG.alertsOff, alertsNight: CFG.alertsNight, updatedAt: CFG.updatedAt }); });
+app.get('/api/admin/config', (req, res) => { if (!adminOK(req)) return res.status(401).json({ ok: false }); res.json({ ok: true, flags: CFG.flags, maint: CFG.maint, bskSrc: CFG.bskSrc, ftbSrc: CFG.ftbSrc, volSrc: CFG.volSrc, alertsOff: CFG.alertsOff, alertsNight: CFG.alertsNight, bigPin: CFG.bigPin || '', updatedAt: CFG.updatedAt }); });
 app.post('/api/admin/config', (req, res) => {
   if (!adminOK(req)) return res.status(401).json({ ok: false });
   const b = req.body || {};
@@ -609,9 +609,11 @@ app.post('/api/admin/config', (req, res) => {
   if (typeof b.volSrc === 'string') CFG.volSrc = b.volSrc;
   if (typeof b.alertsOff === 'boolean') CFG.alertsOff = b.alertsOff;
   if (typeof b.alertsNight === 'boolean') CFG.alertsNight = b.alertsNight;
+  // 🏅 운영자 대표경기 수동 지정 핀 ('sport:id' 또는 빈 문자열로 해제)
+  if (typeof b.bigPin === 'string') CFG.bigPin = b.bigPin.trim().slice(0, 80);
   CFG.updatedAt = Date.now();
-  if (configCol) configCol.updateOne({ _id: 'main' }, { $set: { flags: CFG.flags, maint: CFG.maint, bskSrc: CFG.bskSrc, ftbSrc: CFG.ftbSrc, volSrc: CFG.volSrc, alertsOff: CFG.alertsOff, alertsNight: CFG.alertsNight, updatedAt: CFG.updatedAt } }, { upsert: true }).catch(() => {});
-  res.json({ ok: true, flags: CFG.flags, maint: CFG.maint, bskSrc: CFG.bskSrc, ftbSrc: CFG.ftbSrc, volSrc: CFG.volSrc, alertsOff: CFG.alertsOff, alertsNight: CFG.alertsNight });
+  if (configCol) configCol.updateOne({ _id: 'main' }, { $set: { flags: CFG.flags, maint: CFG.maint, bskSrc: CFG.bskSrc, ftbSrc: CFG.ftbSrc, volSrc: CFG.volSrc, alertsOff: CFG.alertsOff, alertsNight: CFG.alertsNight, bigPin: CFG.bigPin || '', updatedAt: CFG.updatedAt } }, { upsert: true }).catch(() => {});
+  res.json({ ok: true, flags: CFG.flags, maint: CFG.maint, bskSrc: CFG.bskSrc, ftbSrc: CFG.ftbSrc, volSrc: CFG.volSrc, alertsOff: CFG.alertsOff, alertsNight: CFG.alertsNight, bigPin: CFG.bigPin || '' });
 });
 // 관리자: 폰 알림 구독 / 테스트
 app.post('/api/admin/push/subscribe', (req, res) => {
