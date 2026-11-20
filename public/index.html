@@ -4888,7 +4888,9 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
           if(j.recent&&j.recent.length){ h+='<div class="dt-sec-t" style="margin-top:14px">🕘 '+t("recentMatches")+'</div><div class="rec-list">'+j.recent.slice(0,5).map(function(m){return fbTeamMatchRow(m,teamId);}).join("")+'</div>'; }
           // 기본 정보
           var info=[];
-          if(tm.foundation) info.push([tl({en:"Founded",ko:"창단",ja:"創設",zh:"成立",es:"Fundado",hi:"स्थापना",vi:"Thành lập",th:"ก่อตั้ง",ru:"Основан",de:"Gegründet",fr:"Fondé",it:"Fondato"}), new Date(tm.foundation*1000).getFullYear()]);
+          // TheSports foundation = 창단 '연도'(예: 1886). *1000 변환 금지. 값 없으면 '—'.
+          var _fy=Number(tm.foundation); var _fyOk=(_fy>=1800&&_fy<=(new Date().getFullYear()+1));
+          info.push([tl({en:"Founded",ko:"창단",ja:"創設",zh:"成立",es:"Fundado",hi:"स्थापना",vi:"Thành lập",th:"ก่อตั้ง",ru:"Основан",de:"Gegründet",fr:"Fondé",it:"Fondato"}), _fyOk?_fy:"—"]);
           if(tm.foreignPlayers) info.push([tl({en:"Foreign players",ko:"외국인 선수",ja:"外国人選手",zh:"外援",es:"Extranjeros",hi:"विदेशी",vi:"Ngoại binh",th:"ต่างชาติ",ru:"Легионеры",de:"Ausländer",fr:"Étrangers",it:"Stranieri"}), tm.foreignPlayers]);
           if(info.length){ h+='<div class="dt-sec-t" style="margin-top:14px">ℹ️ '+t("matchInfo")+'</div>'+info.map(function(r){return '<div class="ft-info"><span>'+r[0]+'</span><b>'+esc(String(r[1]))+'</b></div>';}).join(""); }
           // 미제공 안내(플랜)
@@ -5007,7 +5009,7 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
       if(tm.league)r+='<div class="sv-row"><div class="sl">'+tl({en:"League",ko:"소속 리그",ja:"リーグ",zh:"联赛",es:"Liga",hi:"लीग",vi:"Giải",th:"ลีก",ru:"Лига",de:"Liga",fr:"Ligue",it:"Lega"})+'</div><div class="sr">'+esc(tm.league)+'</div></div>';
       if(tm.stadium)r+='<div class="sv-row"><div class="sl">'+tl({en:"Stadium",ko:"홈구장",ja:"本拠地",zh:"主场",es:"Estadio",hi:"स्टेडियम",vi:"Sân nhà",th:"สนาม",ru:"Стадион",de:"Stadion",fr:"Stade",it:"Stadio"})+'</div><div class="sr">'+esc(tm.stadium)+'</div></div>';
       if(tm.manager)r+='<div class="sv-row"><div class="sl">'+tl({en:"Manager",ko:"감독",ja:"監督",zh:"主教练",es:"Entrenador",hi:"कोच",vi:"HLV",th:"ผจก.",ru:"Тренер",de:"Trainer",fr:"Entraîneur",it:"Allenatore"})+'</div><div class="sr">'+esc(tm.manager)+'</div></div>';
-      if(tm.formed)r+='<div class="sv-row"><div class="sl">'+tl({en:"Founded",ko:"창단",ja:"創設",zh:"成立",es:"Fundado",hi:"स्थापना",vi:"Thành lập",th:"ก่อตั้ง",ru:"Основан",de:"Gegründet",fr:"Fondé",it:"Fondato"})+'</div><div class="sr">'+esc(tm.formed)+'</div></div>';
+      {var _fy2=Number(tm.formed); var _fyv=(_fy2>=1800&&_fy2<=(new Date().getFullYear()+1))?_fy2:"—"; r+='<div class="sv-row"><div class="sl">'+tl({en:"Founded",ko:"창단",ja:"創設",zh:"成立",es:"Fundado",hi:"स्थापना",vi:"Thành lập",th:"ก่อตั้ง",ru:"Основан",de:"Gegründet",fr:"Fondé",it:"Fondato"})+'</div><div class="sr">'+esc(String(_fyv))+'</div></div>';}
       if(!r)return '';
       return '<div class="sv-sec"><div class="sv-sh">'+tl({en:"Team info",ko:"팀 정보",ja:"チーム情報",zh:"球队信息",es:"Info del equipo",hi:"टीम जानकारी",vi:"Thông tin đội",th:"ข้อมูลทีม",ru:"О команде",de:"Team-Info",fr:"Infos équipe",it:"Info squadra"})+'</div><div class="sv-card">'+r+'</div></div>';
     }

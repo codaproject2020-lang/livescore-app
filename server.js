@@ -21,7 +21,7 @@ const app = express();
 const server = http.createServer(app);
 
 const PORT = process.env.PORT || 3000;
-const APP_VERSION = 'v534';
+const APP_VERSION = 'v535';
 
 // ============================================================
 //  📏 성능 계측(instrumentation) — 엔드포인트 지연·캐시·공급사·WS·이벤트루프
@@ -1178,9 +1178,11 @@ app.get('/api/team/as', async (req, res) => {
         const tt = await tsFootTeam(idStr).catch(() => null);
         if (tt && tt.name) {
           const cc = await _tsCountryName(tt.countryId).catch(() => '');
+          // TheSports foundation_time = 창단 '연도'(예: 1886), 타임스탬프 아님. 유효 연도만, 없으면 빈값(→ '—').
+          const fy = Number(tt.foundation);
           const team = {
             id: idStr, name: tt.name, badge: tt.logo || '', country: cc || '',
-            formed: tt.foundation ? new Date(tt.foundation * 1000).getUTCFullYear() : '',
+            formed: (fy >= 1800 && fy <= (new Date().getUTCFullYear() + 1)) ? fy : '',
             totalPlayers: tt.totalPlayers || 0, foreignPlayers: tt.foreignPlayers || 0,
             marketValue: tt.marketValue || 0, marketCur: tt.marketCur || ''
           };
