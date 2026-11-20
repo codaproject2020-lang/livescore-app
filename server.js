@@ -21,7 +21,7 @@ const app = express();
 const server = http.createServer(app);
 
 const PORT = process.env.PORT || 3000;
-const APP_VERSION = 'v536';
+const APP_VERSION = 'v537';
 
 // ============================================================
 //  📏 성능 계측(instrumentation) — 엔드포인트 지연·캐시·공급사·WS·이벤트루프
@@ -1000,6 +1000,30 @@ function parseVolleyStandings(j) {
   out.sort((a, b) => String(a.group || '').localeCompare(String(b.group || '')) || (a.rank || 99) - (b.rank || 99));
   return out;
 }
+// 🏐 공식 순위표 미제공 시 결과(경기)로 집계 — AiScore 방식. KOVO 승점: 3-0/3-1=3, 3-2=2, 2-3=1, 0·1-3=0.
+async function rankVolleyFromGames(lid, sy) {
+  const j = await asRaw('volleyball', `/games?league=${lid}&season=${encodeURIComponent(sy)}`, 1800000).catch(() => null);
+  const arr = (j && j.response) || [];
+  const T = new Map();
+  const get = t => { if (!t || t.id == null) return null; if (!T.has(t.id)) T.set(t.id, { teamId: t.id, team: t.name, logo: t.logo, played: 0, win: 0, loss: 0, sf: 0, sa: 0, points: 0 }); return T.get(t.id); };
+  let finished = 0;
+  arr.forEach(g => {
+    if (!g || !g.teams || !g.teams.home || !g.teams.away || !g.scores) return;
+    const H = g.scores.home == null ? null : +g.scores.home, A = g.scores.away == null ? null : +g.scores.away;
+    if (H == null || A == null || isNaN(H) || isNaN(A)) return;
+    // 완료 경기만: 누군가 3세트 선취하고 동점 아님
+    if (!(Math.max(H, A) >= 3 && H !== A)) return;
+    const h = get(g.teams.home), a = get(g.teams.away); if (!h || !a) return;
+    finished++;
+    h.played++; a.played++; h.sf += H; h.sa += A; a.sf += A; a.sa += H;
+    if (H > A) { h.win++; a.loss++; if (H - A >= 2) { h.points += 3; } else { h.points += 2; a.points += 1; } }
+    else { a.win++; h.loss++; if (A - H >= 2) { a.points += 3; } else { a.points += 2; h.points += 1; } }
+  });
+  const rows = [...T.values()].filter(r => r.played > 0);
+  rows.sort((x, y) => y.points - x.points || (y.sf - y.sa) - (x.sf - x.sa) || y.win - x.win || String(x.team).localeCompare(String(y.team)));
+  rows.forEach((r, i) => r.rank = i + 1);
+  return finished ? rows : [];
+}
 async function asLeagueId(sport, name) {
   if (!name) return null;
   const ck = sport + '|' + name;
@@ -1071,6 +1095,11 @@ async function rankVolleyball(league, season) {
     const j = await asRaw('volleyball', `/standings?league=${lid}&season=${encodeURIComponent(sy)}`, 3600000).catch(() => null);
     const table = parseVolleyStandings(j);
     if (table.length) return { table, kind: 'volleyball', season: sy };
+  }
+  // 공식 순위표 미제공(예: 여자부 신시즌 초반) → 결과 집계로 폴백(AiScore 방식). 완료 경기 없으면 미제공.
+  for (const sy of cands) {
+    const g = await rankVolleyFromGames(lid, sy).catch(() => []);
+    if (g.length) return { table: g, kind: 'volleyball', season: sy, source: 'games' };
   }
   return { table: [], kind: 'volleyball', note: reqY ? 'season-na' : 'unmapped' };
 }
@@ -1159,7 +1188,7 @@ app.get('/api/volleyball/rankdebug', async (req, res) => {
     lid = /^Volleyball League( Women)?$/i.test(alias) ? await asVolleyKRLeagueId(alias) : await asLeagueId('volleyball', alias);
     const out = await rankVolleyball(league, season).catch(e => ({ error: String((e && e.message) || e) }));
     res.json({
-      league, alias, resolvedLeagueId: lid, season, note: out && out.note, seasonUsed: out && out.season,
+      league, alias, resolvedLeagueId: lid, season, note: out && out.note, seasonUsed: out && out.season, source: (out && out.source) || 'standings',
       teams: (out && out.table) ? out.table.length : 0, searchCandidates: cands.slice(0, 8),
       rows: (out && out.table) ? out.table.slice(0, 8).map(r => ({ rank: r.rank, team: r.team, p: r.played, w: r.win, l: r.loss, sets: (r.sf != null || r.sa != null) ? (r.sf + ':' + r.sa) : null, pts: r.points })) : []
     });
