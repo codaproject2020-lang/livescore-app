@@ -21,7 +21,7 @@ const app = express();
 const server = http.createServer(app);
 
 const PORT = process.env.PORT || 3000;
-const APP_VERSION = 'v538';
+const APP_VERSION = 'v539';
 
 // ============================================================
 //  📏 성능 계측(instrumentation) — 엔드포인트 지연·캐시·공급사·WS·이벤트루프
@@ -994,7 +994,8 @@ function parseVolleyStandings(j) {
       played: num(r.games && r.games.played),
       win: num(r.games && r.games.win), loss: num(r.games && (r.games.lose != null ? r.games.lose : r.games.loss)),
       points: (r.points == null || typeof r.points === 'object') ? num(r.points) : r.points,
-      sf: num(r.goals && r.goals.for), sa: num(r.goals && r.goals.against)
+      sf: num(r.goals && r.goals.for), sa: num(r.goals && r.goals.against),
+      form: (typeof r.form === 'string' ? r.form.replace(/[^WLwl]/g, '').toUpperCase().slice(-5) : '')
     });
   }));
   out.sort((a, b) => String(a.group || '').localeCompare(String(b.group || '')) || (a.rank || 99) - (b.rank || 99));
@@ -1005,7 +1006,7 @@ async function rankVolleyFromGames(lid, sy) {
   const j = await asRaw('volleyball', `/games?league=${lid}&season=${encodeURIComponent(sy)}`, 1800000).catch(() => null);
   const arr = (j && j.response) || [];
   const T = new Map();
-  const get = t => { if (!t || t.id == null) return null; if (!T.has(t.id)) T.set(t.id, { teamId: t.id, team: t.name, logo: t.logo, played: 0, win: 0, loss: 0, sf: 0, sa: 0, points: 0 }); return T.get(t.id); };
+  const get = t => { if (!t || t.id == null) return null; if (!T.has(t.id)) T.set(t.id, { teamId: t.id, team: t.name, logo: t.logo, played: 0, win: 0, loss: 0, sf: 0, sa: 0, points: 0, _f: [] }); return T.get(t.id); };
   let finished = 0;
   arr.forEach(g => {
     if (!g || !g.teams || !g.teams.home || !g.teams.away || !g.scores) return;
@@ -1015,13 +1016,17 @@ async function rankVolleyFromGames(lid, sy) {
     if (!(Math.max(H, A) >= 3 && H !== A)) return;
     const h = get(g.teams.home), a = get(g.teams.away); if (!h || !a) return;
     finished++;
+    const ts = g.date ? Date.parse(g.date) : (g.timestamp ? g.timestamp * 1000 : 0);
     h.played++; a.played++; h.sf += H; h.sa += A; a.sf += A; a.sa += H;
-    if (H > A) { h.win++; a.loss++; if (H - A >= 2) { h.points += 3; } else { h.points += 2; a.points += 1; } }
+    const hWin = H > A;
+    if (hWin) { h.win++; a.loss++; if (H - A >= 2) { h.points += 3; } else { h.points += 2; a.points += 1; } }
     else { a.win++; h.loss++; if (A - H >= 2) { a.points += 3; } else { a.points += 2; h.points += 1; } }
+    h._f.push({ t: ts, r: hWin ? 'W' : 'L' }); a._f.push({ t: ts, r: hWin ? 'L' : 'W' });
   });
   const rows = [...T.values()].filter(r => r.played > 0);
   rows.sort((x, y) => y.points - x.points || (y.sf - y.sa) - (x.sf - x.sa) || y.win - x.win || String(x.team).localeCompare(String(y.team)));
-  rows.forEach((r, i) => r.rank = i + 1);
+  // 최근 5경기(시간순, 가장 최근이 오른쪽) — 실제 종료 경기만.
+  rows.forEach((r, i) => { r.rank = i + 1; r._f.sort((p, q) => p.t - q.t); r.form = r._f.slice(-5).map(x => x.r).join(''); delete r._f; });
   return finished ? rows : [];
 }
 async function asLeagueId(sport, name) {
@@ -1190,7 +1195,7 @@ app.get('/api/volleyball/rankdebug', async (req, res) => {
     res.json({
       league, alias, resolvedLeagueId: lid, season, note: out && out.note, seasonUsed: out && out.season, source: (out && out.source) || 'standings',
       teams: (out && out.table) ? out.table.length : 0, searchCandidates: cands.slice(0, 8),
-      rows: (out && out.table) ? out.table.slice(0, 8).map(r => ({ rank: r.rank, team: r.team, p: r.played, w: r.win, l: r.loss, sets: (r.sf != null || r.sa != null) ? (r.sf + ':' + r.sa) : null, pts: r.points })) : []
+      rows: (out && out.table) ? out.table.slice(0, 8).map(r => ({ rank: r.rank, team: r.team, teamId: r.teamId, logo: !!r.logo, p: r.played, w: r.win, l: r.loss, sets: (r.sf != null || r.sa != null) ? (r.sf + ':' + r.sa) : null, pts: r.points, last5: r.form || '' })) : []
     });
   } catch (e) { res.json({ error: String((e && e.message) || e) }); }
 });
