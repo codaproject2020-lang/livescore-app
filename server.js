@@ -21,7 +21,7 @@ const app = express();
 const server = http.createServer(app);
 
 const PORT = process.env.PORT || 3000;
-const APP_VERSION = 'v530';
+const APP_VERSION = 'v532';
 
 // ============================================================
 //  📏 성능 계측(instrumentation) — 엔드포인트 지연·캐시·공급사·WS·이벤트루프
@@ -1058,7 +1058,9 @@ app.get('/api/rank', async (req, res) => {
     if (sport === 'football') out = await rankFootball(league, season);
     else if (sport === 'baseball') {
       if (/KBO|NPB|CPBL|korea|japan|대한민국|일본/i.test(league)) out = await rankBaseballAS(league, season);   // R012/R013: KBO·NPB API-Sports 순위
-      else out = await rankMLB(season);   // MLB(및 기본)
+      // #3: MLB(및 리그 미지정)만 MLB 순위. ABL 등 미매핑 리그는 MLB로 오폴백 금지 → 'unmapped'로 제공불가 안내.
+      else if (!league || /MLB|major\s*league|메이저|american\s*league|national\s*league|아메리칸|내셔널/i.test(league)) out = await rankMLB(season);
+      else out = { table: [], note: 'unmapped' };
     }
     else if (sport === 'basketball') out = await rankBasketball(league, season);
     else if (sport === 'volleyball') out = await rankVolleyball(league, season);
@@ -1726,15 +1728,18 @@ const TS_PROXY = (process.env.THESPORTS_PROXY || '').trim().replace(/\/$/, ''); 
 const TS_RELAY_TOKEN = (process.env.THESPORTS_RELAY_TOKEN || '').trim();
 const TS_ON = !!(TS_USER && TS_SECRET);
 // 🏷️ 공급사 리그 원본명 → 사용자 표시명(원본은 leagueOrig로 보존). 명령서 #4-2·#6.
-function tsLeagueDisplay(sport, name) {
+function tsLeagueDisplay(sport, name, country) {
   const n = String(name || '');
+  const cc = String(country || '').toLowerCase();
+  const isKorea = /korea|대한민국|한국|south\s*korea/.test(cc);
   if (sport === 'basketball') {
     if (/^National Basketball Association G League$/i.test(n)) return 'NBA G리그';
     if (/^National Basketball Association$/i.test(n)) return 'NBA';
   }
   if (sport === 'volleyball') {
-    if (/^Volleyball League Women$/i.test(n)) return 'V리그 여자부';   // 한국 KOVO 여자부(IBK·GS칼텍스 등으로 확인)
-    if (/^Volleyball League$/i.test(n)) return 'V리그 남자부';          // 한국 KOVO 남자부(원본명 기준 — 실경기 재확인)
+    // ⚠️ 'Volleyball League'는 공급사에서 한국 KOVO 외 다른 나라(카타르 등)도 동명으로 올 수 있어 '한국'일 때만 V리그로 표기.
+    if (/^Volleyball League Women$/i.test(n)) return isKorea ? 'V리그 여자부' : n;   // 한국 KOVO 여자부
+    if (/^Volleyball League$/i.test(n)) return isKorea ? 'V리그 남자부' : n;          // 한국 KOVO 남자부
   }
   return n;
 }
@@ -3569,7 +3574,8 @@ async function _fbResolveCompByName(leagueName, baseDate) {
         ((d.results_extra || {}).competition || []).forEach(c => {
           if (!c || !c.id) return;
           if (!nameOk(c.name)) return;
-          if (hint && hint.country && hint.country.length) { const cc = countries[c.country_id] || ''; if (!hint.country.some(x => cc.includes(x) || x.includes(cc))) return; }
+          // 🌍 국가 힌트가 있으면 '정확히 그 국가'만 인정. 국가 미해석(빈 값)이면 제외 — 빈 문자열이 includes로 전부 통과되던 오매칭(예: 잉글랜드 EPL → 시에라리온 프리미어 리그) 방지.
+          if (hint && hint.country && hint.country.length) { const cc = countries[c.country_id] || ''; const okc = !!cc && hint.country.some(x => cc === x || cc.includes(x) || (x.length > 3 && x.includes(cc))); if (!okc) return; }
           tally[c.id] = tally[c.id] || { count: 0, name: c.name }; tally[c.id].count++;
         });
       });
@@ -3866,7 +3872,7 @@ async function tsVolleyballGames(date, tz) {
       const st = m.status_id, state = tsVolState(st);
       out.push({
         id: 'ts' + id, tsid: id, sport: 'volleyball',
-        league: tsLeagueDisplay('volleyball', cp.name) || '', leagueOrig: cp.name || '', leagueLogo: cp.logo || '', leagueId: m.unique_tournament_id || m.tournament_id || '', country: cp.country || '',
+        league: tsLeagueDisplay('volleyball', cp.name, cp.country) || '', leagueOrig: cp.name || '', leagueLogo: cp.logo || '', leagueId: m.unique_tournament_id || m.tournament_id || '', country: cp.country || '',
         home: ht.name || '', homeLogo: ht.logo || '', away: at.name || '', awayLogo: at.logo || '',
         homeTid: m.home_team_id, awayTid: m.away_team_id,
         hs: (ft[0] != null ? +ft[0] : null), as: (ft[1] != null ? +ft[1] : null),   // 세트 승수
@@ -5048,7 +5054,8 @@ app.get('/api/football/tsteam', async (req, res) => {
     const futureRaw = ((side === 'home' ? fut.home : fut.away) || []).map(decM).filter(Boolean);
     const recent = recentRaw.slice(0, 10), next = futureRaw.slice(0, 5);
     let w = 0, d = 0, l = 0;
-    recent.forEach(m => { const iH = String(m.home) === String(id); const my = iH ? m.hs : m.as, op = iH ? m.as : m.hs; if (my == null || op == null) return; if (my > op) w++; else if (my < op) l++; else d++; });
+    // 승무패는 '종료 경기(status 8)'만 집계 — 예정/미진행 경기의 0:0 가짜 무승부 방지.
+    recent.forEach(m => { if (m.status !== 8) return; const iH = String(m.home) === String(id); const my = iH ? m.hs : m.as, op = iH ? m.as : m.hs; if (my == null || op == null) return; if (my > op) w++; else if (my < op) l++; else d++; });
     const ids = []; recent.concat(next).forEach(m => { ids.push(m.home); ids.push(m.away); });
     const nm = await tsNames(ids);
     const addN = m => Object.assign({}, m, { homeName: (nm[m.home] && nm[m.home].name) || '', awayName: (nm[m.away] && nm[m.away].name) || '', homeLogo: (nm[m.home] && nm[m.home].logo) || '', awayLogo: (nm[m.away] && nm[m.away].logo) || '' });

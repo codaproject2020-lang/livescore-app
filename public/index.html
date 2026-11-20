@@ -27,6 +27,11 @@ html[data-theme="dark"]{
 }
 html[data-theme="dark"] body{background:#0c111b}
 html[data-theme="dark"] .fbrow .posbar,html[data-theme="dark"] .stbar .tr{background:#2c3a54}
+/* 🌙 다크 모드 가독성 — 하드코딩 흰 배경 컴포넌트를 어둡게(밝은 글씨 겹침 방지). 메인·목록·상세·메뉴·팝업·하단바 공통. */
+html[data-theme="dark"] .topbar,html[data-theme="dark"] .sporttabs,html[data-theme="dark"] .datebar,html[data-theme="dark"] .bottomnav,html[data-theme="dark"] .detail,html[data-theme="dark"] .dt-bar,html[data-theme="dark"] .dt-tabs{background:#121a28;color:var(--navy)}
+html[data-theme="dark"] .league,html[data-theme="dark"] .sv-card,html[data-theme="dark"] .sv-stat,html[data-theme="dark"] .m-cell,html[data-theme="dark"] .m-setcard,html[data-theme="dark"] .ib-item,html[data-theme="dark"] .sh-sheet,html[data-theme="dark"] .fbtn,html[data-theme="dark"] .segb,html[data-theme="dark"] .gbtn,html[data-theme="dark"] .pl .no{background:#1b2639;color:var(--navy);border-color:#2c3a54}
+html[data-theme="dark"] .tl-ic,html[data-theme="dark"] .pv-av,html[data-theme="dark"] .acct .av,html[data-theme="dark"] .lg-h .lph,html[data-theme="dark"] .lg-h .lgpin{background:#232f46;color:var(--navy)}
+html[data-theme="dark"] .dt-tabs .dt-tab.on{background:var(--navy);color:#121a28}
 /* 🔤 글자 크기(비율 확대 — 레이아웃 비례 유지로 잘림 방지) */
 html.fs-large{zoom:1.12} html.fs-xl{zoom:1.24}
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
@@ -1363,6 +1368,12 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
     var sp=S.sport, st=String(g.status||"").toUpperCase(), ko=(LANG==="ko");
     if(stateOf(g)==="scheduled") return t("startSoon");
     if(stateOf(g)==="finished") return (st==="PEN"?t("finished")+" ("+t("penalties")+")":t("finished"));
+    // ⏸ 연기·취소·중단은 '진행 중'으로 표시하지 않음(가짜 시계 금지). 공급사 상태를 그대로 반영.
+    if(isDeadGame(g)){ var ds=String(g.status||"")+" "+String(g.statusLong||"");
+      if(/cancel|취소|\bCANC\b|\bAWD\b|walk\s*over|\bWO\b|몰수|forfeit/i.test(ds)) return tl({en:"Cancelled",ko:"취소",ja:"中止",zh:"取消",es:"Cancelado",hi:"रद्द",vi:"Hủy",th:"ยกเลิก",ru:"Отменён",de:"Abgesagt",fr:"Annulé",it:"Annullata"});
+      if(/postpon|연기|\bPST\b|\bPSTP\b/i.test(ds)) return tl({en:"Postponed",ko:"연기",ja:"延期",zh:"推迟",es:"Aplazado",hi:"स्थगित",vi:"Hoãn",th:"เลื่อน",ru:"Перенесён",de:"Verschoben",fr:"Reporté",it:"Rinviata"});
+      return tl({en:"Interrupted",ko:"중단",ja:"中断",zh:"中断",es:"Interrumpido",hi:"रुका",vi:"Gián đoạn",th:"หยุดชะงัก",ru:"Прерван",de:"Unterbrochen",fr:"Interrompu",it:"Interrotta"});
+    }
     if(isStaleLive(g)) return t("checking");   // 오래된 0:0 의심 → 가짜 시계 대신 '정보 확인 중'
     if(st==="HT") return t("halftime");
     if(sp==="football"){
@@ -4403,9 +4414,14 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
     h+='<div class="kr"><span class="v">'+(g.hs==null?"-":g.hs)+' : '+(g.as==null?"-":g.as)+'</span><span class="l">'+t("setsWon")+'</span></div>';
     if(hasPts) h+='<div class="kr"><span class="v">'+totH+' : '+totA+'</span><span class="l">'+t("vbTotalPts")+'</span></div>';
     h+='</div>';
-    h+='<div class="ov-links"><button class="ov-link" data-go="vbstats">📊 '+t("statsTab")+' ›</button><button class="ov-link" data-go="vbh2h">⚔️ '+t("h2hTab")+' ›</button><button class="ov-link" data-go="vbrank">🏆 '+t("standings")+' ›</button></div>';
+    // 바로가기 버튼은 '데이터 있는 탭'만 노출(없는 탭은 눌러도 개요로 되돌아오던 문제 방지). 가용성 확정 시 개요가 재렌더되어 갱신됨.
+    var _av=(_dt&&_dt.avail)||{}; var vlinks=[];
+    if(_av.vbstats!==false) vlinks.push('<button class="ov-link" data-go="vbstats">📊 '+t("statsTab")+' ›</button>');
+    if(_av.vbh2h!==false) vlinks.push('<button class="ov-link" data-go="vbh2h">⚔️ '+t("h2hTab")+' ›</button>');
+    if(_av.vbrank!==false) vlinks.push('<button class="ov-link" data-go="vbrank">🏆 '+t("standings")+' ›</button>');
+    if(vlinks.length) h+='<div class="ov-links">'+vlinks.join('')+'</div>';
     dtBody(h);
-    var db=$("#dtBody"); if(db)db.querySelectorAll(".ov-link").forEach(function(b){ b.onclick=function(){ _dt.tab=b.dataset.go; renderDetail(); }; });
+    var db=$("#dtBody"); if(db)db.querySelectorAll(".ov-link").forEach(function(b){ b.onclick=function(){ var go=b.dataset.go; var av2=(_dt&&_dt.avail)||{}; if(av2[go]===false){ toastMsg(t("noStatsShow"),1); return; } _dt.tab=go; renderDetail(); }; });
   }
   // 통계: 전체/세트 전환 + 서브·리시브·총득점 비교막대(실데이터·교차검증된 statId 매핑)
   var _vbStatSel=0;
@@ -4750,7 +4766,7 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
             fetch("/api/football/dstanding?league="+encodeURIComponent(st.league)).then(function(r){return r.json();}).then(function(j2){
               if(o._rkToken!==token||!$("#rkBody"))return;
               var rows=(j2&&j2.groups&&j2.groups[0]&&j2.groups[0].rows)||[];
-              if(!rows.length){ $("#rkBody").innerHTML='<div class="msg"><div class="big">🏆</div>'+soonMsg+'</div>'; return; }
+              if(!rows.length){ $("#rkBody").innerHTML='<div class="msg"><div class="big">📊</div>'+tl({en:"Standings are not provided for this league by our data provider.",ko:"이 리그 순위는 데이터 제공처에서 제공되지 않습니다.",ja:"このリーグの順位は提供されていません。",zh:"数据提供方未提供该联赛排名。",es:"La clasificación de esta liga no está disponible.",hi:"यह लीग स्टैंडिंग उपलब्ध नहीं है।",vi:"BXH giải này không được cung cấp.",th:"ไม่มีอันดับลีกนี้",ru:"Таблица этой лиги не предоставляется.",de:"Für diese Liga ist keine Tabelle verfügbar.",fr:"Le classement de cette ligue n'est pas fourni.",it:"La classifica di questa lega non è fornita."})+'</div>'; return; }
               rows.forEach(function(r){ r.rank=r.pos; r.win=r.w; r.draw=r.d; r.loss=r.l; r.points=r.pts; r.team=tnTeam(r.team||""); });
               $("#rkBody").innerHTML='<div class="rk-ttl">'+esc(curLeagueName())+'</div>'+rankTableHtml("football",rows);
               $("#rkBody").querySelectorAll(".rkrow").forEach(function(row){ row.style.cursor="pointer"; row.onclick=function(){ var nm=row.dataset.team; if(nm)openTeam(nm,"football",row.dataset.teamid,{league:curLeagueName(),season:""}); }; });
@@ -4826,7 +4842,8 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
   function fmtMV(v,cur){ if(!v)return null; var s=cur||"€"; if(v>=1e6)return s+(v/1e6).toFixed(v>=1e7?0:1)+"M"; if(v>=1e3)return s+Math.round(v/1e3)+"k"; return s+v; }
   function fbTeamMatchRow(m,teamId){
     var d=new Date((m.time||0)*1000); var md=(d.getMonth()+1)+'/'+d.getDate();
-    var sched=(m.status===1||m.status===0);
+    // ✅ '결과'는 종료 경기(status 8)만. 예정/미진행은 점수 대신 대시+시각, 승무패 미표기(가짜 0:0 무승부 방지).
+    var fin=(m.status===8), sched=!fin;
     var iH=String(m.home)===String(teamId);
     var my=iH?m.hs:m.as, op=iH?m.as:m.hs;
     var res=sched?'<span class="wdlc s" style="background:#9aa1ad">·</span>':((my==null||op==null)?'':(my>op?'<span class="wdlc w">'+t("win")+'</span>':(my<op?'<span class="wdlc l">'+t("lose")+'</span>':'<span class="wdlc d">'+t("draw")+'</span>')));
