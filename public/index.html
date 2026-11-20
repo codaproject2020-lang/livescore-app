@@ -4665,7 +4665,7 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
     football:[["Premier League","🏴󠁧󠁢󠁥󠁮󠁧󠁿"],["La Liga","🇪🇸"],["Serie A","🇮🇹"],["Bundesliga","🇩🇪"],["Ligue 1","🇫🇷"],["K League 1","🇰🇷"],["J1 League","🇯🇵"],["Saudi Pro League","🇸🇦"],["Major League Soccer","🇺🇸"]],
     basketball:[["NBA","🇺🇸"],["KBL","🇰🇷"],["EuroLeague","🇪🇺"]],
     baseball:[["MLB","🇺🇸"],["KBO","🇰🇷"],["NPB","🇯🇵"]],
-    volleyball:[["KOVO","🇰🇷"],["Superlega","🇮🇹"],["PlusLiga","🇵🇱"],["Champions League","🇪🇺"]],
+    volleyball:[["V리그 남자부","🇰🇷"],["V리그 여자부","🇰🇷"],["Superlega","🇮🇹"],["PlusLiga","🇵🇱"],["Champions League","🇪🇺"]],
     hockey:[["NHL","🇺🇸"],["KHL","🇷🇺"],["SHL","🇸🇪"]]
   };
   // 리그 파라미터(야구 MLB는 빈 값으로 보내야 rankMLB가 동작)
@@ -4677,7 +4677,8 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
     return [[String(y),String(y)],[String(y-1),String(y-1)]];
   }
   function rankTableHtml(sport,tb,hiNames){
-    var isFb=sport==="football", isBb=sport==="baseball";
+    var isFb=sport==="football", isBb=sport==="baseball", isVb=sport==="volleyball";
+    var TH_SETS=tl({en:"Sets",ko:"세트",ja:"セット",zh:"局分",es:"Sets",hi:"सेट",vi:"Set",th:"เซ็ต",ru:"Сеты",de:"Sätze",fr:"Sets",it:"Set"});
     var _nm=function(s){return String(s||"").toLowerCase().replace(/[^a-z0-9가-힣]/g,"");};
     var hi=(hiNames||[]).map(_nm).filter(Boolean);
     var TH_TEAM=tl({en:"Team",ko:"팀",ja:"チーム",zh:"球队",es:"Equipo",hi:"टीम",vi:"Đội",th:"ทีม",ru:"Команда",de:"Team",fr:"Équipe",it:"Squadra"});
@@ -4690,12 +4691,12 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
     tb.forEach(function(r,i){
       var grp=r.group||r.div||'';
       if(grp&&grp!==curGrp){ if(curGrp!==null)h+='</tbody></table>'; curGrp=grp;
-        h+='<div class="rkgrp">'+esc(grp)+'</div><table class="rank"><thead><tr><th>#</th><th style="text-align:left">'+TH_TEAM+'</th><th>'+TH_P+'</th><th>'+t("win")+'</th>'+(isFb?'<th>'+t("draw")+'</th>':'')+'<th>'+t("lose")+'</th>'+(isFb?'<th>'+TH_GOALS+'</th>':'')+(isBb?'<th>'+TH_PCT+'</th><th>'+TH_GB+'</th>':'<th>'+TH_PTS+'</th>')+'</tr></thead><tbody>';
-      } else if(curGrp===null){ curGrp=''; h+='<table class="rank"><thead><tr><th>#</th><th style="text-align:left">'+TH_TEAM+'</th><th>'+TH_P+'</th><th>'+t("win")+'</th>'+(isFb?'<th>'+t("draw")+'</th>':'')+'<th>'+t("lose")+'</th>'+(isFb?'<th>'+TH_GOALS+'</th>':'')+(isBb?'<th>'+TH_PCT+'</th><th>'+TH_GB+'</th>':'<th>'+TH_PTS+'</th>')+'</tr></thead><tbody>'; }
+        h+='<div class="rkgrp">'+esc(grp)+'</div><table class="rank"><thead><tr><th>#</th><th style="text-align:left">'+TH_TEAM+'</th><th>'+TH_P+'</th><th>'+t("win")+'</th>'+(isFb?'<th>'+t("draw")+'</th>':'')+'<th>'+t("lose")+'</th>'+(isFb?'<th>'+TH_GOALS+'</th>':'')+(isVb?'<th>'+TH_SETS+'</th>':'')+(isBb?'<th>'+TH_PCT+'</th><th>'+TH_GB+'</th>':'<th>'+TH_PTS+'</th>')+'</tr></thead><tbody>';
+      } else if(curGrp===null){ curGrp=''; h+='<table class="rank"><thead><tr><th>#</th><th style="text-align:left">'+TH_TEAM+'</th><th>'+TH_P+'</th><th>'+t("win")+'</th>'+(isFb?'<th>'+t("draw")+'</th>':'')+'<th>'+t("lose")+'</th>'+(isFb?'<th>'+TH_GOALS+'</th>':'')+(isVb?'<th>'+TH_SETS+'</th>':'')+(isBb?'<th>'+TH_PCT+'</th><th>'+TH_GB+'</th>':'<th>'+TH_PTS+'</th>')+'</tr></thead><tbody>'; }
       var played=(r.played!=null?r.played:(r.games!=null?r.games:((r.win!=null&&r.loss!=null)?(r.win+r.loss+(r.draw||0)):"-")));
       var tname=r.team||r.name||""; var tn=_nm(tname);
       var isHi=hi.some(function(x){return tn&&(tn.indexOf(x)>=0||x.indexOf(tn)>=0);});
-      h+='<tr class="rkrow'+(isHi?" rkhi":"")+'" data-team="'+esc(tname)+'" data-teamid="'+esc(r.teamId!=null?r.teamId:"")+'"><td class="rk">'+(r.rank||i+1)+'</td><td class="tm">'+(r.logo?'<img src="'+esc(r.logo)+'" style="width:18px;height:18px;vertical-align:middle;margin-right:5px" onerror="this.remove()">':'')+esc(tname)+'</td><td>'+played+'</td><td>'+(r.win!=null?r.win:(r.w!=null?r.w:"-"))+'</td>'+(isFb?'<td>'+(r.draw!=null?r.draw:(r.d!=null?r.d:"-"))+'</td>':'')+'<td>'+(r.loss!=null?r.loss:(r.lose!=null?r.lose:(r.l!=null?r.l:"-")))+'</td>'+(isFb?'<td style="white-space:nowrap">'+((r.gf!=null||r.ga!=null)?((r.gf!=null?r.gf:0)+':'+(r.ga!=null?r.ga:0)):"-")+'</td>':'')+(isBb?'<td>'+(r.pct!=null?r.pct:"-")+'</td><td>'+(r.gb!=null?r.gb:"-")+'</td>':'<td style="font-weight:800">'+(r.points!=null&&r.points!==""?r.points:(r.pts!=null?r.pts:"-"))+'</td>')+'</tr>';
+      h+='<tr class="rkrow'+(isHi?" rkhi":"")+'" data-team="'+esc(tname)+'" data-teamid="'+esc(r.teamId!=null?r.teamId:"")+'"><td class="rk">'+(r.rank||i+1)+'</td><td class="tm">'+(r.logo?'<img src="'+esc(r.logo)+'" style="width:18px;height:18px;vertical-align:middle;margin-right:5px" onerror="this.remove()">':'')+esc(tname)+'</td><td>'+played+'</td><td>'+(r.win!=null?r.win:(r.w!=null?r.w:"-"))+'</td>'+(isFb?'<td>'+(r.draw!=null?r.draw:(r.d!=null?r.d:"-"))+'</td>':'')+'<td>'+(r.loss!=null?r.loss:(r.lose!=null?r.lose:(r.l!=null?r.l:"-")))+'</td>'+(isFb?'<td style="white-space:nowrap">'+((r.gf!=null||r.ga!=null)?((r.gf!=null?r.gf:0)+':'+(r.ga!=null?r.ga:0)):"-")+'</td>':'')+(isVb?'<td style="white-space:nowrap">'+((r.sf!=null||r.sa!=null)?((r.sf!=null?r.sf:0)+':'+(r.sa!=null?r.sa:0)):"-")+'</td>':'')+(isBb?'<td>'+(r.pct!=null?r.pct:"-")+'</td><td>'+(r.gb!=null?r.gb:"-")+'</td>':'<td style="font-weight:800">'+(r.points!=null&&r.points!==""?r.points:(r.pts!=null?r.pts:"-"))+'</td>')+'</tr>';
     });
     if(h)h+='</tbody></table>';
     return h;

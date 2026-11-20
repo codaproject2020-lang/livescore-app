@@ -21,7 +21,7 @@ const app = express();
 const server = http.createServer(app);
 
 const PORT = process.env.PORT || 3000;
-const APP_VERSION = 'v535';
+const APP_VERSION = 'v536';
 
 // ============================================================
 //  📏 성능 계측(instrumentation) — 엔드포인트 지연·캐시·공급사·WS·이벤트루프
@@ -951,14 +951,54 @@ async function rankMLB(season) {
 }
 // API-Sports 농구/배구 리그명 → 리그 ID 자동 검색 (하드코딩 없이 커버)
 const _leagueIdCache = new Map();
-// 🏐 배구 리그명(현지어 포함) → API-Sports 검색어 별칭. 성별 구분 유지(여자부는 남자 리그로 매핑 금지).
+// 🏐 배구 리그명(현지어 포함) → API-Sports 리그명 별칭. 성별 구분 유지(여자부는 남자 리그로 매핑 금지).
+//  한국 V리그 정규리그 = API-Sports "Volleyball League"(남) / "Volleyball League Women"(여). (컵대회 Group A·B 아님)
 function vbLeagueAlias(name) {
   const n = String(name || '');
-  if (/v\s*리그|v-?\s*league/i.test(n)) {
-    if (/여자|여성|women|female|\bw\b/i.test(n)) return 'KOVO Women';   // 여자부(미커버 시 unmapped 유지)
-    if (/남자|남성|men|male|\bm\b/i.test(n)) return 'KOVO';             // 남자부 → API-Sports KOVO
+  if (/v\s*리그|v-?\s*league|kovo|volleyball\s*league/i.test(n)) {
+    if (/여자|여성|women|female|\bw\b/i.test(n)) return 'Volleyball League Women';   // 여자부
+    if (/남자|남성|men|male|\bm\b/i.test(n)) return 'Volleyball League';             // 남자부
   }
   return name;
+}
+// 한국 V리그: 동명(카타르 "Volleyball League" 등) 혼입 방지 위해 국가=한국으로 정확 매핑.
+async function asVolleyKRLeagueId(name) {
+  const ck = 'vbkr|' + _nrm(name);
+  if (_leagueIdCache.has(ck)) return _leagueIdCache.get(ck);
+  let id = null;
+  try {
+    const j = await asRaw('volleyball', `/leagues?search=${encodeURIComponent(name)}`, 86400000);
+    const arr = (j && j.response) || [];
+    const nl = _nrm(name);
+    const ctryName = l => String((l && l.country && (l.country.name || l.country)) || '').toLowerCase();
+    const kr = l => /korea|대한민국|republic of korea|south korea/.test(ctryName(l));
+    const exact = l => _nrm(l.name) === nl;
+    // 1) 이름 정확일치 + 한국  2) 한국 + 'volleyball league' 포함  3) 이름 정확일치
+    const best = arr.find(l => exact(l) && kr(l)) || arr.find(l => kr(l) && /volleyball\s*league/i.test(l.name || '')) || arr.find(l => exact(l) && kr(l)) || null;
+    id = best && best.id;
+  } catch { }
+  _leagueIdCache.set(ck, id);
+  return id;
+}
+// 🏐 배구 순위 파서 — 팀·경기·승·패·세트(goals.for/against)·승점. 단일표(정규리그) 기준.
+function parseVolleyStandings(j) {
+  const groups = (j && j.response) || [];
+  const asStr = v => { if (v == null) return ''; if (typeof v === 'object') return String(v.name || v.long || v.short || ''); return String(v); };
+  const num = v => { if (v == null || v === '') return null; if (typeof v === 'object') { const n = (v.total != null ? v.total : (v.value != null ? v.value : v.count)); return n == null ? null : +n; } const n = +v; return isNaN(n) ? null : n; };
+  const out = [];
+  groups.forEach(g => (Array.isArray(g) ? g : [g]).forEach(r => {
+    if (!r || !r.team) return;
+    out.push({
+      rank: r.position || r.rank || null, teamId: r.team.id, team: asStr(r.team.name), logo: r.team.logo,
+      group: asStr(r.group) || asStr(r.stage),
+      played: num(r.games && r.games.played),
+      win: num(r.games && r.games.win), loss: num(r.games && (r.games.lose != null ? r.games.lose : r.games.loss)),
+      points: (r.points == null || typeof r.points === 'object') ? num(r.points) : r.points,
+      sf: num(r.goals && r.goals.for), sa: num(r.goals && r.goals.against)
+    });
+  }));
+  out.sort((a, b) => String(a.group || '').localeCompare(String(b.group || '')) || (a.rank || 99) - (b.rank || 99));
+  return out;
 }
 async function asLeagueId(sport, name) {
   if (!name) return null;
@@ -1017,15 +1057,22 @@ async function rankBasketball(league, season) {
   return { table: [], kind: 'basketball' };
 }
 async function rankVolleyball(league, season) {
-  let lid = /^\d+$/.test(league) ? league : await asLeagueId('volleyball', vbLeagueAlias(league));
+  const alias = vbLeagueAlias(league);
+  let lid;
+  if (/^\d+$/.test(String(league))) lid = league;
+  else if (/^Volleyball League( Women)?$/i.test(alias)) lid = await asVolleyKRLeagueId(alias);   // 한국 V리그(국가=한국)
+  else lid = await asLeagueId('volleyball', alias);
   if (!lid) return { table: [], note: 'unmapped' };
   const m = String(season || '').match(/\d{4}/); const y = m ? +m[0] : new Date().getFullYear();
-  for (const sy of [`${y}-${y + 1}`, String(y), `${y - 1}-${y}`, String(y - 1)]) {
+  const reqY = !!m;
+  // 선택 시즌 우선(연도-연도+1 / 연도). 요청 시즌이 있으면 그 시즌만 시도 → 없으면 'season-na'(현재/과거로 대체 금지).
+  const cands = reqY ? [`${y}-${y + 1}`, String(y)] : [`${y}-${y + 1}`, String(y), `${y - 1}-${y}`, String(y - 1)];
+  for (const sy of cands) {
     const j = await asRaw('volleyball', `/standings?league=${lid}&season=${encodeURIComponent(sy)}`, 3600000).catch(() => null);
-    const table = parseHoopStandings(j);
+    const table = parseVolleyStandings(j);
     if (table.length) return { table, kind: 'volleyball', season: sy };
   }
-  return { table: [], kind: 'volleyball' };
+  return { table: [], kind: 'volleyball', note: reqY ? 'season-na' : 'unmapped' };
 }
 async function rankHockey(league, season) {
   let lid = /^\d+$/.test(league) ? league : await asLeagueId('hockey', league);
@@ -1094,6 +1141,27 @@ app.get('/api/football/rankdebug', async (req, res) => {
       compsLoaded: idx.byId.size, seasonsKnown: seasons, source: out && out.source, note: out && out.note, seasonLabel: out && out.season,
       teams: (out && out.table) ? out.table.length : 0,
       top3: (out && out.table) ? out.table.slice(0, 3).map(r => ({ rank: r.rank, team: r.team, p: r.played, gf: r.gf, ga: r.ga, pts: r.points })) : []
+    });
+  } catch (e) { res.json({ error: String((e && e.message) || e) }); }
+});
+
+// 🔎 배구 V리그 순위 연결 진단: 리그명 → API-Sports 리그ID(국가 포함)·시즌·팀수 확인
+app.get('/api/volleyball/rankdebug', async (req, res) => {
+  try {
+    const league = String(req.query.league || 'V리그 남자부');
+    const season = String(req.query.season || '2026-2027');
+    const alias = vbLeagueAlias(league);
+    let lid = null, cands = [];
+    try {
+      const j = await asRaw('volleyball', `/leagues?search=${encodeURIComponent(alias)}`, 86400000);
+      (j && j.response || []).forEach(l => cands.push({ id: l.id, name: l.name, country: (l.country && (l.country.name || l.country)) || '' }));
+    } catch (e) {}
+    lid = /^Volleyball League( Women)?$/i.test(alias) ? await asVolleyKRLeagueId(alias) : await asLeagueId('volleyball', alias);
+    const out = await rankVolleyball(league, season).catch(e => ({ error: String((e && e.message) || e) }));
+    res.json({
+      league, alias, resolvedLeagueId: lid, season, note: out && out.note, seasonUsed: out && out.season,
+      teams: (out && out.table) ? out.table.length : 0, searchCandidates: cands.slice(0, 8),
+      rows: (out && out.table) ? out.table.slice(0, 8).map(r => ({ rank: r.rank, team: r.team, p: r.played, w: r.win, l: r.loss, sets: (r.sf != null || r.sa != null) ? (r.sf + ':' + r.sa) : null, pts: r.points })) : []
     });
   } catch (e) { res.json({ error: String((e && e.message) || e) }); }
 });
