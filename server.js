@@ -21,7 +21,7 @@ const app = express();
 const server = http.createServer(app);
 
 const PORT = process.env.PORT || 3000;
-const APP_VERSION = 'v529';
+const APP_VERSION = 'v530';
 
 // ============================================================
 //  📏 성능 계측(instrumentation) — 엔드포인트 지연·캐시·공급사·WS·이벤트루프
@@ -326,7 +326,7 @@ async function initDB() {
       const c = await configCol.findOne({ _id: 'main' });
       if (c) { CFG.flags = c.flags || {}; CFG.maint = c.maint || ''; CFG.bskSrc = c.bskSrc || 'thesports'; CFG.ftbSrc = c.ftbSrc || 'thesports'; CFG.volSrc = c.volSrc || 'thesports'; CFG.bsbSrc = c.bsbSrc || 'thesports'; CFG.alertsOff = !!c.alertsOff; CFG.alertsNight = !!c.alertsNight; CFG.bigPin = c.bigPin || ''; CFG.updatedAt = c.updatedAt || 0;
         // 🎥 트래커 URL(72시간마다 갱신) 복원 — 관리자가 저장한 값이 하드코딩 기본값을 덮어씀(재배포 불필요)
-        if (c.tracker) { ['football', 'basketball', 'volleyball', 'baseball'].forEach(s => { if (typeof c.tracker[s] === 'string' && c.tracker[s]) TRACKER_URLS[s] = c.tracker[s]; }); console.log('[DB] 트래커 URL 복원'); }
+        if (c.tracker) { ['football', 'basketball', 'volleyball', 'baseball', 'hockey', 'lol', 'dota2', 'csgo'].forEach(s => { if (typeof c.tracker[s] === 'string' && c.tracker[s]) TRACKER_URLS[s] = c.tracker[s]; }); console.log('[DB] 트래커 URL 복원'); }
       }
       // 📡 직전 접속수 복원 — 10분 이내에 저장된 값만 바닥값으로 사용(오래된 값은 무시)
       try { const pdoc = await configCol.findOne({ _id: 'presence' }); if (pdoc && pdoc.n > 0 && (Date.now() - (pdoc.at || 0) < 10 * 60 * 1000)) { _presenceFloor = pdoc.n; console.log(`[DB] 접속수 바닥값 복원: ${_presenceFloor}`); } } catch (_) {}
@@ -1759,7 +1759,7 @@ let TRACKER_URLS = {
   volleyball: process.env.TRACKER_VOLLEYBALL || 'https://widgets.thesports01.com/{language}/{version}/volleyball?profile=kdhek83k67a6hnn0jej8&uuid={match_uuid}',
   baseball: process.env.TRACKER_BASEBALL || 'https://widgets.thesports01.com/{language}/baseball?profile=j7sx9nz9w6tphkkldg24&uuid={match_uuid}',
   // 🆕 체험 활성화 종목 — 대시보드 발급 Online URL(profile 포함). env 로 재정의 가능.
-  hockey: process.env.TRACKER_HOCKEY || 'https://widgets.thesports01.com/{language}/{version}/ice-hockey?profile=2lbxngvn34tjhnnwk606&uuid={match_uuid}',
+  hockey: process.env.TRACKER_HOCKEY || 'https://widgets.thesports01.com/{language}/{version}/ice-hockey?profile=odbv1y21d7uwh77wx327&uuid={match_uuid}',
   lol: process.env.TRACKER_LOL || 'https://widgets.thesports01.com/{language}/lol?profile=g5efe4kv49oa4hx&uuid={match_uuid}',
   dota2: process.env.TRACKER_DOTA2 || 'https://widgets.thesports01.com/{language}/dota2?profile=d9xh0gj4g5ncjh5&uuid={match_uuid}',
   csgo: process.env.TRACKER_CSGO || 'https://widgets.thesports01.com/{language}/csgo?profile=086hjk5xkolb6he&uuid={match_uuid}'
@@ -1821,15 +1821,16 @@ app.get('/api/tracker', async (req, res) => {
 app.post('/api/admin/tracker', express.json(), async (req, res) => {
   if (!adminOK(req)) return res.status(403).json({ error: 'auth' });
   const u = (req.body && req.body.urls) || {};
-  ['football', 'basketball', 'volleyball', 'baseball'].forEach(s => { if (typeof u[s] === 'string') TRACKER_URLS[s] = u[s].trim(); });
+  const TRK_EDIT = ['football', 'basketball', 'volleyball', 'baseball', 'hockey', 'lol', 'dota2', 'csgo'];
+  TRK_EDIT.forEach(s => { if (typeof u[s] === 'string') TRACKER_URLS[s] = u[s].trim(); });
   // DB 영속 저장(서버 재시작 후에도 유지). Mongo 없으면 메모리만.
-  try { if (configCol) await configCol.updateOne({ _id: 'main' }, { $set: { tracker: { football: TRACKER_URLS.football, basketball: TRACKER_URLS.basketball, volleyball: TRACKER_URLS.volleyball, baseball: TRACKER_URLS.baseball }, trackerUpdatedAt: Date.now() } }, { upsert: true }); } catch (e) { console.error('[tracker save]', e.message); }
+  try { if (configCol) { const trk = {}; TRK_EDIT.forEach(s => trk[s] = TRACKER_URLS[s]); await configCol.updateOne({ _id: 'main' }, { $set: { tracker: trk, trackerUpdatedAt: Date.now() } }, { upsert: true }); } } catch (e) { console.error('[tracker save]', e.message); }
   res.json({ ok: true, configured: Object.keys(TRACKER_URLS).filter(k => TRACKER_URLS[k]) });
 });
 app.get('/api/admin/tracker', (req, res) => {
   // 관리자 페이지 프리필용. 현재 저장된 URL 그대로 반환(비밀 아님 — 위젯 iframe src로 공개됨).
   const auth = ADMIN_KEY && String(req.query.key || '') === ADMIN_KEY;
-  res.json({ configured: Object.keys(TRACKER_URLS).filter(k => TRACKER_URLS[k]), sports: ['football', 'basketball', 'volleyball', 'baseball'], urls: auth ? TRACKER_URLS : undefined });
+  res.json({ configured: Object.keys(TRACKER_URLS).filter(k => TRACKER_URLS[k]), sports: ['football', 'basketball', 'volleyball', 'baseball', 'hockey', 'lol', 'dota2', 'csgo'], urls: auth ? TRACKER_URLS : undefined });
 });
 // 🏐 진단: TheSports 배구 커버리지 확인 (현재 플랜에 배구 스케줄/라이브가 포함되는지)
 app.get('/api/ts/volley', async (req, res) => {

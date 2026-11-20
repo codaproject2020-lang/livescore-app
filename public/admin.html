@@ -183,6 +183,10 @@
         <label style="font-size:12px;font-weight:700">🏀 농구 <input id="trkBasketball" placeholder="https://widgets.thesports01.com/{language}/{version}/basketball?profile=...&uuid={match_uuid}" style="width:100%;padding:8px;border:1px solid var(--line);border-radius:8px;font-size:12px"></label>
         <label style="font-size:12px;font-weight:700">🏐 배구 <input id="trkVolleyball" placeholder="https://widgets.thesports01.com/{language}/{version}/volleyball?profile=...&uuid={match_uuid}" style="width:100%;padding:8px;border:1px solid var(--line);border-radius:8px;font-size:12px"></label>
         <label style="font-size:12px;font-weight:700">⚾ 야구 <input id="trkBaseball" placeholder="https://widgets.thesports01.com/{language}/baseball?profile=...&uuid={match_uuid}" style="width:100%;padding:8px;border:1px solid var(--line);border-radius:8px;font-size:12px"></label>
+        <label style="font-size:12px;font-weight:700">🏒 하키 <input id="trkHockey" placeholder="https://widgets.thesports01.com/{language}/{version}/ice-hockey?profile=...&uuid={match_uuid}" style="width:100%;padding:8px;border:1px solid var(--line);border-radius:8px;font-size:12px"></label>
+        <label style="font-size:12px;font-weight:700">🎮 e스포츠 LoL <input id="trkLol" placeholder="https://widgets.thesports01.com/{language}/lol?profile=...&uuid={match_uuid}" style="width:100%;padding:8px;border:1px solid var(--line);border-radius:8px;font-size:12px"></label>
+        <label style="font-size:12px;font-weight:700">🎮 e스포츠 Dota2 <input id="trkDota2" placeholder="https://widgets.thesports01.com/{language}/dota2?profile=...&uuid={match_uuid}" style="width:100%;padding:8px;border:1px solid var(--line);border-radius:8px;font-size:12px"></label>
+        <label style="font-size:12px;font-weight:700">🎮 e스포츠 CS2 <input id="trkCsgo" placeholder="https://widgets.thesports01.com/{language}/csgo?profile=...&uuid={match_uuid}" style="width:100%;padding:8px;border:1px solid var(--line);border-radius:8px;font-size:12px"></label>
       </div>
       <div style="margin-top:8px"><button class="btn g" id="trkSave">트래커 URL 저장</button><span class="muted" id="trkMsg" style="margin-left:8px"></span></div>
 
@@ -388,11 +392,11 @@
       }
       const c=await api('/api/admin/config');
       if(c&&c.ok){ const f=c.flags||{}; $('#fShorts').checked=f.shorts!==false; $('#fNews').checked=f.news!==false; $('#fBsk').value=c.bskSrc||'auto'; $('#fFtb').value=c.ftbSrc||'thesports'; $('#fVol').value=c.volSrc||'thesports'; $('#fMaint').value=c.maint||''; $('#fAlertOff').checked=!!c.alertsOff; $('#fAlertNight').checked=!!c.alertsNight; }
-      try{ const tk=await api('/api/admin/tracker?key='+encodeURIComponent(KEY)); if(tk&&tk.urls){ $('#trkFootball').value=tk.urls.football||''; $('#trkBasketball').value=tk.urls.basketball||''; $('#trkVolleyball').value=tk.urls.volleyball||''; $('#trkBaseball').value=tk.urls.baseball||''; } }catch(_){}
+      try{ const tk=await api('/api/admin/tracker?key='+encodeURIComponent(KEY)); if(tk&&tk.urls){ $('#trkFootball').value=tk.urls.football||''; $('#trkBasketball').value=tk.urls.basketball||''; $('#trkVolleyball').value=tk.urls.volleyball||''; $('#trkBaseball').value=tk.urls.baseball||''; $('#trkHockey').value=tk.urls.hockey||''; $('#trkLol').value=tk.urls.lol||''; $('#trkDota2').value=tk.urls.dota2||''; $('#trkCsgo').value=tk.urls.csgo||''; } }catch(_){}
     }catch(e){ if(String(e.message)==='unauthorized') logout(); }
   }
   async function saveTracker(){
-    const urls={ football:$('#trkFootball').value.trim(), basketball:$('#trkBasketball').value.trim(), volleyball:$('#trkVolleyball').value.trim(), baseball:$('#trkBaseball').value.trim() };
+    const urls={ football:$('#trkFootball').value.trim(), basketball:$('#trkBasketball').value.trim(), volleyball:$('#trkVolleyball').value.trim(), baseball:$('#trkBaseball').value.trim(), hockey:$('#trkHockey').value.trim(), lol:$('#trkLol').value.trim(), dota2:$('#trkDota2').value.trim(), csgo:$('#trkCsgo').value.trim() };
     try{ const r=await apiPost('/api/admin/tracker',{ urls });
       $('#trkMsg').textContent = r&&r.ok ? ('✅ 저장됨 ('+(r.configured||[]).length+'종목 적용)') : '저장 실패';
       setTimeout(()=>{$('#trkMsg').textContent='';},5000);
