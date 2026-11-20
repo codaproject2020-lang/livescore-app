@@ -21,7 +21,7 @@ const app = express();
 const server = http.createServer(app);
 
 const PORT = process.env.PORT || 3000;
-const APP_VERSION = 'v532';
+const APP_VERSION = 'v533';
 
 // ============================================================
 //  📏 성능 계측(instrumentation) — 엔드포인트 지연·캐시·공급사·WS·이벤트루프
@@ -1055,7 +1055,15 @@ app.get('/api/rank', async (req, res) => {
   const sport = req.query.sport || 'football', league = req.query.league || '', season = req.query.season || '';
   try {
     let out = { table: [] };
-    if (sport === 'football') out = await rankFootball(league, season);
+    if (sport === 'football') {
+      // #EPL/유럽 순위: TheSports 공식표 우선(현재 시즌 제공). 실패 시 API-Football 폴백.
+      out = await rankFootballTS(league).catch(() => null);
+      if (!out || !out.table || !out.table.length) {
+        const af = await rankFootball(league, season).catch(() => null);
+        if (af && af.table && af.table.length) out = af;
+        else if (!out) out = (af || { table: [], kind: 'football' });
+      }
+    }
     else if (sport === 'baseball') {
       if (/KBO|NPB|CPBL|korea|japan|대한민국|일본/i.test(league)) out = await rankBaseballAS(league, season);   // R012/R013: KBO·NPB API-Sports 순위
       // #3: MLB(및 리그 미지정)만 MLB 순위. ABL 등 미매핑 리그는 MLB로 오폴백 금지 → 'unmapped'로 제공불가 안내.
@@ -1067,6 +1075,23 @@ app.get('/api/rank', async (req, res) => {
     else if (sport === 'hockey') out = await rankHockey(league, season);
     res.json(out);
   } catch (e) { res.status(502).json({ table: [], error: String(e.message || e) }); }
+});
+
+// 🔎 축구 순위 연결 진단(배포 후 검증용): 리그명/대회ID → TheSports 대회·현재시즌·팀수 확인
+app.get('/api/football/rankdebug', async (req, res) => {
+  try {
+    const league = String(req.query.league || 'Premier League');
+    const idx = await _fbLoadCompIdx();
+    const compId = idx.byId.has(league) ? league : _fbMatchCompByName(idx, league);
+    const comp = compId ? idx.byId.get(compId) : null;
+    const out = await rankFootballTS(league).catch(e => ({ error: String((e && e.message) || e) }));
+    res.json({
+      league, compId, compName: comp && comp.name, cur_season_id: comp && comp.cur_season_id,
+      compsLoaded: idx.byId.size, source: out && out.source, seasonLabel: out && out.season,
+      teams: (out && out.table) ? out.table.length : 0,
+      top3: (out && out.table) ? out.table.slice(0, 3).map(r => ({ rank: r.rank, team: r.team, p: r.played, pts: r.points })) : []
+    });
+  } catch (e) { res.json({ error: String((e && e.message) || e) }); }
 });
 
 // 경기 상세 (클릭 시)
@@ -3585,6 +3610,87 @@ async function _fbResolveCompByName(leagueName, baseDate) {
   const best = Object.keys(tally).sort((a, b) => tally[b].count - tally[a].count)[0] || '';
   _fbCompResolveCache.set(key, { t: Date.now(), v: best });
   return best;
+}
+// ===== ⚽ 축구 공식 순위표(TheSports) =====
+//  배경: API-Football "Free" 플랜은 현재(2026~) 시즌 standings를 주지 않아 EPL 등 순위가 빈값이었음.
+//  이미 구독 중인 TheSports로 라우팅: competition_id(경기 leagueId) → cur_season_id → season/recent/table/detail(공식표).
+//  리그명만 있을 때는 대회목록(이름+국가)로 매핑. 국가 힌트(FB_LEAGUE_HINT)로 동명 리그(시에라리온 등) 오매칭 방지.
+const _fbCompIdx = { t: 0, byId: new Map(), nameIdx: [] };
+async function _fbLoadCompIdx() {
+  if (_fbCompIdx.byId.size && Date.now() - _fbCompIdx.t < 6 * 3600e3) return _fbCompIdx;
+  try {
+    const [cl, co] = await Promise.all([
+      tsFetch('/football/competition/additional/list', {}, 6 * 3600e3, 15000).catch(() => null),
+      tsFetch('/football/country/list', {}, 24 * 3600e3, 12000).catch(() => null)
+    ]);
+    const comps = (cl && cl.results) || [];
+    const ctrys = (co && co.results) || [];
+    if (comps.length) {
+      const ccName = new Map(); ctrys.forEach(c => { if (c && c.id) ccName.set(c.id, _nrm(c.name)); });
+      const byId = new Map(), nameIdx = [];
+      comps.forEach(c => {
+        if (!c || !c.id) return;
+        byId.set(c.id, c);
+        nameIdx.push({ id: c.id, n: _nrm(c.name), sn: _nrm(c.short_name), cc: ccName.get(c.country_id) || '', gender: c.gender || 1 });
+      });
+      _fbCompIdx.byId = byId; _fbCompIdx.nameIdx = nameIdx; _fbCompIdx.t = Date.now();
+    }
+  } catch (e) {}
+  return _fbCompIdx;
+}
+function _fbMatchCompByName(idx, leagueName) {
+  const hint = FB_LEAGUE_HINT[String(leagueName || '').toLowerCase().trim()];
+  const target = _nrm(leagueName);
+  if (!target) return '';
+  for (const it of idx.nameIdx) {
+    if (it.gender && it.gender !== 1) continue;                 // 남자부만(여자부 제외)
+    const n = it.n, sn = it.sn;
+    let nameOk;
+    if (hint) {
+      if ((hint.notName || []).some(x => n.includes(x))) continue;
+      nameOk = (hint.names || []).some(x => n.includes(x) || (sn && sn.includes(x)));
+      if (nameOk && hint.country && hint.country.length) {
+        const okc = it.cc && hint.country.some(x => it.cc === x || it.cc.includes(x) || (x.length > 3 && x.includes(it.cc)));
+        if (!okc) continue;
+      }
+    } else {
+      nameOk = n && (n === target || n.includes(target) || target.includes(n));
+    }
+    if (nameOk) return it.id;
+  }
+  return '';
+}
+// 유럽 톱리그(8~5월) 현시즌 라벨. 11월 → "2026-2027".
+function _fbSeasonLabel() {
+  const d = new Date(), y = d.getUTCFullYear(), m = d.getUTCMonth() + 1;
+  const sy = (m >= 7) ? y : y - 1;
+  return sy + '-' + (sy + 1);
+}
+async function rankFootballTS(league) {
+  if (!TS_ON) return null;
+  const s = String(league || '').trim();
+  if (!s) return null;
+  const idx = await _fbLoadCompIdx();
+  if (!idx.byId.size) return null;
+  let compId = idx.byId.has(s) ? s : _fbMatchCompByName(idx, s);   // leagueId(uuid) 직결 또는 리그명 매핑
+  if (!compId) return null;
+  const comp = idx.byId.get(compId);
+  const seasonId = comp && comp.cur_season_id;
+  if (!seasonId) return null;
+  const r = await tsFetch('/football/season/recent/table/detail', { uuid: seasonId }, 600000, 9000).catch(() => null);
+  const tables = (r && r.results && r.results.tables) || [];
+  if (!tables.length) return null;
+  const rows0 = (tables.length === 1) ? (tables[0].rows || []) : [].concat(...tables.map(t => t.rows || []));
+  if (!rows0.length) return null;
+  const nm = await tsNames(rows0.map(rw => rw.team_id));
+  const table = rows0.slice().sort((a, b) => (a.position || 99) - (b.position || 99)).map(rw => ({
+    rank: rw.position, teamId: rw.team_id,
+    team: (nm[rw.team_id] && nm[rw.team_id].name) || '',
+    logo: (nm[rw.team_id] && nm[rw.team_id].logo) || '',
+    played: rw.total, win: rw.won, draw: rw.draw, loss: rw.loss,
+    points: rw.points, gd: rw.goal_diff, gf: rw.goals, ga: rw.goals_against, form: ''
+  }));
+  return { table, kind: 'football', season: _fbSeasonLabel(), compName: (comp && comp.name) || '', source: 'thesports' };
 }
 // ⚽ 축구 순위표 — TheSports 대회 ID 기준 diary 집계(순위 전용 엔드포인트 미인증 폴백). 승점=3승+1무.
 const _fbStandCache = new Map();
