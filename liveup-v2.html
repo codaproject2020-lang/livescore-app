@@ -4685,16 +4685,17 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
     var TH_PTS=tl({en:"Pts",ko:"승점",ja:"点",zh:"分",es:"Pts",hi:"अंक",vi:"Điểm",th:"แต้ม",ru:"О",de:"Pkt",fr:"Pts",it:"Pti"});
     var TH_PCT=tl({en:"PCT",ko:"승률",ja:"勝率",zh:"胜率",es:"PCT",hi:"PCT",vi:"TL",th:"อัตรา",ru:"%",de:"PCT",fr:"%",it:"PCT"});
     var TH_GB=tl({en:"GB",ko:"차",ja:"差",zh:"差",es:"GB",hi:"GB",vi:"GB",th:"GB",ru:"GB",de:"GB",fr:"GB",it:"GB"});
+    var TH_GOALS=tl({en:"Goals",ko:"득실",ja:"得失",zh:"进失",es:"Goles",hi:"गोल",vi:"BT",th:"ได้-เสีย",ru:"Голы",de:"Tore",fr:"Buts",it:"Reti"});
     var curGrp=null,h='';
     tb.forEach(function(r,i){
       var grp=r.group||r.div||'';
       if(grp&&grp!==curGrp){ if(curGrp!==null)h+='</tbody></table>'; curGrp=grp;
-        h+='<div class="rkgrp">'+esc(grp)+'</div><table class="rank"><thead><tr><th>#</th><th style="text-align:left">'+TH_TEAM+'</th><th>'+TH_P+'</th><th>'+t("win")+'</th>'+(isFb?'<th>'+t("draw")+'</th>':'')+'<th>'+t("lose")+'</th>'+(isBb?'<th>'+TH_PCT+'</th><th>'+TH_GB+'</th>':'<th>'+TH_PTS+'</th>')+'</tr></thead><tbody>';
-      } else if(curGrp===null){ curGrp=''; h+='<table class="rank"><thead><tr><th>#</th><th style="text-align:left">'+TH_TEAM+'</th><th>'+TH_P+'</th><th>'+t("win")+'</th>'+(isFb?'<th>'+t("draw")+'</th>':'')+'<th>'+t("lose")+'</th>'+(isBb?'<th>'+TH_PCT+'</th><th>'+TH_GB+'</th>':'<th>'+TH_PTS+'</th>')+'</tr></thead><tbody>'; }
+        h+='<div class="rkgrp">'+esc(grp)+'</div><table class="rank"><thead><tr><th>#</th><th style="text-align:left">'+TH_TEAM+'</th><th>'+TH_P+'</th><th>'+t("win")+'</th>'+(isFb?'<th>'+t("draw")+'</th>':'')+'<th>'+t("lose")+'</th>'+(isFb?'<th>'+TH_GOALS+'</th>':'')+(isBb?'<th>'+TH_PCT+'</th><th>'+TH_GB+'</th>':'<th>'+TH_PTS+'</th>')+'</tr></thead><tbody>';
+      } else if(curGrp===null){ curGrp=''; h+='<table class="rank"><thead><tr><th>#</th><th style="text-align:left">'+TH_TEAM+'</th><th>'+TH_P+'</th><th>'+t("win")+'</th>'+(isFb?'<th>'+t("draw")+'</th>':'')+'<th>'+t("lose")+'</th>'+(isFb?'<th>'+TH_GOALS+'</th>':'')+(isBb?'<th>'+TH_PCT+'</th><th>'+TH_GB+'</th>':'<th>'+TH_PTS+'</th>')+'</tr></thead><tbody>'; }
       var played=(r.played!=null?r.played:(r.games!=null?r.games:((r.win!=null&&r.loss!=null)?(r.win+r.loss+(r.draw||0)):"-")));
       var tname=r.team||r.name||""; var tn=_nm(tname);
       var isHi=hi.some(function(x){return tn&&(tn.indexOf(x)>=0||x.indexOf(tn)>=0);});
-      h+='<tr class="rkrow'+(isHi?" rkhi":"")+'" data-team="'+esc(tname)+'" data-teamid="'+esc(r.teamId!=null?r.teamId:"")+'"><td class="rk">'+(r.rank||i+1)+'</td><td class="tm">'+(r.logo?'<img src="'+esc(r.logo)+'" style="width:18px;height:18px;vertical-align:middle;margin-right:5px" onerror="this.remove()">':'')+esc(tname)+'</td><td>'+played+'</td><td>'+(r.win!=null?r.win:(r.w!=null?r.w:"-"))+'</td>'+(isFb?'<td>'+(r.draw!=null?r.draw:(r.d!=null?r.d:"-"))+'</td>':'')+'<td>'+(r.loss!=null?r.loss:(r.lose!=null?r.lose:(r.l!=null?r.l:"-")))+'</td>'+(isBb?'<td>'+(r.pct!=null?r.pct:"-")+'</td><td>'+(r.gb!=null?r.gb:"-")+'</td>':'<td style="font-weight:800">'+(r.points!=null&&r.points!==""?r.points:(r.pts!=null?r.pts:"-"))+'</td>')+'</tr>';
+      h+='<tr class="rkrow'+(isHi?" rkhi":"")+'" data-team="'+esc(tname)+'" data-teamid="'+esc(r.teamId!=null?r.teamId:"")+'"><td class="rk">'+(r.rank||i+1)+'</td><td class="tm">'+(r.logo?'<img src="'+esc(r.logo)+'" style="width:18px;height:18px;vertical-align:middle;margin-right:5px" onerror="this.remove()">':'')+esc(tname)+'</td><td>'+played+'</td><td>'+(r.win!=null?r.win:(r.w!=null?r.w:"-"))+'</td>'+(isFb?'<td>'+(r.draw!=null?r.draw:(r.d!=null?r.d:"-"))+'</td>':'')+'<td>'+(r.loss!=null?r.loss:(r.lose!=null?r.lose:(r.l!=null?r.l:"-")))+'</td>'+(isFb?'<td style="white-space:nowrap">'+((r.gf!=null||r.ga!=null)?((r.gf!=null?r.gf:0)+':'+(r.ga!=null?r.ga:0)):"-")+'</td>':'')+(isBb?'<td>'+(r.pct!=null?r.pct:"-")+'</td><td>'+(r.gb!=null?r.gb:"-")+'</td>':'<td style="font-weight:800">'+(r.points!=null&&r.points!==""?r.points:(r.pts!=null?r.pts:"-"))+'</td>')+'</tr>';
     });
     if(h)h+='</tbody></table>';
     return h;
@@ -4761,8 +4762,14 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
         var tb=(j&&j.table)||[];
         var seasonTag=(j&&j.season)?'<div class="rk-note">'+tl({en:"Season",ko:"시즌",ja:"シーズン",zh:"赛季",es:"Temporada",hi:"सीज़न",vi:"Mùa",th:"ฤดูกาล",ru:"Сезон",de:"Saison",fr:"Saison",it:"Stagione"})+': '+esc(String(j.season))+'</div>':'';
         if(!tb.length){
-          // 축구: API-Sports 현재시즌 미제공 시 TheSports diary 집계로 폴백(리그명 해석).
-          if(st.sport==="football"&&st.league){
+          // 선택 시즌 데이터 없음(과거 시즌 미보유) → 현재 시즌으로 대체하지 않고 '미제공' 표시.
+          if(j&&j.note==="season-na"){
+            $("#rkBody").innerHTML='<div class="msg"><div class="big">📅</div>'+tl({en:"Standings for the selected season are not provided.",ko:"선택한 시즌의 순위 데이터는 제공되지 않습니다.",ja:"選択したシーズンの順位は提供されていません。",zh:"未提供所选赛季的排名。",es:"No hay clasificación para la temporada seleccionada.",hi:"चयनित सीज़न की स्टैंडिंग उपलब्ध नहीं।",vi:"Không có BXH cho mùa đã chọn.",th:"ไม่มีอันดับของฤดูกาลที่เลือก",ru:"Таблица за выбранный сезон не предоставляется.",de:"Für die gewählte Saison ist keine Tabelle verfügbar.",fr:"Classement indisponible pour la saison choisie.",it:"Classifica non disponibile per la stagione scelta."})+'</div>'; return;
+          }
+          var _curYr=String(new Date().getFullYear());
+          var _pastSeason=(st.season&&st.season!==_curYr);
+          // 축구: 현재 시즌에 한해 TheSports diary 집계로 폴백(과거 시즌은 폴백 금지 — 현재 데이터로 오대체 방지).
+          if(st.sport==="football"&&st.league&&!_pastSeason){
             fetch("/api/football/dstanding?league="+encodeURIComponent(st.league)).then(function(r){return r.json();}).then(function(j2){
               if(o._rkToken!==token||!$("#rkBody"))return;
               var rows=(j2&&j2.groups&&j2.groups[0]&&j2.groups[0].rows)||[];

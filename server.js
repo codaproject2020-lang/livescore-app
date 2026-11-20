@@ -21,7 +21,7 @@ const app = express();
 const server = http.createServer(app);
 
 const PORT = process.env.PORT || 3000;
-const APP_VERSION = 'v533';
+const APP_VERSION = 'v534';
 
 // ============================================================
 //  📏 성능 계측(instrumentation) — 엔드포인트 지연·캐시·공급사·WS·이벤트루프
@@ -1056,9 +1056,11 @@ app.get('/api/rank', async (req, res) => {
   try {
     let out = { table: [] };
     if (sport === 'football') {
-      // #EPL/유럽 순위: TheSports 공식표 우선(현재 시즌 제공). 실패 시 API-Football 폴백.
-      out = await rankFootballTS(league).catch(() => null);
-      if (!out || !out.table || !out.table.length) {
+      // #EPL/유럽 순위: TheSports 공식표 우선(현재+과거 시즌). 실패 시 API-Football 폴백.
+      out = await rankFootballTS(league, season).catch(() => null);
+      // 과거 시즌 데이터 없음(season-na)은 '미제공'으로 그대로 반환 — 현재 시즌으로 대체하지 않음.
+      if (out && out.note === 'season-na') { /* keep as-is */ }
+      else if (!out || !out.table || !out.table.length) {
         const af = await rankFootball(league, season).catch(() => null);
         if (af && af.table && af.table.length) out = af;
         else if (!out) out = (af || { table: [], kind: 'football' });
@@ -1081,15 +1083,17 @@ app.get('/api/rank', async (req, res) => {
 app.get('/api/football/rankdebug', async (req, res) => {
   try {
     const league = String(req.query.league || 'Premier League');
+    const season = String(req.query.season || '');
     const idx = await _fbLoadCompIdx();
     const compId = idx.byId.has(league) ? league : _fbMatchCompByName(idx, league);
     const comp = compId ? idx.byId.get(compId) : null;
-    const out = await rankFootballTS(league).catch(e => ({ error: String((e && e.message) || e) }));
+    const seasons = compId ? ((await _fbLoadSeasonList()).byComp.get(compId) || []).map(s => s.year) : [];
+    const out = await rankFootballTS(league, season).catch(e => ({ error: String((e && e.message) || e) }));
     res.json({
-      league, compId, compName: comp && comp.name, cur_season_id: comp && comp.cur_season_id,
-      compsLoaded: idx.byId.size, source: out && out.source, seasonLabel: out && out.season,
+      league, season, compId, compName: comp && comp.name, cur_season_id: comp && comp.cur_season_id,
+      compsLoaded: idx.byId.size, seasonsKnown: seasons, source: out && out.source, note: out && out.note, seasonLabel: out && out.season,
       teams: (out && out.table) ? out.table.length : 0,
-      top3: (out && out.table) ? out.table.slice(0, 3).map(r => ({ rank: r.rank, team: r.team, p: r.played, pts: r.points })) : []
+      top3: (out && out.table) ? out.table.slice(0, 3).map(r => ({ rank: r.rank, team: r.team, p: r.played, gf: r.gf, ga: r.ga, pts: r.points })) : []
     });
   } catch (e) { res.json({ error: String((e && e.message) || e) }); }
 });
@@ -1168,6 +1172,23 @@ app.get('/api/team/as', async (req, res) => {
   if (!id) return res.json({ team: null, events: [], next: [], note: 'noId' });
   try {
     if (sport === 'football') {
+      // #EPL 팀 상세: 순위표가 TheSports(팀 uuid)에서 오므로, uuid면 TheSports로 팀 정보 조회(아스널·리버풀 등).
+      const idStr = String(id);
+      if (TS_ON && /^[a-z0-9]{12,}$/i.test(idStr) && !/^\d+$/.test(idStr)) {
+        const tt = await tsFootTeam(idStr).catch(() => null);
+        if (tt && tt.name) {
+          const cc = await _tsCountryName(tt.countryId).catch(() => '');
+          const team = {
+            id: idStr, name: tt.name, badge: tt.logo || '', country: cc || '',
+            formed: tt.foundation ? new Date(tt.foundation * 1000).getUTCFullYear() : '',
+            totalPlayers: tt.totalPlayers || 0, foreignPlayers: tt.foreignPlayers || 0,
+            marketValue: tt.marketValue || 0, marketCur: tt.marketCur || ''
+          };
+          // 이 플랜은 team_id로 팀 경기 필터가 안 돼 최근/다음 경기는 미제공으로 비움(개요는 팀정보·선수단 표시).
+          return res.json({ team, events: [], next: [], source: 'thesports', recentNote: 'ts-plan' });
+        }
+        return res.json({ team: null, events: [], next: [], note: 'ts-noteam' });
+      }
       const [tj, last, next] = await Promise.all([
         asRaw('football', `/teams?id=${encodeURIComponent(id)}`, 86400000).catch(() => null),
         asRaw('football', `/fixtures?team=${encodeURIComponent(id)}&last=8`, 300000).catch(() => null),
@@ -3666,7 +3687,31 @@ function _fbSeasonLabel() {
   const sy = (m >= 7) ? y : y - 1;
   return sy + '-' + (sy + 1);
 }
-async function rankFootballTS(league) {
+function _fbCurYear() { const d = new Date(); return (d.getUTCMonth() + 1 >= 7) ? d.getUTCFullYear() : d.getUTCFullYear() - 1; }
+// 과거 시즌 매핑: /football/season/list(대회ID+연도+순위표유무). 전역 목록이라 compId로 클라이언트 필터.
+const _fbSeasonList = { t: 0, byComp: new Map() };
+async function _fbLoadSeasonList() {
+  if (_fbSeasonList.byComp.size && Date.now() - _fbSeasonList.t < 12 * 3600e3) return _fbSeasonList;
+  try {
+    const r = await tsFetch('/football/season/list', {}, 12 * 3600e3, 15000).catch(() => null);
+    const arr = (r && r.results) || [];
+    if (arr.length) {
+      const m = new Map();
+      arr.forEach(s => { if (!s || !s.competition_id) return; const a = m.get(s.competition_id) || []; a.push({ id: s.id, year: String(s.year || ''), hasTable: !!s.has_table, isCur: !!s.is_current }); m.set(s.competition_id, a); });
+      _fbSeasonList.byComp = m; _fbSeasonList.t = Date.now();
+    }
+  } catch (e) {}
+  return _fbSeasonList;
+}
+async function _fbSeasonForYear(compId, year) {
+  const L = await _fbLoadSeasonList();
+  const arr = L.byComp.get(compId) || [];
+  const y = String(year);
+  // 시즌 year가 "2025-2026" 또는 "2025" 형태 — 선택연도로 시작하는 시즌 매칭
+  return arr.find(s => s.year === y || s.year.startsWith(y + '-') || s.year.startsWith(y)) || null;
+}
+// league: 리그명 또는 TheSports 대회 uuid. season: 선택 연도("2026"). 과거 시즌은 실데이터 있으면 연결, 없으면 'season-na'(현재로 대체 금지).
+async function rankFootballTS(league, season) {
   if (!TS_ON) return null;
   const s = String(league || '').trim();
   if (!s) return null;
@@ -3675,11 +3720,19 @@ async function rankFootballTS(league) {
   let compId = idx.byId.has(s) ? s : _fbMatchCompByName(idx, s);   // leagueId(uuid) 직결 또는 리그명 매핑
   if (!compId) return null;
   const comp = idx.byId.get(compId);
-  const seasonId = comp && comp.cur_season_id;
+  let seasonId = comp && comp.cur_season_id;
+  let seasonLabel = _fbSeasonLabel();
+  const reqY = String(season || '').match(/\d{4}/);
+  if (reqY && +reqY[0] !== _fbCurYear()) {
+    // 과거 시즌 요청: season/list에서 해당 연도 시즌 탐색. 없거나 순위표 없으면 미제공(현재 시즌으로 대체하지 않음).
+    const sInfo = await _fbSeasonForYear(compId, reqY[0]);
+    if (!sInfo || !sInfo.id || !sInfo.hasTable) return { table: [], note: 'season-na', kind: 'football', season: reqY[0] };
+    seasonId = sInfo.id; seasonLabel = sInfo.year || reqY[0];
+  }
   if (!seasonId) return null;
   const r = await tsFetch('/football/season/recent/table/detail', { uuid: seasonId }, 600000, 9000).catch(() => null);
   const tables = (r && r.results && r.results.tables) || [];
-  if (!tables.length) return null;
+  if (!tables.length) return (reqY && +reqY[0] !== _fbCurYear()) ? { table: [], note: 'season-na', kind: 'football', season: reqY[0] } : null;
   const rows0 = (tables.length === 1) ? (tables[0].rows || []) : [].concat(...tables.map(t => t.rows || []));
   if (!rows0.length) return null;
   const nm = await tsNames(rows0.map(rw => rw.team_id));
@@ -3690,7 +3743,7 @@ async function rankFootballTS(league) {
     played: rw.total, win: rw.won, draw: rw.draw, loss: rw.loss,
     points: rw.points, gd: rw.goal_diff, gf: rw.goals, ga: rw.goals_against, form: ''
   }));
-  return { table, kind: 'football', season: _fbSeasonLabel(), compName: (comp && comp.name) || '', source: 'thesports' };
+  return { table, kind: 'football', season: seasonLabel, compName: (comp && comp.name) || '', source: 'thesports' };
 }
 // ⚽ 축구 순위표 — TheSports 대회 ID 기준 diary 집계(순위 전용 엔드포인트 미인증 폴백). 승점=3승+1무.
 const _fbStandCache = new Map();
@@ -5095,6 +5148,19 @@ async function tsFootTeam(id) {
   } catch (e) {}
   _tsTeamCache.set(id, out);
   return out;
+}
+// 국가 uuid → 국가명 (TheSports country/list, 24h 캐시)
+const _tsCountryMap = { t: 0, m: new Map() };
+async function _tsCountryName(cid) {
+  if (!cid) return '';
+  if (!_tsCountryMap.m.size || Date.now() - _tsCountryMap.t > 24 * 3600e3) {
+    try {
+      const r = await tsFetch('/football/country/list', {}, 24 * 3600e3, 12000).catch(() => null);
+      const arr = (r && r.results) || [];
+      if (arr.length) { const m = new Map(); arr.forEach(c => { if (c && c.id) m.set(c.id, c.name || ''); }); _tsCountryMap.m = m; _tsCountryMap.t = Date.now(); }
+    } catch (e) {}
+  }
+  return _tsCountryMap.m.get(cid) || '';
 }
 async function tsNames(ids) {
   const uniq = [...new Set(ids.filter(Boolean))];
