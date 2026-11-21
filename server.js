@@ -21,7 +21,7 @@ const app = express();
 const server = http.createServer(app);
 
 const PORT = process.env.PORT || 3000;
-const APP_VERSION = 'v541';
+const APP_VERSION = 'v542';
 
 // ============================================================
 //  📏 성능 계측(instrumentation) — 엔드포인트 지연·캐시·공급사·WS·이벤트루프
@@ -4132,18 +4132,21 @@ async function tsVolleyballGames(date, tz) {
       seen.add(id);
       const ht = team[m.home_team_id] || {}, at = team[m.away_team_id] || {}, cp = comp[m.unique_tournament_id] || comp[m.tournament_id] || {};
       const sc = m.scores || {}; const ft = sc.ft || [];
-      const setScores = [];
-      ['p1', 'p2', 'p3', 'p4', 'p5'].forEach(k => { const p = sc[k]; if (Array.isArray(p) && (p[0] != null || p[1] != null)) setScores.push({ home: (p[0] != null ? +p[0] : null), away: (p[1] != null ? +p[1] : null) }); });
       const st = m.status_id, state = tsVolState(st);
+      // 🏐 공식 현재 세트 번호 = 결정된 세트수(세트 승수 합)+1(진행 중). 현재 세트까지만 포함(현재 세트 0:0 보존), 이후 미시작 세트 제외. 임의 0 생성 금지.
+      const _decided = (+ft[0] || 0) + (+ft[1] || 0);
+      const _curSet = (state === 'live') ? _decided + 1 : _decided;
+      const setScores = [];
+      ['p1', 'p2', 'p3', 'p4', 'p5'].forEach((k, idx) => { const p = sc[k]; if (!Array.isArray(p)) return; if (_curSet > 0 && (idx + 1) > _curSet) return; setScores.push({ home: (p[0] != null ? +p[0] : null), away: (p[1] != null ? +p[1] : null) }); });
       out.push({
         id: 'ts' + id, tsid: id, sport: 'volleyball',
         league: tsLeagueDisplay('volleyball', cp.name, cp.country) || '', leagueOrig: cp.name || '', leagueLogo: cp.logo || '', leagueId: m.unique_tournament_id || m.tournament_id || '', country: cp.country || '',
         home: ht.name || '', homeLogo: ht.logo || '', away: at.name || '', awayLogo: at.logo || '',
         homeTid: m.home_team_id, awayTid: m.away_team_id,
         hs: (ft[0] != null ? +ft[0] : null), as: (ft[1] != null ? +ft[1] : null),   // 세트 승수
-        status: '', statusLong: String(st), period: setScores.length,
+        status: '', statusLong: String(st), period: (_curSet > 0 ? _curSet : setScores.length),
         setScores: setScores.length ? setScores : null,
-        livePts: (state === 'live' && setScores.length) ? setScores[setScores.length - 1] : null,
+        livePts: (state === 'live' && _curSet > 0 && setScores.length >= _curSet) ? setScores[_curSet - 1] : null,
         box: null, curInning: null, inningHalf: null,
         date: iso, state: state, _src: 'thesports'
       });

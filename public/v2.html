@@ -2604,7 +2604,7 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
       // L02: 세트 승수(메인 점수열) + 현재 몇 세트·현재 랠리 점수를 강조 칩으로 분리 표시
       var w=el("div","gm-sub"); var live=stateOf(g)==="live";
       var ss=g.setScores||[]; var curN=g.period||ss.length;
-      var cur=(live&&ss.length?ss[ss.length-1]:null)||g.livePts;   // 현재 세트 = 세트별 마지막 세트(단일 소스) — 목록·카드·헤더 일관
+      var cur=(live&&curN>0&&ss.length>=curN?ss[curN-1]:null)||g.livePts;   // 현재 세트 = 공식 세트번호(g.period) 위치 점수(0:0 보존), 없으면 livePts
       if(live&&cur&&(cur.home!=null||cur.away!=null)){
         w.appendChild(el("span","vb-cur",'<b>'+periodColLabel("volleyball",curN-1,false)+'</b> '+(cur.home==null?0:cur.home)+":"+(cur.away==null?0:cur.away)));
       }
@@ -4395,7 +4395,7 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
   function loadVolleyOverview(g){
     var live=stateOf(g)==="live"; var ss=g.setScores||[];
     var h='<div class="dt-sec-t">'+tl({en:"Set scores",ko:"세트별 점수",ja:"セット別スコア",zh:"各局比分",es:"Puntos por set",hi:"सेट स्कोर",vi:"Điểm từng set",th:"คะแนนแต่ละเซต",ru:"Счёт по сетам",de:"Satzergebnisse",fr:"Scores par set",it:"Punteggi set"})+'</div>'+vbSetsTable(g);
-    if(live){ var cur=(ss.length?ss[ss.length-1]:null)||g.livePts; var curN=g.period||ss.length;   // 현재 세트 = 세트별 점수의 마지막 세트(단일 소스) → 세트별표·총득점과 항상 일치
+    if(live){ var curN=g.period||ss.length; var cur=(curN>0&&ss.length>=curN?ss[curN-1]:null)||g.livePts;   // 현재 세트 = 공식 세트번호(g.period) 위치의 세트 점수(0:0 보존), 없으면 livePts
       if(cur&&(cur.home!=null||cur.away!=null)){
         h+='<div class="vb-curset"><div class="vb-curset-l">'+periodColLabel("volleyball",curN-1,false)+' · '+t("curSet")+'</div><div class="vb-curset-r"><span><em>'+esc(g.home)+'</em><b>'+(cur.home==null?0:cur.home)+'</b></span><span class="sep">:</span><span><b>'+(cur.away==null?0:cur.away)+'</b><em>'+esc(g.away)+'</em></span></div></div>';
       }
@@ -6011,16 +6011,23 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
       if(!_dt||_dt.g!==g||!$("#detail")||!j||!j.found||!j.score)return;
       var s=j.score, sc=(Array.isArray(s)&&s[3])?s[3]:null; if(!sc)return;
       _vbApplied=seq;
-      // 세트별 점수(미시작 세트 [0,0]은 제외) — 미수신 값은 넣지 않음(임의 0 금지).
-      var ns=[]; ["p1","p2","p3","p4","p5"].forEach(function(k){ var p=sc[k]; if(Array.isArray(p)&&(p[0]!=null||p[1]!=null)&&(p[0]||p[1])) ns.push({home:(p[0]!=null?+p[0]:null),away:(p[1]!=null?+p[1]:null)}); });
       var ft=sc.ft||[]; var nh=(ft[0]!=null?+ft[0]:g.hs), na=(ft[1]!=null?+ft[1]:g.as);   // 세트 승수
+      var liveNow=(stateOf(g)==="live");
+      // 🏐 공식 현재 세트 번호 = 결정된 세트수(세트 승수 합) + 1 (진행 중). 종료면 치른 세트 전체.
+      var decided=(+ft[0]||0)+(+ft[1]||0);
+      var curSet=liveNow?decided+1:decided;
+      // 세트별 점수: API가 '제공한' 세트만, 현재 세트까지 포함(현재 세트의 실제 0:0은 보존). 현재 세트 이후(미시작 자리표시자)는 제외. 임의 0 생성 금지.
+      var ns=[];
+      for(var i=1;i<=5;i++){ var p=sc["p"+i]; if(!Array.isArray(p))continue; if(curSet>0&&i>curSet)continue; ns.push({home:(p[0]!=null?+p[0]:null),away:(p[1]!=null?+p[1]:null)}); }
       var changed=false;
       if(nh!==g.hs||na!==g.as){ g.hs=nh; g.as=na; changed=true; }
       var oldSig=(g.setScores||[]).map(function(p){return p.home+"/"+p.away;}).join(",");
       var newSig=ns.map(function(p){return p.home+"/"+p.away;}).join(",");
-      if(ns.length&&newSig!==oldSig){ g.setScores=ns; g.period=ns.length; changed=true; }
-      // 현재 세트 점수(livePts)도 같은 응답에서 함께 갱신 — '세트별은 바뀌는데 현재 세트가 멈추는' 불일치 제거.
-      var cur=ns.length?ns[ns.length-1]:null;
+      if(ns.length&&newSig!==oldSig){ g.setScores=ns; changed=true; }
+      // period = 공식 세트 번호(배열 마지막 항목이 아니라 세트 상태 기준). 현재 세트 값이 제공되면(0:0 포함) 그 값을 반영.
+      var np=curSet>0?curSet:ns.length;
+      if(np!==g.period){ g.period=np; changed=true; }
+      var cur=(curSet>0&&ns.length>=curSet)?ns[curSet-1]:(ns.length?ns[ns.length-1]:null);
       var curSig=cur?(cur.home+"/"+cur.away):"";
       var oldCur=g.livePts?(g.livePts.home+"/"+g.livePts.away):"";
       if(cur&&curSig!==oldCur){ g.livePts=cur; changed=true; }
