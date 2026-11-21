@@ -21,7 +21,7 @@ const app = express();
 const server = http.createServer(app);
 
 const PORT = process.env.PORT || 3000;
-const APP_VERSION = 'v543';
+const APP_VERSION = 'v544';
 
 // ============================================================
 //  📏 성능 계측(instrumentation) — 엔드포인트 지연·캐시·공급사·WS·이벤트루프
@@ -2071,22 +2071,50 @@ async function vbTeamGamesRaw(teamId, season){
   const j=await asRaw('volleyball', `/games?team=${encodeURIComponent(teamId)}&season=${encodeURIComponent(season)}`, 300000).catch(()=>null);
   return ((j&&j.response)||[]);
 }
-// TheSports 경기 → API-Sports 팀/리그/시즌 ID 해석: 리그명→순위표의 팀명 매칭(제공사 간 안정적)
+// 🏐 한국 V리그 팀 정규화 별칭(제공사 간 명칭 상이: TheSports↔API-Sports). 각 팀 고유키 → 영문 키워드(정규화 후 포함검사). 오매칭 방지용 '구분되는' 키워드만.
+const VB_KR_TEAM = [
+  // 남자부
+  ['m_hyundaicap', ['skywalker', 'hyundaicapital']],                 // Cheonan Hyundai Capital Skywalkers / Hyundai Skywalkers
+  ['m_kepco', ['kepco', 'vixtorm']],                                 // Suwon KEPCO Vixtorm / Kepco
+  ['m_samsung', ['bluefang', 'samsungfire', 'samsungblue']],         // Samsung Blue Fangs
+  ['m_woori', ['wooricard', 'woorikumi']],                           // Woori Card
+  ['m_kal', ['jumbo', 'koreanair']],                                 // Korean Air Jumbos (KAL)
+  ['m_ok', ['busanok', 'okman', 'okfinancial', 'oksavings', 'rushcash', 'okbank']], // Busan OK / Rush & Cash
+  ['m_kb', ['kbstar', 'kbinsurance']],                               // KB Insurance Stars
+  // 여자부
+  ['w_expressway', ['expressway', 'hiway']],                         // Expressway Co (도로공사)
+  ['w_hillstate', ['hillstate', 'hyundaienc', 'hyundaiengineering']],// Hyundai E&C Hillstate
+  ['w_gscaltex', ['gscaltex', 'caltex']],                            // GS Caltex
+  ['w_heungkuk', ['heungkuk', 'hungkuk', 'pinkspider']],             // Heungkuk Life Pink Spiders
+  ['w_ibk', ['ibk', 'altos']],                                       // IBK Altos
+  ['w_pepper', ['pepper']],                                          // AI Peppers / Pepper Savings Bank
+  ['w_daejeonkgc', ['daejeon', 'kgc', 'jkj', 'ginseng']]             // Daejeon KGC / Daejeon JKJ (정관장)
+];
+function vbKrCanon(name) {
+  const n = _nrmVbTeam(name);
+  if (!n) return null;
+  for (const [k, kws] of VB_KR_TEAM) { for (const kw of kws) { const w = _nrmVbTeam(kw); if (w && n.includes(w)) return k; } }
+  return null;
+}
+// TheSports 경기 → API-Sports 팀/리그/시즌 ID 해석: 한국(국가·성별) 리그 순위표의 팀을 '정규화 별칭'으로 매칭(제공사 간 명칭 차이 흡수, 오매칭 방지).
 async function vbResolve(home, away, leagueName, season){
-  const key='std|'+_nrmVbTeam(home)+'|'+_nrmVbTeam(away)+'|'+_nrmVbTeam(leagueName);
+  const key='std2|'+_nrmVbTeam(home)+'|'+_nrmVbTeam(away)+'|'+_nrmVbTeam(leagueName);
   const c=_vbResolveCache.get(key); if(c&&Date.now()-c.t<6*3600e3) return c.v;
   let out=null;
   try{
-    const lid=await asLeagueId('volleyball', vbLeagueAlias(leagueName));
+    const alias=vbLeagueAlias(leagueName);
+    // 한국 V리그는 국가=한국 필터로(남자부 '카타르' 오매칭 방지), 그 외는 일반 검색.
+    const lid = /^Volleyball League( Women)?$/i.test(alias) ? await asVolleyKRLeagueId(alias) : await asLeagueId('volleyball', alias);
     if(lid){
       const m=String(season||'').match(/\d{4}/); const y=m?+m[0]:new Date().getFullYear();
-      const h=_nrmVbTeam(home), a=_nrmVbTeam(away);
+      const h=_nrmVbTeam(home), a=_nrmVbTeam(away); const ch=vbKrCanon(home), ca=vbKrCanon(away);
       for(const sy of [`${y}-${y+1}`, String(y), `${y-1}-${y}`, String(y-1)]){
         const j=await asRaw('volleyball', `/standings?league=${lid}&season=${encodeURIComponent(sy)}`, 3600e3).catch(()=>null);
         const table=parseHoopStandings(j); if(!table.length) continue;
-        const find=n=>{ let r=table.find(t=>_nrmVbTeam(t.team)===n); if(r)return r; return table.find(t=>{ const tn=_nrmVbTeam(t.team); return tn&&(tn.includes(n)||n.includes(tn)); }); };
-        const rh=find(h), ra=find(a);
-        if(rh&&ra){ out={ leagueId:lid, leagueName, season:sy, homeId:rh.teamId, awayId:ra.teamId, homeName:rh.team, awayName:ra.team }; break; }
+        // 1) 정규화 별칭(고유키) 매칭  2) 정확 일치  3) 부분 포함  — 같은 리그 7팀 내에서만 → 안전.
+        const find=(canon,norm)=>{ if(canon){ const r=table.find(t=>vbKrCanon(t.team)===canon); if(r)return r; } let r=table.find(t=>_nrmVbTeam(t.team)===norm); if(r)return r; return table.find(t=>{ const tn=_nrmVbTeam(t.team); return tn&&tn.length>=3&&(tn.includes(norm)||norm.includes(tn)); }); };
+        const rh=find(ch,h), ra=find(ca,a);
+        if(rh&&ra&&String(rh.teamId)!==String(ra.teamId)){ out={ leagueId:lid, leagueName, season:sy, homeId:rh.teamId, awayId:ra.teamId, homeName:rh.team, awayName:ra.team }; break; }
       }
     }
   }catch(e){}
@@ -2096,6 +2124,19 @@ async function vbResolve(home, away, leagueName, season){
 app.get('/api/volleyball/resolve', async (req,res)=>{ res.set('Cache-Control','no-store');
   try{ const r=await vbResolve(req.query.home,req.query.away,req.query.league,req.query.season); res.json(Object.assign({found:!!r}, r||{})); }
   catch(e){ res.json({found:false, error:String(e.message||e)}); } });
+// 🔎 맞대결 진단(배포 후 검증): 이름→팀ID 해석 + 맞대결 전적을 한 번에 확인.
+app.get('/api/volleyball/h2hdebug', async (req,res)=>{ res.set('Cache-Control','no-store');
+  try{
+    const r=await vbResolve(req.query.home,req.query.away,req.query.league,req.query.season||'2026-2027');
+    if(!r) return res.json({ resolved:false, home:req.query.home, away:req.query.away, canonHome:vbKrCanon(req.query.home), canonAway:vbKrCanon(req.query.away) });
+    let season=+String(r.season||'2026').slice(0,4); let all=[];
+    for(const s of [season, season-1, season-2]){ const rows=await vbTeamGamesRaw(r.homeId,s).catch(()=>[]);
+      rows.forEach(g=>{ const h=g.teams&&g.teams.home&&g.teams.home.id, a=g.teams&&g.teams.away&&g.teams.away.id;
+        if((String(h)===String(r.homeId)&&String(a)===String(r.awayId))||(String(h)===String(r.awayId)&&String(a)===String(r.homeId))) all.push(vbNormGame(g)); }); }
+    const seen=new Set(); all=all.filter(g=>{ if(seen.has(g.id))return false; seen.add(g.id); return true; }).sort((x,y)=>(y.ts||0)-(x.ts||0));
+    res.json({ resolved:true, leagueId:r.leagueId, season:r.season, homeId:r.homeId, awayId:r.awayId, homeName:r.homeName, awayName:r.awayName,
+      h2hCount:all.length, games:all.slice(0,8).map(g=>({ date:(g.date||'').slice(0,10), home:g.home, away:g.away, sets:(g.setsH!=null?g.setsH:'-')+':'+(g.setsA!=null?g.setsA:'-'), finished:g.finished })) });
+  }catch(e){ res.json({ error:String(e.message||e) }); } });
 app.get('/api/volleyball/teamgames', async (req,res)=>{ res.set('Cache-Control','no-store');
   if(!APISPORTS_KEY) return res.json({needKey:true, games:[]});
   const team=req.query.team, season=req.query.season||new Date().getFullYear();
