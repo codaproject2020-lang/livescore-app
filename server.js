@@ -21,7 +21,7 @@ const app = express();
 const server = http.createServer(app);
 
 const PORT = process.env.PORT || 3000;
-const APP_VERSION = 'v550';
+const APP_VERSION = 'v551';
 
 // ============================================================
 //  📏 성능 계측(instrumentation) — 엔드포인트 지연·캐시·공급사·WS·이벤트루프
@@ -3856,27 +3856,43 @@ function _fbSeasonLabel() {
   return sy + '-' + (sy + 1);
 }
 function _fbCurYear() { const d = new Date(); return (d.getUTCMonth() + 1 >= 7) ? d.getUTCFullYear() : d.getUTCFullYear() - 1; }
-// 과거 시즌 매핑: /football/season/list(대회ID+연도+순위표유무). 전역 목록이라 compId로 클라이언트 필터.
-const _fbSeasonList = { t: 0, byComp: new Map() };
+// 과거 시즌 매핑: /football/season/list(대회ID+연도+순위표유무). 전역 목록(페이지네이션)이라 여러 페이지를 모아 compId로 필터.
+//  byId: 시즌ID→{competition_id,...} 역색인(현재 시즌ID로 대회연결을 보정 — comp/additional id ↔ season/list id 불일치 대비).
+const _fbSeasonList = { t: 0, byComp: new Map(), byId: new Map() };
 async function _fbLoadSeasonList() {
   if (_fbSeasonList.byComp.size && Date.now() - _fbSeasonList.t < 12 * 3600e3) return _fbSeasonList;
   try {
-    const r = await tsFetch('/football/season/list', {}, 12 * 3600e3, 15000).catch(() => null);
-    const arr = (r && r.results) || [];
-    if (arr.length) {
-      const m = new Map();
-      arr.forEach(s => { if (!s || !s.competition_id) return; const a = m.get(s.competition_id) || []; a.push({ id: s.id, year: String(s.year || ''), hasTable: !!s.has_table, isCur: !!s.is_current }); m.set(s.competition_id, a); });
-      _fbSeasonList.byComp = m; _fbSeasonList.t = Date.now();
+    const m = new Map(), byId = new Map();
+    // 최신 시즌은 뒤쪽 페이지에 있을 수 있어 여러 페이지 수집(마지막 페이지까지, 최대 20쪽). 12h 캐시.
+    for (let page = 1; page <= 20; page++) {
+      const r = await tsFetch('/football/season/list', { page: String(page) }, 12 * 3600e3, 15000).catch(() => null);
+      const arr = (r && r.results) || [];
+      if (!arr.length) break;
+      arr.forEach(s => {
+        if (!s || !s.competition_id) return;
+        const rec = { id: s.id, competition_id: s.competition_id, year: String(s.year || ''), hasTable: !!s.has_table, isCur: !!s.is_current };
+        const a = m.get(s.competition_id) || []; a.push(rec); m.set(s.competition_id, a);
+        if (s.id) byId.set(s.id, rec);
+      });
+      if (arr.length < 1000) break;   // 마지막 페이지
     }
+    if (m.size) { _fbSeasonList.byComp = m; _fbSeasonList.byId = byId; _fbSeasonList.t = Date.now(); }
   } catch (e) {}
   return _fbSeasonList;
 }
-async function _fbSeasonForYear(compId, year) {
+// compId(및 현재시즌ID로 보정한 대회ID)에서 연도 매칭 시즌 탐색. 순위표 있는 시즌 우선.
+async function _fbSeasonForYear(compId, year, curSeasonId) {
   const L = await _fbLoadSeasonList();
-  const arr = L.byComp.get(compId) || [];
   const y = String(year);
-  // 시즌 year가 "2025-2026" 또는 "2025" 형태 — 선택연도로 시작하는 시즌 매칭
-  return arr.find(s => s.year === y || s.year.startsWith(y + '-') || s.year.startsWith(y)) || null;
+  const pick = arr => { const c = (arr || []).filter(s => s.year === y || s.year.startsWith(y + '-') || s.year.startsWith(y)); return c.find(s => s.hasTable) || c[0] || null; };
+  let hit = pick(L.byComp.get(compId));
+  if (hit) return hit;
+  // comp/additional의 대회ID와 season/list의 competition_id가 다를 수 있어, 현재시즌ID로 올바른 대회ID를 역추적해 재시도.
+  if (curSeasonId && L.byId.has(curSeasonId)) {
+    const realComp = L.byId.get(curSeasonId).competition_id;
+    if (realComp && realComp !== compId) { hit = pick(L.byComp.get(realComp)); if (hit) return hit; }
+  }
+  return null;
 }
 // league: 리그명 또는 TheSports 대회 uuid. season: 선택 연도("2026"). 과거 시즌은 실데이터 있으면 연결, 없으면 'season-na'(현재로 대체 금지).
 async function rankFootballTS(league, season) {
@@ -3888,12 +3904,13 @@ async function rankFootballTS(league, season) {
   let compId = idx.byId.has(s) ? s : _fbMatchCompByName(idx, s);   // leagueId(uuid) 직결 또는 리그명 매핑
   if (!compId) return null;
   const comp = idx.byId.get(compId);
-  let seasonId = comp && comp.cur_season_id;
+  const curSeasonId = comp && comp.cur_season_id;
+  let seasonId = curSeasonId;
   let seasonLabel = _fbSeasonLabel();
   const reqY = String(season || '').match(/\d{4}/);
   if (reqY && +reqY[0] !== _fbCurYear()) {
-    // 과거 시즌 요청: season/list에서 해당 연도 시즌 탐색. 없거나 순위표 없으면 미제공(현재 시즌으로 대체하지 않음).
-    const sInfo = await _fbSeasonForYear(compId, reqY[0]);
+    // 과거 시즌 요청: season/list에서 해당 연도 시즌 탐색(현재시즌ID로 대회ID 보정). 없거나 순위표 없으면 미제공(현재 시즌으로 대체하지 않음).
+    const sInfo = await _fbSeasonForYear(compId, reqY[0], curSeasonId);
     if (!sInfo || !sInfo.id || !sInfo.hasTable) return { table: [], note: 'season-na', kind: 'football', season: reqY[0] };
     seasonId = sInfo.id; seasonLabel = sInfo.year || reqY[0];
   }
@@ -3903,15 +3920,28 @@ async function rankFootballTS(league, season) {
   if (!tables.length) return (reqY && +reqY[0] !== _fbCurYear()) ? { table: [], note: 'season-na', kind: 'football', season: reqY[0] } : null;
   const rows0 = (tables.length === 1) ? (tables[0].rows || []) : [].concat(...tables.map(t => t.rows || []));
   if (!rows0.length) return null;
+  // 진출·강등 범례(색상) — promotion_id → {name,color}
+  const promos = (r.results.promotions || []).reduce((o, p) => { if (p && p.id) o[p.id] = { name: p.name || '', color: p.color || '' }; return o; }, {});
   const nm = await tsNames(rows0.map(rw => rw.team_id));
+  const num = v => (v == null ? null : +v);
   const table = rows0.slice().sort((a, b) => (a.position || 99) - (b.position || 99)).map(rw => ({
     rank: rw.position, teamId: rw.team_id,
     team: (nm[rw.team_id] && nm[rw.team_id].name) || '',
     logo: (nm[rw.team_id] && nm[rw.team_id].logo) || '',
-    played: rw.total, win: rw.won, draw: rw.draw, loss: rw.loss,
-    points: rw.points, gd: rw.goal_diff, gf: rw.goals, ga: rw.goals_against, form: ''
+    // 전체(all)
+    played: num(rw.total), win: num(rw.won), draw: num(rw.draw), loss: num(rw.loss),
+    points: num(rw.points), gd: num(rw.goal_diff), gf: num(rw.goals), ga: num(rw.goals_against),
+    // 홈(home)
+    hPlayed: num(rw.home_total), hWin: num(rw.home_won), hDraw: num(rw.home_draw), hLoss: num(rw.home_loss),
+    hPoints: num(rw.home_points), hGd: num(rw.home_goal_diff), hGf: num(rw.home_goals), hGa: num(rw.home_goals_against), hRank: num(rw.home_position),
+    // 원정(away)
+    aPlayed: num(rw.away_total), aWin: num(rw.away_won), aDraw: num(rw.away_draw), aLoss: num(rw.away_loss),
+    aPoints: num(rw.away_points), aGd: num(rw.away_goal_diff), aGf: num(rw.away_goals), aGa: num(rw.away_goals_against), aRank: num(rw.away_position),
+    deduct: num(rw.deduct_points) || 0, note: rw.note || '',
+    promo: (rw.promotion_id && promos[rw.promotion_id]) ? promos[rw.promotion_id] : null,
+    form: ''   // ⚠️ 최근5: 현 TheSports 플랜은 팀별 최근경기 엔드포인트 미인증 → 미제공(임의 생성 금지)
   }));
-  return { table, kind: 'football', season: seasonLabel, compName: (comp && comp.name) || '', source: 'thesports' };
+  return { table, kind: 'football', season: seasonLabel, compName: (comp && comp.name) || '', source: 'thesports', promotions: Object.values(promos), splits: true, formNa: true };
 }
 // ⚽ 축구 순위표 — TheSports 대회 ID 기준 diary 집계(순위 전용 엔드포인트 미인증 폴백). 승점=3승+1무.
 const _fbStandCache = new Map();
@@ -5364,14 +5394,19 @@ app.get('/api/football/tsstanding', async (req, res) => {
     const allIds = [];
     tables.forEach(tb => (tb.rows || []).forEach(rw => allIds.push(rw.team_id)));
     const nm = await tsNames(allIds);
+    const promos = (r.results.promotions || []).reduce((o, p) => { if (p && p.id) o[p.id] = { name: p.name || '', color: p.color || '' }; return o; }, {});
+    const num = v => (v == null ? null : +v);
     const groups = tables.map(tb => ({
       group: tb.group || 0,
       rows: (tb.rows || []).sort((a, b) => a.position - b.position).map(rw => ({
-        pos: rw.position, teamId: rw.team_id, team: (nm[rw.team_id] && nm[rw.team_id].name) || '', logo: (nm[rw.team_id] && nm[rw.team_id].logo) || '',
-        played: rw.total, w: rw.won, d: rw.draw, l: rw.loss, gf: rw.goals, ga: rw.goals_against, gd: rw.goal_diff, pts: rw.points, note: rw.note || ''
+        pos: rw.position, rank: rw.position, teamId: rw.team_id, team: (nm[rw.team_id] && nm[rw.team_id].name) || '', logo: (nm[rw.team_id] && nm[rw.team_id].logo) || '',
+        played: num(rw.total), w: num(rw.won), d: num(rw.draw), l: num(rw.loss), win: num(rw.won), draw: num(rw.draw), loss: num(rw.loss), gf: num(rw.goals), ga: num(rw.goals_against), gd: num(rw.goal_diff), pts: num(rw.points), points: num(rw.points), note: rw.note || '',
+        hPlayed: num(rw.home_total), hWin: num(rw.home_won), hDraw: num(rw.home_draw), hLoss: num(rw.home_loss), hPoints: num(rw.home_points), hGd: num(rw.home_goal_diff), hGf: num(rw.home_goals), hGa: num(rw.home_goals_against), hRank: num(rw.home_position),
+        aPlayed: num(rw.away_total), aWin: num(rw.away_won), aDraw: num(rw.away_draw), aLoss: num(rw.away_loss), aPoints: num(rw.away_points), aGd: num(rw.away_goal_diff), aGf: num(rw.away_goals), aGa: num(rw.away_goals_against), aRank: num(rw.away_position),
+        promo: (rw.promotion_id && promos[rw.promotion_id]) ? promos[rw.promotion_id] : null, form: ''
       }))
     }));
-    res.json({ found: true, seasonId, seasonName, groups });
+    res.json({ found: true, seasonId, seasonName, groups, promotions: Object.values(promos), splits: true, formNa: true });
   } catch (e) { res.json({ found: false, error: String((e && e.message) || e) }); }
 });
 // ⚽ 팀 상세(TheSports) — 팀정보(team/additional) + 그 팀의 최근/다음 경기(match/analysis history[side]) + 폼.
