@@ -21,7 +21,7 @@ const app = express();
 const server = http.createServer(app);
 
 const PORT = process.env.PORT || 3000;
-const APP_VERSION = 'v539';
+const APP_VERSION = 'v540';
 
 // ============================================================
 //  📏 성능 계측(instrumentation) — 엔드포인트 지연·캐시·공급사·WS·이벤트루프
@@ -1887,9 +1887,11 @@ function tsLeagueDisplay(sport, name, country) {
     if (/^National Basketball Association$/i.test(n)) return 'NBA';
   }
   if (sport === 'volleyball') {
-    // ⚠️ 'Volleyball League'는 공급사에서 한국 KOVO 외 다른 나라(카타르 등)도 동명으로 올 수 있어 '한국'일 때만 V리그로 표기.
-    if (/^Volleyball League Women$/i.test(n)) return isKorea ? 'V리그 여자부' : n;   // 한국 KOVO 여자부
-    if (/^Volleyball League$/i.test(n)) return isKorea ? 'V리그 남자부' : n;          // 한국 KOVO 남자부
+    // TheSports는 한국 V리그를 'Volleyball League'(남)/'Volleyball League Women'(여)로, country는 '빈 값'으로 보냄.
+    //  → 국가가 한국이거나 '비어있으면' 한국 V리그로 표기(TheSports에서 이 정확 명칭은 사실상 한국 전용). 명시적 타국이면 원명 유지.
+    const notKorea = !!cc && !isKorea;
+    if (/^Volleyball League Women$/i.test(n)) return notKorea ? n : 'V리그 여자부';   // 한국 KOVO 여자부
+    if (/^Volleyball League$/i.test(n)) return notKorea ? n : 'V리그 남자부';          // 한국 KOVO 남자부
   }
   return n;
 }
