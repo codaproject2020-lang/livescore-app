@@ -2674,15 +2674,8 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
         if(["overview","stats","record"].indexOf(_dt.tab)>=0) renderDetailBody();
       }).catch(function(){});
     }
-    // 🏐 배구(TheSports) → API-Sports 팀/리그/시즌 id 1회 해석(순위·맞대결·일정 연결). 공유 캐시.
-    if(sp==="volleyball"&&g.homeId==null&&!g._vbTried){
-      g._vbTried=true;
-      fetch("/api/volleyball/resolve?home="+encodeURIComponent(g.home)+"&away="+encodeURIComponent(g.away)+"&league="+encodeURIComponent(g.leagueOrig||g.league||"")+"&season="+encodeURIComponent(g.season||"")).then(function(r){return r.json();}).then(function(j){
-        if(!_dt||_dt.g!==g||!j||!j.found)return;
-        g.vbHomeId=j.homeId; g.vbAwayId=j.awayId; g.vbLeagueId=j.leagueId; g.vbSeason=j.season;
-        if(["overview","vbh2h","vbrank"].indexOf(_dt.tab)>=0) renderDetailBody();
-      }).catch(function(){});
-    }
+    // 🏐 배구(TheSports) → API-Sports 팀/리그/시즌 id 1회 해석(순위·맞대결·일정 연결). 공유 가드 함수 사용.
+    if(sp==="volleyball"&&g.vbHomeId==null&&!g._vbTried){ vbResolveTeams(g); }
     // 🎬 등록된 공식 하이라이트가 있으면 탭 추가(있을 때만)
     (function(sp,id){ fetch("/api/highlight?sport="+encodeURIComponent(sp)+"&id="+encodeURIComponent(id)).then(function(r){return r.json()}).then(function(j){
       if(!_dt||_dt.g!==g)return; _dt.hl=(j&&j.highlight)||null; if(_dt.hl)renderDetail();
@@ -2711,7 +2704,7 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
     function avp(k){ return av[k]!==false; }
     if(sport==="baseball"){ var ba=[["overview",t("overview")],trkTab()]; if(avp("box"))ba.push(["box",t("boxTab")]); ba.push(["chat",t("chat")]); return ba; }
     if(sport==="basketball"){ var ka=[["overview",t("overview")],trkTab()]; if(avp("bsklineup"))ka.push(["bsklineup",t("lineup")]); if(avp("box"))ka.push(["box",t("playerRec")]); if(avp("bskteam"))ka.push(["bskteam",t("teamStat")]); if(avp("bskflow"))ka.push(["bskflow",t("flowTab")]); if(avp("bskrec"))ka.push(["bskrec",t("recordTab")]); if(avp("bskrank"))ka.push(["bskrank",t("standings")]); ka.push(["chat",t("chat")]); return ka; }
-    if(sport==="volleyball"){ var va=[["overview",t("overview")],trkTab()]; if(avp("vbstats"))va.push(["vbstats",t("statsTab")]); if(avp("vbh2h"))va.push(["vbh2h",t("h2hTab")]); if(avp("vbrank"))va.push(["vbrank",t("standings")]); va.push(["chat",t("chat")]); return va; }
+    if(sport==="volleyball"){ var va=[["overview",t("overview")],trkTab()]; if(avp("vbstats"))va.push(["vbstats",t("statsTab")]); va.push(["vbh2h",t("h2hTab")]); va.push(["vbrank",t("standings")]); va.push(["chat",t("chat")]); return va; }   // 맞대결·순위 탭은 항상 유지(지연·빈결과로 제거 금지) — 각 로더에서 상태 표시
     if(sport==="hockey"){ var ha=[["overview",t("overview")],trkTab()]; if(avp("hkyev"))ha.push(["hkyev",t("eventsTab")]); ha.push(["chat",t("chat")]); return ha; }
     if(sport==="esports"){ var ea=[["overview",t("overview")],trkTab()]; if(g&&g.game==="csgo"&&avp("esmaps"))ea.push(["esmaps",tl({en:"Maps",ko:"맵",ja:"マップ",zh:"地图",es:"Mapas",hi:"मैप",vi:"Bản đồ",th:"แมป",ru:"Карты",de:"Maps",fr:"Cartes",it:"Mappe"})]); ea.push(["chat",t("chat")]); return ea; }
     return [["overview",t("overview")],["chat",t("chat")]];
@@ -4473,19 +4466,40 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
       homeTid:d.hid||null, awayTid:d.aid||null, vbHomeId:d.hid||null, vbAwayId:d.aid||null, vbHomeName:d.h, vbAwayName:d.a,
       league:d.lg, leagueOrig:d.lg, date:d.dt, state:(d.fin?"finished":"scheduled"), setScores:null };
     openDetail(ng); }; }); }
+  // 재시도 버튼이 있는 '미제공/실패' 메시지(맞대결 탭은 유지).
+  function vbH2HMsg(icon,msg,retry){
+    var r=retry?'<div style="margin-top:10px"><button class="refbtn" id="vbH2HRetry">'+tl({en:"Retry",ko:"재시도",ja:"再試行",zh:"重试",es:"Reintentar",hi:"पुनः प्रयास",vi:"Thử lại",th:"ลองใหม่",ru:"Повторить",de:"Erneut",fr:"Réessayer",it:"Riprova"})+'</button></div>':'';
+    dtBody('<div class="msg"><div class="big">'+icon+'</div>'+msg+r+'</div>');
+    if(retry){ var b=$("#vbH2HRetry"); if(b)b.onclick=function(){ var gg=_dt&&_dt.g; if(gg){ gg._vbTried=false; vbResolveTeams(gg,true); loadVolleyH2H(gg); } }; }
+  }
   function loadVolleyH2H(g){
-    if(g.vbHomeId==null){ if(g._vbTried){ dtDrop("vbh2h"); return; } return dtLoading(); }
-    dtLoading(); var tk=_dtTok;
-    fetch("/api/volleyball/h2h?home="+encodeURIComponent(g.vbHomeId)+"&away="+encodeURIComponent(g.vbAwayId)+"&season="+encodeURIComponent(g.vbSeason||"")).then(function(r){return r.json();}).then(function(j){
-      if(!dtFresh(tk))return;
+    // 팀 ID 미해석: 해석 시도 중이면 로딩, 끝났는데 실패면 '조회 실패+재시도'(탭은 유지, 개요로 복귀 안 함).
+    if(g.vbHomeId==null){
+      if(g._vbResolving) return dtLoading();
+      if(g._vbTried) return vbH2HMsg('🔗',tl({en:"Couldn't match both teams for head-to-head yet.",ko:"맞대결용 양팀 매칭을 불러오지 못했습니다.",ja:"対戦のチーム照合に失敗しました。",zh:"暂时无法匹配两队交锋。",es:"No se pudieron emparejar los equipos.",hi:"दोनों टीमें मैच नहीं हुईं।",vi:"Chưa khớp được hai đội.",th:"ยังจับคู่สองทีมไม่ได้",ru:"Команды пока не сопоставлены.",de:"Teams noch nicht zugeordnet.",fr:"Équipes non appariées.",it:"Squadre non abbinate."}),true);
+      vbResolveTeams(g); return dtLoading();
+    }
+    dtLoading(); var tk=_dtTok; var reqG=g;
+    fetch("/api/volleyball/h2h?home="+encodeURIComponent(g.vbHomeId)+"&away="+encodeURIComponent(g.vbAwayId)+"&season="+encodeURIComponent(g.vbSeason||"")).then(function(r){ if(!r.ok)throw 0; return r.json(); }).then(function(j){
+      if(!dtFresh(tk)||!_dt||_dt.g!==reqG)return;   // 이전 경기의 늦은 응답이 현재 탭을 덮어쓰지 않도록
       var gs=(j&&j.games)||[];
-      if(!gs.length){ dtBody('<div class="msg"><div class="big">🤝</div>'+tl({en:"No head-to-head record is available.",ko:"맞대결 기록이 제공되지 않습니다.",ja:"対戦記録は未提供です。",zh:"暂无交锋记录。",es:"Sin historial de enfrentamientos.",hi:"आमना-सामना रिकॉर्ड नहीं।",vi:"Chưa có lịch sử đối đầu.",th:"ไม่มีสถิติเจอกัน",ru:"Нет данных об очных встречах.",de:"Keine direkten Duelle.",fr:"Pas de confrontations directes.",it:"Nessun precedente."})+'</div>'); return; }
+      if(!gs.length){ vbH2HMsg('🤝',tl({en:"No head-to-head record is available.",ko:"맞대결 기록이 제공되지 않습니다.",ja:"対戦記録は未提供です。",zh:"暂无交锋记录。",es:"Sin historial de enfrentamientos.",hi:"आमना-सामना रिकॉर्ड नहीं।",vi:"Chưa có lịch sử đối đầu.",th:"ไม่มีสถิติเจอกัน",ru:"Нет данных об очных встречах.",de:"Keine direkten Duelle.",fr:"Pas de confrontations directes.",it:"Nessun precedente."}),false); return; }
       var fin=gs.filter(function(x){return x.finished&&x.setsH!=null&&x.setsH!==x.setsA;});
       var w=0,l=0; fin.forEach(function(x){ var homeMine=String(x.homeId)===String(g.vbHomeId); var mineWon=homeMine?(x.setsH>x.setsA):(x.setsA>x.setsH); if(mineWon)w++; else l++; });
       var h='<div class="vb-h2h-sum"><b>'+esc(g.home)+'</b> '+w+t("winShort")+' · <b>'+esc(g.away)+'</b> '+l+t("winShort")+' <span style="color:#8a93a3">('+fin.length+" "+t("matchesUnit")+")</span></div>";
       h+=gs.map(function(x){ return vbGameRow(x,g.vbHomeId); }).join("");
       dtBody(h); bindVbRows();
-    }).catch(function(){ dtBody('<div class="msg">⚠️ '+t("loadFailRetry")+'</div>'); });
+    }).catch(function(){ if(!dtFresh(tk)||!_dt||_dt.g!==reqG)return; vbH2HMsg('⚠️',t("loadFailRetry"),true); });
+  }
+  // 🏐 배구 팀 ID 해석(API-Sports) — 공급사(이름/리그/시즌) 기준. 해석 완료 시 맞대결·순위 탭 재렌더. 이전 경기 응답이 현재 경기를 덮지 않도록 경기 참조로 가드.
+  function vbResolveTeams(g,force){
+    if(!g||(g.vbHomeId!=null&&!force))return;
+    if(g._vbResolving)return; g._vbResolving=true; g._vbTried=true;
+    fetch("/api/volleyball/resolve?home="+encodeURIComponent(g.home)+"&away="+encodeURIComponent(g.away)+"&league="+encodeURIComponent(g.leagueOrig||g.league||"")+"&season="+encodeURIComponent(g.season||g.date||"")).then(function(r){return r.json();}).then(function(j){
+      g._vbResolving=false;
+      if(j&&j.found){ g.vbHomeId=j.homeId; g.vbAwayId=j.awayId; g.vbLeagueId=j.leagueId; g.vbSeason=j.season; }
+      if(_dt&&_dt.g===g&&["overview","vbh2h","vbrank"].indexOf(_dt.tab)>=0) renderDetailBody();
+    }).catch(function(){ g._vbResolving=false; if(_dt&&_dt.g===g&&_dt.tab==="vbh2h") vbH2HMsg('⚠️',t("loadFailRetry"),true); });
   }
   // 현재 배구 시즌(8월 개막). 11월 → "2026-2027". 상세·순위 메뉴 공통 사용.
   function vbCurSeason(){ var d=new Date(),y=d.getFullYear(),m=d.getMonth()+1,sy=(m>=8)?y:y-1; return sy+"-"+(sy+1); }
