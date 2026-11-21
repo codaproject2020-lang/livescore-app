@@ -4391,6 +4391,8 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
   function loadVolleyOverview(g){
     var live=stateOf(g)==="live"; var ss=g.setScores||[];
     var h='<div class="dt-sec-t">'+tl({en:"Set scores",ko:"세트별 점수",ja:"セット別スコア",zh:"各局比分",es:"Puntos por set",hi:"सेट स्कोर",vi:"Điểm từng set",th:"คะแนนแต่ละเซต",ru:"Счёт по сетам",de:"Satzergebnisse",fr:"Scores par set",it:"Punteggi set"})+'</div>'+vbSetsTable(g);
+    // 완료/진행 경기인데 세트별 점수 데이터가 비어 있으면 '미제공'으로 안내(임의 숫자로 채우지 않음)
+    if(!ss.length && (live||stateOf(g)==="finished")){ h+='<div class="dt-empty" style="padding:10px 2px;color:var(--muted,#888);font-size:13px">'+tl({en:"Per-set scores not provided",ko:"세트별 점수 미제공",ja:"セット別スコア未提供",zh:"未提供各局比分",es:"Puntos por set no disponibles",hi:"सेट स्कोर उपलब्ध नहीं",vi:"Không có điểm từng set",th:"ไม่มีคะแนนแต่ละเซต",ru:"Счёт по сетам недоступен",de:"Satzergebnisse nicht verfügbar",fr:"Scores par set indisponibles",it:"Punteggi per set non disponibili"})+'</div>'; }
     if(live){ var curN=g.period||ss.length; var cur=(curN>0&&ss.length>=curN?ss[curN-1]:null)||g.livePts;   // 현재 세트 = 공식 세트번호(g.period) 위치의 세트 점수(0:0 보존), 없으면 livePts
       if(cur&&(cur.home!=null||cur.away!=null)){
         h+='<div class="vb-curset"><div class="vb-curset-l">'+periodColLabel("volleyball",curN-1,false)+' · '+t("curSet")+'</div><div class="vb-curset-r"><span><em>'+esc(g.home)+'</em><b>'+(cur.home==null?0:cur.home)+'</b></span><span class="sep">:</span><span><b>'+(cur.away==null?0:cur.away)+'</b><em>'+esc(g.away)+'</em></span></div></div>';
@@ -4458,16 +4460,21 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
     var res=""; if(x.finished&&x.setsH!=null&&x.setsA!=null&&x.setsH!==x.setsA){ var win=mine?(x.setsH>x.setsA):(x.setsA>x.setsH); res='<span class="rec-r '+(win?"w":"l")+'">'+(win?t("winShort"):t("lossShort"))+'</span>'; }
     else if(x.scheduled){ res='<span class="rec-r s">'+t("scheduledShort")+'</span>'; }
     var sc=(x.setsH!=null&&x.setsA!=null)?(x.setsH+" : "+x.setsA):(x.scheduled?hhmm(x.date):"-");
-    return '<div class="vb-grow" data-gid="'+esc(String(x.id))+'" data-h="'+esc(x.home)+'" data-a="'+esc(x.away)+'" data-hid="'+esc(String(x.homeId!=null?x.homeId:""))+'" data-aid="'+esc(String(x.awayId!=null?x.awayId:""))+'" data-sh="'+(x.setsH==null?"":x.setsH)+'" data-sa="'+(x.setsA==null?"":x.setsA)+'" data-dt="'+esc(x.date||"")+'" data-lg="'+esc(x.league||"")+'" data-fin="'+(x.finished?1:"")+'">'+
+    // 세트별 점수(API-Sports periods: first~fifth) → "h-a,h-a,..." 로 전달(경기 상세 세트표 복원). 실제 값만, 임의 0 금지.
+    var _pk=["first","second","third","fourth","fifth"]; var ps=(x.periods&&typeof x.periods==="object")?_pk.map(function(k){ var p=x.periods[k]; return (p&&(p.home!=null||p.away!=null)&&(p.home||p.away))?((p.home!=null?p.home:"")+"-"+(p.away!=null?p.away:"")):""; }).filter(function(s){return s;}).join(","):"";
+    return '<div class="vb-grow" data-gid="'+esc(String(x.id))+'" data-h="'+esc(x.home)+'" data-a="'+esc(x.away)+'" data-hid="'+esc(String(x.homeId!=null?x.homeId:""))+'" data-aid="'+esc(String(x.awayId!=null?x.awayId:""))+'" data-sh="'+(x.setsH==null?"":x.setsH)+'" data-sa="'+(x.setsA==null?"":x.setsA)+'" data-ps="'+esc(ps)+'" data-dt="'+esc(x.date||"")+'" data-lg="'+esc(x.league||"")+'" data-fin="'+(x.finished?1:"")+'">'+
       '<div class="vb-grow-dt">'+esc(String(x.date||"").slice(0,10))+'<span>'+esc(shortLeague(x.league||"","volleyball"))+'</span></div>'+
       '<div class="vb-grow-tm">'+esc(x.home)+' <b>'+sc+'</b> '+esc(x.away)+'</div>'+res+'</div>';
   }
   function bindVbRows(cont){ var db=cont||$("#dtBody"); if(!db)return; db.querySelectorAll(".vb-grow").forEach(function(el2){ el2.onclick=function(){ var d=el2.dataset;
     // 경기·팀 ID 연결: TS uuid면 'ts' 접두(상세 라이브·스탯 매칭), 팀 ID 전달(상대 팀 상세·맞대결·순위 로드 가능).
     var gid=String(d.gid||""); if(gid&&/^[a-z0-9]{10,}$/i.test(gid)&&gid.indexOf("ts")!==0)gid="ts"+gid;
-    var ng={ id:gid, sport:"volleyball", home:d.h, away:d.a, hs:(d.sh===""?null:+d.sh), as:(d.sa===""?null:+d.sa),
+    // 세트별 점수 복원(data-ps). 미제공이면 null(0으로 채우지 않음).
+    var ss=null; if(d.ps){ ss=d.ps.split(",").map(function(s){ var p=s.split("-"); return {home:(p[0]!==""&&p[0]!=null?+p[0]:null), away:(p[1]!==""&&p[1]!=null?+p[1]:null)}; }).filter(function(p){return p.home!=null||p.away!=null;}); if(!ss.length)ss=null; }
+    var hs=(d.sh===""?null:+d.sh), as=(d.sa===""?null:+d.sa);
+    var ng={ id:gid, sport:"volleyball", home:d.h, away:d.a, hs:hs, as:as,
       homeTid:d.hid||null, awayTid:d.aid||null, vbHomeId:d.hid||null, vbAwayId:d.aid||null, vbHomeName:d.h, vbAwayName:d.a,
-      league:d.lg, leagueOrig:d.lg, date:d.dt, state:(d.fin?"finished":"scheduled"), setScores:null };
+      league:d.lg, leagueOrig:d.lg, date:d.dt, state:(d.fin?"finished":"scheduled"), setScores:ss, period:(ss?ss.length:null) };
     openDetail(ng); }; }); }
   // 재시도 버튼이 있는 '미제공/실패' 메시지(맞대결 탭은 유지).
   function vbH2HMsg(icon,msg,retry){
