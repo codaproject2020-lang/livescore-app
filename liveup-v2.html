@@ -1379,7 +1379,7 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
     if(st==="HT") return t("halftime");
     if(sp==="football"){
       // #6 분:초 — 검증된 하프 킥오프 기준시각(ftTs)이 있을 때만 초 단위 보간. HT/중단/종료는 위에서 이미 처리(여기 도달하면 진행 중).
-      if(g.ftTs){ var half0=(g.ftBase>=2700)?((g.ftBase>=5400)?tl({en:"ET",ko:"연장",ja:"延長",zh:"加时",es:"Pró.",hi:"ET",vi:"HP",th:"ต่อเวลา",ru:"ДВ",de:"Verl.",fr:"Prol.",it:"Suppl."}):t("sh")):t("fh"); var span='<span class="fc" data-b="'+g.ftBase+'" data-ts="'+g.ftTs+'" data-r="'+(g.ftRun?1:0)+'" data-cap="'+(g.ftCap||(g.ftBase+4200))+'">'+fbClockStr(g.ftBase,g.ftTs,g.ftRun,g.ftCap)+'</span>'; return half0+" "+span; }
+      if(g.ftTs){ var half0=(g.ftBase>=2700)?((g.ftBase>=5400)?tl({en:"ET",ko:"연장",ja:"延長",zh:"加时",es:"Pró.",hi:"ET",vi:"HP",th:"ต่อเวลา",ru:"ДВ",de:"Verl.",fr:"Prol.",it:"Suppl."}):t("sh")):t("fh"); var span='<span class="fc" data-b="'+g.ftBase+'" data-ts="'+g.ftTs+'" data-r="'+(g.ftRun?1:0)+'" data-cap="'+(g.ftCap||((g.ftBase<2700?2700:g.ftBase<5400?5400:g.ftBase<6300?6300:7200)+720))+'">'+fbClockStr(g.ftBase,g.ftTs,g.ftRun,g.ftCap)+'</span>'; return half0+" "+span; }
       // 초 미제공 → 분만 정직하게 표시(임의 :00 금지)
       var e=g.elapsed; if(e!=null){ var half=(e<=45)?t("fh"):t("sh"); return half+" "+e+"'"; }
       var fs=String(g.status||"").toUpperCase(); if(fs==="1H")return t("fh"); if(fs==="2H")return t("sh"); if(fs==="ET")return tl({en:"Extra Time",ko:"연장",ja:"延長",zh:"加时",es:"Prórroga",hi:"अतिरिक्त समय",vi:"Hiệp phụ",th:"ต่อเวลา",ru:"Доп. время",de:"Verlängerung",fr:"Prolongation",it:"Supplementari"}); return t("inplay"); }
@@ -1418,6 +1418,9 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
     if(run&&ts){ sec = base + Math.max(0, Math.floor(Date.now()/1000)-(+ts)); }
     if(cap&&sec>+cap) sec=+cap;
     if(sec<0)sec=0;
+    // 하프 종료분(1H=45·2H=90·연장=105/120) 초과 시 추가시간(45+X)으로 — 51:04 같은 오진행 방지.
+    var halfEnd = base<2700?2700 : base<5400?5400 : base<6300?6300 : 7200;
+    if(sec>halfEnd){ var add=Math.ceil((sec-halfEnd)/60); if(add<1)add=1; return (halfEnd/60)+"+"+add; }
     var m=Math.floor(sec/60), s=Math.floor(sec%60);
     return m+":"+(s<10?"0":"")+s;
   }
