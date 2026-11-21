@@ -402,7 +402,7 @@ html[data-theme="dark"] .vb-curset{background:#17311f;border-color:#2b5a37}
 table.rank tr.rk-hl{background:rgba(20,39,72,.06)}table.rank tr.rk-hl td{font-weight:800}
 html[data-theme="dark"] table.rank tr.rk-hl{background:rgba(156,194,255,.1)}
 .rk-lg{width:18px;height:18px;object-fit:contain;vertical-align:middle;margin-right:5px}
-.vb-l5{display:inline-flex;gap:3px;justify-content:flex-end}.vb-l5 .l5c{display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;border-radius:50%;font-size:9.5px;font-weight:900;color:#fff;font-style:normal}.vb-l5 .l5c.w{background:#22b14c}.vb-l5 .l5c.l{background:#e23b3b}
+.vb-l5{display:inline-flex;gap:3px;justify-content:flex-start}.vb-l5 .l5c{display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;border-radius:50%;font-size:9.5px;font-weight:900;color:#fff;font-style:normal}.vb-l5 .l5c.w{background:#22b14c}.vb-l5 .l5c.l{background:#e23b3b}.vb-l5 .l5c.na{background:#d4d9e0;color:#fff}.vb-l5.l5na{color:#c0c6d0}html[data-theme="dark"] .vb-l5 .l5c.na{background:#3a4254}
 .chipq .qk{color:var(--muted);font-weight:800;margin-right:6px}
 .pl-c{cursor:pointer}.pl.pl-c .pn{text-decoration:underline;text-decoration-color:rgba(43,91,181,.35)}.subchip.pl-c:active{opacity:.6}
 .evsc{margin-left:auto;font-weight:900;color:var(--navy);background:var(--soft);border-radius:6px;padding:1px 7px;font-size:12px}
@@ -4522,20 +4522,12 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
       if(!dtFresh(tk))return;
       var tb=(j&&j.table)||[];
       if(!tb.length){ dtBody('<div class="msg"><div class="big">🏆</div>'+tl({en:"Standings for the current season are not provided.",ko:"현재 시즌 순위 데이터는 제공되지 않습니다.",ja:"今季の順位は未提供です。",zh:"暂不提供本赛季排名。",es:"Clasificación no disponible.",hi:"स्टैंडिंग उपलब्ध नहीं।",vi:"Chưa có BXH mùa này.",th:"ยังไม่มีอันดับฤดูกาลนี้",ru:"Таблица недоступна.",de:"Keine Tabelle.",fr:"Classement indisponible.",it:"Classifica non disponibile."})+'</div>'); return; }
-      var nm=function(s){return String(s||"").toLowerCase().replace(/[^a-z0-9가-힣]/g,"");};
-      var hn=nm(g.vbHomeName||g.home), an=nm(g.vbAwayName||g.away);
       var h='<div class="dt-sec-t">🏆 '+esc(shortLeague(g.leagueOrig||g.league||"","volleyball"))+(j.season?" "+esc(j.season):"")+'</div>';
-      var TH_SETD=tl({en:"Sets",ko:"세트",ja:"セット",zh:"局分",es:"Sets",hi:"सेट",vi:"Set",th:"เซ็ต",ru:"Сеты",de:"Sätze",fr:"Sets",it:"Set"});
-      var TH_L5=tl({en:"Last 5",ko:"최근5",ja:"直近5",zh:"近5",es:"Últ.5",hi:"अंतिम5",vi:"5 gần",th:"5 ล่าสุด",ru:"Посл.5",de:"Letzte 5",fr:"5 derniers",it:"Ultime 5"});
-      var l5=function(form){ var s=String(form||""); if(!s)return '<span style="color:#c0c6d0">-</span>'; return '<span class="vb-l5">'+s.split("").slice(-5).map(function(c){ var w=/w/i.test(c); return '<i class="l5c '+(w?"w":"l")+'">'+(w?"W":"L")+'</i>'; }).join("")+'</span>'; };
-      h+='<table class="rank"><thead><tr><th>#</th><th style="text-align:left">'+t("team")+'</th><th>'+t("playedShort")+'</th><th>'+t("winShort")+'</th><th>'+t("lossShort")+'</th><th>'+TH_SETD+'</th><th>'+t("ptsShort")+'</th><th>'+TH_L5+'</th></tr></thead><tbody>';
-      h+=tb.map(function(r){ var tn=nm(r.team); var hl=(tn&&(tn===hn||tn===an||tn.indexOf(hn)>=0||tn.indexOf(an)>=0||hn.indexOf(tn)>=0||an.indexOf(tn)>=0));
-        var setd=(r.sf!=null||r.sa!=null)?((r.sf!=null?r.sf:0)+':'+(r.sa!=null?r.sa:0)):"-";
-        return '<tr class="'+(hl?"rk-hl":"")+'" data-tid="'+esc(String(r.teamId||""))+'" data-tn="'+esc(r.team||"")+'"><td>'+(r.rank||"")+'</td><td class="tm" style="text-align:left">'+(r.logo?'<img src="'+esc(r.logo)+'" class="rk-lg" onerror="this.style.display=\'none\'">':"")+'<span class="plink">'+esc(r.team||"")+'</span></td><td>'+(r.played!=null?r.played:"-")+'</td><td>'+(r.win!=null?r.win:"-")+'</td><td>'+(r.loss!=null?r.loss:"-")+'</td><td style="white-space:nowrap">'+setd+'</td><td style="font-weight:800">'+(r.points!=null?r.points:"-")+'</td><td style="white-space:nowrap">'+l5(r.form)+'</td></tr>'; }).join("");
-      h+='</tbody></table>';
+      // 세 순위 화면 공용 렌더(순위·팀·경기·승·패·세트·승점·최근5). 두 팀 강조.
+      h+=rankTableHtml("volleyball",tb,[g.vbHomeName||g.home,g.vbAwayName||g.away]);
       h+='<p style="color:#8a93a3;font-size:11px;margin-top:8px">'+tl({en:"Standings via API-Sports.",ko:"순위: API-Sports 제공.",ja:"順位: API-Sports。",zh:"排名来自 API-Sports。",es:"Clasificación de API-Sports.",hi:"स्टैंडिंग: API-Sports।",vi:"BXH từ API-Sports.",th:"อันดับจาก API-Sports",ru:"Таблица: API-Sports.",de:"Tabelle via API-Sports.",fr:"Classement via API-Sports.",it:"Classifica via API-Sports."})+'</p>';
       dtBody(h);
-      var db=$("#dtBody"); if(db)db.querySelectorAll("tr[data-tid]").forEach(function(tr){ tr.onclick=function(){ var tid=tr.dataset.tid; if(tid)openVolleyTeam(tid,tr.dataset.tn,(g.league||g.leagueOrig||g.vbLeagueId||g.leagueId),(j.season||vbCurSeason())); else if(tr.dataset.tn)openTeam(tr.dataset.tn,"volleyball"); }; });
+      var db=$("#dtBody"); if(db)db.querySelectorAll("tr.rkrow[data-teamid]").forEach(function(tr){ tr.style.cursor="pointer"; tr.onclick=function(){ var tid=tr.dataset.teamid; var tn=tr.dataset.team; if(tid)openVolleyTeam(tid,tn,(g.league||g.leagueOrig||g.vbLeagueId||g.leagueId),(j.season||vbCurSeason())); else if(tn)openTeam(tn,"volleyball"); }; });
     }).catch(function(){ dtBody('<div class="msg">⚠️ '+t("loadFailRetry")+'</div>'); });
   }
   // 순위표 팀 클릭 공통 라우터: 배구는 전용 팀상세(최근경기 행→경기 상세)로, 그 외는 일반 팀상세.
@@ -4574,10 +4566,8 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
       fetch("/api/rank?sport=volleyball&league="+encodeURIComponent(league||"")+(season?"&season="+encodeURIComponent(season):"")).then(function(r){return r.json();}).then(function(j){
         var vb=$("#vtBody"); if(!vb)return; var tb=(j.table)||[];
         if(!tb.length){ vb.innerHTML=vbNoCover(); return; }
-        var nm=function(s){return String(s||"").toLowerCase().replace(/[^a-z0-9가-힣]/g,"");}; var me=nm(name);
-        var h='<table class="rank"><thead><tr><th>#</th><th style="text-align:left">'+t("team")+'</th><th>'+t("playedShort")+'</th><th>'+t("winShort")+'</th><th>'+t("lossShort")+'</th><th>'+t("ptsShort")+'</th></tr></thead><tbody>';
-        h+=tb.map(function(r){ var hl=(String(r.teamId)===String(teamId)||nm(r.team)===me); return '<tr class="'+(hl?"rk-hl":"")+'"><td>'+(r.rank||"")+'</td><td class="tm" style="text-align:left">'+(r.logo?'<img src="'+esc(r.logo)+'" class="rk-lg" onerror="this.style.display=\'none\'">':"")+esc(r.team||"")+'</td><td>'+(r.played!=null?r.played:"-")+'</td><td>'+(r.win!=null?r.win:"-")+'</td><td>'+(r.loss!=null?r.loss:"-")+'</td><td style="font-weight:800">'+(r.points!=null?r.points:"-")+'</td></tr>'; }).join("");
-        vb.innerHTML=h+'</tbody></table>';
+        // 세 순위 화면 공용 렌더(세트·최근5 포함). 현재 팀 강조.
+        vb.innerHTML=rankTableHtml("volleyball",tb,[name]);
       }).catch(function(){ var vb=$("#vtBody"); if(vb)vb.innerHTML='<div class="msg">⚠️ '+t("loadFailRetry")+'</div>'; });
     }
     render();
@@ -4715,9 +4705,18 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
     if(sport==="basketball"||sport==="volleyball")return [[y+"-"+(y+1),y+"-"+(y+1)],[(y-1)+"-"+y,(y-1)+"-"+y]];
     return [[String(y),String(y)],[String(y-1),String(y-1)]];
   }
+  // 🏐 배구 최근5 셀(공유): form은 서버에서 newest-first(최신=왼쪽). 5경기 미만은 오른쪽을 중립 대시로 채움. 빈값=미제공.
+  function vbFormCells(form){
+    var s=String(form||"").replace(/[^WLwl]/g,"").toUpperCase();
+    if(!s) return '<span class="vb-l5 l5na">-</span>';
+    var cells=s.slice(0,5).split("").map(function(c){ var w=c==="W"; return '<i class="l5c '+(w?"w":"l")+'">'+(w?"W":"L")+'</i>'; });
+    while(cells.length<5) cells.push('<i class="l5c na">·</i>');
+    return '<span class="vb-l5">'+cells.join("")+'</span>';
+  }
   function rankTableHtml(sport,tb,hiNames){
     var isFb=sport==="football", isBb=sport==="baseball", isVb=sport==="volleyball";
     var TH_SETS=tl({en:"Sets",ko:"세트",ja:"セット",zh:"局分",es:"Sets",hi:"सेट",vi:"Set",th:"เซ็ต",ru:"Сеты",de:"Sätze",fr:"Sets",it:"Set"});
+    var TH_L5=tl({en:"Last 5",ko:"최근5",ja:"直近5",zh:"近5",es:"Últ.5",hi:"अंतिम5",vi:"5 gần",th:"5 ล่าสุด",ru:"Посл.5",de:"Letzte 5",fr:"5 derniers",it:"Ultime 5"});
     var _nm=function(s){return String(s||"").toLowerCase().replace(/[^a-z0-9가-힣]/g,"");};
     var hi=(hiNames||[]).map(_nm).filter(Boolean);
     var TH_TEAM=tl({en:"Team",ko:"팀",ja:"チーム",zh:"球队",es:"Equipo",hi:"टीम",vi:"Đội",th:"ทีม",ru:"Команда",de:"Team",fr:"Équipe",it:"Squadra"});
@@ -4730,12 +4729,12 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
     tb.forEach(function(r,i){
       var grp=r.group||r.div||'';
       if(grp&&grp!==curGrp){ if(curGrp!==null)h+='</tbody></table>'; curGrp=grp;
-        h+='<div class="rkgrp">'+esc(grp)+'</div><table class="rank"><thead><tr><th>#</th><th style="text-align:left">'+TH_TEAM+'</th><th>'+TH_P+'</th><th>'+t("win")+'</th>'+(isFb?'<th>'+t("draw")+'</th>':'')+'<th>'+t("lose")+'</th>'+(isFb?'<th>'+TH_GOALS+'</th>':'')+(isVb?'<th>'+TH_SETS+'</th>':'')+(isBb?'<th>'+TH_PCT+'</th><th>'+TH_GB+'</th>':'<th>'+TH_PTS+'</th>')+'</tr></thead><tbody>';
-      } else if(curGrp===null){ curGrp=''; h+='<table class="rank"><thead><tr><th>#</th><th style="text-align:left">'+TH_TEAM+'</th><th>'+TH_P+'</th><th>'+t("win")+'</th>'+(isFb?'<th>'+t("draw")+'</th>':'')+'<th>'+t("lose")+'</th>'+(isFb?'<th>'+TH_GOALS+'</th>':'')+(isVb?'<th>'+TH_SETS+'</th>':'')+(isBb?'<th>'+TH_PCT+'</th><th>'+TH_GB+'</th>':'<th>'+TH_PTS+'</th>')+'</tr></thead><tbody>'; }
+        h+='<div class="rkgrp">'+esc(grp)+'</div><table class="rank"><thead><tr><th>#</th><th style="text-align:left">'+TH_TEAM+'</th><th>'+TH_P+'</th><th>'+t("win")+'</th>'+(isFb?'<th>'+t("draw")+'</th>':'')+'<th>'+t("lose")+'</th>'+(isFb?'<th>'+TH_GOALS+'</th>':'')+(isVb?'<th>'+TH_SETS+'</th>':'')+(isBb?'<th>'+TH_PCT+'</th><th>'+TH_GB+'</th>':'<th>'+TH_PTS+'</th>')+(isVb?'<th>'+TH_L5+'</th>':'')+'</tr></thead><tbody>';
+      } else if(curGrp===null){ curGrp=''; h+='<table class="rank"><thead><tr><th>#</th><th style="text-align:left">'+TH_TEAM+'</th><th>'+TH_P+'</th><th>'+t("win")+'</th>'+(isFb?'<th>'+t("draw")+'</th>':'')+'<th>'+t("lose")+'</th>'+(isFb?'<th>'+TH_GOALS+'</th>':'')+(isVb?'<th>'+TH_SETS+'</th>':'')+(isBb?'<th>'+TH_PCT+'</th><th>'+TH_GB+'</th>':'<th>'+TH_PTS+'</th>')+(isVb?'<th>'+TH_L5+'</th>':'')+'</tr></thead><tbody>'; }
       var played=(r.played!=null?r.played:(r.games!=null?r.games:((r.win!=null&&r.loss!=null)?(r.win+r.loss+(r.draw||0)):"-")));
       var tname=r.team||r.name||""; var tn=_nm(tname);
       var isHi=hi.some(function(x){return tn&&(tn.indexOf(x)>=0||x.indexOf(tn)>=0);});
-      h+='<tr class="rkrow'+(isHi?" rkhi":"")+'" data-team="'+esc(tname)+'" data-teamid="'+esc(r.teamId!=null?r.teamId:"")+'"><td class="rk">'+(r.rank||i+1)+'</td><td class="tm">'+(r.logo?'<img src="'+esc(r.logo)+'" style="width:18px;height:18px;vertical-align:middle;margin-right:5px" onerror="this.remove()">':'')+esc(tname)+'</td><td>'+played+'</td><td>'+(r.win!=null?r.win:(r.w!=null?r.w:"-"))+'</td>'+(isFb?'<td>'+(r.draw!=null?r.draw:(r.d!=null?r.d:"-"))+'</td>':'')+'<td>'+(r.loss!=null?r.loss:(r.lose!=null?r.lose:(r.l!=null?r.l:"-")))+'</td>'+(isFb?'<td style="white-space:nowrap">'+((r.gf!=null||r.ga!=null)?((r.gf!=null?r.gf:0)+':'+(r.ga!=null?r.ga:0)):"-")+'</td>':'')+(isVb?'<td style="white-space:nowrap">'+((r.sf!=null||r.sa!=null)?((r.sf!=null?r.sf:0)+':'+(r.sa!=null?r.sa:0)):"-")+'</td>':'')+(isBb?'<td>'+(r.pct!=null?r.pct:"-")+'</td><td>'+(r.gb!=null?r.gb:"-")+'</td>':'<td style="font-weight:800">'+(r.points!=null&&r.points!==""?r.points:(r.pts!=null?r.pts:"-"))+'</td>')+'</tr>';
+      h+='<tr class="rkrow'+(isHi?" rkhi":"")+'" data-team="'+esc(tname)+'" data-teamid="'+esc(r.teamId!=null?r.teamId:"")+'"><td class="rk">'+(r.rank||i+1)+'</td><td class="tm">'+(r.logo?'<img src="'+esc(r.logo)+'" style="width:18px;height:18px;vertical-align:middle;margin-right:5px" onerror="this.remove()">':'')+esc(tname)+'</td><td>'+played+'</td><td>'+(r.win!=null?r.win:(r.w!=null?r.w:"-"))+'</td>'+(isFb?'<td>'+(r.draw!=null?r.draw:(r.d!=null?r.d:"-"))+'</td>':'')+'<td>'+(r.loss!=null?r.loss:(r.lose!=null?r.lose:(r.l!=null?r.l:"-")))+'</td>'+(isFb?'<td style="white-space:nowrap">'+((r.gf!=null||r.ga!=null)?((r.gf!=null?r.gf:0)+':'+(r.ga!=null?r.ga:0)):"-")+'</td>':'')+(isVb?'<td style="white-space:nowrap">'+((r.sf!=null||r.sa!=null)?((r.sf!=null?r.sf:0)+':'+(r.sa!=null?r.sa:0)):"-")+'</td>':'')+(isBb?'<td>'+(r.pct!=null?r.pct:"-")+'</td><td>'+(r.gb!=null?r.gb:"-")+'</td>':'<td style="font-weight:800">'+(r.points!=null&&r.points!==""?r.points:(r.pts!=null?r.pts:"-"))+'</td>')+(isVb?'<td style="white-space:nowrap">'+vbFormCells(r.form)+'</td>':'')+'</tr>';
     });
     if(h)h+='</tbody></table>';
     return h;

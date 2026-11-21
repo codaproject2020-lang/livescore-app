@@ -21,7 +21,7 @@ const app = express();
 const server = http.createServer(app);
 
 const PORT = process.env.PORT || 3000;
-const APP_VERSION = 'v547';
+const APP_VERSION = 'v548';
 
 // ============================================================
 //  📏 성능 계측(instrumentation) — 엔드포인트 지연·캐시·공급사·WS·이벤트루프
@@ -1001,18 +1001,20 @@ function parseVolleyStandings(j) {
   out.sort((a, b) => String(a.group || '').localeCompare(String(b.group || '')) || (a.rank || 99) - (b.rank || 99));
   return out;
 }
-// 🏐 공식 순위표 미제공 시 결과(경기)로 집계 — AiScore 방식. KOVO 승점: 3-0/3-1=3, 3-2=2, 2-3=1, 0·1-3=0.
-async function rankVolleyFromGames(lid, sy) {
+// 🏐 실제 종료 경기로 팀별 집계(공유). KOVO 승점: 3-0/3-1=3, 3-2=2, 2-3=1, 0·1-3=0.
+//  form 정렬: 가장 최근이 '맨 왼쪽'(newest-first) — AiScore와 동일. 중복 경기 ID 제거.
+async function volleyTeamAgg(lid, sy) {
   const j = await asRaw('volleyball', `/games?league=${lid}&season=${encodeURIComponent(sy)}`, 1800000).catch(() => null);
   const arr = (j && j.response) || [];
   const T = new Map();
   const get = t => { if (!t || t.id == null) return null; if (!T.has(t.id)) T.set(t.id, { teamId: t.id, team: t.name, logo: t.logo, played: 0, win: 0, loss: 0, sf: 0, sa: 0, points: 0, _f: [] }); return T.get(t.id); };
-  let finished = 0;
+  let finished = 0; const seen = new Set();
   arr.forEach(g => {
     if (!g || !g.teams || !g.teams.home || !g.teams.away || !g.scores) return;
+    const gid = g.id != null ? String(g.id) : null; if (gid && seen.has(gid)) return; if (gid) seen.add(gid);  // 중복 경기 ID 제거
     const H = g.scores.home == null ? null : +g.scores.home, A = g.scores.away == null ? null : +g.scores.away;
     if (H == null || A == null || isNaN(H) || isNaN(A)) return;
-    // 완료 경기만: 누군가 3세트 선취하고 동점 아님
+    // 완료 경기만: 누군가 3세트 선취하고 동점 아님(예정·진행·미확정 제외)
     if (!(Math.max(H, A) >= 3 && H !== A)) return;
     const h = get(g.teams.home), a = get(g.teams.away); if (!h || !a) return;
     finished++;
@@ -1023,10 +1025,16 @@ async function rankVolleyFromGames(lid, sy) {
     else { a.win++; h.loss++; if (A - H >= 2) { a.points += 3; } else { a.points += 2; h.points += 1; } }
     h._f.push({ t: ts, r: hWin ? 'W' : 'L' }); a._f.push({ t: ts, r: hWin ? 'L' : 'W' });
   });
-  const rows = [...T.values()].filter(r => r.played > 0);
+  // form: 시간 오름차순 정렬 후 최근 5개를 뒤집어 newest-first(최신=왼쪽) 문자열로.
+  T.forEach(r => { r._f.sort((p, q) => p.t - q.t); r.form = r._f.slice(-5).reverse().map(x => x.r).join(''); delete r._f; });
+  return { map: T, finished };
+}
+// 🏐 공식 순위표 미제공 시 결과(경기)로 순위 집계 — AiScore 방식.
+async function rankVolleyFromGames(lid, sy) {
+  const { map, finished } = await volleyTeamAgg(lid, sy);
+  const rows = [...map.values()].filter(r => r.played > 0);
   rows.sort((x, y) => y.points - x.points || (y.sf - y.sa) - (x.sf - x.sa) || y.win - x.win || String(x.team).localeCompare(String(y.team)));
-  // 최근 5경기(시간순, 가장 최근이 오른쪽) — 실제 종료 경기만.
-  rows.forEach((r, i) => { r.rank = i + 1; r._f.sort((p, q) => p.t - q.t); r.form = r._f.slice(-5).map(x => x.r).join(''); delete r._f; });
+  rows.forEach((r, i) => { r.rank = i + 1; });
   return finished ? rows : [];
 }
 async function asLeagueId(sport, name) {
@@ -1099,7 +1107,18 @@ async function rankVolleyball(league, season) {
   for (const sy of cands) {
     const j = await asRaw('volleyball', `/standings?league=${lid}&season=${encodeURIComponent(sy)}`, 3600000).catch(() => null);
     const table = parseVolleyStandings(j);
-    if (table.length) return { table, kind: 'volleyball', season: sy };
+    if (table.length) {
+      // 공식 순위표는 form이 비거나(남자부) 정렬 방향이 제각각 → 실제 종료 경기에서 newest-first form 계산해 teamId로 통일.
+      //  세트 득실(sf/sa)이 비어 있으면 집계값으로 보완. 공유 캐시(asRaw 30분)로 중복 호출 방지.
+      try {
+        const { map } = await volleyTeamAgg(lid, sy);
+        table.forEach(r => {
+          const a = r.teamId != null ? map.get(r.teamId) : null;
+          if (a) { if (a.form) r.form = a.form; if (r.sf == null && a.sf != null) r.sf = a.sf; if (r.sa == null && a.sa != null) r.sa = a.sa; }
+        });
+      } catch { }
+      return { table, kind: 'volleyball', season: sy };
+    }
   }
   // 공식 순위표 미제공(예: 여자부 신시즌 초반) → 결과 집계로 폴백(AiScore 방식). 완료 경기 없으면 미제공.
   for (const sy of cands) {
