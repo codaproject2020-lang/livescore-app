@@ -2654,6 +2654,9 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
   function dtFresh(tk){ return tk===_dtTok && $("#dtBody"); }
   function openDetail(g,focus){
     luArm();   // 뒤로가기 가드: 상세를 열 때 히스토리 엔트리 1개 적립(뒤로가기 1번=상세 닫고 직전 화면)
+    // 🔝 팀/순위 오버레이 위에서 경기를 열 때 경기 상세가 뒤에 깔리지 않도록 #detail을 DOM 최상위(마지막)로 이동.
+    //    이렇게 하면 뒤로가기(topClose)도 경기 상세를 먼저 닫고 → 직전 오버레이(팀 등)로 한 단계씩 복귀.
+    var _exd=$("#detail"); if(_exd){ document.body.appendChild(_exd); if(_dt&&_dt.ws){try{_dt.ws.close()}catch(e){} _dt.ws=null;} }   // 이전 경기의 소켓/연결 정리(전환 충돌 방지)
     var sp=(S.sport==="all"&&g.sport)?g.sport:S.sport;   // '전체' 화면에서는 경기별 종목으로 상세 연결
     _dt={ g:g, sport:sp, tab:(focus==="chat"?"chat":(focus==="pitchers"?"box":(focus==="lineup"?"lineup":"overview"))), cache:{}, hl:undefined, avail:{} };
     document.body.style.overflow="hidden";
