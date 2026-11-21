@@ -21,7 +21,7 @@ const app = express();
 const server = http.createServer(app);
 
 const PORT = process.env.PORT || 3000;
-const APP_VERSION = 'v549';
+const APP_VERSION = 'v550';
 
 // ============================================================
 //  📏 성능 계측(instrumentation) — 엔드포인트 지연·캐시·공급사·WS·이벤트루프
@@ -2459,9 +2459,9 @@ async function tsFootballGames(date) {
       const within = nowSec - Number(lvm.ts);
       if (within >= 0 && within <= 70 * 60) {
         ftTs = Number(lvm.ts); ftBase = FT_BASE[sidN]; ftRun = FT_RUN[sidN] ? 1 : 0;
-        // cap: 현재 하프 종료분 + 추가시간 여유(12분)에서 고정 → 51:04 같은 오진행 방지(프론트는 초과분을 45+/90+로 표기).
-        const halfEnd = ftBase < 2700 ? 2700 : ftBase < 5400 ? 5400 : ftBase < 6300 ? 6300 : 7200;
-        ftCap = halfEnd + 12 * 60;
+        // cap = 서버가 확인한 현재 경과초(공식 입력) + 신선도 여유(150초). 공식 추가시간(45+13 등)은 그대로 반영하고,
+        //   수신 지연(폴링 중단)일 때만 확인값 +150초에서 자동 증가를 멈춘다. 클라이언트는 폴링(15초)마다 cap을 갱신.
+        ftCap = ftBase + (ftRun ? within : 0) + 150;
         elapsed = Math.floor((ftBase + (ftRun ? within : 0)) / 60);
       }
     }
