@@ -2604,7 +2604,7 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
       // L02: 세트 승수(메인 점수열) + 현재 몇 세트·현재 랠리 점수를 강조 칩으로 분리 표시
       var w=el("div","gm-sub"); var live=stateOf(g)==="live";
       var ss=g.setScores||[]; var curN=g.period||ss.length;
-      var cur=g.livePts||(live&&ss.length?ss[ss.length-1]:null);
+      var cur=(live&&ss.length?ss[ss.length-1]:null)||g.livePts;   // 현재 세트 = 세트별 마지막 세트(단일 소스) — 목록·카드·헤더 일관
       if(live&&cur&&(cur.home!=null||cur.away!=null)){
         w.appendChild(el("span","vb-cur",'<b>'+periodColLabel("volleyball",curN-1,false)+'</b> '+(cur.home==null?0:cur.home)+":"+(cur.away==null?0:cur.away)));
       }
@@ -4395,7 +4395,7 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
   function loadVolleyOverview(g){
     var live=stateOf(g)==="live"; var ss=g.setScores||[];
     var h='<div class="dt-sec-t">'+tl({en:"Set scores",ko:"세트별 점수",ja:"セット別スコア",zh:"各局比分",es:"Puntos por set",hi:"सेट स्कोर",vi:"Điểm từng set",th:"คะแนนแต่ละเซต",ru:"Счёт по сетам",de:"Satzergebnisse",fr:"Scores par set",it:"Punteggi set"})+'</div>'+vbSetsTable(g);
-    if(live){ var cur=g.livePts||(ss.length?ss[ss.length-1]:null); var curN=g.period||ss.length;
+    if(live){ var cur=(ss.length?ss[ss.length-1]:null)||g.livePts; var curN=g.period||ss.length;   // 현재 세트 = 세트별 점수의 마지막 세트(단일 소스) → 세트별표·총득점과 항상 일치
       if(cur&&(cur.home!=null||cur.away!=null)){
         h+='<div class="vb-curset"><div class="vb-curset-l">'+periodColLabel("volleyball",curN-1,false)+' · '+t("curSet")+'</div><div class="vb-curset-r"><span><em>'+esc(g.home)+'</em><b>'+(cur.home==null?0:cur.home)+'</b></span><span class="sep">:</span><span><b>'+(cur.away==null?0:cur.away)+'</b><em>'+esc(g.away)+'</em></span></div></div>';
       }
@@ -5990,7 +5990,10 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
       var fresh=(res.games||[]).filter(function(x){return String(x.id)===String(g.id);})[0];
       if(!fresh)return;
       // 최신 라이브 필드만 복사(단일 최신 상태 기준) — 점수 감소도 공급사 정정으로 반영(I06)
-      ["hs","as","status","statusLong","state","period","timer","elapsed","neutral","setScores","inningHalf","curInning","bso","bases","box","homeFouls","awayFouls","periodLabel","isHalves","ftTs","ftBase","ftRun","ftCap","homeLogo","awayLogo","league","country"].forEach(function(k){ if(fresh[k]!==undefined) g[k]=fresh[k]; });
+      var _copyKeys=["hs","as","status","statusLong","state","period","timer","elapsed","neutral","setScores","livePts","inningHalf","curInning","bso","bases","box","homeFouls","awayFouls","periodLabel","isHalves","ftTs","ftBase","ftRun","ftCap","homeLogo","awayLogo","league","country"];
+      // 🏐 진행 중 배구(ts)는 세트 점수·승수를 detail_live(syncVolleyLive)가 단독 관리 → diary(지연 캐시)가 최신값을 덮어쓰지 않도록 제외.
+      var _vbLive=(sport==="volleyball"&&String(g.id).indexOf("ts")===0&&stateOf(g)==="live");
+      _copyKeys.forEach(function(k){ if(_vbLive&&(k==="hs"||k==="as"||k==="setScores"||k==="livePts"||k==="period"))return; if(fresh[k]!==undefined) g[k]=fresh[k]; });
       updateDetailHead();
       var sig=(g.hs==null?"-":g.hs)+":"+(g.as==null?"-":g.as)+":"+(g.state||"")+":"+(g.period||"")+":"+(g.status||"")+":"+((g.setScores||[]).map(function(p){return p.home+"/"+p.away;}).join(","));
       if(sig!==_dtLastSig){ _dtLastSig=sig; if(_dt.tab==="overview"){ if(sport==="volleyball")loadVolleyOverview(g); else renderOverview(g,sport); } }   // 점수/상태/세트 바뀌면 개요만 재렌더(종목별 라우팅)
@@ -5998,18 +6001,29 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
       if(sport==="volleyball"&&String(g.id).indexOf("ts")===0&&stateOf(g)!=="scheduled") syncVolleyLive(g);
     }).catch(function(){ _dtSyncing=false; });
   }
-  // 🏐 배구 상세: /api/volleyball/live(detail_live) 로 세트 승수(ft)·세트별 점수(p1..p5)를 즉시 반영. 경기·홈·원정 ID 기준 단일 경기만.
+  // 🏐 배구 상세: /api/volleyball/live(detail_live) 로 세트 승수(ft)·세트별 점수(p1..p5)·현재 세트(livePts)를 한 번에 반영.
+  //  경기·홈·원정 ID 기준 단일 경기. 늦게 도착한 이전 응답이 최신값을 덮어쓰지 않도록 요청 시퀀스로 순서 보장.
+  var _vbSeq=0, _vbApplied=0;
   function syncVolleyLive(g){
+    var seq=++_vbSeq;
     fetch("/api/volleyball/live?id="+encodeURIComponent(g.id)).then(function(r){return r.json();}).then(function(j){
+      if(seq<_vbApplied)return;                           // 더 최신 응답이 이미 적용됨 → 늦게 온 이 응답 폐기
       if(!_dt||_dt.g!==g||!$("#detail")||!j||!j.found||!j.score)return;
       var s=j.score, sc=(Array.isArray(s)&&s[3])?s[3]:null; if(!sc)return;
+      _vbApplied=seq;
+      // 세트별 점수(미시작 세트 [0,0]은 제외) — 미수신 값은 넣지 않음(임의 0 금지).
       var ns=[]; ["p1","p2","p3","p4","p5"].forEach(function(k){ var p=sc[k]; if(Array.isArray(p)&&(p[0]!=null||p[1]!=null)&&(p[0]||p[1])) ns.push({home:(p[0]!=null?+p[0]:null),away:(p[1]!=null?+p[1]:null)}); });
-      var ft=sc.ft||[]; var nh=(ft[0]!=null?+ft[0]:g.hs), na=(ft[1]!=null?+ft[1]:g.as);
+      var ft=sc.ft||[]; var nh=(ft[0]!=null?+ft[0]:g.hs), na=(ft[1]!=null?+ft[1]:g.as);   // 세트 승수
       var changed=false;
       if(nh!==g.hs||na!==g.as){ g.hs=nh; g.as=na; changed=true; }
       var oldSig=(g.setScores||[]).map(function(p){return p.home+"/"+p.away;}).join(",");
       var newSig=ns.map(function(p){return p.home+"/"+p.away;}).join(",");
       if(ns.length&&newSig!==oldSig){ g.setScores=ns; g.period=ns.length; changed=true; }
+      // 현재 세트 점수(livePts)도 같은 응답에서 함께 갱신 — '세트별은 바뀌는데 현재 세트가 멈추는' 불일치 제거.
+      var cur=ns.length?ns[ns.length-1]:null;
+      var curSig=cur?(cur.home+"/"+cur.away):"";
+      var oldCur=g.livePts?(g.livePts.home+"/"+g.livePts.away):"";
+      if(cur&&curSig!==oldCur){ g.livePts=cur; changed=true; }
       if(changed){ updateDetailHead(); _dtLastSig=(g.hs==null?"-":g.hs)+":"+(g.as==null?"-":g.as)+":"+(g.state||"")+":"+(g.period||"")+":"+(g.status||"")+":"+newSig;
         if(_dt.tab==="overview")loadVolleyOverview(g); }
     }).catch(function(){});
