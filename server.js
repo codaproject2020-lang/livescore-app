@@ -21,7 +21,7 @@ const app = express();
 const server = http.createServer(app);
 
 const PORT = process.env.PORT || 3000;
-const APP_VERSION = 'v561';
+const APP_VERSION = 'v562';
 
 // ============================================================
 //  📏 성능 계측(instrumentation) — 엔드포인트 지연·캐시·공급사·WS·이벤트루프
@@ -2479,13 +2479,18 @@ async function tsFootballGames(date) {
         elapsed = Math.floor((ftBase + (ftRun ? within : 0)) / 60);
       }
     }
+    // 🏁 종료 정규화: 공급사가 종료시각(ended, 유닉스초 타임스탬프)을 기록했는데 상태코드가 FT로 안 바뀐 경기(일부 군소리그)
+    //   → '종료'로 정규화. 진행 중(live)은 유지, 예정(ended 없음)은 그대로. 시간만 보고 추정하지 않음(공급사 ended 신호만 사용).
+    let _state = tsFootState(sid), _status = tsFootStatus(sid);
+    const _endedTs = Number(m.ended) || 0;
+    if (_state !== 'live' && _endedTs > 1e9) { _state = 'finished'; _status = 'FT'; }
     return {
       id: m.id, sport: 'football', tsid: m.id,
       home: ht.name || m.home_team_id, away: at.name || m.away_team_id,
       homeLogo: ht.logo || '', awayLogo: at.logo || '',
       homeTid: m.home_team_id, awayTid: m.away_team_id,
       league: cp.name || '', leagueLogo: cp.logo || '', leagueId: m.competition_id || '', country: cp.country || '',
-      hs, as, state: tsFootState(sid), status: tsFootStatus(sid), statusLong: '',
+      hs, as, state: _state, status: _status, statusLong: '',
       date: m.match_time ? new Date(m.match_time * 1000).toISOString() : null,
       elapsed, ftTs, ftBase, ftRun, ftCap,
       cov: m.coverage ? { lineup: m.coverage.lineup ? 1 : 0, mlive: m.coverage.mlive ? 1 : 0 } : null   // 탭 노출 판단용(라인업/라이브)
@@ -4216,6 +4221,8 @@ app.get('/api/basketball/teamstats', async (req, res) => {
 });
 // 🏐 TheSports 배구 경기목록(diary) → 세트 승수(ft) + 세트별 점수(p1~p5)
 function tsVolState(s) { s = Number(s); if (s === 1 || s === 0) return 'scheduled'; if (s === 100 || s < 0) return 'finished'; return 'live'; }
+// 🇰🇷 한국 V리그 대회(unique_tournament_id) — 동명 'Volleyball League'(카타르 등)와 구분용 allow-list. 팀명 판별과 병행(시즌 ID 교체 대비).
+const TS_VB_KR_TOURN = new Set(['kn54qldhe9nrvy9', 'd23xmvzhowyqg8n']);
 // 🏐 종료결과 보정용 캐시/고정맵.
 //   _vbFin: 한 번 '종료'로 확인된 경기(matchId→결과) — 이후 응답/캐시가 '예정'으로 되돌려도 유지(역전 방지).
 //   _vbHistCache: live/history 조회 결과 캐시(종료결과 immutable=장기, 빈결과=단기).
@@ -4280,9 +4287,18 @@ async function tsVolleyballGames(date, tz) {
       const _curSet = (state === 'live') ? _decided + 1 : _decided;
       const setScores = [];
       ['p1', 'p2', 'p3', 'p4', 'p5'].forEach((k, idx) => { const p = sc[k]; if (!Array.isArray(p)) return; if (_curSet > 0 && (idx + 1) > _curSet) return; setScores.push({ home: (p[0] != null ? +p[0] : null), away: (p[1] != null ? +p[1] : null) }); });
+      // 🏐 'Volleyball League'(남/여)는 한국·카타르 등 여러 나라가 동명(국가 빈값)으로 들어옴 →
+      //   ① 알려진 한국 V리그 대회 ID 또는 ② 팀명이 실제 한국 V리그 팀일 때만 'V리그 남/여자부'로 표기.
+      //   아니면 원명 유지(카타르 Al Sadd 등 오표기 방지). 이름만/국가빈값만으로 한국 단정 금지.
+      let _leagueDisp = tsLeagueDisplay('volleyball', cp.name, cp.country) || '';
+      if (/^Volleyball League( Women)?$/i.test(cp.name || '') && !cp.country) {
+        const _tid = m.unique_tournament_id || m.tournament_id || '';
+        const _isKr = TS_VB_KR_TOURN.has(_tid) || !!vbKrCanon(ht.name) || !!vbKrCanon(at.name);
+        if (!_isKr) _leagueDisp = cp.name;   // 한국 아님 → 원명 유지
+      }
       out.push({
         id: 'ts' + id, tsid: id, sport: 'volleyball',
-        league: tsLeagueDisplay('volleyball', cp.name, cp.country) || '', leagueOrig: cp.name || '', leagueLogo: cp.logo || '', leagueId: m.unique_tournament_id || m.tournament_id || '', country: cp.country || '',
+        league: _leagueDisp, leagueOrig: cp.name || '', leagueLogo: cp.logo || '', leagueId: m.unique_tournament_id || m.tournament_id || '', country: cp.country || '',
         home: ht.name || '', homeLogo: ht.logo || '', away: at.name || '', awayLogo: at.logo || '',
         homeTid: m.home_team_id, awayTid: m.away_team_id,
         hs: (ft[0] != null ? +ft[0] : null), as: (ft[1] != null ? +ft[1] : null),   // 세트 승수
