@@ -21,7 +21,7 @@ const app = express();
 const server = http.createServer(app);
 
 const PORT = process.env.PORT || 3000;
-const APP_VERSION = 'v555';
+const APP_VERSION = 'v556';
 
 // ============================================================
 //  📏 성능 계측(instrumentation) — 엔드포인트 지연·캐시·공급사·WS·이벤트루프
@@ -5333,7 +5333,8 @@ app.get('/api/football/tsanalysis', async (req, res) => {
     const future = { home: ((R.future && R.future.home) || []).map(decM).filter(Boolean), away: ((R.future && R.future.away) || []).map(decM).filter(Boolean) };
     function form(list, teamId) {
       let w = 0, d = 0, l = 0, gf = 0, ga = 0, n = 0;
-      list.slice(0, 10).forEach(m => {
+      // 종료 경기(status 8)만 집계 — 예정/진행(0:0 자리표시자)을 무승부로 넣지 않음.
+      list.filter(m => m && (m.status == null || m.status === 8)).slice(0, 10).forEach(m => {
         const iAmHome = String(m.home) === String(teamId);
         const my = iAmHome ? m.hs : m.as, op = iAmHome ? m.as : m.hs;
         if (my == null || op == null) return; n++; gf += my; ga += op;
