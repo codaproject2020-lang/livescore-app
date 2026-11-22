@@ -21,7 +21,7 @@ const app = express();
 const server = http.createServer(app);
 
 const PORT = process.env.PORT || 3000;
-const APP_VERSION = 'v552';
+const APP_VERSION = 'v553';
 
 // ============================================================
 //  📏 성능 계측(instrumentation) — 엔드포인트 지연·캐시·공급사·WS·이벤트루프
@@ -6155,30 +6155,38 @@ app.post('/api/push/unsubscribe', (req, res) => {
 });
 app.get('/api/push/status', (req, res) => res.json({ enabled: PUSH_ON, subscribers: subs.size, publicKey: VAPID_PUBLIC.slice(0, 12) + '…' }));
 
-// 다국어 푸시 문구 (서버측 최소 사전)
+// 다국어 푸시 문구 (서버측 최소 사전) — 폰 기본 알림(작은 2줄). 시안: 킥오프 / ⚽ 골! · 86′ / VAR · 득점 취소 · 33′
 const PL = {
-  start: { en: 'Match start', ko: '경기 시작', ja: '試合開始', zh: '比赛开始', es: 'Inicio del partido', hi: 'मैच शुरू', vi: 'Bắt đầu trận', th: 'เริ่มแข่ง', ru: 'Начало матча', de: 'Spielbeginn', fr: 'Coup d’envoi', it: 'Inizio partita' },
-  score: { en: 'Score', ko: '득점', ja: '得点', zh: '得分', es: 'Gol/Anotación', hi: 'स्कोर', vi: 'Ghi điểm', th: 'ทำแต้ม', ru: 'Гол/очко', de: 'Tor/Punkt', fr: 'But/point', it: 'Gol/punto' },
+  kick:   { en: 'Kick-off', ko: '킥오프', ja: 'キックオフ', zh: '开球', es: 'Inicio', hi: 'किक-ऑफ', vi: 'Khai cuộc', th: 'คิกออฟ', ru: 'Старт', de: 'Anstoß', fr: 'Coup d’envoi', it: 'Fischio d’inizio' },
+  goal:   { en: 'Goal!', ko: '골!', ja: 'ゴール！', zh: '进球！', es: '¡Gol!', hi: 'गोल!', vi: 'Bàn thắng!', th: 'ประตู!', ru: 'Гол!', de: 'Tor!', fr: 'But !', it: 'Gol!' },
+  score:  { en: 'Score', ko: '득점', ja: '得点', zh: '得分', es: 'Anotación', hi: 'स्कोर', vi: 'Ghi điểm', th: 'ทำแต้ม', ru: 'Очко', de: 'Punkt', fr: 'Point', it: 'Punto' },
+  cancel: { en: 'VAR · Goal disallowed', ko: 'VAR · 득점 취소', ja: 'VAR・得点取消', zh: 'VAR·进球无效', es: 'VAR · Gol anulado', hi: 'VAR · गोल रद्द', vi: 'VAR · Bàn bị hủy', th: 'VAR · ประตูถูกยกเลิก', ru: 'VAR · Гол отменён', de: 'VAR · Tor aberkannt', fr: 'VAR · But refusé', it: 'VAR · Gol annullato' },
+  corrected: { en: 'Corrected score', ko: '정정 점수', ja: '訂正スコア', zh: '更正比分', es: 'Marcador corregido', hi: 'सही स्कोर', vi: 'Tỉ số đã sửa', th: 'สกอร์ที่แก้ไข', ru: 'Исправленный счёт', de: 'Korrigierter Stand', fr: 'Score corrigé', it: 'Punteggio corretto' },
   finish: { en: 'Full time', ko: '경기 종료', ja: '試合終了', zh: '比赛结束', es: 'Final', hi: 'समाप्त', vi: 'Kết thúc', th: 'จบเกม', ru: 'Матч окончен', de: 'Spielende', fr: 'Fin du match', it: 'Fine partita' },
   lineup: { en: 'Lineups announced', ko: '라인업 발표', ja: 'スタメン発表', zh: '首发公布', es: 'Alineaciones', hi: 'लाइनअप घोषित', vi: 'Đội hình ra sân', th: 'ประกาศตัวจริง', ru: 'Составы', de: 'Aufstellungen', fr: 'Compositions', it: 'Formazioni' },
   red: { en: 'Red card', ko: '퇴장', ja: '退場', zh: '罚下', es: 'Expulsión', hi: 'रेड कार्ड', vi: 'Thẻ đỏ', th: 'ใบแดง', ru: 'Удаление', de: 'Platzverweis', fr: 'Expulsion', it: 'Espulsione' }
 };
 function plabel(type, lang) { const m = PL[type] || {}; return m[lang] || m.en || type; }
-function iconOf(type) { return type === 'start' ? '⚽' : type === 'finish' ? '🏁' : type === 'lineup' ? '📋' : type === 'red' ? '🟥' : '🔴'; }
+function iconOf(type) { return type === 'kick' ? '⚽' : type === 'goal' || type === 'score' ? '⚽' : type === 'finish' ? '🏁' : type === 'lineup' ? '📋' : type === 'red' ? '🟥' : type === 'cancel' ? '🚫' : '🔴'; }
 
-async function sendPushEvent(type, prefKey, sport, g) {
+// type: kick|goal|score|cancel|finish|lineup|red. opts.minute(진행 분), opts.cancel(취소=정정점수 표기)
+async function sendPushEvent(type, prefKey, sport, g, opts) {
   if (!PUSH_ON || !subs.size) return;
+  opts = opts || {};
   const home = g.home, away = g.away;
-  const scoreLine = `${home} ${g.hs ?? 0}:${g.as ?? 0} ${away}`;
+  const scoreLine = `${home} ${g.hs ?? 0}–${g.as ?? 0} ${away}`;   // en dash, 시안과 동일
   const vsLine = `${home} vs ${away}`;
+  const minTag = (opts.minute != null && opts.minute !== '') ? ` · ${opts.minute}′` : '';
   for (const [ep, rec] of subs) {
     if (!(rec.prefs && rec.prefs[prefKey])) continue;
     if (!(favMatch(rec.fav, home) || favMatch(rec.fav, away))) continue;
-    const payload = JSON.stringify({
-      title: `${iconOf(type)} ${plabel(type, rec.lang)}`,
-      body: (type === 'finish' || type === 'score') ? scoreLine : vsLine,
-      gameId: g.id, sport
-    });
+    let title, body;
+    if (type === 'cancel') { title = `${iconOf(type)} ${plabel('cancel', rec.lang)}${minTag}`; body = `${plabel('corrected', rec.lang)} · ${scoreLine}`; }
+    else if (type === 'goal' || type === 'score') { title = `${iconOf(type)} ${plabel('goal', rec.lang)}${minTag}`; body = scoreLine; }
+    else if (type === 'kick') { title = `${iconOf(type)} ${plabel('kick', rec.lang)}`; body = vsLine; }
+    else if (type === 'finish') { title = `${iconOf(type)} ${plabel('finish', rec.lang)}`; body = scoreLine; }
+    else { title = `${iconOf(type)} ${plabel(type, rec.lang)}`; body = vsLine; }
+    const payload = JSON.stringify({ title, body, gameId: g.id, sport, kind: type });
     try { await webpush.sendNotification(rec.sub, payload); }
     catch (err) { if (err && (err.statusCode === 404 || err.statusCode === 410)) { subs.delete(ep); if (subsCol) subsCol.deleteOne({ endpoint: ep }).catch(() => {}); } }
   }
@@ -6200,10 +6208,15 @@ async function pushTick() {
       const favd = [...subs.values()].some(r => favMatch(r.fav, g.home) || favMatch(r.fav, g.away));
       if (!favd) continue;
       const id = g.id, prev = pushSnap[id] || {}, total = (Number(g.hs) || 0) + (Number(g.as) || 0);
+      const minute = (g.elapsed != null && g.elapsed !== '') ? g.elapsed : null;
+      // prev.state 가 있어야(=이미 한 번 관측) 전이 알림 발송 → 최초 틱/서버 재시작 시 과거 사건 일괄 발송 방지(중복 방지).
       if (prev.state) {
-        if (prev.state === 'scheduled' && g.state === 'live') sendPushEvent('start', 'start', sport, g);
+        if (prev.state === 'scheduled' && g.state === 'live') sendPushEvent('kick', 'start', sport, g);
         if (prev.state !== 'finished' && g.state === 'finished') sendPushEvent('finish', 'finish', sport, g);
-        if (prev.total != null && total > prev.total && g.state === 'live') sendPushEvent('score', 'score', sport, g);
+        if (prev.total != null && g.state === 'live') {
+          if (total > prev.total) sendPushEvent(sport === 'football' ? 'goal' : 'score', 'score', sport, g, { minute });
+          else if (total < prev.total) sendPushEvent('cancel', 'cancel', sport, g, { minute });   // 공식 점수 감소 = VAR 득점취소/정정 → 정정 점수 표기
+        }
       }
       pushSnap[id] = Object.assign({}, prev, { state: g.state, total });
       // 라인업 (1회) — 축구/ MLB계열

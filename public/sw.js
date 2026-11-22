@@ -1,5 +1,5 @@
 // LIVE UP · 최소 서비스워커 (PWA 설치 가능 조건 충족)
-const CACHE = 'liveup-v552';
+const CACHE = 'liveup-v553';
 const CORE = ['/', '/index.html', '/logo.png.jpg', '/manifest.json'];
 
 self.addEventListener('install', (e) => {
@@ -49,15 +49,18 @@ self.addEventListener('push', (e) => {
   })());
 });
 
-// 알림 클릭 → 앱 열고 해당 경기 상세로
+// 알림 클릭 → 앱 열고 해당 경기 상세로 (종목·경기 ID 정확히 전달. 이름 추정 금지)
 self.addEventListener('notificationclick', (e) => {
   e.notification.close();
-  const gid = e.notification.data && e.notification.data.gameId;
+  const data = e.notification.data || {};
+  const gid = data.gameId || '';
+  const sport = data.sport || '';
+  const ev = (sport && gid) ? (sport + ':' + gid) : gid;
   e.waitUntil((async () => {
     const all = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
     for (const c of all) {
-      if ('focus' in c) { await c.focus(); if (gid) c.postMessage({ type: 'openEvent', gameId: gid }); return; }
+      if ('focus' in c) { await c.focus(); if (gid) c.postMessage({ type: 'openEvent', gameId: gid, sport: sport, ev: ev }); return; }
     }
-    await self.clients.openWindow(gid ? '/?ev=' + encodeURIComponent(gid) : '/');
+    await self.clients.openWindow(ev ? '/?ev=' + encodeURIComponent(ev) : '/');
   })());
 });
