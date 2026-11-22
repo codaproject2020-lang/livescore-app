@@ -21,7 +21,7 @@ const app = express();
 const server = http.createServer(app);
 
 const PORT = process.env.PORT || 3000;
-const APP_VERSION = 'v558';
+const APP_VERSION = 'v559';
 
 // ============================================================
 //  📏 성능 계측(instrumentation) — 엔드포인트 지연·캐시·공급사·WS·이벤트루프
@@ -2115,6 +2115,15 @@ function vbKrCanon(name) {
   for (const [k, kws] of VB_KR_TEAM) { for (const kw of kws) { const w = _nrmVbTeam(kw); if (w && n.includes(w)) return k; } }
   return null;
 }
+// 성별 판별: 이름/대회명에서 남/여 추출(미상=null). 이름만으로 남↔여 팀을 섞지 않도록 매칭 가드에 사용.
+function _vbGender(s) {
+  const t = String(s || '').toLowerCase();
+  if (/\bwomen\b|\bwoman\b|\bladies\b|\bfemale\b|여자|여성|\(w\)|women'?s|\bw\b|여$/.test(t)) return 'w';
+  if (/\bmen\b|\bman\b|\bmale\b|남자|남성|\(m\)|men'?s|\bm\b|남$/.test(t)) return 'm';
+  return null;
+}
+// canon 키(m_/w_ 접두)에서 성별 추출
+function _vbGenderOfCanon(c) { return c && /^m_/.test(c) ? 'm' : c && /^w_/.test(c) ? 'w' : null; }
 // TheSports 경기 → API-Sports 팀/리그/시즌 ID 해석: 한국(국가·성별) 리그 순위표의 팀을 '정규화 별칭'으로 매칭(제공사 간 명칭 차이 흡수, 오매칭 방지).
 async function vbResolve(home, away, leagueName, season){
   const key='std2|'+_nrmVbTeam(home)+'|'+_nrmVbTeam(away)+'|'+_nrmVbTeam(leagueName);
@@ -2127,12 +2136,17 @@ async function vbResolve(home, away, leagueName, season){
     if(lid){
       const m=String(season||'').match(/\d{4}/); const y=m?+m[0]:new Date().getFullYear();
       const h=_nrmVbTeam(home), a=_nrmVbTeam(away); const ch=vbKrCanon(home), ca=vbKrCanon(away);
+      // 성별(남/여): 팀 canon 접두 → 팀 이름 → 대회명 순으로 추정. 이름만으로 남↔여 팀이 섞이지 않게 매칭 가드.
+      const gH=_vbGenderOfCanon(ch)||_vbGender(home)||_vbGender(leagueName);
+      const gA=_vbGenderOfCanon(ca)||_vbGender(away)||_vbGender(leagueName);
       for(const sy of [`${y}-${y+1}`, String(y), `${y-1}-${y}`, String(y-1)]){
         const j=await asRaw('volleyball', `/standings?league=${lid}&season=${encodeURIComponent(sy)}`, 3600e3).catch(()=>null);
         const table=parseHoopStandings(j); if(!table.length) continue;
-        // 1) 정규화 별칭(고유키) 매칭  2) 정확 일치  3) 부분 포함  — 같은 리그 7팀 내에서만 → 안전.
-        const find=(canon,norm)=>{ if(canon){ const r=table.find(t=>vbKrCanon(t.team)===canon); if(r)return r; } let r=table.find(t=>_nrmVbTeam(t.team)===norm); if(r)return r; return table.find(t=>{ const tn=_nrmVbTeam(t.team); return tn&&tn.length>=3&&(tn.includes(norm)||norm.includes(tn)); }); };
-        const rh=find(ch,h), ra=find(ca,a);
+        // 성별 불일치 후보 배제: canon 접두(m_/w_) 또는 팀명 성별이 쿼리 성별과 반대면 제외(여↔남 오연결 방지).
+        const genderOk=(t,want)=>{ if(!want)return true; const tg=_vbGenderOfCanon(vbKrCanon(t.team))||_vbGender(t.team); return !tg||tg===want; };
+        // 1) 정규화 별칭(고유키·성별 포함) 매칭  2) 정확 일치  3) 부분 포함 — 모두 성별 가드 통과분만. 같은 리그 내에서만.
+        const find=(canon,norm,want)=>{ if(canon){ const r=table.find(t=>vbKrCanon(t.team)===canon); if(r)return r; } let r=table.find(t=>_nrmVbTeam(t.team)===norm&&genderOk(t,want)); if(r)return r; return table.find(t=>{ const tn=_nrmVbTeam(t.team); return tn&&tn.length>=3&&(tn.includes(norm)||norm.includes(tn))&&genderOk(t,want); }); };
+        const rh=find(ch,h,gH), ra=find(ca,a,gA);
         if(rh&&ra&&String(rh.teamId)!==String(ra.teamId)){ out={ leagueId:lid, leagueName, season:sy, homeId:rh.teamId, awayId:ra.teamId, homeName:rh.team, awayName:ra.team }; break; }
       }
     }
