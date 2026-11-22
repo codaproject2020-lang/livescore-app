@@ -21,7 +21,7 @@ const app = express();
 const server = http.createServer(app);
 
 const PORT = process.env.PORT || 3000;
-const APP_VERSION = 'v551';
+const APP_VERSION = 'v552';
 
 // ============================================================
 //  📏 성능 계측(instrumentation) — 엔드포인트 지연·캐시·공급사·WS·이벤트루프
@@ -5031,19 +5031,41 @@ app.get('/api/football/live', async (req, res) => {
     const list = (lv && lv.results) || [];
     const item = list.find(x => x && String(x.id || (x.score && x.score[0])) === String(id));
     if (!item) return res.json({ found: false, events: [] });
-    let lines = []; const tl = item.tlive || item.incidents;
+    // 🥅 구조화 이벤트 우선: TheSports incidents(선수명 포함) — 골·카드·교체. 종료 경기는 live/history 폴백.
+    let inc = item && item.incidents;
+    if (!inc || !inc.length) {
+      const h = await tsFetch('/football/match/live/history', { uuid: id }, 300000, 9000).catch(() => null);
+      const R = h && h.results; inc = (R && (R.incidents || (R.detail && R.detail.incidents))) || null;
+    }
+    if (inc && inc.length) {
+      // TheSports 축구 incident type: 1=골, 8=페널티골, 17=자책골, 3=옐로, 4=레드, 15=경고누적퇴장, 9=교체
+      const KIND = { 1: 'goal', 8: 'goal', 17: 'goal', 3: 'card', 4: 'card', 15: 'card', 9: 'sub' };
+      const structured = [];
+      inc.forEach(ic => {
+        const k = KIND[ic.type]; if (!k) return;
+        const team = ic.position === 1 ? 'home' : (ic.position === 2 ? 'away' : '');
+        const e = { minute: (ic.time != null ? ic.time : null), extra: (ic.add_time || 0), team, kind: k };
+        if (k === 'goal') { e.player = ic.player_name || ''; e.assist = ic.assist1_name || ''; e.hs = (ic.home_score != null ? ic.home_score : null); e.as = (ic.away_score != null ? ic.away_score : null); e.own = (ic.type === 17); e.pen = (ic.type === 8); }
+        else if (k === 'sub') { e.inName = ic.in_player_name || ''; e.outName = ic.out_player_name || ''; }
+        else if (k === 'card') { e.player = ic.player_name || ''; e.card = (ic.type === 3 ? 'yellow' : (ic.type === 15 ? 'yellowred' : 'red')); }
+        structured.push(e);
+      });
+      structured.sort((a, b) => ((a.minute || 0) + (a.extra || 0) / 100) - ((b.minute || 0) + (b.extra || 0) / 100));
+      if (structured.length) return res.json({ found: true, structured: true, events: structured });
+    }
+    // 폴백: tlive(플레이바이플레이) 텍스트
+    let lines = []; const tl = item.tlive;
     if (Array.isArray(tl) && tl.length) lines = Array.isArray(tl[0]) ? tl[0] : tl;
     const evs = [];
     lines.forEach(L => {
       if (Array.isArray(L)) {
-        // 배열형: [type, minute, team, ...] 또는 [period, "mm:ss", team, ?, score, text]
         const txt = L[5] || L[4] || '';
         evs.push({ minute: (typeof L[1] === 'number' ? L[1] : (String(L[1] || '').match(/\d+/) || [''])[0]), team: +L[2] || 0, text: String(txt), type: L[0] });
       } else if (L && typeof L === 'object') {
         evs.push({ minute: L.minute != null ? L.minute : (L.time || ''), team: (L.position || L.team || 0), text: L.text || L.detail || '', type: L.type });
       }
     });
-    res.json({ found: true, events: evs.slice(-120).reverse() });
+    res.json({ found: true, structured: false, events: evs.slice(-120).reverse() });
   } catch (e) { res.json({ error: String(e.message || e), events: [] }); }
 });
 
