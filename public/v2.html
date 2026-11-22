@@ -1325,12 +1325,12 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
   function isFavLeague(sp,name){ var k=favLeagueKey(sp,name); return loadFavLeagues().some(function(x){return favLeagueKey(x.sport,x.name)===k;}); }
   function toggleFavLeague(sp,name,country,logo){ var a=loadFavLeagues(); var k=favLeagueKey(sp,name); var i=a.findIndex(function(x){return favLeagueKey(x.sport,x.name)===k;}); if(i>=0)a.splice(i,1); else a.push({sport:sp,name:String(name||"").trim(),country:country||"",logo:logo||""}); saveFavLeagues(a); return i<0; }
   // 알림 설정(로컬 저장)
-  var NOTIF=(function(){ try{ return Object.assign({on:true,pre:true,preMin:"10",start:false,end:true,otcancel:false,sport:"football",quarterEnd:false,close:false,quiet:false,qStart:"23:00",qEnd:"07:00"}, JSON.parse(localStorage.getItem("lu_notif")||"{}")); }catch(e){ return {on:true,pre:true,preMin:"10",start:false,end:true,otcancel:false,sport:"football",quarterEnd:false,close:false,quiet:false,qStart:"23:00",qEnd:"07:00"}; } })();
+  var NOTIF=(function(){ var DEF={on:true,pre:true,preMin:"10",start:false,end:true,otcancel:false,sport:"football",goal:true,goalCancel:true,quarterEnd:false,close:false,quiet:false,qStart:"23:00",qEnd:"07:00"}; try{ return Object.assign(DEF, JSON.parse(localStorage.getItem("lu_notif")||"{}")); }catch(e){ return DEF; } })();
   function saveNotif(){ try{ localStorage.setItem("lu_notif",JSON.stringify(NOTIF)); }catch(e){} }
   // ── 🔔 웹푸시 구독 연결(폰 알림) ── 사용자가 알림을 켜고 권한 허용했을 때만 구독. 관심팀·선택 이벤트·언어를 서버에 전달.
   function _urlB64ToU8(b){ try{ var pad="=".repeat((4-b.length%4)%4); var base=(b+pad).replace(/-/g,"+").replace(/_/g,"/"); var raw=atob(base); var arr=new Uint8Array(raw.length); for(var i=0;i<raw.length;i++)arr[i]=raw.charCodeAt(i); return arr; }catch(e){ return new Uint8Array(); } }
   // 선택한 이벤트만 발송되도록 NOTIF 토글 → 서버 prefs. 골/VAR취소는 알림 마스터(on)에 연동, 시작·종료는 개별 토글.
-  function _notifPrefs(){ return { score: !!NOTIF.on, cancel: !!NOTIF.on, start: !!NOTIF.start, finish: !!NOTIF.end, lineup: false, red: false }; }
+  function _notifPrefs(){ return { score: (NOTIF.goal!==false), cancel: (NOTIF.goalCancel!==false), start: !!NOTIF.start, finish: !!NOTIF.end, lineup: false, red: false }; }
   function _favTeamNames(){ try{ return (S.favTeams||[]).map(function(x){ return String(x.name||""); }).filter(Boolean); }catch(e){ return []; } }
   var _pushBusy=false;
   function syncPushSub(){
@@ -5517,7 +5517,8 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
     h+='<div class="setrow"><div class="lb">'+tl({en:"OT / Cancel / Postpone",ko:"연장·취소·연기",ja:"延長・中止・延期",zh:"加时·取消·延期",es:"Prórroga/cancel.",hi:"OT/रद्द",vi:"Hiệp phụ/hủy",th:"ต่อเวลา/ยกเลิก",ru:"ОТ/отмена",de:"Verl./Absage",fr:"Prol./annul.",it:"Suppl./annullo"})+'</div>'+swHtml("nOt",NOTIF.otcancel)+'</div></div>';
     h+='<div class="sect-h">'+tl({en:"Per-sport",ko:"종목별 세부 알림",ja:"種目別",zh:"分项目",es:"Por deporte",hi:"खेल अनुसार",vi:"Theo môn",th:"ตามกีฬา",ru:"По виду",de:"Pro Sportart",fr:"Par sport",it:"Per sport"})+'</div>';
     h+='<div class="seg" id="segSport" style="flex-wrap:wrap">'+sports.map(function(s){return '<button data-s="'+s[0]+'"'+(NOTIF.sport===s[0]?' class="on"':'')+'>'+s[1]+' '+t(s[0])+'</button>';}).join("")+'</div>';
-    h+='<div class="setgrp"><div class="setrow"><div class="lb">'+tl({en:"Quarter/Set end",ko:"쿼터·세트 종료",ja:"クォーター・セット終了",zh:"节/局结束",es:"Fin de cuarto/set",hi:"क्वार्टर/सेट अंत",vi:"Hết hiệp/set",th:"จบควอเตอร์/เซ็ต",ru:"Конец четв./сета",de:"Viertel/Satz-Ende",fr:"Fin quart/set",it:"Fine quarto/set"})+'</div>'+swHtml("nQe",NOTIF.quarterEnd)+'</div></div>';
+    // 선택 종목의 '실제 발송 연결된' 세부 알림만 렌더(지원하지 않는 항목은 토글만 두지 않음).
+    h+='<div class="setgrp" id="segSportBody"></div>';
     h+='<div class="sect-h">'+tl({en:"Quiet hours",ko:"방해 금지 시간",ja:"おやすみ時間",zh:"勿扰时段",es:"No molestar",hi:"शांत समय",vi:"Giờ im lặng",th:"ห้ามรบกวน",ru:"Не беспокоить",de:"Ruhezeiten",fr:"Ne pas déranger",it:"Non disturbare"})+'</div>';
     h+='<div class="setgrp"><div class="setrow"><div><div class="lb">'+NOTIF.qStart+' – '+NOTIF.qEnd+'</div></div>'+swHtml("nQuiet",NOTIF.quiet)+'</div></div>';
     h+='<button class="gbtn" id="nTest" style="margin-top:14px">🔔 '+tl({en:"Send test notification",ko:"테스트 알림 보내기",ja:"テスト通知を送る",zh:"发送测试通知",es:"Enviar prueba",hi:"टेस्ट भेजें",vi:"Gửi thử",th:"ส่งทดสอบ",ru:"Тестовое уведомление",de:"Testbenachrichtigung",fr:"Test",it:"Prova"})+'</button>';
@@ -5528,9 +5529,22 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
       // 권한은 '알림 켜기'를 켤 때만 요청(거부·미지원·해제 구분). 변경 시마다 구독 동기화(선택 이벤트/관심팀/언어 반영).
       if(key==="on"&&NOTIF.on&&window.Notification&&Notification.permission==="default"){ Notification.requestPermission().then(function(){ syncPushSub(); openAlerts(); }); }
       else { syncPushSub(); } }; }
-    tog("nAll","on"); tog("nPre","pre"); tog("nStart","start"); tog("nEnd","end"); tog("nOt","otcancel"); tog("nQe","quarterEnd"); tog("nQuiet","quiet");
+    tog("nAll","on"); tog("nPre","pre"); tog("nStart","start"); tog("nEnd","end"); tog("nOt","otcancel"); tog("nQuiet","quiet");
+    // 종목별 세부 알림: 축구는 실제 발송 연결된 득점·골 취소만 제공(전반종료·후반시작은 미연결 → 미표시). 그 외 종목은 기존 쿼터·세트 종료 유지.
+    function renderSportDetail(){
+      var box=$("#segSportBody"); if(!box)return; var sp=NOTIF.sport;
+      if(sp==="football"){
+        box.innerHTML='<div class="setrow"><div class="lb">'+tl({en:"Goal",ko:"득점",ja:"得点",zh:"进球",es:"Gol",hi:"गोल",vi:"Bàn thắng",th:"ประตู",ru:"Гол",de:"Tor",fr:"But",it:"Gol"})+'</div>'+swHtml("nGoal",NOTIF.goal!==false)+'</div>'+
+          '<div class="setrow"><div class="lb">'+tl({en:"Goal disallowed (VAR)",ko:"골 취소(VAR)",ja:"得点取消(VAR)",zh:"进球无效(VAR)",es:"Gol anulado (VAR)",hi:"गोल रद्द (VAR)",vi:"Bàn bị hủy (VAR)",th:"ประตูถูกยกเลิก (VAR)",ru:"Гол отменён (VAR)",de:"Tor aberkannt (VAR)",fr:"But refusé (VAR)",it:"Gol annullato (VAR)"})+'</div>'+swHtml("nGoalCancel",NOTIF.goalCancel!==false)+'</div>';
+        tog("nGoal","goal"); tog("nGoalCancel","goalCancel");
+      } else {
+        box.innerHTML='<div class="setrow"><div class="lb">'+tl({en:"Quarter/Set end",ko:"쿼터·세트 종료",ja:"クォーター・セット終了",zh:"节/局结束",es:"Fin de cuarto/set",hi:"क्वार्टर/सेट अंत",vi:"Hết hiệp/set",th:"จบควอเตอร์/เซ็ต",ru:"Конец четв./сета",de:"Viertel/Satz-Ende",fr:"Fin quart/set",it:"Fine quarto/set"})+'</div>'+swHtml("nQe",NOTIF.quarterEnd)+'</div>';
+        tog("nQe","quarterEnd");
+      }
+    }
+    renderSportDetail();
     o.querySelectorAll("#segPre button").forEach(function(b){ b.onclick=function(){ NOTIF.preMin=b.dataset.m; saveNotif(); o.querySelectorAll("#segPre button").forEach(function(x){x.classList.remove("on");}); b.classList.add("on"); }; });
-    o.querySelectorAll("#segSport button").forEach(function(b){ b.onclick=function(){ NOTIF.sport=b.dataset.s; saveNotif(); o.querySelectorAll("#segSport button").forEach(function(x){x.classList.remove("on");}); b.classList.add("on"); }; });
+    o.querySelectorAll("#segSport button").forEach(function(b){ b.onclick=function(){ NOTIF.sport=b.dataset.s; saveNotif(); o.querySelectorAll("#segSport button").forEach(function(x){x.classList.remove("on");}); b.classList.add("on"); renderSportDetail(); }; });
     $("#toFav").onclick=function(){ closeOverlay("ovAlerts"); openFavTeams("games"); };
     $("#toTeam").onclick=function(){ closeOverlay("ovAlerts"); openFavTeams("teams"); };
     $("#nTest").onclick=function(){
