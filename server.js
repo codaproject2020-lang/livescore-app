@@ -21,7 +21,7 @@ const app = express();
 const server = http.createServer(app);
 
 const PORT = process.env.PORT || 3000;
-const APP_VERSION = 'v556';
+const APP_VERSION = 'v557';
 
 // ============================================================
 //  📏 성능 계측(instrumentation) — 엔드포인트 지연·캐시·공급사·WS·이벤트루프
@@ -5352,6 +5352,13 @@ app.get('/api/football/tsanalysis', async (req, res) => {
     const KL = (TS_LANG['football'] || { team: {} }).team || {};
     const attachKo = m => { if (KL[m.home]) m.hKo = KL[m.home]; if (KL[m.away]) m.aKo = KL[m.away]; return m; };
     vs.forEach(attachKo); homeRec.forEach(attachKo); awayRec.forEach(attachKo); future.home.forEach(attachKo); future.away.forEach(attachKo);
+    // 대회명 해석(있을 때만) — 경기행에 시즌 대신 대회명을 노출. comp id→name. 해석 실패 시 compNm 미설정(프론트가 시즌 폴백).
+    try {
+      const cidx = await _fbLoadCompIdx();
+      const KLc = (TS_LANG['football'] || { comp: {} }).comp || {};
+      const attachComp = m => { if (!m || !m.comp) return m; const c = cidx.byId && cidx.byId.get(m.comp); if (c && c.name) m.compNm = c.name; if (KLc[m.comp]) m.compKo = KLc[m.comp]; return m; };
+      vs.forEach(attachComp); homeRec.forEach(attachComp); awayRec.forEach(attachComp); future.home.forEach(attachComp); future.away.forEach(attachComp);
+    } catch (e) {}
     res.json({
       found: true, homeId, awayId, goalDist: R.goal_distribution || null,
       vs, homeRecent: homeRec, awayRecent: awayRec, future,
