@@ -21,7 +21,7 @@ const app = express();
 const server = http.createServer(app);
 
 const PORT = process.env.PORT || 3000;
-const APP_VERSION = 'v562';
+const APP_VERSION = 'v563';
 
 // ============================================================
 //  📏 성능 계측(instrumentation) — 엔드포인트 지연·캐시·공급사·WS·이벤트루프
@@ -2479,18 +2479,22 @@ async function tsFootballGames(date) {
         elapsed = Math.floor((ftBase + (ftRun ? within : 0)) / 60);
       }
     }
-    // 🏁 종료 정규화: 공급사가 종료시각(ended, 유닉스초 타임스탬프)을 기록했는데 상태코드가 FT로 안 바뀐 경기(일부 군소리그)
-    //   → '종료'로 정규화. 진행 중(live)은 유지, 예정(ended 없음)은 그대로. 시간만 보고 추정하지 않음(공급사 ended 신호만 사용).
-    let _state = tsFootState(sid), _status = tsFootStatus(sid);
+    // 🏁 상태 정규화. TheSports status_id: 1=NS,2=1H,3=HT,4=2H,5=ET,7=PEN,8=FT, 9=연기,10=중단,11=몰수/중단,12=취소,13=미정,0=비정상.
+    //   ① 취소·연기·중단(9~12·0)은 '정상 종료'와 구분 — ended(종료시각)가 찍혀도 FT로 승격하지 않고 해당 상태(취소/연기/중단)로 표기.
+    //   ② 그 외(예: NS로 남았지만) ended(유닉스초 타임스탬프)가 찍힌 '지연 반영' 경기만 '종료'로 정규화(시간만으로 추정 금지, 공급사 ended 신호 사용).
+    let _state = tsFootState(sid), _status = tsFootStatus(sid), _statusLong = '';
     const _endedTs = Number(m.ended) || 0;
-    if (_state !== 'live' && _endedTs > 1e9) { _state = 'finished'; _status = 'FT'; }
+    const _ABN = { 9: 'Postponed', 10: 'Interrupted', 11: 'Abandoned', 12: 'Cancelled', 0: 'Abnormal' };
+    const _abn = _ABN[Number(sid)];
+    if (_abn) { _statusLong = _abn; _status = _abn; }                                   // 취소·연기·중단 → 종료로 승격 안 함
+    else if (_state !== 'live' && _endedTs > 1e9) { _state = 'finished'; _status = 'FT'; }
     return {
       id: m.id, sport: 'football', tsid: m.id,
       home: ht.name || m.home_team_id, away: at.name || m.away_team_id,
       homeLogo: ht.logo || '', awayLogo: at.logo || '',
       homeTid: m.home_team_id, awayTid: m.away_team_id,
       league: cp.name || '', leagueLogo: cp.logo || '', leagueId: m.competition_id || '', country: cp.country || '',
-      hs, as, state: _state, status: _status, statusLong: '',
+      hs, as, state: _state, status: _status, statusLong: _statusLong,
       date: m.match_time ? new Date(m.match_time * 1000).toISOString() : null,
       elapsed, ftTs, ftBase, ftRun, ftCap,
       cov: m.coverage ? { lineup: m.coverage.lineup ? 1 : 0, mlive: m.coverage.mlive ? 1 : 0 } : null   // 탭 노출 판단용(라인업/라이브)
@@ -5111,13 +5115,13 @@ app.get('/api/football/live', async (req, res) => {
   try {
     const lv = await tsFetch('/football/match/detail_live', {}, 5000).catch(() => null);
     const list = (lv && lv.results) || [];
-    const item = list.find(x => x && String(x.id || (x.score && x.score[0])) === String(id));
-    if (!item) return res.json({ found: false, events: [] });
-    // 🥅 구조화 이벤트 우선: TheSports incidents(선수명 포함) — 골·카드·교체. 종료 경기는 live/history 폴백.
+    // detail_live(진행 경기)에 없으면 종료 경기 → live/history로 폴백(조기 return 금지: 종료 경기 이벤트가 안 나오던 버그 수정).
+    const item = list.find(x => x && String(x.id || (x.score && x.score[0])) === String(id)) || null;
+    // 🥅 구조화 이벤트 우선: TheSports incidents(선수명 포함) — 골·카드·교체. 종료 경기는 live/history(uuid) 폴백.
     let inc = item && item.incidents;
     if (!inc || !inc.length) {
       const h = await tsFetch('/football/match/live/history', { uuid: id }, 300000, 9000).catch(() => null);
-      const R = h && h.results; inc = (R && (R.incidents || (R.detail && R.detail.incidents))) || null;
+      const R = h && h.results; inc = (R && (R.incidents || (R.detail && R.detail.incidents))) || inc || null;
     }
     if (inc && inc.length) {
       // TheSports 축구 incident type: 1=골, 8=페널티골, 17=자책골, 3=옐로, 4=레드, 15=경고누적퇴장, 9=교체
@@ -5135,7 +5139,8 @@ app.get('/api/football/live', async (req, res) => {
       structured.sort((a, b) => ((a.minute || 0) + (a.extra || 0) / 100) - ((b.minute || 0) + (b.extra || 0) / 100));
       if (structured.length) return res.json({ found: true, structured: true, events: structured });
     }
-    // 폴백: tlive(플레이바이플레이) 텍스트
+    // 폴백: tlive(플레이바이플레이) 텍스트 — 진행 경기(detail_live item)에만 존재. 종료 경기(item 없음)는 이벤트 없음으로 정직 반환.
+    if (!item) return res.json({ found: false, events: [] });
     let lines = []; const tl = item.tlive;
     if (Array.isArray(tl) && tl.length) lines = Array.isArray(tl[0]) ? tl[0] : tl;
     const evs = [];
