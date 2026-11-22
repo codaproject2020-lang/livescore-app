@@ -21,7 +21,7 @@ const app = express();
 const server = http.createServer(app);
 
 const PORT = process.env.PORT || 3000;
-const APP_VERSION = 'v557';
+const APP_VERSION = 'v558';
 
 // ============================================================
 //  📏 성능 계측(instrumentation) — 엔드포인트 지연·캐시·공급사·WS·이벤트루프
@@ -5323,7 +5323,7 @@ app.get('/api/football/tsanalysis', async (req, res) => {
         home: h[0], away: aw[0],
         hs: (h[2] != null ? h[2] : null), as: (aw[2] != null ? aw[2] : null),
         hht: (h[3] != null ? h[3] : null), aht: (aw[3] != null ? aw[3] : null),
-        note: (a[8] && a[8][0]) || '', season: (a[9] && a[9][1]) || ''
+        note: (a[8] && a[8][0]) || '', season: (a[9] && a[9][1]) || '', seasonId: (a[9] && a[9][0]) || ''
       };
     }
     const hist = R.history || {};
