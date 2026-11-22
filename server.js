@@ -21,7 +21,7 @@ const app = express();
 const server = http.createServer(app);
 
 const PORT = process.env.PORT || 3000;
-const APP_VERSION = 'v559';
+const APP_VERSION = 'v560';
 
 // ============================================================
 //  📏 성능 계측(instrumentation) — 엔드포인트 지연·캐시·공급사·WS·이벤트루프
@@ -4216,6 +4216,42 @@ app.get('/api/basketball/teamstats', async (req, res) => {
 });
 // 🏐 TheSports 배구 경기목록(diary) → 세트 승수(ft) + 세트별 점수(p1~p5)
 function tsVolState(s) { s = Number(s); if (s === 1 || s === 0) return 'scheduled'; if (s === 100 || s < 0) return 'finished'; return 'live'; }
+// 🏐 종료결과 보정용 캐시/고정맵.
+//   _vbFin: 한 번 '종료'로 확인된 경기(matchId→결과) — 이후 응답/캐시가 '예정'으로 되돌려도 유지(역전 방지).
+//   _vbHistCache: live/history 조회 결과 캐시(종료결과 immutable=장기, 빈결과=단기).
+const _vbFin = new Map();
+const _vbHistCache = new Map();
+// 인증 경로(/volleyball/match/live/history)로 '그 경기 ID'의 실제 종료 결과 조회. 종료(status 100)+세트점수만 반환, 없으면 null.
+//   diary 상태가 늦게 갱신되는 경기를 공급사 경기 ID 기준으로 보정하기 위한 '종료 결과 조회' 인증 경로.
+async function tsVolleyHistory(id) {
+  if (!id) return null;
+  const c = _vbHistCache.get(id);
+  if (c && Date.now() - c.t < (c.v ? 6 * 3600e3 : 90000)) return c.v;   // 종료결과 6h, 빈결과 90s
+  let v = null;
+  try {
+    const r = await tsFetch('/volleyball/match/live/history', { uuid: id }, 5000, 6000).catch(() => null);
+    const res = r && r.results;
+    const item = Array.isArray(res) ? (res.find(x => x && String(x.id) === String(id)) || res[0]) : res;
+    const sc = item && item.score;   // [matchId, status_id, ?, {ft,p1..p5}]
+    if (Array.isArray(sc)) {
+      const status = Number(sc[1]); const obj = sc[3] || {};
+      if (status === 100 && Array.isArray(obj.ft)) {
+        const ft = [obj.ft[0] != null ? +obj.ft[0] : null, obj.ft[1] != null ? +obj.ft[1] : null];
+        const sets = [];
+        ['p1', 'p2', 'p3', 'p4', 'p5'].forEach(k => { const p = obj[k]; if (Array.isArray(p) && (p[0] || p[1])) sets.push({ home: p[0] != null ? +p[0] : null, away: p[1] != null ? +p[1] : null }); });
+        v = { ft, sets };
+      }
+    }
+  } catch (e) {}
+  _vbHistCache.set(id, { t: Date.now(), v });
+  return v;
+}
+function _applyVbFin(g, h) {
+  if (!g || !h) return;
+  g.state = 'finished'; g.statusLong = '100'; g.livePts = null;
+  if (h.ft) { if (h.ft[0] != null) g.hs = h.ft[0]; if (h.ft[1] != null) g.as = h.ft[1]; }
+  if (h.sets && h.sets.length) { g.setScores = h.sets; g.period = h.sets.length; }
+}
 async function tsVolleyballGames(date, tz) {
   tz = canonTz(tz);
   const toYmd = d => String(d).replace(/-/g, '');
@@ -4258,6 +4294,22 @@ async function tsVolleyballGames(date, tz) {
       });
     }
   }
+  // 🏐 종료결과 보정 + 역전 방지 —
+  //   (1) diary가 종료로 확정한 경기는 _vbFin에 고정(이후 응답/캐시가 예정으로 돌아와도 유지).
+  //   (2) 시작이 지났는데 아직 종료 아님 → 인증 경로 live/history로 '그 경기 ID'의 실제 종료결과 조회해 반영.
+  //       (시간만으로 종료 추정 금지 — status 100 + 세트점수가 실제로 올 때만 반영)
+  const nowMs = Date.now();
+  out.forEach(g => { if (g.state === 'finished') _vbFin.set(g.tsid, { ft: [g.hs, g.as], sets: g.setScores || [], at: Date.now() }); });
+  // 시작 경과 + 미종료 경기만, 비용 상한: 최근 시작 순 최대 25건(캐시로 반복 조회 비용 최소화).
+  const pend = out.filter(g => g.state !== 'finished' && g.date && Date.parse(g.date) < nowMs && (nowMs - Date.parse(g.date)) < 12 * 3600e3);
+  pend.sort((a, b) => Date.parse(b.date) - Date.parse(a.date));
+  await Promise.all(pend.slice(0, 15).map(async g => {
+    const h = await tsVolleyHistory(g.tsid);
+    if (h) { _applyVbFin(g, h); _vbFin.set(g.tsid, { ft: h.ft, sets: h.sets, at: Date.now() }); }
+  }));
+  // 고정맵 반영(늦은 응답·오래된 캐시가 종료→예정으로 되돌리지 못하게). 18시간 경과분은 만료.
+  out.forEach(g => { if (g.state !== 'finished') { const f = _vbFin.get(g.tsid); if (f && Date.now() - f.at < 18 * 3600e3) _applyVbFin(g, f); } });
+  for (const [k, f] of _vbFin) { if (Date.now() - f.at > 24 * 3600e3) _vbFin.delete(k); }
   return out;
 }
 // 🌐 TheSports 한국어 번역 로더 — type=4(팀)·type=3(리그) 페이지 순회. 하루 1회, 백그라운드.
