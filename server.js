@@ -21,7 +21,7 @@ const app = express();
 const server = http.createServer(app);
 
 const PORT = process.env.PORT || 3000;
-const APP_VERSION = 'v554';
+const APP_VERSION = 'v555';
 
 // ============================================================
 //  📏 성능 계측(instrumentation) — 엔드포인트 지연·캐시·공급사·WS·이벤트루프
@@ -5372,6 +5372,22 @@ async function tsFootTeam(id) {
   _tsTeamCache.set(id, out);
   return out;
 }
+// ⚽ 감독(coach/list)·경기장(venue/list) — TheSports 인증 경로. 24h 캐시. (squad/list·player/additional 는 플랜 미인증)
+const _tsCoachCache = new Map(), _tsVenueCache = new Map();
+async function tsCoach(id) {
+  if (!id) return null; if (_tsCoachCache.has(id)) return _tsCoachCache.get(id);
+  let out = null;
+  try { const r = await tsFetch('/football/coach/list', { uuid: id }, 86400000, 9000).catch(() => null); const c = r && r.results && r.results[0];
+    if (c) out = { id: c.id, name: c.name || c.short_name || '', logo: c.logo || '', nationality: c.nationality || '', countryId: c.country_id || '', formation: c.preferred_formation || '', age: c.age || null }; } catch (e) {}
+  _tsCoachCache.set(id, out); return out;
+}
+async function tsVenue(id) {
+  if (!id) return null; if (_tsVenueCache.has(id)) return _tsVenueCache.get(id);
+  let out = null;
+  try { const r = await tsFetch('/football/venue/list', { uuid: id }, 86400000, 9000).catch(() => null); const v = r && r.results && r.results[0];
+    if (v) out = { id: v.id, name: v.name || '', capacity: (v.capacity != null ? v.capacity : null), city: v.city || '', country: v.country || '' }; } catch (e) {}
+  _tsVenueCache.set(id, out); return out;
+}
 // 국가 uuid → 국가명 (TheSports country/list, 24h 캐시)
 const _tsCountryMap = { t: 0, m: new Map() };
 async function _tsCountryName(cid) {
@@ -5460,7 +5476,23 @@ app.get('/api/football/tsteam', async (req, res) => {
     const nm = await tsNames(ids);
     const addN = m => Object.assign({}, m, { homeName: (nm[m.home] && nm[m.home].name) || '', awayName: (nm[m.away] && nm[m.away].name) || '', homeLogo: (nm[m.home] && nm[m.home].logo) || '', awayLogo: (nm[m.away] && nm[m.away].logo) || '' });
     const seasonId = (R && R.info && R.info[9] && R.info[9][0]) || '';
-    res.json({ found: !!tj, team: tj, form: { w, d, l, n: recent.length }, recent: recent.map(addN), next: next.map(addN), seasonId });
+    // 팀 정보 보강: 감독·경기장·국가명(모두 TheSports 인증 경로). 창단·시장가치·선수수는 tsFootTeam 에 이미 포함.
+    let info = null;
+    if (tj) {
+      const [coach, venue, cName] = await Promise.all([
+        tj.coachId ? tsCoach(tj.coachId).catch(() => null) : Promise.resolve(null),
+        tj.venueId ? tsVenue(tj.venueId).catch(() => null) : Promise.resolve(null),
+        tj.countryId ? _tsCountryName(tj.countryId).catch(() => '') : Promise.resolve('')
+      ]);
+      info = {
+        country: cName || '', foundation: tj.foundation || null,
+        marketValue: tj.marketValue || 0, marketCur: tj.marketCur || '',
+        totalPlayers: tj.totalPlayers || null, foreignPlayers: tj.foreignPlayers || null,
+        coachName: coach ? coach.name : '', coachNat: coach ? coach.nationality : '', formation: coach ? coach.formation : '',
+        venueName: venue ? venue.name : '', venueCap: venue ? venue.capacity : null, venueCity: venue ? venue.city : '', venueCountry: venue ? venue.country : ''
+      };
+    }
+    res.json({ found: !!tj, team: tj, info, form: { w, d, l, n: recent.length }, recent: recent.map(addN), next: next.map(addN), seasonId });
   } catch (e) { res.json({ found: false, error: String((e && e.message) || e) }); }
 });
 // ⚽ 경기 통계(TheSports detail_live stats) — 공격·위험공격·점유율·유효슈팅·빗나간·코너·카드.
