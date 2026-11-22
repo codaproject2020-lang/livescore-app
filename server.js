@@ -21,7 +21,7 @@ const app = express();
 const server = http.createServer(app);
 
 const PORT = process.env.PORT || 3000;
-const APP_VERSION = 'v563';
+const APP_VERSION = 'v564';
 
 // ============================================================
 //  📏 성능 계측(instrumentation) — 엔드포인트 지연·캐시·공급사·WS·이벤트루프
@@ -3223,11 +3223,13 @@ async function tsBasketballGames(date, tz) {
       const hc = comp[m.competition_id] || {}, ht = team[m.home_team_id] || {}, at = team[m.away_team_id] || {};
       let st = m.status_id;
       let hsArr = m.home_scores || [], asArr = m.away_scores || [];
-      let hs = hsArr.reduce((a, b) => a + (+b || 0), 0), as = asArr.reduce((a, b) => a + (+b || 0), 0);
+      // 총점 = 쿼터별 합. 쿼터 점수 배열이 '아예 없으면' 미수신(null) — 빈 배열 reduce가 0을 만들어 '실제 0:0'처럼 보이던 문제 방지.
+      const _sumArr = arr => (arr && arr.length) ? arr.reduce((a, b) => a + (+b || 0), 0) : null;
+      let hs = _sumArr(hsArr), as = _sumArr(asArr);
       let timerSec = null, timerRun = 0, timerUpd = 0;
       const lv = liveMap[id];
       if (lv) {
-        if (lv.score) { if (lv.score[1] != null) st = lv.score[1]; const hq = lv.score[3] || [], aq = lv.score[4] || []; if (hq.length) { hsArr = hq; asArr = aq; hs = hq.reduce((a, b) => a + (+b || 0), 0); as = aq.reduce((a, b) => a + (+b || 0), 0); } }
+        if (lv.score) { if (lv.score[1] != null) st = lv.score[1]; const hq = lv.score[3] || [], aq = lv.score[4] || []; if (hq.length) { hsArr = hq; asArr = aq; hs = _sumArr(hq); as = _sumArr(aq); } }
         if (lv.timer) { timerRun = lv.timer[0]; timerUpd = lv.timer[2]; timerSec = lv.timer[3]; }
       }
       // 진행 경기: detail_live 의 tlive(플레이바이플레이)로 현재기간·전후반/쿼터·현재기간 팀파울을 산출(추가 호출 없음)
@@ -3242,6 +3244,11 @@ async function tsBasketballGames(date, tz) {
       const showN = Math.max(lastPlayed, (tsBskState(st) === 'live' && curPeriod) ? curPeriod : 0);
       const setScores = [];
       for (let i = 0; i < showN; i++) { const h = hsArr[i], a = asArr[i]; setScores.push({ home: (h != null && h !== '') ? +h : null, away: (a != null && a !== '') ? +a : null }); }
+      // 🏀 미수신 구분: 진행 경기인데 2쿼터 이상/연장에서 총점이 0:0(또는 점수 미수신)이면 실데이터 아님 → 점수 미수신(대시) 처리.
+      //   실제 1쿼터 0:0(경기 시작 직후)은 보존. 쿼터 점수도 함께 null로 맞춰 총점·쿼터 불일치 방지.
+      if (tsBskState(st) === 'live' && (curPeriod == null || curPeriod > 1) && (hs == null || as == null || (hs === 0 && as === 0))) {
+        hs = null; as = null; for (const p of setScores) { p.home = null; p.away = null; }
+      }
       const periodLabel = curPeriod ? (isHalves ? (curPeriod <= 2 ? 'H' + curPeriod : 'OT' + (curPeriod - 2)) : (curPeriod <= 4 ? 'Q' + curPeriod : 'OT' + (curPeriod - 4))) : '';
       // 팀파울: play-by-play가 '현재 기간'까지 도달했을 때만 신뢰(더스포츠 NBA tlive가 점수보다 지연될 수 있어, 지연 시 0으로 단정하지 않고 null)
       let foulsOk = false;
