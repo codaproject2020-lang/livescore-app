@@ -2879,9 +2879,9 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
       //    (기존엔 트래커 로드 후 박스 미수신 시 라인업·선수기록 탭이 사라지고, 개요 바로가기만 남아 눌러도 개요로 돌아가는 불일치가 있었음.)
       // 순위표: 대회 ID 없으면 숨김(데이터 유무는 탭 로드 시 dtDrop로 처리 — 집계가 무거워 선제호출 생략)
       if(!g.leagueId){ dtDrop("bskrank"); }
-      // 전적(H2H) 데이터 없으면 숨김
-      if(!g.homeTid||!g.awayTid){ dtDrop("bskrec"); }
-      else fetch("/api/basketball/teamrecent?home="+encodeURIComponent(g.homeTid)+"&away="+encodeURIComponent(g.awayTid)+"&mid="+encodeURIComponent(g.tsid||"")+"&date="+encodeURIComponent(String(g.date||"").slice(0,10)||S.date)).then(function(r){return r.json()}).then(function(j){ if(!_dt||_dt.g!==g)return; var has=j&&j.found&&((j.home&&j.home.games&&j.home.games.length)||(j.away&&j.away.games&&j.away.games.length)||(j.h2h&&j.h2h.length)); if(!has)dtDrop("bskrec"); else{ _bskRecData=j; _bskRecG=g; } }).catch(function(){});
+      // 🏀 전적(H2H) 탭은 '숨기지 않는다'(명령서 4번). 로딩·빈 응답·팀ID 미연결·조회 실패여도 탭 유지하고 각 상태는 로더에서 구분+재시도.
+      //    선조회는 캐시 워밍용으로만 사용(결과가 있으면 _bskRecData에 저장, 없어도 드롭하지 않음).
+      if(g.homeTid&&g.awayTid) fetch("/api/basketball/teamrecent?home="+encodeURIComponent(g.homeTid)+"&away="+encodeURIComponent(g.awayTid)+"&mid="+encodeURIComponent(g.tsid||"")+"&date="+encodeURIComponent(String(g.date||"").slice(0,10)||S.date)).then(function(r){return r.json()}).then(function(j){ if(!_dt||_dt.g!==g)return; var has=j&&j.found&&((j.home&&j.home.games&&j.home.games.length)||(j.away&&j.away.games&&j.away.games.length)||(j.h2h&&j.h2h.length)); if(has){ _bskRecData=j; _bskRecG=g; } }).catch(function(){});
     } else if(sport==="hockey"){
       fetch("/api/hockey/live?id="+encodeURIComponent(g.id)).then(function(r){return r.json()}).then(function(j){ if(!_dt||_dt.g!==g)return; var ev=(j&&j.events)||[]; if(!ev.length&&stateOf(g)!=="scheduled") dtDrop("hkyev"); }).catch(function(){});
     } else if(sport==="esports"&&g.game==="csgo"){
@@ -4382,7 +4382,7 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
     var h='<div class="msg" style="padding:28px 14px"><div class="big">'+icon+'</div><div style="margin-top:4px;line-height:1.5">'+esc(msg)+'</div>'+
       '<div style="margin-top:16px"><button class="refbtn" id="bskTabRetry">'+tl({en:"Retry",ko:"다시 시도",ja:"再試行",zh:"重试",es:"Reintentar",hi:"पुनः प्रयास",vi:"Thử lại",th:"ลองใหม่",ru:"Повторить",de:"Erneut",fr:"Réessayer",it:"Riprova"})+'</button></div></div>';
     dtBody(h);
-    var fn={ bsklineup:loadBasketballRoster, box:loadBasketballBox, bskteam:loadBasketballTeam };
+    var fn={ bsklineup:loadBasketballRoster, box:loadBasketballBox, bskteam:loadBasketballTeam, bskrec:loadBasketballRecord };
     var rb=$("#bskTabRetry"); if(rb)rb.onclick=function(){ if(fn[tabId])fn[tabId](g); };
   }
   // 🏀 경기흐름 탭: 로딩/기록없음/미제공/조회실패 상태 메시지 + 재시도(탭 숨기지 않음). PBP 도착 시 재조회로 같은 화면 갱신.
@@ -4457,7 +4457,10 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
     var tnm=function(n){return esc(tnTeam(n||"")||"—");};
     var logo=function(u){return u?'<img src="'+esc(u)+'" class="brc-lg" onerror="this.style.display=\'none\'">':'<span class="brc-lg"></span>';};
     var line=function(name,logoU,sc,win,tid){ return '<div class="brc-tm" data-bt="'+esc(tid||"")+'" data-bn="'+esc(name||"")+'">'+logo(logoU)+'<span class="brc-nm'+(win?' wn':'')+'">'+tnm(name)+'</span><span class="brc-sv'+(win?' wn':'')+'">'+sc+'</span></div>'; };
-    return '<div class="brc-mrow"><div class="brc-dt"><span class="brc-d">'+bskRecDate(m.date)+'</span><span class="brc-fin">'+t("finished")+'</span></div>'+
+    // 🏀 명령서 4번: 맞대결/최근 경기행 클릭 → 그 경기 상세(공급사 TheSports 경기 uuid 보존). 팀명 클릭은 팀 화면(버블 중단).
+    var mid=String(m.id||"");
+    var da=mid?(' data-mid="'+esc(mid)+'" data-mh="'+esc(m.hName||"")+'" data-ma="'+esc(m.aName||"")+'" data-mhs="'+(m.hs==null?"":m.hs)+'" data-mas="'+(m.as==null?"":m.as)+'" data-mdate="'+(m.date||"")+'" data-mlg="'+esc(m.league||"")+'" data-mhid="'+esc(m.homeId||"")+'" data-maid="'+esc(m.awayId||"")+'"'):'';
+    return '<div class="brc-mrow'+(mid?" mrow-click":"")+'"'+da+(mid?' style="cursor:pointer"':'')+'><div class="brc-dt"><span class="brc-d">'+bskRecDate(m.date)+'</span><span class="brc-fin">'+t("finished")+'</span></div>'+
       '<div class="brc-tms">'+line(m.hName,m.hLogo,m.hs,homeWin,m.homeId)+line(m.aName,m.aLogo,m.as,!homeWin,m.awayId)+'</div>'+
       '<span class="brc-b '+(refWin?'w':'l')+'">'+(refWin?t("win"):t("lose"))+'</span></div>';
   }
@@ -4529,7 +4532,14 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
       db.querySelectorAll(".brc-chip").forEach(function(b){ b.onclick=function(){ _bskRecView=b.dataset.v; renderBskRec(); }; });
       db.querySelectorAll(".fbf-chip").forEach(function(b){ b.onclick=function(){ _bskRecFilter=b.dataset.rf; renderBskRec(); }; });
       var ns=$("#brcN"); if(ns)ns.onchange=function(){ _bskRecN=+ns.value; renderBskRec(); };
-      db.querySelectorAll(".brc-tm[data-bt]").forEach(function(tm){ tm.style.cursor="pointer"; tm.onclick=function(){ var tid=tm.dataset.bt; if(tid)openBskTeam(tid,tm.dataset.bn,"",g.date); }; });
+      db.querySelectorAll(".brc-tm[data-bt]").forEach(function(tm){ tm.style.cursor="pointer"; tm.onclick=function(ev){ if(ev&&ev.stopPropagation)ev.stopPropagation(); var tid=tm.dataset.bt; if(tid)openBskTeam(tid,tm.dataset.bn,"",g.date); }; });
+      // 🏀 경기행 클릭 → 그 경기 상세(공급사 경기 uuid 보존, 상대팀 화면 아님). 상세에서 뒤로가면 상세 스택으로 H2H 탭·필터·스크롤 복원.
+      db.querySelectorAll(".brc-mrow.mrow-click").forEach(function(row){ row.onclick=function(){ var mid=row.dataset.mid; if(!mid)return;
+        var gg={ id:"ts"+mid, tsid:mid, sport:"basketball", home:row.dataset.mh||"", away:row.dataset.ma||"",
+          hs:(row.dataset.mhs!==""?+row.dataset.mhs:null), as:(row.dataset.mas!==""?+row.dataset.mas:null), state:"finished",
+          date:(row.dataset.mdate?new Date(+row.dataset.mdate).toISOString():""), league:row.dataset.mlg||"",
+          homeTid:row.dataset.mhid||"", awayTid:row.dataset.maid||"" };
+        try{ openDetail(gg); }catch(_){} }; });
     }
   }
   // 🏀 농구 팀 상세 — 최근경기(전적) 오버레이. H2H/순위표 팀 클릭 시.
@@ -4582,17 +4592,22 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
   }
   function loadBasketballRecord(g){
     _bskRecView="h2h"; _bskRecN=10; _bskRecFilter="all"; _bskRecData=null; _bskRecG=g;
-    if(!g.homeTid||!g.awayTid){ dtBody('<div class="msg"><div class="big">📋</div>'+t("noRecentRec")+'</div><div class="dt-sec-t" style="margin-top:18px">🏆 '+t("leagueRank")+'</div><p style="color:#2b6cf0;font-weight:700;cursor:pointer" id="goRank">'+esc(tnLeague(g.league||""))+' ›</p>'); var gr0=$("#goRank"); if(gr0)gr0.onclick=function(){ openStandings("basketball",(g.leagueId||g.league),g); }; return; }
+    // 🏀 명령서 4번: H2H 탭은 상태(팀매칭실패/전적없음/조회실패)에 관계없이 '유지'하고 화면 내에서 구분+재시도(개요로 튕기지 않음).
+    if(!g.homeTid||!g.awayTid){
+      // 팀 공급사 ID 미연결(이름만으로 조회 금지) → 맞대결 조회 불가. 탭 유지 + 안내 + 재시도. 순위 바로가기 제공.
+      bskTabState("bskrec","📋", tl({en:"Head-to-head needs both teams' supplier IDs, which aren't linked for this match yet.",ko:"맞대결은 양 팀의 공급사 ID 연결이 필요한데, 이 경기에는 아직 연결되지 않았습니다.",ja:"対戦成績には両チームの提供元IDの連携が必要ですが、この試合では未連携です。",zh:"对阵需两队的数据方ID关联，此场比赛暂未关联。",es:"El H2H requiere los IDs de ambos equipos, aún no vinculados.",hi:"H2H के लिए दोनों टीमों की प्रदाता ID चाहिए, अभी लिंक नहीं।",vi:"Đối đầu cần ID nhà cung cấp của cả hai đội, chưa được liên kết.",th:"หัวต่อหัวต้องใช้ ID ของทั้งสองทีม ซึ่งยังไม่เชื่อมโยง",ru:"Для очных встреч нужны ID обеих команд, пока не связаны.",de:"Direktvergleich benötigt beide Team-IDs, noch nicht verknüpft.",fr:"Le face-à-face nécessite les ID des deux équipes, non liés.",it:"Gli scontri diretti richiedono gli ID di entrambe le squadre, non collegati."}), g);
+      return;
+    }
     dtLoading(); var tk=_dtTok;
     fetch("/api/basketball/teamrecent?home="+encodeURIComponent(g.homeTid)+"&away="+encodeURIComponent(g.awayTid)+"&mid="+encodeURIComponent(g.tsid||"")+"&date="+encodeURIComponent(String(g.date||"").slice(0,10)||S.date)).then(function(r){return r.json();}).then(function(j){
       if(!dtFresh(tk))return;
-      if(!j||!j.found||(!(j.home&&j.home.games&&j.home.games.length)&&!(j.away&&j.away.games&&j.away.games.length)&&!(j.h2h&&j.h2h.length))){ dtDrop("bskrec"); return; }
+      if(!j||!j.found||(!(j.home&&j.home.games&&j.home.games.length)&&!(j.away&&j.away.games&&j.away.games.length)&&!(j.h2h&&j.h2h.length))){ bskTabState("bskrec","📋", t("noRecentRec"), g); return; }   // 전적 없음 → 탭 유지 + 안내 + 재시도
       bskRecRegisterKo(j);   // 상대팀·리그 한글명 등록(한국어 설정 시 표시)
       _bskRecData=j;
       // 맞대결 데이터 없으면 홈팀 최근경기로 기본 전환
       if(!(j.h2h&&j.h2h.length)) _bskRecView="home";
       renderBskRec();
-    }).catch(function(){ dtBody('<div class="msg">⚠️ '+t("loadFailRetry")+'</div>'); });
+    }).catch(function(){ if(!dtFresh(tk))return; bskTabState("bskrec","⚠️", t("loadFailRetry"), g); });   // 조회 실패 → 탭 유지 + 재시도
   }
   // 🏆 농구 순위표 — TheSports 대회 ID 기준 diary 집계(엉뚱한 리그 없음). 두 팀 하이라이트.
   function loadBasketballRank(g){

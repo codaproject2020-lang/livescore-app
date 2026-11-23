@@ -21,7 +21,7 @@ const app = express();
 const server = http.createServer(app);
 
 const PORT = process.env.PORT || 3000;
-const APP_VERSION = 'v572';
+const APP_VERSION = 'v573';
 
 // ============================================================
 //  📏 성능 계측(instrumentation) — 엔드포인트 지연·캐시·공급사·WS·이벤트루프
@@ -3635,7 +3635,7 @@ app.get('/api/basketball/teamrecent', async (req, res) => {
     const sortD = arr => arr.sort((a, b) => b.date - a.date);
     const summ = (list, tid) => { const g = list.slice(0, 10); let w = 0, l = 0, pf = 0, pa = 0; g.forEach(m => { const isHome = m.homeId === tid; const my = isHome ? m.hs : m.as, op = isHome ? m.as : m.hs; if (my > op) w++; else l++; pf += my; pa += op; }); const n = g.length || 1; return { w, l, n: g.length, pf: +(pf / n).toFixed(1), pa: +(pa / n).toFixed(1) }; };
     const KL = TS_LANG['basketball'] || { team: {}, comp: {} };
-    const mapGame = m => ({ date: m.date, league: cn(m.compId), leagueLogo: cl(m.compId),
+    const mapGame = m => ({ id: m.id, date: m.date, league: cn(m.compId), leagueLogo: cl(m.compId),
       homeId: m.homeId, awayId: m.awayId, hName: nm(m.homeId), aName: nm(m.awayId),
       hKo: (KL.team && KL.team[m.homeId]) || '', aKo: (KL.team && KL.team[m.awayId]) || '', leagueKo: (KL.comp && KL.comp[m.compId]) || '',
       hLogo: lg(m.homeId), aLogo: lg(m.awayId), hs: m.hs, as: m.as, win: m.win, isHome: m.isHome });
