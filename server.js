@@ -21,7 +21,7 @@ const app = express();
 const server = http.createServer(app);
 
 const PORT = process.env.PORT || 3000;
-const APP_VERSION = 'v564';
+const APP_VERSION = 'v565';
 
 // ============================================================
 //  📏 성능 계측(instrumentation) — 엔드포인트 지연·캐시·공급사·WS·이벤트루프
@@ -3243,12 +3243,10 @@ async function tsBasketballGames(date, tz) {
       for (let i = 0; i < Math.max(hsArr.length, asArr.length); i++) { if ((+hsArr[i] || 0) > 0 || (+asArr[i] || 0) > 0) lastPlayed = i + 1; }
       const showN = Math.max(lastPlayed, (tsBskState(st) === 'live' && curPeriod) ? curPeriod : 0);
       const setScores = [];
+      // 쿼터 점수: 값이 명시돼 있으면(0 포함) 그대로, 누락(undefined/빈칸)은 null(대시). 0으로 날조하지 않음.
       for (let i = 0; i < showN; i++) { const h = hsArr[i], a = asArr[i]; setScores.push({ home: (h != null && h !== '') ? +h : null, away: (a != null && a !== '') ? +a : null }); }
-      // 🏀 미수신 구분: 진행 경기인데 2쿼터 이상/연장에서 총점이 0:0(또는 점수 미수신)이면 실데이터 아님 → 점수 미수신(대시) 처리.
-      //   실제 1쿼터 0:0(경기 시작 직후)은 보존. 쿼터 점수도 함께 null로 맞춰 총점·쿼터 불일치 방지.
-      if (tsBskState(st) === 'live' && (curPeriod == null || curPeriod > 1) && (hs == null || as == null || (hs === 0 && as === 0))) {
-        hs = null; as = null; for (const p of setScores) { p.home = null; p.away = null; }
-      }
+      // 🏀 총점은 '필드 존재 여부'로만 판별: 쿼터 배열이 아예 없으면(빈 배열/null) 미수신(null→대시), 있으면 합(명시된 실제 0 보존).
+      //   ⚠️ 쿼터·연장·0:0이라는 '이유만으로' 미수신 처리하지 않음(실제 0 훼손 금지). 공식 총점 필드가 별도로 있으면 그 값을 우선 유지.
       const periodLabel = curPeriod ? (isHalves ? (curPeriod <= 2 ? 'H' + curPeriod : 'OT' + (curPeriod - 2)) : (curPeriod <= 4 ? 'Q' + curPeriod : 'OT' + (curPeriod - 4))) : '';
       // 팀파울: play-by-play가 '현재 기간'까지 도달했을 때만 신뢰(더스포츠 NBA tlive가 점수보다 지연될 수 있어, 지연 시 0으로 단정하지 않고 null)
       let foulsOk = false;
