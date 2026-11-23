@@ -21,7 +21,7 @@ const app = express();
 const server = http.createServer(app);
 
 const PORT = process.env.PORT || 3000;
-const APP_VERSION = 'v568';
+const APP_VERSION = 'v569';
 
 // ============================================================
 //  📏 성능 계측(instrumentation) — 엔드포인트 지연·캐시·공급사·WS·이벤트루프
@@ -1905,8 +1905,12 @@ const _nrm = s => String(s || '').toLowerCase().replace(/[^a-z0-9]/g, '');
 //  · 키는 환경변수 우선(THESPORTS_USER/SECRET), 없으면 테스트 키 폴백
 // ============================================================
 const TS_BASE = 'https://api.thesports.com/v1';
-const TS_USER = (process.env.THESPORTS_USER || 'theockyplos').trim();
-const TS_SECRET = (process.env.THESPORTS_SECRET || '192924ef77e94e40b7c59cc43d585647').trim();
+// 🔐 TheSports 공급사 인증정보는 '환경변수 전용' — 소스·ZIP에 비밀값 하드코딩 금지.
+//    ⚠️ 배포 전 운영 환경변수에 THESPORTS_USER·THESPORTS_SECRET를 반드시 설정할 것. 미설정 시 전 종목 데이터 수신 불가.
+//    (기존 노출된 시크릿은 공급사 측에서 로테이션 권장)
+const TS_USER = (process.env.THESPORTS_USER || '').trim();
+const TS_SECRET = (process.env.THESPORTS_SECRET || '').trim();
+if (!TS_USER || !TS_SECRET) console.log('[thesports] THESPORTS_USER/SECRET env 미설정 → TheSports 데이터 수신 불가(환경변수 설정 필요)');
 // 고정 IP VPS 프록시(중계기) 경유용 — 설정 시 모든 TheSports 호출이 VPS를 거쳐 나감(화이트리스트된 고정 IP)
 const TS_PROXY = (process.env.THESPORTS_PROXY || '').trim().replace(/\/$/, '');   // 예: http://1.2.3.4:8080
 const TS_RELAY_TOKEN = (process.env.THESPORTS_RELAY_TOKEN || '').trim();
@@ -6305,11 +6309,19 @@ wss.on('connection', (ws) => {
 //  · 관심팀 경기의 시작/득점/종료/라인업/퇴장을 서버가 감지 → 구독자에게 푸시
 //  · ⚠️ 무료 Render는 15분 후 잠들어 감지가 끊김 → 상시 서버(유료) 권장
 // ============================================================
-const VAPID_PUBLIC = process.env.VAPID_PUBLIC || 'BK9w16DfLnhkCXW2RscfgEXwaYnhqSraV1cGxbefQV3FccVmh716bSOHT7MGAL_y3L11xcJTLusGM-3lJWmvB6Q';
-const VAPID_PRIVATE = process.env.VAPID_PRIVATE || 'G39TutUfTrpnk6LZtn4ura0Yk9scbRplKTNgpoQBgRw';
+// 🔐 VAPID 키는 '환경변수 전용' — 하드코딩/폴백 금지(소스·ZIP에 개인키 노출 방지).
+//    VAPID_PUBLIC/VAPID_PRIVATE 미설정 시 푸시를 비활성(PUSH_ON=false)으로 두고, 임의 키를 쓰지 않는다.
+//    ⚠️ 배포 전 운영 환경변수에 VAPID_PUBLIC·VAPID_PRIVATE(로테이션된 새 키)를 반드시 설정할 것. 미설정 시 알림 미동작.
+const VAPID_PUBLIC = process.env.VAPID_PUBLIC || '';
+const VAPID_PRIVATE = process.env.VAPID_PRIVATE || '';
 const VAPID_SUBJECT = process.env.VAPID_SUBJECT || 'mailto:admin@liveup.fans';
 let PUSH_ON = false;
-try { webpush.setVapidDetails(VAPID_SUBJECT, VAPID_PUBLIC, VAPID_PRIVATE); PUSH_ON = true; } catch (e) { console.log('web-push init fail', e.message); }
+if (VAPID_PUBLIC && VAPID_PRIVATE) {
+  try { webpush.setVapidDetails(VAPID_SUBJECT, VAPID_PUBLIC, VAPID_PRIVATE); PUSH_ON = true; }
+  catch (e) { console.log('web-push init fail', e.message); }
+} else {
+  console.log('[push] VAPID env 미설정 → 웹푸시 비활성화(VAPID_PUBLIC/VAPID_PRIVATE 환경변수 설정 필요)');
+}
 
 // 구독 저장 (메모리: 재시작 시 초기화 → 클라가 다시 구독). endpoint를 키로.
 const subs = new Map();   // endpoint -> { sub, fav:[teams], prefs:{}, lang }
