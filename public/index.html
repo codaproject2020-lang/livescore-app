@@ -5191,12 +5191,21 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
     var artW=/\bwomen'?s?\b|\bwsl\b|\bnwsl\b|\bwnba\b|\bladies\b|여자|여성/i.test(ti);
     return teamW?artW:!artW;
   }
-  // 과거 결과 클릭 → 오늘 로드된 경기면 경기 상세, 아니면 상대 팀 상세(실데이터만, 가짜 상세 없음)
+  // 과거/예정 경기행 클릭 → 오늘 로드된 경기면 그 상세, 아니면 경기행 데이터로 경기 상세를 연다(상대 팀 화면으로 보내지 않음).
   function tmOpenEvent(e,sp,selfName){
     var gid=String(e.id||"");
     var found=null;
     try{ Object.keys(S.data).forEach(function(k){ if(k.split("|")[0]!==sp)return; var d=S.data[k]; if(d&&d.games)d.games.forEach(function(g){ if(String(g.id)===gid||String(g.id)==="ts"+gid)found=g; }); }); }catch(_){}
     if(found){ if(S.sport!==sp)S.sport=sp; openDetail(found); return; }
+    // 🏀 농구(명령서 3번): 팀 화면의 최근·예정 경기행을 누르면 '상대 팀'이 아니라 '그 경기 상세'를 연다. 공급사 경기 id 보존.
+    //    (팀 최근경기는 API-Sports 소스라 오늘 피드(TheSports)에 없을 수 있음 → 경기행 자체 데이터로 상세 헤더를 열고, 세부 자료는 각 탭에서 미제공/재시도 처리.)
+    if(sp==="basketball"&&gid){
+      var _st=(e.done===false)?"scheduled":((e.hs!=null||e.as!=null)?"finished":"scheduled");
+      var g2={ id:gid, sport:"basketball", home:e.home||"", away:e.away||"", hs:(e.hs!=null?e.hs:null), as:(e.as!=null?e.as:null), state:_st, date:e.date||"", league:e.league||"" };
+      if(S.sport!==sp)S.sport=sp;
+      try{ openDetail(g2); }catch(_){}
+      return;
+    }
     var opp=(String(e.home||"").toLowerCase().indexOf(String(selfName||"").toLowerCase())>=0)?e.away:e.home;
     if(opp)openTeam(opp,sp);
   }
