@@ -21,7 +21,7 @@ const app = express();
 const server = http.createServer(app);
 
 const PORT = process.env.PORT || 3000;
-const APP_VERSION = 'v566';
+const APP_VERSION = 'v568';
 
 // ============================================================
 //  📏 성능 계측(instrumentation) — 엔드포인트 지연·캐시·공급사·WS·이벤트루프
@@ -942,8 +942,17 @@ async function rankMLB(season) {
       rows.push({ team: tr.team.name, div: DIV[rec.division && rec.division.id] || '', win: tr.wins, loss: tr.losses, pct: tr.winningPercentage, gb: tr.gamesBack, streak: tr.streak ? tr.streak.streakCode : '' });
     }));
     if (rows.length) {
-      rows.sort((a, b) => parseFloat(b.pct) - parseFloat(a.pct));
-      rows.forEach((r, i) => r.rank = i + 1);
+      // 🏟️ 지구(division)별로 묶어 6개 그룹으로 표시(평탄 26~30행 분리 방지).
+      //    rankTableHtml은 r.div가 바뀔 때마다 새 표를 시작하므로 '지구순 → 지구 내 승률순'으로 정렬해야 지구별 1개 표로 묶인다.
+      const DIVORD = { 'AL East': 0, 'AL Central': 1, 'AL West': 2, 'NL East': 3, 'NL Central': 4, 'NL West': 5 };
+      rows.sort((a, b) => {
+        const da = (DIVORD[a.div] != null ? DIVORD[a.div] : 9), db = (DIVORD[b.div] != null ? DIVORD[b.div] : 9);
+        if (da !== db) return da - db;
+        return parseFloat(b.pct) - parseFloat(a.pct);   // 같은 지구 내 승률 내림차순
+      });
+      // 순위는 지구 내 순번으로 부여(전체 통합 1~30이 아님)
+      const _seen = {};
+      rows.forEach(r => { const d = r.div || '-'; _seen[d] = (_seen[d] || 0) + 1; r.rank = _seen[d]; });
       return { table: rows, kind: 'baseball', season: yr };
     }
   }
@@ -1062,11 +1071,17 @@ function parseHoopStandings(j) {
     if (!r || !r.team) return;
     const gname = asStr(r.group) || asStr(r.stage);
     const key = r.team.id || r.team.name;
+    const _w = asNum(r.games && (r.games.win));
+    const _l = asNum(r.games && (r.games.lose != null ? r.games.lose : r.games.loss));
+    // 🏀 승률: 공급사 percentage(예: "0.750") 우선, 없으면 승/(승+패)로 계산. (농구 순위는 승점이 아닌 승률 기준)
+    let _pct = null;
+    const _wp = r.games && r.games.win && typeof r.games.win === 'object' ? (r.games.win.percentage) : null;
+    if (_wp != null && _wp !== '') { const n = parseFloat(_wp); if (!isNaN(n)) _pct = (n <= 1 ? n : n / 100).toFixed(3).replace(/^0/, ''); }
+    if (_pct == null && _w != null && _l != null && (_w + _l) > 0) _pct = (_w / (_w + _l)).toFixed(3).replace(/^0/, '');
     const row = {
       rank: r.position || null, teamId: r.team.id, team: asStr(r.team.name), logo: r.team.logo, group: gname,
       played: asNum(r.games && r.games.played),
-      win: asNum(r.games && (r.games.win)),
-      loss: asNum(r.games && (r.games.lose != null ? r.games.lose : r.games.loss)),
+      win: _w, loss: _l, pct: _pct,
       points: (r.points == null || typeof r.points === 'object') ? asNum(r.points) : r.points
     };
     const prev = byTeam.get(key);
@@ -4230,6 +4245,9 @@ app.get('/api/basketball/teamstats', async (req, res) => {
 });
 // 🏐 TheSports 배구 경기목록(diary) → 세트 승수(ft) + 세트별 점수(p1~p5)
 function tsVolState(s) { s = Number(s); if (s === 1 || s === 0) return 'scheduled'; if (s === 100 || s < 0) return 'finished'; return 'live'; }
+// 🏐 TheSports 배구 비정상 상태 코드(표준 스킴 9~13). 1=미시작, 2~7=세트 진행, 100=종료.
+//   9=지연, 10=중단, 11=중단(腰斩), 12=취소, 13=미정. (0=abnormal은 기존 '예정' 동작 보존 위해 제외)
+const TS_VB_ABN = { 9: 'delayed', 10: 'suspended', 11: 'suspended', 12: 'canceled', 13: 'tbd' };
 // 🇰🇷 한국 V리그 대회(unique_tournament_id) — 동명 'Volleyball League'(카타르 등)와 구분용 allow-list. 팀명 판별과 병행(시즌 ID 교체 대비).
 const TS_VB_KR_TOURN = new Set(['kn54qldhe9nrvy9', 'd23xmvzhowyqg8n']);
 // 🏐 종료결과 보정용 캐시/고정맵.
@@ -4290,10 +4308,21 @@ async function tsVolleyballGames(date, tz) {
       seen.add(id);
       const ht = team[m.home_team_id] || {}, at = team[m.away_team_id] || {}, cp = comp[m.unique_tournament_id] || comp[m.tournament_id] || {};
       const sc = m.scores || {}; const ft = sc.ft || [];
-      const st = m.status_id, state = tsVolState(st);
+      const st = m.status_id;
+      // 🏐 비정상 상태(지연·중단·연기·취소 등) 분리 — '라이브/현재세트'로 단정하지 않는다(QA: 트래커 지연 vs 앱 live/period1 충돌).
+      const _abn = TS_VB_ABN[Number(st)] || null;
+      let state = tsVolState(st);
+      let _abnTxt = '';
+      if (_abn) {
+        if (_abn === 'postponed' || _abn === 'tbd') state = 'scheduled';
+        else if (_abn === 'canceled') state = 'finished';
+        else state = 'live';   // delayed·suspended·halved·abnormal: 라이브 영역 유지하되 라벨로 구분(가짜 세트 진행 금지)
+        _abnTxt = ({ postponed: 'Postponed', tbd: 'TBD', canceled: 'Cancelled', delayed: 'Delayed', suspended: 'Suspended', halved: 'Suspended', abnormal: 'Interrupted' })[_abn] || '';
+      }
       // 🏐 공식 현재 세트 번호 = 결정된 세트수(세트 승수 합)+1(진행 중). 현재 세트까지만 포함(현재 세트 0:0 보존), 이후 미시작 세트 제외. 임의 0 생성 금지.
+      //    ⚠️ 비정상 상태면 '현재 진행 세트'를 더하지 않는다(지연 중인데 1세트 진행처럼 보이던 문제 방지).
       const _decided = (+ft[0] || 0) + (+ft[1] || 0);
-      const _curSet = (state === 'live') ? _decided + 1 : _decided;
+      const _curSet = (state === 'live' && !_abn) ? _decided + 1 : _decided;
       const setScores = [];
       ['p1', 'p2', 'p3', 'p4', 'p5'].forEach((k, idx) => { const p = sc[k]; if (!Array.isArray(p)) return; if (_curSet > 0 && (idx + 1) > _curSet) return; setScores.push({ home: (p[0] != null ? +p[0] : null), away: (p[1] != null ? +p[1] : null) }); });
       // 🏐 'Volleyball League'(남/여)는 한국·카타르 등 여러 나라가 동명(국가 빈값)으로 들어옴 →
@@ -4311,7 +4340,7 @@ async function tsVolleyballGames(date, tz) {
         home: ht.name || '', homeLogo: ht.logo || '', away: at.name || '', awayLogo: at.logo || '',
         homeTid: m.home_team_id, awayTid: m.away_team_id,
         hs: (ft[0] != null ? +ft[0] : null), as: (ft[1] != null ? +ft[1] : null),   // 세트 승수
-        status: '', statusLong: String(st), period: (_curSet > 0 ? _curSet : setScores.length),
+        status: '', statusLong: _abnTxt || String(st), abnStatus: _abn, period: (_curSet > 0 ? _curSet : setScores.length),
         setScores: setScores.length ? setScores : null,
         livePts: (state === 'live' && _curSet > 0 && setScores.length >= _curSet) ? setScores[_curSet - 1] : null,
         box: null, curInning: null, inningHalf: null,
@@ -4570,7 +4599,8 @@ async function buildGamesCore(sport, date, tz) {
     } catch {}
   }
   // ⚾ 최종 중복 제거: 같은 경기가 두 소스(API-Sports·TheSports)에서 팀명만 다르게 두 번 뜨는 것 방지.
-  //    닉네임 쌍 + 날짜로 묶고, 정보가 더 풍부한 쪽(초/말·B/S/O·라이브·긴 팀명 = 보통 TheSports)만 남김.
+  //    공급사 공식 id는 네임스페이스가 달라 교차 비교 불가 → '날짜 + 양 팀 토큰 겹침 + 시작시각 근접'으로 동일 경기 판정.
+  //    ⚾ 더블헤더 보존: 같은 팀·같은 날이라도 시작시각이 3시간 넘게 벌어지면 별개 경기로 둘 다 유지.
   if (sport === 'baseball') {
     const bestScore = g => {
       let s = 0;
@@ -4582,13 +4612,28 @@ async function buildGamesCore(sport, date, tz) {
       s += String(g.home || '').length + String(g.away || '').length; // 긴 정식 팀명 우선
       return s;
     };
-    const seen = new Map();
+    // 팀명 → 비교 토큰(도시/약칭/언어 차이에 강인). 2글자 이상, 공통 불용어 제거.
+    const _tok = n => String(n || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '')
+      .replace(/[^a-z0-9가-힣\s]/g, ' ').split(/\s+/)
+      .filter(w => w.length >= 2 && !/^(fc|bc|sc|club|baseball|team|the)$/.test(w));
+    const _ov = (a, b) => { const A = new Set(_tok(a)); return _tok(b).some(w => A.has(w)); };   // 한 토큰이라도 겹치면 같은 팀
+    const _hour = g => { const t = g.date ? Date.parse(g.date) : NaN; return isNaN(t) ? null : t / 3600000; };
+    const _same = (a, b) => {
+      if ((a.date ? ymdInTz(a.date, tz) : '') !== (b.date ? ymdInTz(b.date, tz) : '')) return false;
+      const direct = _ov(a.home, b.home) && _ov(a.away, b.away);
+      const swap = _ov(a.home, b.away) && _ov(a.away, b.home);   // 공급사 간 홈/원정 뒤바뀜 대비
+      if (!direct && !swap) return false;
+      const ha = _hour(a), hb = _hour(b);
+      if (ha != null && hb != null && Math.abs(ha - hb) > 3) return false;   // 더블헤더: 시작 3h↑ 차이면 별개 경기
+      return true;
+    };
+    const kept = [];
     for (const g of games) {
-      const k = [nkLast(g.home), nkLast(g.away)].sort().join('|') + '|' + (g.date ? ymdInTz(g.date, tz) : '');
-      const cur = seen.get(k);
-      if (!cur || bestScore(g) > bestScore(cur)) seen.set(k, g);
+      const i = kept.findIndex(k => _same(k, g));
+      if (i < 0) { kept.push(g); continue; }
+      if (bestScore(g) > bestScore(kept[i])) kept[i] = g;   // 더 풍부한 쪽만 남김
     }
-    games = [...seen.values()];
+    games = kept;
   }
   // ⚾ 선발투수 시즌성적(ERA·승·패) 채우기 — 화면에 보이는 경기 투수만, 선수별 1시간 캐시로 호출 최소화
   if (sport === 'baseball') {
@@ -4808,7 +4853,8 @@ app.get('/api/asports/games', async (req, res) => {
 });
 // 🔎 피드 진단(공개·비밀정보 없음): 종목별 출처(원본/캐시)·데이터 나이·마지막 정상수신 시각.
 //    30분 안정성 관찰·'원본조회 성공 vs 타임아웃 후 캐시반환' 구분용. 캐시만 읽고 원본 호출 안 함.
-app.get('/api/diag/feeds', (req, res) => {
+// /diag/feeds(접두사 /api 없이)도 동일 응답 — 외부 진단 스크립트가 /diag/feeds로 조회해 404 나던 문제 해결(별칭).
+app.get(['/api/diag/feeds', '/diag/feeds'], (req, res) => {
   const tz = 'Asia/Seoul';
   const d = (typeof ymdInTz === 'function') ? ymdInTz(new Date(), tz) : new Date().toISOString().slice(0, 10);
   const out = {}; const now = Date.now();
