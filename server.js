@@ -21,7 +21,7 @@ const app = express();
 const server = http.createServer(app);
 
 const PORT = process.env.PORT || 3000;
-const APP_VERSION = 'v570';
+const APP_VERSION = 'v571';
 
 // ============================================================
 //  📏 성능 계측(instrumentation) — 엔드포인트 지연·캐시·공급사·WS·이벤트루프
@@ -6356,11 +6356,21 @@ app.get('/api/push/diag', (req, res) => {
     lastTickFav: _pushLastTickFav, subs: list
   });
 });
-// 🔔 자기 자신에게만 보내는 테스트 알림 — 요청 본문의 endpoint가 '이미 등록된 구독'일 때만 그 1건에 발송.
-//    다른 사용자에게 보낼 수 없다(브로드캐스트 아님). 실패를 성공으로 처리하지 않고 실제 상태코드를 반환.
+// 🔔 자기 자신에게만 보내는 테스트 알림 — 이미 등록된 '그 구독 1건'에만 발송(브로드캐스트 아님).
+//    대상 지정: ①body.endpoint(정확한 전체값) 또는 ②관리자키 + body.epTail/쿼리 epTail(진단에 보이는 뒤 12자).
+//    실패를 성공으로 처리하지 않고 실제 상태코드를 반환. 키·인증값은 노출하지 않음.
 app.post('/api/push/selftest', async (req, res) => {
   if (!PUSH_ON) return res.json({ ok: false, reason: 'push-disabled' });
-  const ep = req.body && req.body.endpoint;
+  const body = req.body || {};
+  let ep = body.endpoint;
+  // epTail로 지정 시 관리자키 필요(타인 구독 탐색 방지). 뒤 12자가 일치하는 구독 1건만 대상.
+  if (!ep && (body.epTail || req.query.epTail)) {
+    if (!ADMIN_KEY || (body.key || req.query.key || '') !== ADMIN_KEY) return res.status(403).json({ ok: false, reason: 'forbidden' });
+    const tail = String(body.epTail || req.query.epTail);
+    const hits = [...subs.keys()].filter(k => k.endsWith(tail));
+    if (hits.length === 1) ep = hits[0];
+    else if (hits.length > 1) return res.status(409).json({ ok: false, reason: 'ambiguous-epTail' });
+  }
   if (!ep || !subs.has(ep)) return res.status(404).json({ ok: false, reason: 'subscription-not-found' });
   const rec = subs.get(ep);
   const payload = JSON.stringify({ title: '🔔 LIVE UP', body: plabel('kick', rec.lang) === 'Kick-off' ? 'Test notification' : '테스트 알림', gameId: '', sport: '', kind: 'test' });
