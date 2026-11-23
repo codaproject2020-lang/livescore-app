@@ -1351,8 +1351,19 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
       }
       fetch("/api/push/key").then(function(r){return r.json();}).then(function(k){
         if(!k||!k.enabled||!k.key){ _pushBusy=false; return; }
+        var _wantKey=_urlB64ToU8(k.key);
+        // 🔑 기존 구독이 '현재 서버 VAPID 키'와 다른 키로 만들어졌으면(키 로테이션 등) 발송이 거부된다.
+        //    → 키 불일치 시 기존 구독을 해제하고 새 키로 재구독해야 알림이 정상 수신된다.
+        function _keyMatches(sub){
+          try{ var cur=sub&&sub.options&&sub.options.applicationServerKey; if(!cur)return false;
+            var a=new Uint8Array(cur), b=_wantKey; if(a.length!==b.length)return false;
+            for(var i=0;i<a.length;i++){ if(a[i]!==b[i])return false; } return true; }catch(e){ return false; }
+        }
         reg.pushManager.getSubscription().then(function(sub){
-          var p=sub?Promise.resolve(sub):reg.pushManager.subscribe({userVisibleOnly:true, applicationServerKey:_urlB64ToU8(k.key)});
+          var p;
+          if(sub&&_keyMatches(sub)){ p=Promise.resolve(sub); }
+          else if(sub){ p=sub.unsubscribe().catch(function(){}).then(function(){ return reg.pushManager.subscribe({userVisibleOnly:true, applicationServerKey:_wantKey}); }); }
+          else { p=reg.pushManager.subscribe({userVisibleOnly:true, applicationServerKey:_wantKey}); }
           p.then(function(s){ _pushBusy=false;
             var body=JSON.stringify({ subscription:(s.toJSON?s.toJSON():s), fav:_favTeamNames(), prefs:_notifPrefs(), lang:LANG });
             fetch("/api/push/subscribe",{method:"POST",headers:{"content-type":"application/json"},body:body}).catch(function(){});

@@ -21,7 +21,7 @@ const app = express();
 const server = http.createServer(app);
 
 const PORT = process.env.PORT || 3000;
-const APP_VERSION = 'v569';
+const APP_VERSION = 'v570';
 
 // ============================================================
 //  📏 성능 계측(instrumentation) — 엔드포인트 지연·캐시·공급사·WS·이벤트루프
@@ -6345,6 +6345,33 @@ app.post('/api/push/unsubscribe', (req, res) => {
 });
 app.get('/api/push/status', (req, res) => res.json({ enabled: PUSH_ON, subscribers: subs.size, publicKey: VAPID_PUBLIC.slice(0, 12) + '…' }));
 
+// 🔎 알림 진단(관리자 전용) — 미수신 원인 추적용. 구독의 관심팀·알림종류·언어와 파이프라인 상태를 본다.
+//    ⚠️ 구독 인증값(keys.p256dh/auth)·VAPID 키는 절대 반환하지 않는다(엔드포인트는 뒤 12자만).
+app.get('/api/push/diag', (req, res) => {
+  if (!ADMIN_KEY || (req.query.key || '') !== ADMIN_KEY) return res.status(403).json({ ok: false, error: 'forbidden' });
+  const list = [...subs.entries()].map(([ep, r]) => ({ epTail: String(ep).slice(-12), fav: r.fav || [], prefs: r.prefs || {}, lang: r.lang || 'en' }));
+  res.json({
+    ok: true, pushOn: PUSH_ON, apisportsKeySet: !!APISPORTS_KEY, pushSports: PUSH_SPORTS,
+    subscribers: subs.size, lastTickAt: _pushLastTick ? new Date(_pushLastTick).toISOString() : null,
+    lastTickFav: _pushLastTickFav, subs: list
+  });
+});
+// 🔔 자기 자신에게만 보내는 테스트 알림 — 요청 본문의 endpoint가 '이미 등록된 구독'일 때만 그 1건에 발송.
+//    다른 사용자에게 보낼 수 없다(브로드캐스트 아님). 실패를 성공으로 처리하지 않고 실제 상태코드를 반환.
+app.post('/api/push/selftest', async (req, res) => {
+  if (!PUSH_ON) return res.json({ ok: false, reason: 'push-disabled' });
+  const ep = req.body && req.body.endpoint;
+  if (!ep || !subs.has(ep)) return res.status(404).json({ ok: false, reason: 'subscription-not-found' });
+  const rec = subs.get(ep);
+  const payload = JSON.stringify({ title: '🔔 LIVE UP', body: plabel('kick', rec.lang) === 'Kick-off' ? 'Test notification' : '테스트 알림', gameId: '', sport: '', kind: 'test' });
+  try { await webpush.sendNotification(rec.sub, payload); res.json({ ok: true }); }
+  catch (err) {
+    const code = err && err.statusCode;
+    if (code === 404 || code === 410) { subs.delete(ep); if (subsCol) subsCol.deleteOne({ endpoint: ep }).catch(() => {}); }
+    res.json({ ok: false, statusCode: code || null, reason: code === 410 || code === 404 ? 'expired-subscription' : (code === 403 || code === 401 ? 'auth-failed(key-mismatch?)' : 'send-failed') });
+  }
+});
+
 // 다국어 푸시 문구 (서버측 최소 사전) — 폰 기본 알림(작은 2줄). 시안: 킥오프 / ⚽ 골! · 86′ / VAR · 득점 취소 · 33′
 const PL = {
   kick:   { en: 'Kick-off', ko: '킥오프', ja: 'キックオフ', zh: '开球', es: 'Inicio', hi: 'किक-ऑफ', vi: 'Khai cuộc', th: 'คิกออฟ', ru: 'Старт', de: 'Anstoß', fr: 'Coup d’envoi', it: 'Fischio d’inizio' },
@@ -6385,10 +6412,13 @@ async function sendPushEvent(type, prefKey, sport, g, opts) {
 // 스케줄러: 구독자가 있으면 30초마다 관심 종목 감지
 const pushSnap = {};   // gameId -> {state,total,lineup,reds}
 const PUSH_SPORTS = ['football', 'baseball', 'basketball'];
+let _pushLastTick = 0, _pushLastTickFav = false;   // 진단용(마지막 감지 틱 시각·관심팀 보유 여부)
 async function pushTick() {
   if (!PUSH_ON || !subs.size || !APISPORTS_KEY) return;
+  _pushLastTick = Date.now();
   // 구독자들의 관심팀 합집합 (하나도 없으면 스킵)
   const anyFav = [...subs.values()].some(r => (r.fav || []).length);
+  _pushLastTickFav = anyFav;
   if (!anyFav) return;
   const date = new Date().toISOString().slice(0, 10);
   for (const sport of PUSH_SPORTS) {
