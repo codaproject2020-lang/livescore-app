@@ -2778,7 +2778,8 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
     if(_dt&&_dt.g&&_dt.g!==g&&_detailWasTop){
       var _exSc=0; try{ var _exEl=$("#detail"); _exSc=(_exEl?_exEl.scrollTop:0)||window.scrollY||0; }catch(e){}
       _dtStack.push({ g:_dt.g, sport:_dt.sport, tab:_dt.tab, scroll:_exSc,
-        h2h:{ view:_fbH2HView, n:_fbH2HN, rf:_fbRecFilter, vsN:_fbVsN, data:_fbH2H, dg:_fbH2HG } });
+        h2h:{ view:_fbH2HView, n:_fbH2HN, rf:_fbRecFilter, vsN:_fbVsN, data:_fbH2H, dg:_fbH2HG },
+        bsk:{ view:_bskRecView, n:_bskRecN, filter:_bskRecFilter, data:_bskRecData, dg:_bskRecG } });   // 🏀 농구 H2H 하위상태(뷰·조회건수·필터·데이터) 복원용
     }
     // 🔝 팀/순위 오버레이 위에서 경기를 열 때 경기 상세가 뒤에 깔리지 않도록 #detail을 DOM 최상위(마지막)로 이동.
     //    이렇게 하면 뒤로가기(topClose)도 경기 상세를 먼저 닫고 → 직전 오버레이(팀 등)로 한 단계씩 복귀.
@@ -2814,6 +2815,8 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
     // 🔙 스택에 직전 상세가 있으면 목록으로 나가지 않고 그 상세로 복귀(H2H 하위탭/필터/스크롤 포함)
     if(_dtStack.length){ var pv=_dtStack.pop();
       _fbH2HView=pv.h2h.view; _fbH2HN=pv.h2h.n; _fbRecFilter=pv.h2h.rf; _fbVsN=pv.h2h.vsN; _fbH2H=pv.h2h.data; _fbH2HG=pv.h2h.dg;
+      // 🏀 농구 H2H 하위상태 복원(뷰·조회건수·필터·데이터) — 캐시가 있으면 재조회 없이 같은 화면 복원.
+      if(pv.bsk){ _bskRecView=pv.bsk.view; _bskRecN=pv.bsk.n; _bskRecFilter=pv.bsk.filter; _bskRecData=pv.bsk.data; _bskRecG=pv.bsk.dg; }
       _dt={ g:pv.g, sport:pv.sport, tab:pv.tab, cache:{}, hl:undefined, avail:{} };
       document.body.style.overflow="hidden";
       renderDetail();
@@ -3072,7 +3075,7 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
       if(tab==="box") return loadBasketballBox(g);
       if(tab==="bskteam") return loadBasketballTeam(g);
       if(tab==="bskflow") return loadBasketballFlow(g);
-      if(tab==="bskrec") return loadBasketballRecord(g);
+      if(tab==="bskrec"){ if(_bskRecData&&_bskRecG===g){ renderBskRec(); return; } return loadBasketballRecord(g); }   // 캐시(뒤로가기 복원) 있으면 재조회 없이 같은 H2H 화면·필터 유지
       if(tab==="bskrank") return loadBasketballRank(g);
     }
     dtBody('<div class="msg">'+t("m_prep")+'</div>');
@@ -4159,10 +4162,14 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
     var LPTS=tl({en:"PTS",ko:"득점",ja:"得点",zh:"得分",es:"PTS",hi:"अंक",vi:"Điểm",th:"แต้ม",ru:"Очк",de:"PKT",fr:"PTS",it:"PTI"});
     var LREB=tl({en:"REB",ko:"리바",ja:"リバ",zh:"篮板",es:"REB",hi:"रिब",vi:"Bật",th:"รีบ",ru:"Подб",de:"REB",fr:"REB",it:"RIM"});
     var LAST=tl({en:"AST",ko:"어시",ja:"アシ",zh:"助攻",es:"AST",hi:"असि",vi:"KT",th:"แอส",ru:"Пас",de:"AST",fr:"PD",it:"AST"});
+    // 성공-시도 "m-a"에서 성공률(%) 계산 — 시도>0일 때만, 미제공/0시도는 생략(임의 0 금지).
+    function _pct(ma){ var s=String(ma||"").split("-"); if(s.length!==2)return ""; var m=+s[0],a=+s[1]; if(isNaN(m)||isNaN(a)||a<=0)return ""; return " ("+Math.round(m/a*100)+"%)"; }
     function sub(p){ // 공급사 미제공 필드는 구간 자체를 생략(0으로 채우지 않음)
-      var parts=[LMIN+' '+p.min+"'", 'FG '+esc(p.fg), '3P '+esc(p.p3), 'FT '+esc(p.ft)];
+      var parts=[LMIN+' '+p.min+"'", 'FG '+esc(p.fg)+_pct(p.fg), '3P '+esc(p.p3)+_pct(p.p3), 'FT '+esc(p.ft)+_pct(p.ft)];
       if(p.oreb!=null||p.dreb!=null) parts.push('OREB '+(p.oreb==null?'-':p.oreb)+' DREB '+(p.dreb==null?'-':p.dreb));
       var sec2=[]; if(p.stl!=null)sec2.push('STL '+p.stl); if(p.blk!=null)sec2.push('BLK '+p.blk); if(p.to!=null)sec2.push('TO '+p.to); if(p.pf!=null)sec2.push('PF '+p.pf);
+      // A/T(어시스트/턴오버 비율) — 둘 다 제공될 때만. TO=0이면 분모 0이라 '-'로 표기(가짜 수치 금지).
+      if(p.ast!=null&&p.to!=null) sec2.push('A/T '+(p.to>0?(p.ast/p.to).toFixed(1):(p.ast>0?'—':'0.0')));
       if(sec2.length) parts.push(sec2.join(' '));
       return '<div class="bsx">'+parts.join(' · ')+'</div>';
     }
