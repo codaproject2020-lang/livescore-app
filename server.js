@@ -21,7 +21,7 @@ const app = express();
 const server = http.createServer(app);
 
 const PORT = process.env.PORT || 3000;
-const APP_VERSION = 'v575';
+const APP_VERSION = 'v576';
 
 // ============================================================
 //  📏 성능 계측(instrumentation) — 엔드포인트 지연·캐시·공급사·WS·이벤트루프
@@ -1999,6 +1999,38 @@ async function resolveBaseballTsid(home, away, date) {
     return m ? String(m.id) : '';
   } catch (e) { return ''; }
 }
+// 🏀 농구(API-Sports 숫자 id로 연 경기)는 TheSports 경기·팀 uuid가 없어 H2H/박스가 안 열림 →
+//    diary에서 날짜(±1)·팀명으로 best-effort 해석해 {matchId, homeTid, awayTid} 반환(이름만으로 ID 생성 금지: 실제 diary 매칭만).
+async function resolveBasketballMatch(home, away, date) {
+  if (!TS_ON) return null;
+  const base = String(date || new Date().toISOString().slice(0, 10)).slice(0, 10);
+  const h = _nrmTeam(home), a = _nrmTeam(away);
+  if (!h || !a) return null;
+  for (const shift of [0, -1, 1]) {
+    const ymd = new Date(Date.parse(base + 'T12:00:00Z') + shift * 864e5).toISOString().slice(0, 10).replace(/-/g, '');
+    const d = await tsFetch('/basketball/match/diary', { date: ymd }, 300000).catch(() => null);
+    if (!d) continue;
+    const ex = (d && d.results_extra) || {};
+    const teamArr = Array.isArray(ex.team) ? ex.team : Object.values(ex.team || {});
+    const idByName = {};
+    teamArr.forEach(t => { if (t && t.id) { const nm = _nrmTeam(t.name); if (nm) idByName[nm] = t.id; } });
+    const findId = n => { if (idByName[n]) return idByName[n]; const k = Object.keys(idByName).find(x => x.indexOf(n) >= 0 || n.indexOf(x) >= 0); return k ? idByName[k] : null; };
+    const hid = findId(h), aid = findId(a);
+    if (!hid || !aid) continue;
+    const arr = (d && d.results) || [];
+    const m = arr.find(x => (x.home_team_id === hid && x.away_team_id === aid) || (x.home_team_id === aid && x.away_team_id === hid));
+    if (m) return { matchId: String(m.id), homeTid: m.home_team_id, awayTid: m.away_team_id, leagueId: m.unique_tournament_id || m.tournament_id || '' };
+  }
+  return null;
+}
+app.get('/api/basketball/fixmap', async (req, res) => {
+  res.set('Cache-Control', 'no-store');
+  try {
+    const r = await resolveBasketballMatch(req.query.home, req.query.away, req.query.date);
+    if (r) res.json({ found: true, matchId: r.matchId, homeTid: r.homeTid, awayTid: r.awayTid, leagueId: r.leagueId });
+    else res.json({ found: false });
+  } catch (e) { res.json({ found: false, error: String((e && e.message) || e) }); }
+});
 app.get('/api/tracker', async (req, res) => {
   const sport = String(req.query.sport || 'football').toLowerCase();
   // 🎮 e스포츠는 종목(게임)별 트래커 템플릿 사용(lol/dota2/csgo)
@@ -4546,9 +4578,12 @@ async function buildGamesCore(sport, date, tz) {
       if (e.half) g.inningHalf = e.half === 'Top' ? 'top' : e.half === 'Bottom' ? 'bottom' : g.inningHalf;
       if (e.bso) g.bso = e.bso;
       const prevH = g.box && g.box.home ? g.box.home : {}, prevA = g.box && g.box.away ? g.box.away : {};
+      // 이닝별 득점: MLB StatsAPI(H.innings, 연장 포함)이 있으면 그걸 우선 사용(연장 회차가 이닝표에 표시됨). 없으면 기존 값 유지.
+      const _hInn = (H.innings && Object.keys(H.innings).length) ? H.innings : (prevH.innings || {});
+      const _aInn = (A.innings && Object.keys(A.innings).length) ? A.innings : (prevA.innings || {});
       g.box = {
-        home: { r: H.r != null ? H.r : g.hs, h: H.h != null ? H.h : (prevH.h ?? null), e: H.e != null ? H.e : (prevH.e ?? null), bb: H.bb != null ? H.bb : null, innings: prevH.innings || {} },
-        away: { r: A.r != null ? A.r : g.as, h: A.h != null ? A.h : (prevA.h ?? null), e: A.e != null ? A.e : (prevA.e ?? null), bb: A.bb != null ? A.bb : null, innings: prevA.innings || {} }
+        home: { r: H.r != null ? H.r : g.hs, h: H.h != null ? H.h : (prevH.h ?? null), e: H.e != null ? H.e : (prevH.e ?? null), bb: H.bb != null ? H.bb : null, innings: _hInn },
+        away: { r: A.r != null ? A.r : g.as, h: A.h != null ? A.h : (prevA.h ?? null), e: A.e != null ? A.e : (prevA.e ?? null), bb: A.bb != null ? A.bb : null, innings: _aInn }
       };
     });
   }
@@ -5877,11 +5912,14 @@ async function mlbScoreMap(date, sportId = 1, tz = 'Asia/Seoul') {
       const dt = (g.status && g.status.detailedState) || '';
       const isLive = st === 'Live' && !/warmup|pre-?game|delayed start|scheduled|postponed/i.test(dt);
       const ls = g.linescore || {}, lt = ls.teams || {};
+      // 🔢 이닝별 득점(연장 포함) — MLB StatsAPI linescore.innings 배열을 {이닝번호: 득점} 객체로. 10회 이상도 그대로 포함(추정 아님, 원문 값).
+      const innObj = who => { const o = {}; (ls.innings || []).forEach(i => { if (i && i.num != null) { const v = i[who]; o[i.num] = (v && v.runs != null) ? v.runs : null; } }); return o; };
       const side = who => ({
         r: g.teams[who].score != null ? g.teams[who].score : (lt[who] && lt[who].runs != null ? lt[who].runs : null),
         h: lt[who] && lt[who].hits != null ? lt[who].hits : null,
         e: lt[who] && lt[who].errors != null ? lt[who].errors : null,
         bb: null,
+        innings: innObj(who),
         pitcher: (g.teams[who].probablePitcher && g.teams[who].probablePitcher.fullName) || null,   // 예상 선발(며칠 전부터 제공)
         pitcherId: (g.teams[who].probablePitcher && g.teams[who].probablePitcher.id) || null,         // 선수 ID(얼굴 사진용)
         ...ppStat(g.teams[who].probablePitcher)                                                       // era / w / l (시즌 성적)

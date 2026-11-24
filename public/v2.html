@@ -2804,6 +2804,20 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
         if(["overview","stats","record"].indexOf(_dt.tab)>=0) renderDetailBody();
       }).catch(function(){});
     }
+    // 🏀 농구(API-Sports id로 연 경기 등)에서 TheSports 팀 uuid가 없으면 1회 해석(명령서 1번: NBA H2H 팀 ID 미연결 해소).
+    //    diary 날짜·팀명 매칭으로 homeTid/awayTid·경기 uuid를 채워 H2H·박스·트래커가 열리게 함(이름만으로 ID 생성 금지: 실제 매칭 성공 시에만).
+    if(sp==="basketball"&&(!g.homeTid||!g.awayTid)&&!g._bskFixTried){
+      g._bskFixTried=true;
+      fetch("/api/basketball/fixmap?home="+encodeURIComponent(g.home||"")+"&away="+encodeURIComponent(g.away||"")+"&date="+encodeURIComponent(String(g.date||"").slice(0,10)||S.date)).then(function(r){return r.json();}).then(function(j){
+        if(!_dt||_dt.g!==g||!j||!j.found)return;
+        g.homeTid=j.homeTid; g.awayTid=j.awayTid; if(j.leagueId&&!g.leagueId)g.leagueId=j.leagueId;
+        if(j.matchId){ g.tsid=j.matchId; g.id="ts"+j.matchId; }
+        _bskRecData=null; _bskRecG=null;   // 이전(팀ID 없음) 결과 캐시 무효화 → 재조회
+        // 현재 열려있는 탭이 팀ID로 채워지는 탭이면 재렌더. 숨었던 전적/순위 탭도 다시 평가.
+        try{ refreshTabsBar(); }catch(_){}
+        if(["bskrec","box","bsklineup","bskteam","bskflow","bskrank","tracker"].indexOf(_dt.tab)>=0){ try{ renderDetailBody(); }catch(_){} }
+      }).catch(function(){});
+    }
     // 🏐 배구(TheSports) → API-Sports 팀/리그/시즌 id 1회 해석(순위·맞대결·일정 연결). 공유 가드 함수 사용.
     if(sp==="volleyball"&&g.vbHomeId==null&&!g._vbTried){ vbResolveTeams(g); }
     // 🎬 등록된 공식 하이라이트가 있으면 탭 추가(있을 때만)
@@ -5219,11 +5233,11 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
     var found=null;
     try{ Object.keys(S.data).forEach(function(k){ if(k.split("|")[0]!==sp)return; var d=S.data[k]; if(d&&d.games)d.games.forEach(function(g){ if(String(g.id)===gid||String(g.id)==="ts"+gid)found=g; }); }); }catch(_){}
     if(found){ if(S.sport!==sp)S.sport=sp; openDetail(found); return; }
-    // 🏀 농구(명령서 3번): 팀 화면의 최근·예정 경기행을 누르면 '상대 팀'이 아니라 '그 경기 상세'를 연다. 공급사 경기 id 보존.
-    //    (팀 최근경기는 API-Sports 소스라 오늘 피드(TheSports)에 없을 수 있음 → 경기행 자체 데이터로 상세 헤더를 열고, 세부 자료는 각 탭에서 미제공/재시도 처리.)
-    if(sp==="basketball"&&gid){
+    // 🏀⚾ 농구·야구(명령서 3·6번): 팀 화면의 최근·예정 경기행을 누르면 '상대 팀'이 아니라 '그 경기 상세'를 연다. 공급사 경기 id 보존.
+    //    (팀 최근경기는 API-Sports 소스라 오늘 피드에 없을 수 있음 → 경기행 자체 데이터로 상세 헤더를 열고, 세부 자료는 각 탭/엔드포인트에서 미제공/재시도 처리.)
+    if((sp==="basketball"||sp==="baseball")&&gid){
       var _st=(e.done===false)?"scheduled":((e.hs!=null||e.as!=null)?"finished":"scheduled");
-      var g2={ id:gid, sport:"basketball", home:e.home||"", away:e.away||"", hs:(e.hs!=null?e.hs:null), as:(e.as!=null?e.as:null), state:_st, date:e.date||"", league:e.league||"" };
+      var g2={ id:gid, sport:sp, home:e.home||"", away:e.away||"", hs:(e.hs!=null?e.hs:null), as:(e.as!=null?e.as:null), state:_st, date:e.date||"", league:e.league||"" };
       if(S.sport!==sp)S.sport=sp;
       try{ openDetail(g2); }catch(_){}
       return;
