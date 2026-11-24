@@ -21,7 +21,7 @@ const app = express();
 const server = http.createServer(app);
 
 const PORT = process.env.PORT || 3000;
-const APP_VERSION = 'v576';
+const APP_VERSION = 'v577';
 
 // ============================================================
 //  📏 성능 계측(instrumentation) — 엔드포인트 지연·캐시·공급사·WS·이벤트루프
@@ -1166,6 +1166,22 @@ async function rankBaseballAS(league, season) {
   }
   return { table: [], kind: 'baseball' };
 }
+// 🔎 야구 순위 원문 진단(관리자 전용) — API-Sports 원문 games 구조(win/lose/draw/tie 유무)와 서버 변환 비교용.
+//    목적: 무승부가 패에 접혀 있는지(별도 draw 필드 유무) '원문'으로 확인. 소스 전환·데이터 변경 없음. 비밀값 미노출.
+app.get('/api/diag/baseballstand', async (req, res) => {
+  if (!ADMIN_KEY || (req.query.key || '') !== ADMIN_KEY) return res.status(403).json({ ok: false, error: 'forbidden' });
+  const league = String(req.query.league || 'KBO');
+  let lid = (typeof BASEBALL_RANK_ID !== 'undefined' && BASEBALL_RANK_ID[league]) || null;
+  if (!lid) { if (/kbo|korea|대한민국/i.test(league)) lid = 5; else if (/npb|nippon|japan|일본/i.test(league)) lid = 2; }
+  if (!lid) return res.json({ ok: false, note: 'unmapped' });
+  const m = String(req.query.season || '').match(/\d{4}/); const y = m ? +m[0] : new Date().getFullYear();
+  try {
+    const j = await asRaw('baseball', `/standings?league=${lid}&season=${y}`, 60000).catch(() => null);
+    const rows = []; const groups = (j && j.response) || [];
+    groups.forEach(g => (Array.isArray(g) ? g : [g]).forEach(r => { if (!r || !r.team) return; rows.push({ team: r.team.name, position: r.position, gamesRaw: r.games }); }));   // gamesRaw = 원문 그대로(win/lose/draw/played 등)
+    res.json({ ok: true, league, lid, season: y, count: rows.length, note: 'gamesRaw는 API-Sports 원문. draw/tie 필드 유무로 무승부 분리 가능 여부 확인.', rows });
+  } catch (e) { res.json({ ok: false, error: String((e && e.message) || e) }); }
+});
 app.get('/api/rank', async (req, res) => {
   const sport = req.query.sport || 'football', league = req.query.league || '', season = req.query.season || '';
   try {
@@ -2006,6 +2022,9 @@ async function resolveBasketballMatch(home, away, date) {
   const base = String(date || new Date().toISOString().slice(0, 10)).slice(0, 10);
   const h = _nrmTeam(home), a = _nrmTeam(away);
   if (!h || !a) return null;
+  // 🎯 명령서: 날짜 ±1일 매칭은 '대회·양팀·홈원정까지 일치하는 유일한 경기'만 연결(모호하면 연결 안 함).
+  //    → 창 전체(오늘·전날·다음날)에서 '홈=홈, 원정=원정'으로 정확히 일치하는 경기를 모아 중복 제거 후 1건일 때만 반환.
+  const cands = new Map();   // matchId -> {matchId, homeTid, awayTid, leagueId}
   for (const shift of [0, -1, 1]) {
     const ymd = new Date(Date.parse(base + 'T12:00:00Z') + shift * 864e5).toISOString().slice(0, 10).replace(/-/g, '');
     const d = await tsFetch('/basketball/match/diary', { date: ymd }, 300000).catch(() => null);
@@ -2018,10 +2037,11 @@ async function resolveBasketballMatch(home, away, date) {
     const hid = findId(h), aid = findId(a);
     if (!hid || !aid) continue;
     const arr = (d && d.results) || [];
-    const m = arr.find(x => (x.home_team_id === hid && x.away_team_id === aid) || (x.home_team_id === aid && x.away_team_id === hid));
-    if (m) return { matchId: String(m.id), homeTid: m.home_team_id, awayTid: m.away_team_id, leagueId: m.unique_tournament_id || m.tournament_id || '' };
+    // 홈/원정 방향까지 정확히 일치하는 경기만(스왑 불가). 이름만으로 ID 생성 금지 — 실제 diary 매칭만.
+    arr.forEach(x => { if (x.home_team_id === hid && x.away_team_id === aid) cands.set(String(x.id), { matchId: String(x.id), homeTid: x.home_team_id, awayTid: x.away_team_id, leagueId: x.unique_tournament_id || x.tournament_id || '' }); });
   }
-  return null;
+  if (cands.size === 1) return [...cands.values()][0];   // 유일 매칭일 때만 연결
+  return null;   // 0건 또는 2건 이상(모호) → 연결하지 않음(잘못된 경기 연결 방지)
 }
 app.get('/api/basketball/fixmap', async (req, res) => {
   res.set('Cache-Control', 'no-store');

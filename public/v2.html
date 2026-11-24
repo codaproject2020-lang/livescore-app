@@ -2747,8 +2747,11 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
     // 연장 이닝 포함
     var maxi=9; [box.home.innings,box.away.innings].forEach(function(o){ if(o) Object.keys(o).forEach(function(k){var n=+k; if(n>maxi)maxi=n;}); });
     inn=[]; for(var j=1;j<=maxi;j++)inn.push(j);
-    var thead="<th></th>"+inn.map(function(n){return "<th>"+n+"</th>"}).join("")+"<th>R</th><th>H</th><th>E</th>";
-    function row(side,nm){ var o=box[side]; var cells=inn.map(function(n){ var v=o.innings&&o.innings[n]; return "<td>"+(v==null||v===""?"-":v)+"</td>"; }).join(""); return "<tr><td class='tm'>"+esc(nm)+"</td>"+cells+"<td class='rr'>"+(o.r==null?"-":o.r)+"</td><td>"+(o.h==null?"-":o.h)+"</td><td>"+(o.e==null?"-":o.e)+"</td></tr>"; }
+    // ⚾ 연장 합산(EI): 공급사가 개별 연장 회차 대신 'extra' 합계만 줄 때 EI 열로 표시(10회 점수로 추정하지 않음). 개별 10회+는 위 숫자열로 표시됨.
+    var _ex=function(o){ return o&&o.innings&&o.innings.extra; };
+    var hasEI=((_ex(box.home)!=null&&_ex(box.home)!=="")||(_ex(box.away)!=null&&_ex(box.away)!==""));
+    var thead="<th></th>"+inn.map(function(n){return "<th>"+n+"</th>"}).join("")+(hasEI?"<th>EI</th>":"")+"<th>R</th><th>H</th><th>E</th>";
+    function row(side,nm){ var o=box[side]; var cells=inn.map(function(n){ var v=o.innings&&o.innings[n]; return "<td>"+(v==null||v===""?"-":v)+"</td>"; }).join(""); var eiCell=hasEI?("<td>"+(_ex(o)==null||_ex(o)===""?"-":_ex(o))+"</td>"):""; return "<tr><td class='tm'>"+esc(nm)+"</td>"+cells+eiCell+"<td class='rr'>"+(o.r==null?"-":o.r)+"</td><td>"+(o.h==null?"-":o.h)+"</td><td>"+(o.e==null?"-":o.e)+"</td></tr>"; }
     var tbl="<table><thead><tr>"+thead+"</tr></thead><tbody>"+row("away",g.away)+row("home",g.home)+"</tbody></table>";
     // §4: 이닝 합계 ≠ 공급사 총득점(R) — R은 공급사 값 유지(임의 보정·이닝 추가 금지). 불일치 시 안내 + 진단 로그.
     function innSum(side){ var o=box[side]; if(!o||!o.innings)return null; var s=0,any=false; for(var k in o.innings){ var v=+o.innings[k]; if(!isNaN(v)&&o.innings[k]!==""&&o.innings[k]!=null){s+=v;any=true;} } return any?s:null; }
