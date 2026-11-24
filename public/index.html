@@ -4107,20 +4107,30 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
       if(!dtFresh(tk))return;
       if(!j||!j.available||!j.players){ var p=el("p",null,'<p style="color:#8a93a3;font-size:13px;margin-top:14px">'+t("m_batSoon")+'</p>'); if($("#dtBody"))$("#dtBody").appendChild(p); return; }
       var b=$("#dtBody"); if(!b)return;
+      // ⚾ 04: KBO/NPB(TheSports) 팀 공식 합계 — 공급사 제공 항목만(AB/H/HR/RBI/BB/SO/E/AVG). 2B·3B·잔루·도루 팀합은 원문 미제공 → 표시 안 함(선수합으로 만들지 않음).
+      var tt=j.team||{};
+      if((tt.home&&Object.keys(tt.home).length)||(tt.away&&Object.keys(tt.away).length)){
+        var tcols=[["ab","AB"],["h","H"],["hr","HR"],["rbi","RBI"],["bb","BB"],["k","SO"],["e","E"],["avg","AVG"]];
+        var tTeam=tl({en:"Team",ko:"팀",ja:"チーム",zh:"球队",es:"Equipo",hi:"टीम",vi:"Đội",th:"ทีม",ru:"Команда",de:"Team",fr:"Équipe",it:"Squadra"});
+        var trows=[["away",g.away],["home",g.home]].map(function(s){ var o=tt[s[0]]||{}; return '<tr><td class="tm">'+esc(s[1])+'</td>'+tcols.map(function(c){return '<td>'+_bbCell(o[c[0]])+'</td>'}).join("")+'</tr>'; }).join("");
+        var tsec=el("div"); tsec.innerHTML='<div class="dt-sec-t">'+tl({en:"Team stats",ko:"팀 기록",ja:"チーム記録",zh:"球队数据",es:"Estadísticas de equipo",hi:"टीम आँकड़े",vi:"Thống kê đội",th:"สถิติทีม",ru:"Статистика команд",de:"Teamstatistik",fr:"Stats équipe",it:"Statistiche squadra"})+'</div><div style="overflow-x:auto"><table class="rank"><thead><tr><th style="text-align:left">'+tTeam+'</th>'+tcols.map(function(c){return '<th>'+c[1]+'</th>'}).join("")+'</tr></thead><tbody>'+trows+'</tbody></table></div>';
+        b.appendChild(tsec);
+      }
       [["away",g.away],["home",g.home]].forEach(function(side){
         var arr=j.players[side[0]]||[]; if(!arr.length)return;
         var batters=arr.filter(function(p){return !p.pitcher}), pitchers=arr.filter(function(p){return p.pitcher});
-        var sec=el("div"); sec.innerHTML='<div class="dt-sec-t">'+esc(side[1])+' · '+t("batOrderT")+'</div>';
+        var sec=el("div");
         if(batters.length){
-          var tbl='<table class="rank"><thead><tr><th style="text-align:left">'+STR.th_batter[LANGS.indexOf(LANG)]+'</th><th>'+STR.th_ab[LANGS.indexOf(LANG)]+'</th><th>'+STR.th_h[LANGS.indexOf(LANG)]+'</th><th>'+STR.th_rbi[LANGS.indexOf(LANG)]+'</th><th>'+STR.th_avg[LANGS.indexOf(LANG)]+'</th></tr></thead><tbody>';
-          batters.forEach(function(p){ tbl+='<tr><td class="tm">'+esc(p.name_ko||p.name||"-")+(p.position?' <span style="color:#8a93a3;font-size:11px">'+esc(p.position)+'</span>':'')+'</td><td>'+(p.ab!=null?p.ab:"-")+'</td><td>'+(p.h!=null?p.h:"-")+'</td><td>'+(p.rbi!=null?p.rbi:"-")+'</td><td>'+(p.avg!=null?p.avg:"-")+'</td></tr>'; });
-          tbl+='</tbody></table>'; sec.innerHTML+=tbl;
+          sec.innerHTML+='<div class="dt-sec-t" style="margin-top:16px">'+esc(side[1])+' · '+t("batOrderT")+'</div>'+
+            '<div style="overflow-x:auto"><table class="rank"><thead><tr><th style="text-align:left">'+STR.th_batter[LANGS.indexOf(LANG)]+'</th><th>AB</th><th>R</th><th>H</th><th>RBI</th><th>BB</th><th>SO</th><th>2B</th><th>3B</th><th>HR</th><th>SB</th><th>AVG</th></tr></thead><tbody>'+
+            batters.map(function(p){ return '<tr><td class="tm">'+esc(p.name_ko||p.name||"-")+(p.position?' <span style="color:#8a93a3;font-size:11px">'+esc(p.position)+'</span>':'')+'</td><td>'+_bbCell(p.ab)+'</td><td>'+_bbCell(p.r)+'</td><td>'+_bbCell(p.h)+'</td><td>'+_bbCell(p.rbi)+'</td><td>'+_bbCell(p.bb)+'</td><td>'+_bbCell(p.k)+'</td><td>'+_bbCell(p.d2)+'</td><td>'+_bbCell(p.t3)+'</td><td>'+_bbCell(p.hr)+'</td><td>'+_bbCell(p.sb)+'</td><td>'+_bbCell(p.avg)+'</td></tr>'; }).join("")+
+            '</tbody></table></div>';
         }
         if(pitchers.length){
-          sec.innerHTML+='<div class="dt-sec-t">'+esc(side[1])+' · '+t("pitchers")+'</div>';
-          var pt='<table class="rank"><thead><tr><th style="text-align:left">'+STR.th_pitcher[LANGS.indexOf(LANG)]+'</th><th>'+STR.th_ip[LANGS.indexOf(LANG)]+'</th><th>'+STR.th_k[LANGS.indexOf(LANG)]+'</th><th>'+STR.th_er[LANGS.indexOf(LANG)]+'</th><th>ERA</th></tr></thead><tbody>';
-          pitchers.forEach(function(p){ pt+='<tr><td class="tm">'+esc(p.name_ko||p.name||"-")+'</td><td>'+(p.ip!=null?p.ip:"-")+'</td><td>'+(p.pk!=null?p.pk:(p.k!=null?p.k:"-"))+'</td><td>'+(p.er!=null?p.er:"-")+'</td><td>'+(p.era!=null?p.era:"-")+'</td></tr>'; });
-          pt+='</tbody></table>'; sec.innerHTML+=pt;
+          sec.innerHTML+='<div class="dt-sec-t">'+esc(side[1])+' · '+t("pitchers")+'</div>'+
+            '<div style="overflow-x:auto"><table class="rank"><thead><tr><th style="text-align:left">'+STR.th_pitcher[LANGS.indexOf(LANG)]+'</th><th>IP</th><th>H</th><th>R</th><th>ER</th><th>BB</th><th>SO</th><th>HR</th><th>NP</th><th>ERA</th></tr></thead><tbody>'+
+            pitchers.map(function(p){ return '<tr><td class="tm">'+esc(p.name_ko||p.name||"-")+'</td><td>'+_bbCell(p.ip)+'</td><td>'+_bbCell(p.ph)+'</td><td>'+_bbCell(p.ra)+'</td><td>'+_bbCell(p.er)+'</td><td>'+_bbCell(p.pbb)+'</td><td>'+_bbCell(p.pk!=null?p.pk:p.k)+'</td><td>'+_bbCell(p.phr)+'</td><td>'+_bbCell(p.np)+'</td><td>'+_bbCell(p.era)+'</td></tr>'; }).join("")+
+            '</tbody></table></div>';
         }
         b.appendChild(sec);
       });
@@ -4144,23 +4154,23 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
       }
       if(hasTeam){
         b.appendChild(teamTable(tl({en:"Team batting",ko:"팀 타격 기록",ja:"チーム打撃",zh:"球队打击",es:"Bateo del equipo",hi:"टीम बल्लेबाज़ी",vi:"Đánh bóng đội",th:"การตีของทีม",ru:"Команда: нападение",de:"Team-Batting",fr:"Batting équipe",it:"Battuta squadra"}),
-          [["ab","AB"],["r","R"],["h","H"],["d2","2B"],["d3","3B"],["hr","HR"],["rbi","RBI"],["lob","LOB"],["sb","SB"],["k","SO"],["bb","BB"],["e","E"]], function(sd){return sd&&sd.teamStats&&sd.teamStats.bat;}));
+          [["ab","AB"],["h","H"],["d2","2B"],["d3","3B"],["hr","HR"],["rbi","RBI"],["lob","LOB"],["sb","SB"],["k","SO"],["bb","BB"],["e","E"],["avg","AVG"],["obp","OBP"],["slg","SLG"],["ops","OPS"]], function(sd){return sd&&sd.teamStats&&sd.teamStats.bat;}));
         b.appendChild(teamTable(tl({en:"Team pitching",ko:"팀 투수 기록",ja:"チーム投手",zh:"球队投球",es:"Pitcheo del equipo",hi:"टीम पिचिंग",vi:"Ném bóng đội",th:"การขว้างของทีม",ru:"Команда: питчинг",de:"Team-Pitching",fr:"Pitching équipe",it:"Lancio squadra"}),
-          [["ip","IP"],["h","H"],["r","R"],["er","ER"],["bb","BB"],["k","SO"],["hr","HR"],["np","NP"],["era","ERA"],["whip","WHIP"]], function(sd){return sd&&sd.teamStats&&sd.teamStats.pit;}));
+          [["ip","IP"],["h","H"],["er","ER"],["bb","BB"],["k","SO"],["hr","HR"],["np","NP"],["era","ERA"],["whip","WHIP"]], function(sd){return sd&&sd.teamStats&&sd.teamStats.pit;}));
       }
       sides.forEach(function(s){
         var sd=s[2]; if(!sd)return; var bat=sd.batters||[], pit=sd.pitchers||[];
         if(bat.length){
           var sec=el("div"); sec.innerHTML='<div class="dt-sec-t" style="margin-top:16px">'+esc(s[1])+' · '+t("batOrderT")+'</div>'+
-            '<div style="overflow-x:auto"><table class="rank"><thead><tr><th style="text-align:left">'+STR.th_batter[LANGS.indexOf(LANG)]+'</th><th>AB</th><th>R</th><th>H</th><th>RBI</th><th>BB</th><th>SO</th><th>2B</th><th>3B</th><th>HR</th><th>SB</th><th>AVG</th></tr></thead><tbody>'+
-            bat.map(function(p){return '<tr><td class="tm">'+esc(p.name||"-")+(p.pos?' <span style="color:#8a93a3;font-size:11px">'+esc(p.pos)+'</span>':'')+'</td><td>'+_bbCell(p.ab)+'</td><td>'+_bbCell(p.r)+'</td><td>'+_bbCell(p.h)+'</td><td>'+_bbCell(p.rbi)+'</td><td>'+_bbCell(p.bb)+'</td><td>'+_bbCell(p.k)+'</td><td>'+_bbCell(p.d2)+'</td><td>'+_bbCell(p.d3)+'</td><td>'+_bbCell(p.hr)+'</td><td>'+_bbCell(p.sb)+'</td><td>'+_bbCell(p.avg)+'</td></tr>'}).join("")+
+            '<div style="overflow-x:auto"><table class="rank"><thead><tr><th style="text-align:left">'+STR.th_batter[LANGS.indexOf(LANG)]+'</th><th>AB</th><th>R</th><th>H</th><th>RBI</th><th>BB</th><th>SO</th><th>2B</th><th>3B</th><th>HR</th><th>SB</th></tr></thead><tbody>'+
+            bat.map(function(p){return '<tr><td class="tm">'+esc(p.name||"-")+(p.pos?' <span style="color:#8a93a3;font-size:11px">'+esc(p.pos)+'</span>':'')+'</td><td>'+_bbCell(p.ab)+'</td><td>'+_bbCell(p.r)+'</td><td>'+_bbCell(p.h)+'</td><td>'+_bbCell(p.rbi)+'</td><td>'+_bbCell(p.bb)+'</td><td>'+_bbCell(p.k)+'</td><td>'+_bbCell(p.d2)+'</td><td>'+_bbCell(p.d3)+'</td><td>'+_bbCell(p.hr)+'</td><td>'+_bbCell(p.sb)+'</td></tr>'}).join("")+
             '</tbody></table></div>';
           b.appendChild(sec);
         }
         if(pit.length){
           var secp=el("div"); secp.innerHTML='<div class="dt-sec-t">'+esc(s[1])+' · '+t("pitchers")+'</div>'+
-            '<div style="overflow-x:auto"><table class="rank"><thead><tr><th style="text-align:left">'+STR.th_pitcher[LANGS.indexOf(LANG)]+'</th><th>IP</th><th>H</th><th>R</th><th>ER</th><th>BB</th><th>SO</th><th>HR</th><th>NP</th><th>ERA</th></tr></thead><tbody>'+
-            pit.map(function(p){return '<tr><td class="tm">'+esc(p.name||"-")+'</td><td>'+_bbCell(p.ip)+'</td><td>'+_bbCell(p.h)+'</td><td>'+_bbCell(p.r)+'</td><td>'+_bbCell(p.er)+'</td><td>'+_bbCell(p.bb)+'</td><td>'+_bbCell(p.k)+'</td><td>'+_bbCell(p.hr)+'</td><td>'+_bbCell(p.np)+'</td><td>'+_bbCell(p.era)+'</td></tr>'}).join("")+
+            '<div style="overflow-x:auto"><table class="rank"><thead><tr><th style="text-align:left">'+STR.th_pitcher[LANGS.indexOf(LANG)]+'</th><th>IP</th><th>H</th><th>R</th><th>ER</th><th>BB</th><th>SO</th><th>HR</th><th>NP</th></tr></thead><tbody>'+
+            pit.map(function(p){return '<tr><td class="tm">'+esc(p.name||"-")+'</td><td>'+_bbCell(p.ip)+'</td><td>'+_bbCell(p.h)+'</td><td>'+_bbCell(p.r)+'</td><td>'+_bbCell(p.er)+'</td><td>'+_bbCell(p.bb)+'</td><td>'+_bbCell(p.k)+'</td><td>'+_bbCell(p.hr)+'</td><td>'+_bbCell(p.np)+'</td></tr>'}).join("")+
             '</tbody></table></div>';
           b.appendChild(secp);
         }
