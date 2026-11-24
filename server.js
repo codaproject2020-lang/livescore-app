@@ -21,7 +21,7 @@ const app = express();
 const server = http.createServer(app);
 
 const PORT = process.env.PORT || 3000;
-const APP_VERSION = 'v578';
+const APP_VERSION = 'v579';
 
 // ============================================================
 //  📏 성능 계측(instrumentation) — 엔드포인트 지연·캐시·공급사·WS·이벤트루프
@@ -6093,17 +6093,23 @@ app.get('/api/mlb/boxscore', async (req, res) => {
     const f = await mlbFindGame(home, away, date);
     if (!f) return res.json({ found: false });
     const box = await mlbFetch(`/api/v1/game/${f.gamePk}/boxscore`, 20000);
+    // ⚾ 04: 공식 StatsAPI 원문만 전달. 미수신=null(가짜 0 금지), 실제 0은 보존. IP는 공식 문자열("5.1"=5⅓)로 그대로 전달(소수계산 금지).
     const side = t => {
       const T = box.teams[t] || {}, P = T.players || {};
       const pitchers = (T.pitchers || []).map(id => {
         const p = P['ID' + id] || {}, s = (p.stats && p.stats.pitching) || {};
-        return { name: p.person ? p.person.fullName : '', ip: s.inningsPitched ?? '-', np: s.numberOfPitches ?? s.pitchesThrown ?? '-', h: s.hits ?? 0, er: s.earnedRuns ?? 0, hr: s.homeRuns ?? 0, k: s.strikeOuts ?? 0, bb: s.baseOnBalls ?? 0 };
+        return { name: p.person ? p.person.fullName : '', ip: s.inningsPitched ?? null, np: s.numberOfPitches ?? s.pitchesThrown ?? null, strikes: s.strikes ?? null, h: s.hits ?? null, r: s.runs ?? null, er: s.earnedRuns ?? null, hr: s.homeRuns ?? null, k: s.strikeOuts ?? null, bb: s.baseOnBalls ?? null, era: s.era ?? null };
       });
       const batters = (T.batters || []).map(id => {
         const p = P['ID' + id] || {}, s = (p.stats && p.stats.batting) || {};
-        return { name: p.person ? p.person.fullName : '', pos: p.position ? p.position.abbreviation : '', ab: s.atBats ?? 0, h: s.hits ?? 0, bb: s.baseOnBalls ?? 0, rbi: s.rbi ?? 0, hr: s.homeRuns ?? 0, k: s.strikeOuts ?? 0, sb: s.stolenBases ?? 0 };
+        return { name: p.person ? p.person.fullName : '', pos: p.position ? p.position.abbreviation : '', ab: s.atBats ?? null, r: s.runs ?? null, h: s.hits ?? null, bb: s.baseOnBalls ?? null, rbi: s.rbi ?? null, d2: s.doubles ?? null, d3: s.triples ?? null, hr: s.homeRuns ?? null, k: s.strikeOuts ?? null, sb: s.stolenBases ?? null, avg: s.avg ?? null };
       });
-      return { team: T.team ? T.team.name : '', pitchers, batters };
+      const TS = T.teamStats || {}, tb = TS.batting || {}, tp = TS.pitching || {}, tf = TS.fielding || {};
+      const teamStats = {
+        bat: { r: tb.runs ?? null, h: tb.hits ?? null, e: tf.errors ?? null, d2: tb.doubles ?? null, d3: tb.triples ?? null, hr: tb.homeRuns ?? null, ab: tb.atBats ?? null, rbi: tb.rbi ?? null, lob: tb.leftOnBase ?? null, sb: tb.stolenBases ?? null, k: tb.strikeOuts ?? null, bb: tb.baseOnBalls ?? null, avg: tb.avg ?? null, obp: tb.obp ?? null, slg: tb.slg ?? null, ops: tb.ops ?? null },
+        pit: { ip: tp.inningsPitched ?? null, h: tp.hits ?? null, r: tp.runs ?? null, er: tp.earnedRuns ?? null, bb: tp.baseOnBalls ?? null, k: tp.strikeOuts ?? null, hr: tp.homeRuns ?? null, np: tp.numberOfPitches ?? null, strikes: tp.strikes ?? null, era: tp.era ?? null, whip: tp.whip ?? null }
+      };
+      return { team: T.team ? T.team.name : '', pitchers, batters, teamStats };
     };
     const hSide = side('home'), aSide = side('away');
     res.json({ found: true, home: f.swap ? aSide : hSide, away: f.swap ? hSide : aSide });

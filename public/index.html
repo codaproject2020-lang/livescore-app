@@ -4091,7 +4091,9 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
     if(a) return a[LANGS.indexOf(LANG)]||a[0];
     return String(x||"").replace(/_/g," ").replace(/\b\w/g,function(c){return c.toUpperCase()});
   }
-  // 야구 박스(라인스코어 + 타순 + 투수)
+  // ⚾ 04: 공급사 원문값만 표시. null=미수신(가짜 0 금지), 실제 0은 그대로. IP는 공식 문자열("5.1"=5⅓) 그대로.
+  function _bbCell(v){ return (v==null||v==='')?'-':v; }
+  // 야구 박스(라인스코어 + 팀 기록 + 선수 박스)
   function renderBaseballBox(g){
     dtLoading();
     var h='';
@@ -4099,7 +4101,8 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
     dtBody(h);
     if(g.box) $("#dtBody").appendChild(lineScore(g));
     var tk=_dtTok;
-    // 타순·투수 (KBO/NPB/CPBL = TheSports) — MLB(StatsAPI)는 g.id가 달라 라인스코어만
+    // MLB/API-Sports(숫자 id) → MLB StatsAPI 공식 팀·선수 박스. KBO/NPB/CPBL(ts id) → TheSports(기존 경로).
+    if(!/^ts/.test(String(g.id||""))){ return mlbBoxLoad(g,tk); }
     fetch("/api/baseball/box?id="+encodeURIComponent(g.id)+"&live=1").then(function(r){return r.json()}).then(function(j){
       if(!dtFresh(tk))return;
       if(!j||!j.available||!j.players){ var p=el("p",null,'<p style="color:#8a93a3;font-size:13px;margin-top:14px">'+t("m_batSoon")+'</p>'); if($("#dtBody"))$("#dtBody").appendChild(p); return; }
@@ -4122,6 +4125,47 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
         b.appendChild(sec);
       });
     }).catch(function(){});
+  }
+  // ⚾ 04: MLB(StatsAPI) 공식 팀·선수 박스 — record 탭. 미수신 경기는 기존 안내 유지(가짜 0 생성 안 함).
+  function mlbBoxLoad(g,tk){
+    var date=(String(g.date||"").slice(0,10))||S.date||"";
+    var tTeam=tl({en:"Team",ko:"팀",ja:"チーム",zh:"球队",es:"Equipo",hi:"टीम",vi:"Đội",th:"ทีม",ru:"Команда",de:"Team",fr:"Équipe",it:"Squadra"});
+    fetch("/api/mlb/boxscore?home="+encodeURIComponent(g.home)+"&away="+encodeURIComponent(g.away)+"&date="+encodeURIComponent(date)).then(function(r){return r.json()}).then(function(j){
+      if(!dtFresh(tk))return; var b=$("#dtBody"); if(!b)return;
+      if(!j||!j.found){ b.appendChild(el("p",null,'<p style="color:#8a93a3;font-size:13px;margin-top:14px">'+t("m_batSoon")+'</p>')); return; }
+      var sides=[["away",g.away,j.away],["home",g.home,j.home]];
+      var hasTeam=sides.some(function(s){return s[2]&&s[2].teamStats;});
+      function teamTable(title,cols,pick){
+        var sec=el("div"); sec.innerHTML='<div class="dt-sec-t" style="margin-top:14px">'+title+'</div>'+
+          '<div style="overflow-x:auto"><table class="rank"><thead><tr><th style="text-align:left">'+tTeam+'</th>'+cols.map(function(c){return '<th>'+c[1]+'</th>'}).join("")+'</tr></thead><tbody>'+
+          sides.map(function(s){ var o=pick(s[2])||{}; return '<tr><td class="tm">'+esc(s[1])+'</td>'+cols.map(function(c){return '<td>'+_bbCell(o[c[0]])+'</td>'}).join("")+'</tr>'; }).join("")+
+          '</tbody></table></div>';
+        return sec;
+      }
+      if(hasTeam){
+        b.appendChild(teamTable(tl({en:"Team batting",ko:"팀 타격 기록",ja:"チーム打撃",zh:"球队打击",es:"Bateo del equipo",hi:"टीम बल्लेबाज़ी",vi:"Đánh bóng đội",th:"การตีของทีม",ru:"Команда: нападение",de:"Team-Batting",fr:"Batting équipe",it:"Battuta squadra"}),
+          [["ab","AB"],["r","R"],["h","H"],["d2","2B"],["d3","3B"],["hr","HR"],["rbi","RBI"],["lob","LOB"],["sb","SB"],["k","SO"],["bb","BB"],["e","E"]], function(sd){return sd&&sd.teamStats&&sd.teamStats.bat;}));
+        b.appendChild(teamTable(tl({en:"Team pitching",ko:"팀 투수 기록",ja:"チーム投手",zh:"球队投球",es:"Pitcheo del equipo",hi:"टीम पिचिंग",vi:"Ném bóng đội",th:"การขว้างของทีม",ru:"Команда: питчинг",de:"Team-Pitching",fr:"Pitching équipe",it:"Lancio squadra"}),
+          [["ip","IP"],["h","H"],["r","R"],["er","ER"],["bb","BB"],["k","SO"],["hr","HR"],["np","NP"],["era","ERA"],["whip","WHIP"]], function(sd){return sd&&sd.teamStats&&sd.teamStats.pit;}));
+      }
+      sides.forEach(function(s){
+        var sd=s[2]; if(!sd)return; var bat=sd.batters||[], pit=sd.pitchers||[];
+        if(bat.length){
+          var sec=el("div"); sec.innerHTML='<div class="dt-sec-t" style="margin-top:16px">'+esc(s[1])+' · '+t("batOrderT")+'</div>'+
+            '<div style="overflow-x:auto"><table class="rank"><thead><tr><th style="text-align:left">'+STR.th_batter[LANGS.indexOf(LANG)]+'</th><th>AB</th><th>R</th><th>H</th><th>RBI</th><th>BB</th><th>SO</th><th>2B</th><th>3B</th><th>HR</th><th>SB</th><th>AVG</th></tr></thead><tbody>'+
+            bat.map(function(p){return '<tr><td class="tm">'+esc(p.name||"-")+(p.pos?' <span style="color:#8a93a3;font-size:11px">'+esc(p.pos)+'</span>':'')+'</td><td>'+_bbCell(p.ab)+'</td><td>'+_bbCell(p.r)+'</td><td>'+_bbCell(p.h)+'</td><td>'+_bbCell(p.rbi)+'</td><td>'+_bbCell(p.bb)+'</td><td>'+_bbCell(p.k)+'</td><td>'+_bbCell(p.d2)+'</td><td>'+_bbCell(p.d3)+'</td><td>'+_bbCell(p.hr)+'</td><td>'+_bbCell(p.sb)+'</td><td>'+_bbCell(p.avg)+'</td></tr>'}).join("")+
+            '</tbody></table></div>';
+          b.appendChild(sec);
+        }
+        if(pit.length){
+          var secp=el("div"); secp.innerHTML='<div class="dt-sec-t">'+esc(s[1])+' · '+t("pitchers")+'</div>'+
+            '<div style="overflow-x:auto"><table class="rank"><thead><tr><th style="text-align:left">'+STR.th_pitcher[LANGS.indexOf(LANG)]+'</th><th>IP</th><th>H</th><th>R</th><th>ER</th><th>BB</th><th>SO</th><th>HR</th><th>NP</th><th>ERA</th></tr></thead><tbody>'+
+            pit.map(function(p){return '<tr><td class="tm">'+esc(p.name||"-")+'</td><td>'+_bbCell(p.ip)+'</td><td>'+_bbCell(p.h)+'</td><td>'+_bbCell(p.r)+'</td><td>'+_bbCell(p.er)+'</td><td>'+_bbCell(p.bb)+'</td><td>'+_bbCell(p.k)+'</td><td>'+_bbCell(p.hr)+'</td><td>'+_bbCell(p.np)+'</td><td>'+_bbCell(p.era)+'</td></tr>'}).join("")+
+            '</tbody></table></div>';
+          b.appendChild(secp);
+        }
+      });
+    }).catch(function(){ if(dtFresh(tk)){ var b=$("#dtBody"); if(b)b.appendChild(el("p",null,'<p style="color:#8a93a3;font-size:13px;margin-top:14px">'+t("m_batSoon")+'</p>')); } });
   }
   // ====== 농구 상세 (더스포츠) — 박스/라인업/팀통계 공용 ======
   // 득점 플레이 선수 얼굴: 플레이ID(tlive)와 박스 선수ID 체계가 달라 '이름'으로 매칭. 긴 이름 우선.
