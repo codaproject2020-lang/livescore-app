@@ -21,7 +21,7 @@ const app = express();
 const server = http.createServer(app);
 
 const PORT = process.env.PORT || 3000;
-const APP_VERSION = 'v580';
+const APP_VERSION = 'v581';
 
 // ============================================================
 //  📏 성능 계측(instrumentation) — 엔드포인트 지연·캐시·공급사·WS·이벤트루프
@@ -392,7 +392,7 @@ async function sendWelcomeMail(to, name) {
   try { await mailer.sendMail({ from: MAIL_FROM, to, subject: 'LIVE UP 가입을 환영합니다 🎉', html }); }
   catch (e) { console.error('welcome mail failed:', e.message); }
 }
-app.get('/api/config', (req, res) => res.json({ googleClientId: GOOGLE_CLIENT_ID, flags: CFG.flags || {}, maint: CFG.maint || '', bskSrc: CFG.bskSrc || 'auto', ftbSrc: CFG.ftbSrc || 'thesports', volSrc: CFG.volSrc || 'thesports', bigPin: CFG.bigPin || '' }));
+app.get('/api/config', (req, res) => res.json({ build: APP_VERSION, googleClientId: GOOGLE_CLIENT_ID, flags: CFG.flags || {}, maint: CFG.maint || '', bskSrc: CFG.bskSrc || 'auto', ftbSrc: CFG.ftbSrc || 'thesports', volSrc: CFG.volSrc || 'thesports', bigPin: CFG.bigPin || '' }));
 app.post('/api/auth/google', async (req, res) => {
   const cred = req.body && req.body.credential;
   if (!GOOGLE_CLIENT_ID) return res.json({ ok: false, error: '서버에 GOOGLE_CLIENT_ID 미설정' });
@@ -1930,7 +1930,9 @@ if (!TS_USER || !TS_SECRET) console.log('[thesports] THESPORTS_USER/SECRET env �
 // 고정 IP VPS 프록시(중계기) 경유용 — 설정 시 모든 TheSports 호출이 VPS를 거쳐 나감(화이트리스트된 고정 IP)
 const TS_PROXY = (process.env.THESPORTS_PROXY || '').trim().replace(/\/$/, '');   // 예: http://1.2.3.4:8080
 const TS_RELAY_TOKEN = (process.env.THESPORTS_RELAY_TOKEN || '').trim();
-const TS_ON = !!(TS_USER && TS_SECRET);
+// TheSports 가용성 = 직접 인증(user+secret) 또는 릴레이 프록시(프록시가 인증 주입). 프록시만 있을 때 TS_ON이 false가 되어
+//   라인업·KBO/NPB 병합 등이 통째로 빈 응답을 내던 회귀(F4/B4 근본원인)를 바로잡는다. tsFetch는 이미 프록시로 동작함.
+const TS_ON = !!((TS_USER && TS_SECRET) || TS_PROXY);
 // 🏷️ 공급사 리그 원본명 → 사용자 표시명(원본은 leagueOrig로 보존). 명령서 #4-2·#6.
 function tsLeagueDisplay(sport, name, country) {
   const n = String(name || '');
@@ -4575,15 +4577,18 @@ async function buildGamesCore(sport, date, tz) {
     for (const dt of apiDates) {
       const need = [...new Set(games.filter(g => g._apiDate === dt && STATS_LG[g.league]).map(g => STATS_LG[g.league]))];
       if (!need.length) continue;
-      const sm = {}; for (const sid of need) Object.assign(sm, await mlbScoreMap(dt, sid, tz).catch(() => ({}))); smByDate[dt] = sm;
+      const sm = {}; for (const sid of need) { const m = await mlbScoreMap(dt, sid, tz).catch(() => ({})); for (const k in m) { if (k.indexOf('P|') === 0) sm[k] = (sm[k] || []).concat(m[k]); else sm[k] = m[k]; } } smByDate[dt] = sm;
     }
     games.forEach(g => {
       if (!STATS_LG[g.league]) return;
       const sm = smByDate[g._apiDate] || {};
-      const gYmd = g.date ? ymdInTz(g.date, tz) : g._apiDate;
       const hN = mlbNick(g.home), aN = mlbNick(g.away);
-      // 날짜까지 맞춰 매칭(시리즈 혼동 방지). 혹시 못 찾으면 팀조합만으로 폴백
-      const e = sm[[hN, aN].sort().join('|') + '|' + gYmd] || sm[[hN, aN].sort().join('|') + '|' + g._apiDate];
+      // 🔑 B2: 팀쌍 배열에서 경기 확정 — 팀쌍 경기가 하나면 그대로, 여러 개(시리즈·더블헤더)면 시작시각 ±90분 유일 매칭만. 확정 못하면 덮어쓰지 않음(API-Sports 원래 값 유지).
+      const arr = sm['P|' + [hN, aN].sort().join('|')] || [];
+      const _seen = new Set(); const uarr = []; for (const x of arr) { if (!_seen.has(x.gamePk)) { _seen.add(x.gamePk); uarr.push(x); } }
+      let e = null;
+      if (uarr.length === 1) e = uarr[0];
+      else if (uarr.length > 1) { const gStart = g.date ? Date.parse(g.date) : NaN; if (!isNaN(gStart)) { const near = uarr.filter(x => x.gameDate && Math.abs(Date.parse(x.gameDate) - gStart) <= 90 * 60e3); if (near.length === 1) e = near[0]; } }
       if (!e) return;
       const H = e.byNick[hN] || {}, A = e.byNick[aN] || {};
       if (H.pitcher || A.pitcher) g.pitchers = {   // 예상 선발투수(+사진용 ID·시즌 성적)
@@ -5879,26 +5884,37 @@ app.get('/api/mlb/game', async (req, res) => {
 });
 // gamePk 찾기 — 한국/미국 날짜 시차 때문에 전날·당일·다음날까지 검색
 function mlbAddDays(dstr, n) { const d = new Date(dstr + 'T12:00:00Z'); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); }
-async function mlbFindGame(home, away, date) {
+async function mlbFindGame(home, away, date, startIso) {
   const cands = [];
+  const startMs = startIso ? Date.parse(startIso) : NaN;
+  // startIso 있으면 그 UTC 날짜 기준 d-1..d+1, 없으면 date 기준
+  const baseDate = (!isNaN(startMs)) ? new Date(startMs).toISOString().slice(0, 10) : date;
   for (const sportId of [1, 23, 11]) {   // 1=MLB, 23=LMB(멕시코), 11=Triple-A(IL·PCL 등)
-    for (const d of [date, mlbAddDays(date, -1), mlbAddDays(date, 1)]) {
+    for (const d of [baseDate, mlbAddDays(baseDate, -1), mlbAddDays(baseDate, 1)]) {
       let sch;
       try { sch = await mlbFetch(`/api/v1/schedule?sportId=${sportId}&date=${d}`, 60000); } catch { continue; }
       const games = [];
       (sch.dates || []).forEach(dd => (dd.games || []).forEach(g => games.push(g)));
-    for (const g of games) {
-      const st = (g.status && g.status.abstractGameState) || '';
-      if (mlbTeamMatch(g.teams.home.team.name, home) && mlbTeamMatch(g.teams.away.team.name, away)) cands.push({ gamePk: g.gamePk, swap: false, st, sportId, homeId: g.teams.home.team.id, awayId: g.teams.away.team.id, gameDate: g.gameDate });
-      else if (mlbTeamMatch(g.teams.home.team.name, away) && mlbTeamMatch(g.teams.away.team.name, home)) cands.push({ gamePk: g.gamePk, swap: true, st, sportId, homeId: g.teams.home.team.id, awayId: g.teams.away.team.id, gameDate: g.gameDate });
+      for (const g of games) {
+        const st = (g.status && g.status.abstractGameState) || '';
+        const base = { gamePk: g.gamePk, st, sportId, homeId: g.teams.home.team.id, awayId: g.teams.away.team.id, gameDate: g.gameDate, homeScore: (g.teams.home && g.teams.home.score), awayScore: (g.teams.away && g.teams.away.score) };
+        if (mlbTeamMatch(g.teams.home.team.name, home) && mlbTeamMatch(g.teams.away.team.name, away)) cands.push(Object.assign({ swap: false }, base));
+        else if (mlbTeamMatch(g.teams.home.team.name, away) && mlbTeamMatch(g.teams.away.team.name, home)) cands.push(Object.assign({ swap: true }, base));
       }
     }
   }
-  if (!cands.length) return null;
-  // 🔑 시리즈(같은 두 팀 며칠 연속) 구분: 선택 날짜(한국시간)와 같은 경기 우선, 그 안에서 진행>종료>예정 순
+  const uniq = []; const seen = new Set();
+  for (const c of cands) { if (!seen.has(c.gamePk)) { seen.add(c.gamePk); uniq.push(c); } }
+  if (!uniq.length) return null;
+  // 🔑 start 시각이 오면: 시작시각 ±90분 이내 경기가 '정확히 1개'일 때만 채택(시리즈·더블헤더 오매칭 방지). 0개·2개↑ → null
+  if (!isNaN(startMs)) {
+    const near = uniq.filter(c => c.gameDate && Math.abs(Date.parse(c.gameDate) - startMs) <= 90 * 60e3);
+    return near.length === 1 ? near[0] : null;
+  }
+  // start 없을 때(예: predlineup) 기존 동작: 선택 날짜(한국시간) 우선 + 진행>종료>예정
   const rank = s => s === 'Live' ? 0 : s === 'Final' ? 1 : 2;
-  const onDate = cands.filter(c => c.gameDate && ymdInTz(c.gameDate, 'Asia/Seoul') === date);
-  const pool = onDate.length ? onDate : cands;
+  const onDate = uniq.filter(c => c.gameDate && ymdInTz(c.gameDate, 'Asia/Seoul') === date);
+  const pool = onDate.length ? onDate : uniq;
   pool.sort((a, b) => rank(a.st) - rank(b.st));
   return pool[0];
 }
@@ -5976,9 +5992,14 @@ async function mlbScoreMap(date, sportId = 1, tz = 'Asia/Seoul') {
         inning: liveInning != null ? liveInning : (ls.currentInning != null ? ls.currentInning : null),
         half: liveHalf || ls.inningHalf || null,
         byNick: { [hN]: hs, [aN]: as },
-        bso
+        bso,
+        gameDate: g.gameDate || null, gamePk: g.gamePk,
+        homeScore: (g.teams.home && g.teams.home.score), awayScore: (g.teams.away && g.teams.away.score), hN, aN
       };
       if (!map[key] || rank(entry.state) < rank(map[key].state)) map[key] = entry;
+      // 🔑 B2: 팀쌍별 배열 인덱스 — 피드 보강에서 시작시각 ±90분 유일 매칭으로 '같은 날 다른 경기/시리즈' 오매칭 방지
+      const pairKey = 'P|' + [hN, aN].sort().join('|');
+      (map[pairKey] = map[pairKey] || []).push(entry);
     }));
   }
   return map;
@@ -6089,9 +6110,19 @@ app.get('/api/mlb/player', async (req, res) => {
 app.get('/api/mlb/boxscore', async (req, res) => {
   const { home, away } = req.query;
   const date = req.query.date || new Date().toISOString().slice(0, 10);
+  const startIso = req.query.start || '';
+  const hsQ = req.query.hs, asQ = req.query.as;
   try {
-    const f = await mlbFindGame(home, away, date);
+    const f = await mlbFindGame(home, away, date, startIso || undefined);
     if (!f) return res.json({ found: false });
+    // 종료 경기: 채택한 StatsAPI 경기의 득점이 목록 점수(hs/as)와 다르면 다른 경기로 간주 → found:false
+    if (f.st === 'Final' && hsQ != null && hsQ !== '' && asQ != null && asQ !== '') {
+      const ourHome = f.swap ? f.awayScore : f.homeScore;
+      const ourAway = f.swap ? f.homeScore : f.awayScore;
+      if (ourHome != null && ourAway != null && (String(ourHome) !== String(hsQ) || String(ourAway) !== String(asQ))) {
+        return res.json({ found: false, note: 'score-mismatch' });
+      }
+    }
     const box = await mlbFetch(`/api/v1/game/${f.gamePk}/boxscore`, 20000);
     // ⚾ 04: 공식 StatsAPI 원문만 전달. 미수신=null(가짜 0 금지), 실제 0은 보존. IP는 공식 문자열("5.1"=5⅓)로 그대로 전달(소수계산 금지).
     const side = t => {
@@ -6105,9 +6136,23 @@ app.get('/api/mlb/boxscore', async (req, res) => {
         return { name: p.person ? p.person.fullName : '', pos: p.position ? p.position.abbreviation : '', ab: s.atBats ?? null, r: s.runs ?? null, h: s.hits ?? null, bb: s.baseOnBalls ?? null, rbi: s.rbi ?? null, d2: s.doubles ?? null, d3: s.triples ?? null, hr: s.homeRuns ?? null, k: s.strikeOuts ?? null, sb: s.stolenBases ?? null, avg: s.avg ?? null };
       });
       const TS = T.teamStats || {}, tb = TS.batting || {}, tp = TS.pitching || {}, tf = TS.fielding || {};
+      // ⚾ B3: teamStats의 avg/obp/slg/ops·era/whip은 StatsAPI 시즌 누적값 → 이 경기 값으로 재계산(IP는 아웃수 변환). 원문 미제공 필드·분모 0이면 null(채우지 않음). IP 문자열은 그대로 보존.
+      const _n = v => (v == null || v === '') ? null : (isNaN(Number(v)) ? null : Number(v));
+      const _outs = (ip => { const n = _n(ip); if (n == null) return null; const w = Math.floor(n); return w * 3 + Math.round((n - w) * 10); })(tp.inningsPitched);
+      const _f3 = x => (x == null || isNaN(x)) ? null : (x >= 1 ? x.toFixed(3) : ('.' + Math.round(x * 1000).toString().padStart(3, '0')));
+      const _f2 = x => (x == null || isNaN(x)) ? null : x.toFixed(2);
+      const _ab = _n(tb.atBats), _h = _n(tb.hits), _bb = _n(tb.baseOnBalls), _tbz = _n(tb.totalBases), _hbp = _n(tb.hitByPitch), _sf = _n(tb.sacFlies);
+      const gAvg = (_ab > 0 && _h != null) ? _f3(_h / _ab) : null;
+      const gSlg = (_ab > 0 && _tbz != null) ? _f3(_tbz / _ab) : null;
+      const _obpDen = (_ab != null && _bb != null && _hbp != null && _sf != null) ? (_ab + _bb + _hbp + _sf) : null;
+      const gObp = (_obpDen && _obpDen > 0 && _h != null) ? _f3((_h + _bb + _hbp) / _obpDen) : null;
+      const gOps = (gObp != null && gSlg != null) ? _f3(parseFloat(gObp) + parseFloat(gSlg)) : null;
+      const _er = _n(tp.earnedRuns), _ph = _n(tp.hits), _pbb = _n(tp.baseOnBalls);
+      const gEra = (_outs > 0 && _er != null) ? _f2(_er * 27 / _outs) : null;
+      const gWhip = (_outs > 0 && _ph != null && _pbb != null) ? _f2((_ph + _pbb) * 3 / _outs) : null;
       const teamStats = {
-        bat: { r: tb.runs ?? null, h: tb.hits ?? null, e: tf.errors ?? null, d2: tb.doubles ?? null, d3: tb.triples ?? null, hr: tb.homeRuns ?? null, ab: tb.atBats ?? null, rbi: tb.rbi ?? null, lob: tb.leftOnBase ?? null, sb: tb.stolenBases ?? null, k: tb.strikeOuts ?? null, bb: tb.baseOnBalls ?? null, avg: tb.avg ?? null, obp: tb.obp ?? null, slg: tb.slg ?? null, ops: tb.ops ?? null },
-        pit: { ip: tp.inningsPitched ?? null, h: tp.hits ?? null, r: tp.runs ?? null, er: tp.earnedRuns ?? null, bb: tp.baseOnBalls ?? null, k: tp.strikeOuts ?? null, hr: tp.homeRuns ?? null, np: tp.numberOfPitches ?? null, strikes: tp.strikes ?? null, era: tp.era ?? null, whip: tp.whip ?? null }
+        bat: { r: tb.runs ?? null, h: tb.hits ?? null, e: tf.errors ?? null, d2: tb.doubles ?? null, d3: tb.triples ?? null, hr: tb.homeRuns ?? null, ab: tb.atBats ?? null, rbi: tb.rbi ?? null, lob: tb.leftOnBase ?? null, sb: tb.stolenBases ?? null, k: tb.strikeOuts ?? null, bb: tb.baseOnBalls ?? null, avg: gAvg, obp: gObp, slg: gSlg, ops: gOps },
+        pit: { ip: tp.inningsPitched ?? null, h: tp.hits ?? null, r: tp.runs ?? null, er: tp.earnedRuns ?? null, bb: tp.baseOnBalls ?? null, k: tp.strikeOuts ?? null, hr: tp.homeRuns ?? null, np: tp.numberOfPitches ?? null, strikes: tp.strikes ?? null, era: gEra, whip: gWhip }
       };
       return { team: T.team ? T.team.name : '', pitchers, batters, teamStats };
     };
