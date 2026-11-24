@@ -3150,6 +3150,13 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
     var h='';
     if(stateOf(g)==="scheduled"){
       h+='<div class="dt-sec-t">⏰ '+schLabel(g)+'</div><p style="color:#5a6577">'+esc(gDateLabel(g))+' '+hhmm(g.date)+'</p>';
+      // ⚾ 03: 예정 야구 경기 — 공급사(인증 원문)가 제공한 '예상 선발투수'만 표시(예상↔확정 구분, 미제공 시 생성·0채우기 없이 생략).
+      if(sport==="baseball"&&g.pitchers&&((g.pitchers.home&&g.pitchers.home.name)||(g.pitchers.away&&g.pitchers.away.name))){
+        var _spRow=function(side,nm){ var p=g.pitchers[side]||{}; if(!p.name) return '<tr><td class="tm">'+esc(nm)+'</td><td style="color:#8a93a3">'+tl({en:"TBD",ko:"미정",ja:"未定",zh:"待定",es:"Por confirmar",hi:"तय नहीं",vi:"Chưa xác định",th:"ยังไม่กำหนด",ru:"Не объявлен",de:"Offen",fr:"À confirmer",it:"Da definire"})+'</td></tr>'; var ex=[]; if(p.era!=null&&p.era!=='')ex.push('ERA '+p.era); if(p.w!=null&&p.l!=null)ex.push(p.w+'-'+p.l); return '<tr><td class="tm">'+esc(nm)+'</td><td>'+esc(p.name)+(ex.length?' <span style="color:#8a93a3;font-size:11px">'+ex.join(' · ')+'</span>':'')+'</td></tr>'; };
+        h+='<div class="dt-sec-t" style="margin-top:16px">⚾ '+tl({en:"Probable starting pitchers",ko:"예상 선발투수",ja:"予想先発投手",zh:"预计先发投手",es:"Lanzadores probables",hi:"संभावित शुरुआती पिचर",vi:"Người ném xuất phát dự kiến",th:"พิตเชอร์ตัวจริงที่คาด",ru:"Вероятные стартеры",de:"Voraussichtliche Starter",fr:"Lanceurs partants probables",it:"Lanciatori partenti probabili"})+'</div>';
+        h+='<table class="rank"><tbody>'+_spRow("away",g.away)+_spRow("home",g.home)+'</tbody></table>';
+        h+='<p style="color:#8a93a3;font-size:11px;margin-top:4px">'+tl({en:"Probable — may change before the official announcement.",ko:"예상값 — 공식 발표 전까지 변경될 수 있습니다.",ja:"予想です — 公式発表まで変更の可能性があります。",zh:"预计值 — 官方公布前可能变动。",es:"Probable — puede cambiar antes del anuncio oficial.",hi:"संभावित — आधिकारिक घोषणा से पहले बदल सकता है।",vi:"Dự kiến — có thể thay đổi trước thông báo chính thức.",th:"คาดการณ์ — อาจเปลี่ยนก่อนประกาศอย่างเป็นทางการ",ru:"Ориентировочно — может измениться до официального объявления.",de:"Voraussichtlich — kann sich bis zur offiziellen Ankündigung ändern.",fr:"Probable — peut changer avant l'annonce officielle.",it:"Probabile — può cambiare prima dell'annuncio ufficiale."})+'</p>';
+      }
     }else{
       h+='<div class="dt-sec-t">📊 '+t("curSituation")+'</div>';
       h+='<p style="font-size:15px;font-weight:700">'+esc(g.home)+' '+fmtScore(g)+' '+esc(g.away)+' · '+statusText(g)+'</p>';
