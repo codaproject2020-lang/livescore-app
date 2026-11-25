@@ -1206,7 +1206,17 @@ html[data-theme="dark"] .sh-lb,html[data-theme="dark"] .sh-qrtx b{color:#e6ecf5}
 .hm-mini .hm-sub2{flex-wrap:wrap}
 .hm-empty{margin:2px 16px 4px;padding:18px 14px;border:1px dashed var(--line);border-radius:14px;text-align:center;color:var(--muted);font-size:13px;font-weight:700;background:var(--soft)}
 .hm-empty .e-ic{display:block;font-size:22px;margin-bottom:6px;opacity:.8}
-/* 🗞️ 개요 메인 뉴스 접기/펼치기 카드 */
+/* 🗞️ 개요 메인(피처) 뉴스 큰 카드 — 누르면 기사 링크로 */
+.tn-feat{display:block;background:#fff;border:1px solid var(--line);border-radius:14px;overflow:hidden;margin-bottom:10px;box-shadow:var(--shadow);text-decoration:none}
+.tn-feat:active{opacity:.94}
+.tn-feat-img{display:block;width:100%;height:172px;object-fit:cover;background:var(--soft)}
+.tn-feat-img.ph{display:flex;align-items:center;justify-content:center;font-size:34px}
+.tn-feat-b{padding:11px 13px 12px}
+.tn-feat-t{font-size:15.5px;font-weight:800;color:var(--navy);line-height:1.38}
+.tn-feat-m{margin-top:6px;font-size:11.5px;color:var(--muted);font-weight:600}
+.tn-feat-m b{color:var(--red)}
+html[data-theme="dark"] .tn-feat{background:#1b2639;border-color:#2c3a54}
+/* 🗞️ 개요 메인 뉴스 접기/펼치기 카드(구) */
 .tn-card{background:#fff;border:1px solid var(--line);border-radius:12px;padding:10px 12px;margin-bottom:9px;box-shadow:var(--shadow)}
 .tn-head{display:flex;align-items:center;gap:10px}
 .tn-th{width:54px;height:54px;flex:0 0 auto;object-fit:cover;border-radius:8px;background:var(--soft)}
@@ -1534,6 +1544,17 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
   function esc(s){return String(s==null?"":s).replace(/[&<>"]/g,function(c){return{"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;"}[c]})}
   // ↔️ 가로 스크롤 위치 보존: 자동 갱신·새로고침으로 재렌더돼도 손으로 넘긴 가로 스트립(리그칩·종목별 트랙·배너)이 처음으로 되돌아오지 않게 한다.
   //   키별로 scrollLeft를 기억했다가 같은 키의 스트립이 다시 만들어질 때 복원한다.
+  // 🕒 뉴스 상대 시간("Nh ago"/"N일 전"). 파싱 실패하면 빈 문자열(가짜 시간 생성 안 함).
+  function tmRelTime(x){
+    if(x==null||x==="")return "";
+    var t2; if(typeof x==="number"){ t2=x<1e12?x*1000:x; } else { t2=Date.parse(String(x)); }
+    if(!t2||isNaN(t2))return "";
+    var s=Math.floor((Date.now()-t2)/1000); if(s<0)s=0;
+    var ko=(LANG==="ko");
+    if(s<3600){ var m=Math.max(1,Math.floor(s/60)); return ko?(m+"분 전"):(m+"m ago"); }
+    if(s<86400){ var h=Math.floor(s/3600); return ko?(h+"시간 전"):(h+"h ago"); }
+    var d=Math.floor(s/86400); return ko?(d+"일 전"):(d+"d ago");
+  }
   var _hscroll={};
   function hsBind(elm,key){
     if(!elm||!key)return elm;
@@ -5856,23 +5877,20 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
       fetch("/api/news?cat="+encodeURIComponent(tmNewsCat(sp))).then(function(r){return r.json()}).then(function(j){
         if(!$("#tmNewsPrev"))return;
         var items=(j&&(j.items||j.news||j.articles))||(Array.isArray(j)?j:[]);
+        if(!items.length){ $("#tmNewsPrev").innerHTML=''; return; }
         var words=String(tm.name||name).split(/\s+/).filter(function(w){return w.length>=3;});
-        var hit=items.filter(function(n){ var ti=String(n.title||n.headline||"").toLowerCase(); return newsGenderOk(ti,tm.name||name)&&words.some(function(w){return ti.indexOf(w.toLowerCase())>=0;}); }).slice(0,3);
-        if(!hit.length){ $("#tmNewsPrev").innerHTML=''; return; }
+        var hit=items.filter(function(n){ var ti=String(n.title||n.headline||"").toLowerCase(); return newsGenderOk(ti,tm.name||name)&&words.some(function(w){return ti.indexOf(w.toLowerCase())>=0;}); });
         var srcTxt=tl({en:"Read original",ko:"원문 보기",ja:"原文",zh:"原文",es:"Original",hi:"मूल",vi:"Xem gốc",th:"ต้นฉบับ",ru:"Оригинал",de:"Original",fr:"Original",it:"Originale"});
-        var moreTxt=tl({en:"Expand",ko:"펼치기",ja:"開く",zh:"展开",es:"Ampliar",hi:"खोलें",vi:"Mở",th:"ขยาย",ru:"Развернуть",de:"Mehr",fr:"Déplier",it:"Espandi"});
-        var lessTxt=tl({en:"Collapse",ko:"접기",ja:"閉じる",zh:"收起",es:"Contraer",hi:"बंद",vi:"Thu",th:"ย่อ",ru:"Свернуть",de:"Weniger",fr:"Replier",it:"Comprimi"});
-        // 🗞️ 메인 기사: 접힌 상태로 보이고 '펼치기' 누르면 아래로 요약(제공 범위)+원문 링크 노출. 본문 전체는 저작권상 미수신 → 요약·링크만.
-        var f0=hit[0]; var fDesc=String(f0.desc||f0.summary||f0.description||f0.contentSnippet||f0.content||"").replace(/<[^>]+>/g,"").trim();
-        var fImg=f0.image||f0.thumbnail||""; var fLink=f0.link||f0.url||"#";
-        var main='<div class="tn-card"><div class="tn-head">'+
-          (fImg?'<img class="tn-th" src="'+esc(fImg)+'" onerror="this.style.display=\'none\'">':'<div class="tn-th ph">📰</div>')+
-          '<div class="tn-ti">'+esc(f0.title||f0.headline||"")+'</div></div>'+
-          '<div class="tn-body" id="tnBody0" style="display:none">'+(fDesc?'<p class="tn-desc">'+esc(fDesc)+'</p>':'')+'<a class="tn-link" href="'+esc(fLink)+'" target="_blank" rel="noopener">'+srcTxt+' ↗ · ESPN</a></div>'+
-          '<button class="tn-toggle" id="tnTgl0">'+moreTxt+' ▾</button></div>';
-        var rest=hit.slice(1,3).map(function(n){ var link=n.link||n.url||"#"; var img=n.image||n.thumbnail||""; return '<a class="sv-save" href="'+esc(link)+'" target="_blank" rel="noopener">'+(img?'<img src="'+esc(img)+'" onerror="this.style.display=\'none\'">':'<div style="width:72px;flex:0 0 auto;background:var(--soft);display:flex;align-items:center;justify-content:center;font-size:20px">📰</div>')+'<div class="sc"><div class="tt">'+esc(n.title||n.headline||"")+'</div><div class="mt">'+srcTxt+' ↗ <span style="color:var(--muted)">· ESPN</span></div></div></a>'; }).join("");
-        $("#tmNewsPrev").innerHTML='<div class="sv-sec"><div class="sv-sh">'+tl({en:"Related news",ko:"관련 뉴스",ja:"関連ニュース",zh:"相关新闻",es:"Noticias",hi:"समाचार",vi:"Tin liên quan",th:"ข่าว",ru:"Новости",de:"News",fr:"Actus",it:"Notizie"})+'</div>'+main+rest+'</div>';
-        var tg=$("#tnTgl0"); if(tg)tg.onclick=function(){ var b=$("#tnBody0"); if(!b)return; var open=b.style.display!=="none"; b.style.display=open?"none":"block"; tg.innerHTML=(open?moreTxt+' ▾':lessTxt+' ▴'); };
+        // 🗞️ 메인(피처) 뉴스 — 어떤 팀을 들어가도 '축구 최신/최대 이슈' 기사를 큰 카드로. 팀 관련 기사 있으면 그걸, 없으면 피드 최상단.
+        var feat=hit[0]||items[0];
+        var fImg=feat.image||feat.thumbnail||""; var fLink=feat.link||feat.url||"#"; var fSrc=feat.source||feat.author||"ESPN"; var fTime=tmRelTime(feat.pubDate||feat.isoDate||feat.date||feat.time||feat.published);
+        var featHtml='<a class="tn-feat" href="'+esc(fLink)+'" target="_blank" rel="noopener">'+
+          (fImg?'<img class="tn-feat-img" src="'+esc(fImg)+'" onerror="this.style.display=\'none\'">':'<div class="tn-feat-img ph">📰</div>')+
+          '<div class="tn-feat-b"><div class="tn-feat-t">'+esc(feat.title||feat.headline||"")+'</div><div class="tn-feat-m"><b>'+esc(fSrc)+'</b>'+(fTime?' · '+esc(fTime):'')+' · '+srcTxt+' ↗</div></div></a>';
+        // 관련 뉴스 목록(팀 매칭, 피처 제외) — 클릭=기사 링크. 없으면 피드 최신으로 보충.
+        var relSrc=(hit.length?hit:items).filter(function(n){ return (n.link||n.url)!==fLink; }).slice(0,3);
+        var rest=relSrc.map(function(n){ var link=n.link||n.url||"#"; var img=n.image||n.thumbnail||""; var tm2=tmRelTime(n.pubDate||n.isoDate||n.date||n.time||n.published); return '<a class="sv-save" href="'+esc(link)+'" target="_blank" rel="noopener">'+(img?'<img src="'+esc(img)+'" onerror="this.style.display=\'none\'">':'<div style="width:72px;flex:0 0 auto;background:var(--soft);display:flex;align-items:center;justify-content:center;font-size:20px">📰</div>')+'<div class="sc"><div class="tt">'+esc(n.title||n.headline||"")+'</div><div class="mt"><span style="color:var(--muted)">'+esc(n.source||"ESPN")+(tm2?' · '+esc(tm2):'')+'</span> · '+srcTxt+' ↗</div></div></a>'; }).join("");
+        $("#tmNewsPrev").innerHTML='<div class="sv-sec"><div class="sv-sh">'+tl({en:"Football news",ko:"축구 뉴스",ja:"サッカーニュース",zh:"足球新闻",es:"Noticias de fútbol",hi:"फुटबॉल समाचार",vi:"Tin bóng đá",th:"ข่าวฟุตบอล",ru:"Футбольные новости",de:"Fußball-News",fr:"Actus foot",it:"Notizie calcio"})+'</div>'+featHtml+rest+'</div>';
       }).catch(function(){ if($("#tmNewsPrev"))$("#tmNewsPrev").innerHTML=''; });
     }
     // 📅 팀 최근 경기(제공처 diary 집계) — /api/team/as 이벤트가 비었을 때 폴백. 캐시 1회.
