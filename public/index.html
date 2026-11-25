@@ -1387,9 +1387,31 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
   //    예: 농구 여자 'KB 스타즈'의 한글명이 배구 남자 'KB'로 새어들던 문제 방지(종목 ID로 구분).
   var KN_TEAM_SP={};
   function _curSp(){ try{ return (_dt&&_dt.sport)||(S&&S.sport)||""; }catch(e){ return ""; } }
-  // 종목 스코프 우선 → 정적 사전(큐레이션) → 원문. 현재 종목이 'all'이면 스코프 생략(정적만).
+  // 🏐 KOVO(한국 배구) 남/여 큐레이션 — 공급사 영문명이 도시 접두사·'Women/Co' 접미사 등으로 달라져 정확 일치가 실패하는 문제 대응.
+  //    고정 스폰서 팀이라 '구단 고유 토큰'으로 식별(남/여 스폰서가 서로 겹치지 않아 성별 혼동 없음). 임의 접미사 변경 아님.
+  var VB_KO=[
+    [/kepco|vixtorm|빅스톰|한국전력/i,"수원 한국전력 빅스톰"],
+    [/hyundai\s*capital|skywalker|스카이워커|현대캐피탈/i,"천안 현대캐피탈 스카이워커스"],
+    [/samsung\s*fire|bluefang|블루팡스|삼성화재/i,"대전 삼성화재 블루팡스"],
+    [/\bok\b\s*(financial|savings|men|okman)|오케이(저축|금융)|ok(저축|금융)|읏맨/i,"안산 OK금융그룹 읏맨"],
+    [/korean\s*air|jumbo|점보스|대한항공/i,"인천 대한항공 점보스"],
+    [/woori\s*card|wibee|우리카드|우리won/i,"서울 우리카드 우리WON"],
+    [/kb\s*insurance|kb손해|손해보험/i,"의정부 KB손해보험 스타즈"],
+    // 여자부
+    [/ibk|altos|알토스|기업은행/i,"화성 IBK기업은행 알토스"],
+    [/expressway|hi-?pass|도로공사|하이패스/i,"김천 한국도로공사 하이패스"],
+    [/jeong\s*kwan\s*jang|jeongkwanjang|red\s*spark|정관장|레드스파크/i,"대전 정관장 레드스파크스"],
+    [/heungkuk|pink\s*spider|흥국생명|핑크스파이더/i,"인천 흥국생명 핑크스파이더스"],
+    [/hyundai\s*(e&?c|engineering|construction)|hillstate|현대건설|힐스테이트/i,"수원 현대건설 힐스테이트"],
+    [/pepper|페퍼/i,"광주 페퍼저축은행 AI페퍼스"],
+    [/gs\s*caltex|kixx|지에스칼텍스|gs칼텍스/i,"서울 GS칼텍스 KIXX"]
+  ];
+  function vbKoName(name){ var n=String(name||""); for(var i=0;i<VB_KO.length;i++){ if(VB_KO[i][0].test(n))return VB_KO[i][1]; } return ""; }
+  // 종목 스코프 우선 → (배구 KOVO 토큰) → 정적 사전(큐레이션) → 원문. 현재 종목이 'all'이면 스코프 생략(정적만).
   function tnTeam(name,sp){ if(LANG!=="ko"||!name)return name; var k=knorm(name); sp=sp||_curSp();
-    if(sp&&sp!=="all"){ var v=KN_TEAM_SP[sp+"|"+k]; if(v)return v; } return KN_TEAM[k]||name; }
+    if(sp&&sp!=="all"){ var v=KN_TEAM_SP[sp+"|"+k]; if(v)return v; }
+    if(sp==="volleyball"){ var vk=vbKoName(name); if(vk)return vk; }   // 공급사 영문명 변형(도시 접두사·Women/Co 접미사) 대응
+    return KN_TEAM[k]||name; }
   function regKoTeam(sp,en,ko){ if(!sp||!en||!ko)return; KN_TEAM_SP[sp+"|"+knorm(en)]=ko; }
   function tnLeague(name){ if(LANG!=="ko"||!name)return name; return KN_LEAGUE[knorm(name)]||name; }
   // 🌐 서버가 더스포츠 한글명(homeKo/awayKo/leagueKo)을 붙여주면 영문명→한글 사전에 등록(한국어 설정일 때 tnTeam/tnLeague가 사용)
