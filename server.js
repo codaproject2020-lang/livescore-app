@@ -21,7 +21,7 @@ const app = express();
 const server = http.createServer(app);
 
 const PORT = process.env.PORT || 3000;
-const APP_VERSION = 'v594';
+const APP_VERSION = 'v595';
 
 // ============================================================
 //  📏 성능 계측(instrumentation) — 엔드포인트 지연·캐시·공급사·WS·이벤트루프
@@ -1421,7 +1421,15 @@ app.get('/api/team/squad', async (req, res) => {
       const j = await asRaw('football', `/players/squads?team=${encodeURIComponent(id)}`, 86400000).catch(() => null);
       const sq = j && j.response && j.response[0];
       const players = ((sq && sq.players) || []).map(p => ({ id: p.id, name: p.name, number: p.number, pos: p.position, photo: p.photo || '', age: p.age }));
-      return res.json({ players, note: players.length ? '' : 'empty' });
+      if (players.length) return res.json({ players, note: '' });
+      // 폴백: 제공처 선수단 미제공 → 직전 경기 라인업(선발+벤치)을 '엔트리'로. 가짜 생성 아님(실제 출전 선수).
+      const last = await lastMatchLineup(parseInt(id, 10)).catch(() => null);
+      if (last && (last.startXI || []).length) {
+        const mk = (p, role) => ({ id: p.id, name: p.name, number: p.number, pos: p.pos, photo: p.photo || '', role });
+        const lp = [].concat((last.startXI || []).map(p => mk(p, 'start')), (last.subs || []).map(p => mk(p, 'bench')));
+        return res.json({ players: lp, kind: 'last', formation: last.formation || '', coach: last.coach || '', lastDate: last.lastDate || '', lastOpp: last.lastOpp || '', note: 'last' });
+      }
+      return res.json({ players: [], note: 'empty' });
     }
     if (sport === 'basketball') {
       // R024: 새 시즌 로스터 미반영 시 직전 시즌으로 폴백(선수단 빈 화면 방지). API-Sports 농구는 선수 사진 미제공.
