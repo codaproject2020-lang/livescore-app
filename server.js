@@ -21,7 +21,7 @@ const app = express();
 const server = http.createServer(app);
 
 const PORT = process.env.PORT || 3000;
-const APP_VERSION = 'v582';
+const APP_VERSION = 'v583';
 
 // ============================================================
 //  📏 성능 계측(instrumentation) — 엔드포인트 지연·캐시·공급사·WS·이벤트루프
@@ -3756,84 +3756,55 @@ app.get('/api/basketball/standing', async (req, res) => {
   res.set('Cache-Control', 'no-store');
   const comp = String(req.query.comp || '');
   if (!comp) return res.json({ found: false, error: 'no comp' });
+  // 공식 '정상(good)' 결과만 30분 즉시 재사용
   const hitc = _bskStandCache.get(comp);
-  if (hitc && Date.now() - hitc.t < 1800000) return res.json(hitc.v);
-  // 🏆 우선2: 공식 공급사 순위(standing/detail) 우선 — diary 집계가 일부 경기만 잡아 순위가 틀리던 문제(예: KBL 7경기 vs 공식 15~16경기).
-  //   경기 uuid(id)로 시즌 해석 → 공식 표. 팀명까지 확보됐을 때만 채택, 아니면 아래 diary 집계로 폴백(회귀 없음).
-  const _mid = String(req.query.id || '').replace(/^ts(?=[a-z0-9]{10,})/, '');
-  if (_mid) {
-    try {
-      const a = await tsFetch('/basketball/match/analysis', { uuid: _mid }, 300000, 9000).catch(() => null);
-      const info = a && a.results && a.results.info;
-      const seasonId = info && info[9] && info[9][0];
-      if (seasonId) {
-        const sd = await tsFetch('/basketball/standing/detail', { uuid: seasonId }, 600000, 9000).catch(() => null);
-        const tables = (sd && sd.results && sd.results.tables) || [];
-        const ex = (sd && sd.results_extra) || {};
-        const tnm = {}; ((ex.team) || []).forEach(t => { if (t && t.id) tnm[t.id] = { name: t.name || '', logo: t.logo || '' }; });
-        const KL0 = TS_LANG['basketball'] || { team: {}, comp: {} };
-        const nv = v => (v == null || v === '') ? null : (isNaN(+v) ? null : +v);
-        const rows = [];
-        tables.forEach(tb => (tb.rows || []).forEach(rw => {
-          const won = nv(rw.won != null ? rw.won : rw.win), loss = nv(rw.loss != null ? rw.loss : rw.lost);
-          let played = nv(rw.total != null ? rw.total : rw.played);
-          if (played == null && won != null && loss != null) played = won + loss;
-          if (!played || played <= 0 || won == null || loss == null) return;
-          const pf = nv(rw.score != null ? rw.score : rw.goals), pa = nv(rw.score_against != null ? rw.score_against : rw.goals_against);
-          rows.push({ teamId: rw.team_id, team: (tnm[rw.team_id] && tnm[rw.team_id].name) || '', teamKo: (KL0.team && KL0.team[rw.team_id]) || '', logo: (tnm[rw.team_id] && tnm[rw.team_id].logo) || '', played, win: won, loss, pct: played ? +(won / played).toFixed(3) : 0, pf: (pf != null && played) ? +(pf / played).toFixed(1) : 0, pa: (pa != null && played) ? +(pa / played).toFixed(1) : 0, rank: nv(rw.position) });
-        }));
-        const named = rows.filter(r => r.team || r.teamKo).length;
-        if (rows.length >= 2 && named >= rows.length - 1) {   // 공식 표 + 팀명 확보 시에만 채택(부분·무명 시 폴백)
-          rows.sort((x, y) => (x.rank != null && y.rank != null) ? (x.rank - y.rank) : ((y.pct - x.pct) || (y.win - x.win)));
-          rows.forEach((r, i) => { if (r.rank == null) r.rank = i + 1; });
-          const compName = (((ex.competition) || []).find(c => c && c.id === comp) || {}).name || '';
-          const v = { found: true, league: compName, leagueKo: (KL0.comp && KL0.comp[comp]) || '', leagueLogo: '', table: rows, src: 'official' };
-          _bskStandCache.set(comp, { t: Date.now(), v });
+  if (hitc && hitc.good && hitc.v && Date.now() - hitc.t < 1800000) return res.json(hitc.v);
+  const nv = v => (v == null || v === '') ? null : (isNaN(+v) ? null : +v);
+  // ✅ 우선2: 공식 공급사 순위만 '정상 순위'로 사용(일부 diary 집계는 순위로 쓰지 않음).
+  //   원문 스키마(docs.thesports.com 확인): 대회의 현재 시즌(season/list: is_current·has_table) →
+  //   /basketball/season/recent/table/detail → results=[{scope,rows:[{team_id,position,won,lost,won_rate,points_avg,points_against_avg}]}]
+  try {
+    const sl = await tsFetch('/basketball/season/list', { uuid: comp }, 6 * 3600e3, 9000).catch(() => null);
+    const seasons = (sl && sl.results) || [];
+    const withTable = seasons.filter(s => s && (s.has_table == 1));
+    const season = withTable.find(s => s.is_current == 1)
+      || withTable.slice().sort((a, b) => (+b.start_time || 0) - (+a.start_time || 0))[0]
+      || seasons.find(s => s.is_current == 1) || seasons[0];
+    if (season && season.id) {
+      const sd = await tsFetch('/basketball/season/recent/table/detail', { uuid: season.id }, 1800e3, 9000).catch(() => null);
+      const tbls = (sd && sd.results) || [];
+      const pickT = tbls.find(t => t && t.scope === 5 && (t.rows || []).length)   // 5=Regular season
+        || tbls.find(t => t && t.scope === 1 && (t.rows || []).length)            // 1=Season
+        || tbls.find(t => t && (t.rows || []).length);
+      const rrows = (pickT && pickT.rows) || [];
+      if (rrows.length >= 2) {
+        const KL = TS_LANG['basketball'] || { team: {}, comp: {} };
+        const nm = await bskResolveNames(rrows.map(r => r.team_id)).catch(() => ({}));
+        const cinfo = await bskCompInfo(comp).catch(() => null);
+        const table = rrows.map(r => {
+          const won = nv(r.won), lost = nv(r.lost);
+          const played = (won != null && lost != null) ? (won + lost) : null;
+          return { teamId: r.team_id, team: (nm[r.team_id] && nm[r.team_id].name) || '', teamKo: (KL.team && KL.team[r.team_id]) || '',
+            logo: (nm[r.team_id] && nm[r.team_id].logo) || '', played, win: won, loss: lost,
+            pct: (r.won_rate != null ? +(+r.won_rate).toFixed(3) : (played ? +(won / played).toFixed(3) : 0)),
+            pf: (r.points_avg != null ? +(+r.points_avg).toFixed(1) : null), pa: (r.points_against_avg != null ? +(+r.points_against_avg).toFixed(1) : null),
+            rank: nv(r.position) };
+        }).filter(r => r.played != null);
+        if (table.length >= 2) {
+          table.sort((a, b) => (a.rank != null && b.rank != null) ? (a.rank - b.rank) : ((b.pct - a.pct) || (b.win - a.win)));
+          table.forEach((r, i) => { if (r.rank == null) r.rank = i + 1; });
+          const v = { found: true, league: (cinfo && cinfo.name) || '', leagueKo: (KL.comp && KL.comp[comp]) || '', leagueLogo: (cinfo && cinfo.logo) || '', season: (season.year || ''), table, src: 'official' };
+          _bskStandCache.set(comp, { t: Date.now(), v, good: true });   // 검증된 정상 캐시
           return res.json(v);
         }
       }
-    } catch (e) { /* 폴백: 아래 diary 집계 */ }
-  }
-  const baseDate = /^\d{4}-\d{2}-\d{2}$/.test(String(req.query.date || '')) ? req.query.date : new Date().toISOString().slice(0, 10);
-  const now = Date.now();
-  const sumSc = arr => (arr || []).reduce((a, b) => a + (+b || 0), 0);
-  const MAX_DAYS = 140, BATCH = 12;
-  const teamMap = {}, rec = {}; let compName = '', compLogo = '';
-  const ymdOf = i => new Date(Date.parse(baseDate + 'T12:00:00Z') - i * 864e5).toISOString().slice(0, 10).replace(/-/g, '');
-  function ingest(d) {
-    if (!d) return;
-    ((d.results_extra || {}).team || []).forEach(t => { if (t && t.id) teamMap[t.id] = { name: t.name || '', logo: t.logo || '' }; });
-    ((d.results_extra || {}).competition || []).forEach(c => { if (c && c.id === comp) { compName = c.name || compName; compLogo = c.logo || compLogo; } });
-    (d.results || []).forEach(x => {
-      if (!x || x.competition_id !== comp) return;
-      const t = x.match_time ? x.match_time * 1000 : 0;
-      const played = (x.status_id === 10 || x.status_id === 12 || x.status_id === 100) || (t && t < now - 3 * 3600e3);
-      const hs = sumSc(x.home_scores), as = sumSc(x.away_scores);
-      if (!played || (hs + as) === 0) return;
-      const H = x.home_team_id, A = x.away_team_id; if (!H || !A) return;
-      rec[H] = rec[H] || { w: 0, l: 0, pf: 0, pa: 0 }; rec[A] = rec[A] || { w: 0, l: 0, pf: 0, pa: 0 };
-      if (hs > as) { rec[H].w++; rec[A].l++; } else { rec[A].w++; rec[H].l++; }
-      rec[H].pf += hs; rec[H].pa += as; rec[A].pf += as; rec[A].pa += hs;
-    });
-  }
-  try {
-    for (let start = 0; start < MAX_DAYS; start += BATCH) {
-      const days = []; for (let i = start; i < Math.min(start + BATCH, MAX_DAYS); i++) days.push(ymdOf(i));
-      const ds = await Promise.all(days.map(ymd => tsFetch('/basketball/match/diary', { date: ymd }, 3600000, 8000).catch(() => null)));
-      ds.forEach(ingest);
     }
-    const KL = TS_LANG['basketball'] || { team: {}, comp: {} };
-    const table = Object.keys(rec).map(tid => {
-      const r = rec[tid], g = r.w + r.l;
-      return { teamId: tid, team: (teamMap[tid] && teamMap[tid].name) || '', teamKo: (KL.team && KL.team[tid]) || '',
-        logo: (teamMap[tid] && teamMap[tid].logo) || '', played: g, win: r.w, loss: r.l,
-        pct: g ? +(r.w / g).toFixed(3) : 0, pf: g ? +(r.pf / g).toFixed(1) : 0, pa: g ? +(r.pa / g).toFixed(1) : 0 };
-    }).filter(r => r.played > 0).sort((a, b) => (b.pct - a.pct) || (b.win - a.win) || (b.pf - a.pf));
-    table.forEach((r, i) => r.rank = i + 1);
-    const v = { found: table.length > 0, league: compName, leagueKo: (KL.comp && KL.comp[comp]) || '', leagueLogo: compLogo, table };
-    if (table.length) _bskStandCache.set(comp, { t: Date.now(), v });
-    res.json(v);
-  } catch (e) { res.json({ found: false, error: String((e && e.message) || e) }); }
+  } catch (e) { /* 아래: 검증된 정상 캐시 → 조회 실패 */ }
+  // 공식 조회 실패 → 같은 대회의 '검증된 정상 캐시'(과거 공식 성공분) 우선 사용(나이 무관)
+  const cg = _bskStandCache.get(comp);
+  if (cg && cg.good && cg.v && cg.v.table && cg.v.table.length) return res.json(Object.assign({}, cg.v, { cached: true }));
+  // 캐시도 없으면 '공식 순위 조회 실패' + 재시도. diary 집계를 정상 순위로 표시하지 않음.
+  return res.json({ found: false, error: 'official-standing-failed', retry: true });
 });
 // ⚽ 팀 과거 경기 — 팀 정보 API가 비어도 diary 집계로 '그 전 기록'을 보여준다(이전 시즌까지). 30분 캐시.
 const _fbTeamGamesCache = new Map();

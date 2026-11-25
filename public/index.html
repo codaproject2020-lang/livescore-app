@@ -4712,7 +4712,14 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
     dtLoading(); var tk=_dtTok;
     fetch("/api/basketball/standing?comp="+encodeURIComponent(g.leagueId)+"&date="+encodeURIComponent(String(g.date||"").slice(0,10)||S.date)+"&id="+encodeURIComponent(g.id||"")).then(function(r){return r.json();}).then(function(j){
       if(!dtFresh(tk))return;
-      if(!j||!j.found||!j.table||!j.table.length){ dtDrop("bskrank"); return; }
+      if(!j||!j.found||!j.table||!j.table.length){
+        // 공식 순위 조회 실패(diary 집계를 정상 순위로 대체하지 않음) → 탭 유지 + 재시도
+        if(j&&(j.error==="official-standing-failed"||j.retry)){
+          dtBody('<div class="msg"><div class="big">⚠️</div>'+tl({en:"Couldn't load official standings.",ko:"공식 순위를 불러오지 못했습니다.",ja:"公式順位を取得できませんでした。",zh:"无法加载官方排名。",es:"No se pudo cargar la clasificación oficial.",hi:"आधिकारिक स्टैंडिंग लोड नहीं हो सकी।",vi:"Không tải được BXH chính thức.",th:"โหลดอันดับอย่างเป็นทางการไม่ได้",ru:"Не удалось загрузить официальную таблицу.",de:"Offizielle Tabelle konnte nicht geladen werden.",fr:"Impossible de charger le classement officiel.",it:"Impossibile caricare la classifica ufficiale."})+'<br><button class="refbtn" id="bskRankRetry" style="margin:12px auto 0;display:block">↻ '+t("retry")+'</button></div>');
+          var _rb=$("#bskRankRetry"); if(_rb)_rb.onclick=function(){ loadBasketballRank(g); }; return;
+        }
+        dtDrop("bskrank"); return;
+      }
       j.table.forEach(function(r){ if(r.teamKo&&r.team)regKoTeam("basketball",r.team,r.teamKo); });
       if(j.leagueKo&&j.league)KN_LEAGUE[knorm(j.league)]=j.leagueKo;
       var hT=g.homeTid, aT=g.awayTid;
