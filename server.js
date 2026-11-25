@@ -29,7 +29,7 @@ const app = express();
 const server = http.createServer(app);
 
 const PORT = process.env.PORT || 3000;
-const APP_VERSION = 'v596';
+const APP_VERSION = 'v597';
 
 // ============================================================
 //  📏 성능 계측(instrumentation) — 엔드포인트 지연·캐시·공급사·WS·이벤트루프
@@ -1326,93 +1326,36 @@ app.get('/api/team/recent', async (req, res) => {
 // 🏟️ 팀 상세(API-Sports team_id 기반) — 이름검색이 아닌 정확한 ID로 조회(동명·여자팀 혼입 방지)
 //    TheSportsDB 무료키(3)가 searchteams에 403을 반환하므로, 순위표에서 넘어온 team_id를 사용.
 app.get('/api/team/as', async (req, res) => {
+  // 🟢 TheSports ONLY. 팀 상세 기본(팀정보 + 최근/다음 경기). API-Sports 미사용.
   const sport = String(req.query.sport || 'football').toLowerCase();
   const id = req.query.id;
-  if (!APISPORTS_KEY) return res.json({ team: null, events: [], next: [], note: 'needKey' });
   if (!id) return res.json({ team: null, events: [], next: [], note: 'noId' });
+  const today = new Date().toISOString().slice(0, 10);
+  const idStr = String(id);
   try {
     if (sport === 'football') {
-      // #EPL 팀 상세: 순위표가 TheSports(팀 uuid)에서 오므로, uuid면 TheSports로 팀 정보 조회(아스널·리버풀 등).
-      const idStr = String(id);
-      if (TS_ON && /^[a-z0-9]{12,}$/i.test(idStr) && !/^\d+$/.test(idStr)) {
+      let team = null;
+      if (typeof TS_ON === 'undefined' ? true : TS_ON) {
         const tt = await tsFootTeam(idStr).catch(() => null);
         if (tt && tt.name) {
           const cc = await _tsCountryName(tt.countryId).catch(() => '');
-          // TheSports foundation_time = 창단 '연도'(예: 1886), 타임스탬프 아님. 유효 연도만, 없으면 빈값(→ '—').
-          const fy = Number(tt.foundation);
-          const team = {
+          const fy = Number(tt.foundation);   // 창단 '연도'
+          team = {
             id: idStr, name: tt.name, badge: tt.logo || '', country: cc || '',
             formed: (fy >= 1800 && fy <= (new Date().getUTCFullYear() + 1)) ? fy : '',
             totalPlayers: tt.totalPlayers || 0, foreignPlayers: tt.foreignPlayers || 0,
             marketValue: tt.marketValue || 0, marketCur: tt.marketCur || ''
           };
-          // 이 플랜은 team_id로 팀 경기 필터가 안 돼 최근/다음 경기는 미제공으로 비움(개요는 팀정보·선수단 표시).
-          return res.json({ team, events: [], next: [], source: 'thesports', recentNote: 'ts-plan' });
         }
-        return res.json({ team: null, events: [], next: [], note: 'ts-noteam' });
       }
-      const [tj, last, next] = await Promise.all([
-        asRaw('football', `/teams?id=${encodeURIComponent(id)}`, 86400000).catch(() => null),
-        asRaw('football', `/fixtures?team=${encodeURIComponent(id)}&last=8`, 300000).catch(() => null),
-        asRaw('football', `/fixtures?team=${encodeURIComponent(id)}&next=6`, 600000).catch(() => null)
-      ]);
-      const t = tj && tj.response && tj.response[0];
-      const team = t ? { id, name: t.team.name, badge: t.team.logo, country: t.team.country, formed: t.team.founded, stadium: t.venue && t.venue.name, city: t.venue && t.venue.city } : null;
-      const mapF = f => ({ id: f.fixture.id, date: f.fixture.date, home: f.teams.home.name, away: f.teams.away.name, hs: f.goals.home, as: f.goals.away, league: f.league.name });
-      return res.json({ team, events: ((last && last.response) || []).map(mapF), next: ((next && next.response) || []).map(mapF) });
+      const tg = await tsTeamDiaryGames('football', idStr, today).catch(() => null);
+      if (!team && tg && tg.name) team = { id: idStr, name: tg.name, badge: tg.logo || '' };
+      return res.json({ team, events: (tg && tg.events) || [], next: (tg && tg.next) || [], source: 'thesports' });
     }
-    if (sport === 'basketball') {
-      const seasonTry = hoopSeason();
-      const [tj, games] = await Promise.all([
-        asRaw('basketball', `/teams?id=${encodeURIComponent(id)}`, 86400000).catch(() => null),
-        asRaw('basketball', `/games?team=${encodeURIComponent(id)}&season=${encodeURIComponent(seasonTry)}`, 600000).catch(() => null)
-      ]);
-      const t = tj && tj.response && tj.response[0];
-      const team = t ? { id, name: t.name, badge: t.logo, country: t.country && t.country.name } : null;
-      const g = (games && games.response) || [];
-      const mapB = x => ({ id: x.id, date: x.date, home: x.teams.home.name, away: x.teams.away.name, hs: x.scores && x.scores.home && x.scores.home.total, as: x.scores && x.scores.away && x.scores.away.total, league: x.league && x.league.name, done: (x.status && /finished|FT|AOT/i.test(x.status.short || x.status.long || '')) });
-      const all = g.map(mapB);
-      const events = all.filter(x => x.done).slice(-8).reverse();
-      const next = all.filter(x => !x.done).slice(0, 6);
-      return res.json({ team, events, next });
-    }
-    if (sport === 'baseball') {
-      // R019: 야구 순위표 팀 클릭 → API-Sports 팀 ID 기반 상세(TheSportsDB 403 우회)
-      const y = new Date().getFullYear();
-      let tj = null, games = null;
-      for (const sy of [y, y - 1]) {
-        if (!tj) tj = await asRaw('baseball', `/teams?id=${encodeURIComponent(id)}`, 86400000).catch(() => null);
-        const gj = await asRaw('baseball', `/games?team=${encodeURIComponent(id)}&season=${sy}`, 600000).catch(() => null);
-        if (gj && gj.response && gj.response.length) { games = gj; break; }
-        if (!games) games = gj;
-      }
-      const t = tj && tj.response && tj.response[0];
-      const team = t ? { id, name: t.name, badge: t.logo, country: t.country && t.country.name } : null;
-      const g = (games && games.response) || [];
-      const mapBb = x => ({ id: x.id, date: x.date, home: x.teams && x.teams.home && x.teams.home.name, away: x.teams && x.teams.away && x.teams.away.name, hs: x.scores && x.scores.home && (x.scores.home.total != null ? x.scores.home.total : x.scores.home), as: x.scores && x.scores.away && (x.scores.away.total != null ? x.scores.away.total : x.scores.away), league: x.league && x.league.name, done: (x.status && /finished|FT|AOT|game finished/i.test((x.status.short || '') + ' ' + (x.status.long || ''))) });
-      const all = g.map(mapBb);
-      const events = all.filter(x => x.done).slice(-8).reverse();
-      const next = all.filter(x => !x.done).slice(0, 6);
-      return res.json({ team, events, next });
-    }
-    if (sport === 'volleyball') {
-      // R019: 배구 순위표 팀 클릭 → API-Sports 팀 ID 기반 상세
-      const y = new Date().getFullYear();
-      let tj = null, games = null;
-      for (const sy of [`${y}-${y + 1}`, String(y), `${y - 1}-${y}`, String(y - 1)]) {
-        if (!tj) tj = await asRaw('volleyball', `/teams?id=${encodeURIComponent(id)}`, 86400000).catch(() => null);
-        const gj = await asRaw('volleyball', `/games?team=${encodeURIComponent(id)}&season=${encodeURIComponent(sy)}`, 600000).catch(() => null);
-        if (gj && gj.response && gj.response.length) { games = gj; break; }
-        if (!games) games = gj;
-      }
-      const t = tj && tj.response && tj.response[0];
-      const team = t ? { id, name: t.name, badge: t.logo, country: t.country && t.country.name } : null;
-      const g = (games && games.response) || [];
-      const mapV = x => ({ id: x.id, date: x.date, home: x.teams && x.teams.home && x.teams.home.name, away: x.teams && x.teams.away && x.teams.away.name, hs: x.scores && (x.scores.home != null ? (x.scores.home.total != null ? x.scores.home.total : x.scores.home) : null), as: x.scores && (x.scores.away != null ? (x.scores.away.total != null ? x.scores.away.total : x.scores.away) : null), league: x.league && x.league.name, done: (x.status && /finished|FT|game finished/i.test((x.status.short || '') + ' ' + (x.status.long || ''))) });
-      const all = g.map(mapV);
-      const events = all.filter(x => x.done).slice(-8).reverse();
-      const next = all.filter(x => !x.done).slice(0, 6);
-      return res.json({ team, events, next });
+    if (sport === 'basketball' || sport === 'baseball' || sport === 'volleyball' || sport === 'hockey') {
+      const tg = await tsTeamDiaryGames(sport, idStr, today).catch(() => null);
+      const team = { id: idStr, name: (tg && tg.name) || '', badge: (tg && tg.logo) || '' };
+      return res.json({ team, events: (tg && tg.events) || [], next: (tg && tg.next) || [], source: 'thesports' });
     }
     return res.json({ team: null, events: [], next: [], note: 'sport-todo' });
   } catch (e) { return res.json({ team: null, events: [], next: [], error: String(e.message || e) }); }
@@ -5155,6 +5098,50 @@ async function tsFootLineup(tsid, wantRaw) {
     { team: '', logo: '', formation: r.away_formation || (r.away && r.away.formation) || '', coach: (r.away_coach && r.away_coach.name) || '', startXI: A.xi, subs: A.subs }
   ];
   return { teams, debug: dbg, confirmed: r.confirmed };
+}
+// 🏟️ TheSports 전용: 팀의 최근(종료)·다음(예정) 경기 + 팀명/로고 — 종목별 diary 스캔(API-Sports 미사용).
+//    window: 과거 ~90일, 미래 ~21일. 결과: {name, logo, events:[최근 종료 최대8], next:[예정 최대6]}.
+const _tsTeamGamesCache = new Map();
+function _tsScoreOf(v) { if (v == null) return null; if (Array.isArray(v)) return v[0] != null ? v[0] : null; return v; }
+async function tsTeamDiaryGames(sport, teamId, baseDate) {
+  teamId = String(teamId);
+  const ck = sport + '|' + teamId + '|' + baseDate;
+  const hit = _tsTeamGamesCache.get(ck); if (hit && Date.now() - hit.t < 1800e3) return hit.v;
+  const path = '/' + sport + '/match/diary';
+  const now = Math.floor(Date.now() / 1000);
+  const base = Date.parse(baseDate + 'T12:00:00Z');
+  const ymdOf = off => new Date(base - off * 864e5).toISOString().slice(0, 10).replace(/-/g, '');
+  const offsets = []; for (let o = -21; o <= 90; o++) offsets.push(o);   // 미래 21일 + 과거 90일
+  let name = '', logo = '', teamNames = {}, teamLogos = {}, recent = [], upcoming = [];
+  try {
+    const BATCH = 14;
+    for (let s = 0; s < offsets.length; s += BATCH) {
+      const chunk = offsets.slice(s, s + BATCH);
+      const ds = await Promise.all(chunk.map(o => tsFetch(path, { date: ymdOf(o) }, 3600e3, 8000).catch(() => null)));
+      ds.forEach(d => {
+        if (!d) return;
+        const ex = d.results_extra || {};
+        (ex.team || []).forEach(t => { teamNames[t.id] = t.name; teamLogos[t.id] = t.logo; });
+        (d.results || []).forEach(m => {
+          const isH = String(m.home_team_id) === teamId, isA = String(m.away_team_id) === teamId;
+          if (!isH && !isA) return;
+          if (!name) { name = teamNames[teamId] || ''; logo = teamLogos[teamId] || ''; }
+          const mt = Number(m.match_time) || 0;
+          const hs = _tsScoreOf(m.home_scores), as = _tsScoreOf(m.away_scores);
+          const row = { id: m.id, date: mt ? new Date(mt * 1000).toISOString() : '', mt, home: teamNames[m.home_team_id] || String(m.home_team_id), away: teamNames[m.away_team_id] || String(m.away_team_id), hs, as, league: (m.competition_id && (ex.competition || []).find(c => c.id === m.competition_id) || {}).name || '' };
+          const finished = (Number(m.status_id) === 8) || (mt && mt < now - 3 * 3600 && hs != null && as != null);
+          if (finished) recent.push(row); else if (mt && mt > now - 3 * 3600) upcoming.push(row);
+        });
+      });
+    }
+  } catch (e) { }
+  // 중복 제거 + 정렬
+  const uniq = arr => { const seen = {}; return arr.filter(x => { if (seen[x.id]) return false; seen[x.id] = 1; return true; }); };
+  recent = uniq(recent).sort((a, b) => b.mt - a.mt).slice(0, 8).map(x => ({ id: x.id, date: x.date, home: x.home, away: x.away, hs: x.hs, as: x.as, league: x.league }));
+  upcoming = uniq(upcoming).sort((a, b) => a.mt - b.mt).slice(0, 6).map(x => ({ id: x.id, date: x.date, home: x.home, away: x.away, league: x.league }));
+  const v = { name, logo, events: recent, next: upcoming };
+  _tsTeamGamesCache.set(ck, { t: Date.now(), v });
+  return v;
 }
 // ⚽ TheSports 전용: 팀의 '직전 종료 경기 라인업(선발+벤치)' — diary로 최근 종료 경기 tsid를 찾아 tsFootLineup으로 라인업 추출.
 //    API-Sports 미사용. 선수단 패키지 권한이 없을 때 선수단 탭 폴백에 사용(실제 출전 선수).
