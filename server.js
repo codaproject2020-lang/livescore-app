@@ -21,7 +21,7 @@ const app = express();
 const server = http.createServer(app);
 
 const PORT = process.env.PORT || 3000;
-const APP_VERSION = 'v581';
+const APP_VERSION = 'v582';
 
 // ============================================================
 //  📏 성능 계측(instrumentation) — 엔드포인트 지연·캐시·공급사·WS·이벤트루프
@@ -3758,6 +3758,42 @@ app.get('/api/basketball/standing', async (req, res) => {
   if (!comp) return res.json({ found: false, error: 'no comp' });
   const hitc = _bskStandCache.get(comp);
   if (hitc && Date.now() - hitc.t < 1800000) return res.json(hitc.v);
+  // 🏆 우선2: 공식 공급사 순위(standing/detail) 우선 — diary 집계가 일부 경기만 잡아 순위가 틀리던 문제(예: KBL 7경기 vs 공식 15~16경기).
+  //   경기 uuid(id)로 시즌 해석 → 공식 표. 팀명까지 확보됐을 때만 채택, 아니면 아래 diary 집계로 폴백(회귀 없음).
+  const _mid = String(req.query.id || '').replace(/^ts(?=[a-z0-9]{10,})/, '');
+  if (_mid) {
+    try {
+      const a = await tsFetch('/basketball/match/analysis', { uuid: _mid }, 300000, 9000).catch(() => null);
+      const info = a && a.results && a.results.info;
+      const seasonId = info && info[9] && info[9][0];
+      if (seasonId) {
+        const sd = await tsFetch('/basketball/standing/detail', { uuid: seasonId }, 600000, 9000).catch(() => null);
+        const tables = (sd && sd.results && sd.results.tables) || [];
+        const ex = (sd && sd.results_extra) || {};
+        const tnm = {}; ((ex.team) || []).forEach(t => { if (t && t.id) tnm[t.id] = { name: t.name || '', logo: t.logo || '' }; });
+        const KL0 = TS_LANG['basketball'] || { team: {}, comp: {} };
+        const nv = v => (v == null || v === '') ? null : (isNaN(+v) ? null : +v);
+        const rows = [];
+        tables.forEach(tb => (tb.rows || []).forEach(rw => {
+          const won = nv(rw.won != null ? rw.won : rw.win), loss = nv(rw.loss != null ? rw.loss : rw.lost);
+          let played = nv(rw.total != null ? rw.total : rw.played);
+          if (played == null && won != null && loss != null) played = won + loss;
+          if (!played || played <= 0 || won == null || loss == null) return;
+          const pf = nv(rw.score != null ? rw.score : rw.goals), pa = nv(rw.score_against != null ? rw.score_against : rw.goals_against);
+          rows.push({ teamId: rw.team_id, team: (tnm[rw.team_id] && tnm[rw.team_id].name) || '', teamKo: (KL0.team && KL0.team[rw.team_id]) || '', logo: (tnm[rw.team_id] && tnm[rw.team_id].logo) || '', played, win: won, loss, pct: played ? +(won / played).toFixed(3) : 0, pf: (pf != null && played) ? +(pf / played).toFixed(1) : 0, pa: (pa != null && played) ? +(pa / played).toFixed(1) : 0, rank: nv(rw.position) });
+        }));
+        const named = rows.filter(r => r.team || r.teamKo).length;
+        if (rows.length >= 2 && named >= rows.length - 1) {   // 공식 표 + 팀명 확보 시에만 채택(부분·무명 시 폴백)
+          rows.sort((x, y) => (x.rank != null && y.rank != null) ? (x.rank - y.rank) : ((y.pct - x.pct) || (y.win - x.win)));
+          rows.forEach((r, i) => { if (r.rank == null) r.rank = i + 1; });
+          const compName = (((ex.competition) || []).find(c => c && c.id === comp) || {}).name || '';
+          const v = { found: true, league: compName, leagueKo: (KL0.comp && KL0.comp[comp]) || '', leagueLogo: '', table: rows, src: 'official' };
+          _bskStandCache.set(comp, { t: Date.now(), v });
+          return res.json(v);
+        }
+      }
+    } catch (e) { /* 폴백: 아래 diary 집계 */ }
+  }
   const baseDate = /^\d{4}-\d{2}-\d{2}$/.test(String(req.query.date || '')) ? req.query.date : new Date().toISOString().slice(0, 10);
   const now = Date.now();
   const sumSc = arr => (arr || []).reduce((a, b) => a + (+b || 0), 0);
@@ -5245,7 +5281,10 @@ app.get('/api/football/live', async (req, res) => {
       inc.forEach(ic => {
         const k = KIND[ic.type]; if (!k) return;
         const team = ic.position === 1 ? 'home' : (ic.position === 2 ? 'away' : '');
-        const e = { minute: (ic.time != null ? ic.time : null), extra: (ic.add_time || 0), team, kind: k };
+        // ⚽ 추가시간: TheSports time은 추가시간이 포함된 총 경과분(예: 90+10 이벤트 → time=100, add_time=10).
+        //   화면은 '기준분+추가'(90+10)로 표기해야 하므로 base = time - add_time. 추가 없으면 그대로. (90 고정 아님: 45+/105+/120+도 자연 처리)
+        const _addT = ic.add_time ? Number(ic.add_time) : 0;
+        const e = { minute: (ic.time != null ? (_addT ? Math.max(Number(ic.time) - _addT, 0) : Number(ic.time)) : null), extra: _addT, team, kind: k };
         if (k === 'goal') { e.player = ic.player_name || ''; e.assist = ic.assist1_name || ''; e.hs = (ic.home_score != null ? ic.home_score : null); e.as = (ic.away_score != null ? ic.away_score : null); e.own = (ic.type === 17); e.pen = (ic.type === 8); }
         else if (k === 'sub') { e.inName = ic.in_player_name || ''; e.outName = ic.out_player_name || ''; }
         else if (k === 'card') { e.player = ic.player_name || ''; e.card = (ic.type === 3 ? 'yellow' : (ic.type === 15 ? 'yellowred' : 'red')); }
