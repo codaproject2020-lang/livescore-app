@@ -490,6 +490,41 @@ table.rank td.rk.promo::before{content:"";position:absolute;left:0;top:4px;botto
 .ev-goal .eg-as{font-size:11.5px;color:var(--muted);font-weight:600}
 .ev-goal .eg-sc{font-size:20px;font-weight:900;color:var(--navy);letter-spacing:1px}
 .tl-info{margin-top:16px}
+/* ===== D01 확정: 이벤트 군청 패널 (밝은/어두운 테마 무관 군청 고정) ===== */
+.evpanel{background:#102641;border:1px solid #2B4866;border-radius:16px;padding:14px;margin:2px 0 14px;color:#fff}
+.evp-h{display:flex;align-items:center;gap:8px;margin-bottom:12px}
+.evp-h .bar{width:4px;height:18px;border-radius:2px;background:#E30B3B;flex:0 0 auto}
+.evp-h .evp-t{font-size:16px;font-weight:800;color:#fff;flex:1}
+.evp-teams{display:flex;justify-content:space-between;align-items:center;font-size:11.5px;color:#B8C7D8;font-weight:700;margin:2px 0 2px;gap:8px}
+.evp-teams .et{display:flex;align-items:center;gap:5px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.evp-teams .et.a{flex-direction:row-reverse;text-align:right}
+.evp-teams img{width:16px;height:16px;object-fit:contain;flex:0 0 auto}
+.evpanel .tl::before{background:#45617C}
+.evpanel .tl .who{color:#fff}
+.evpanel .tl .ass{color:#B8C7D8}
+.evpanel .tl-sub{color:#dbe4f0}
+.evpanel .tl-dt{color:#9fb2cc}
+.tl-pill{display:inline-block;background:#294763;color:#fff;font-weight:800;font-size:12px;border-radius:999px;padding:4px 0;min-width:46px;text-align:center}
+.tl-ev{display:inline-flex;align-items:center;gap:6px;flex-wrap:wrap}
+.tl-row.a .tl-ev{flex-direction:row-reverse}
+.tl-ico{display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:50%;font-size:11px;flex:0 0 auto;color:#fff;line-height:1}
+.tl-ico.up{background:#21C88A}.tl-ico.down{background:#F0446B}
+.tl-ico.cardy{background:#FFD43B;border-radius:3px;width:14px;height:19px}
+.tl-ico.cardr{background:#E30B3B;border-radius:3px;width:14px;height:19px}
+.tl-ico.goal{background:transparent;font-size:16px;width:auto}
+.tl-sub .subln{display:inline-flex;align-items:center;gap:5px}
+.evpanel .tl-row.goal{background:#193653;border-radius:10px}
+.evpanel .tl-row.goal.h{border-left:4px solid #E30B3B}
+.evpanel .tl-row.goal.a{border-right:4px solid #E30B3B}
+.tl-gsc{display:inline-block;background:#5B2740;color:#fff;font-weight:900;font-size:12px;border-radius:8px;padding:4px 10px;white-space:nowrap}
+.evpanel .tl-ht{background:transparent;color:#cdd8e6;max-width:none;border-top:1px solid #2B4866;border-radius:0;margin:10px 0 4px;padding:9px 0 2px}
+.evpanel .tl-ht b{color:#fff}
+.evpanel .tl-ht.tl-top{background:transparent;color:#fff;border-top:none;border-bottom:1px solid #2B4866;padding:0 0 9px;margin:2px 0 6px}
+.evp-all{display:block;margin:12px auto 0;background:#193653;border:1px solid #2B4866;color:#fff;font-weight:800;font-size:13px;border-radius:12px;padding:11px 18px;font-family:inherit}
+.evp-all:active{background:#1f4063}
+.evpanel .tl-chips{padding:0 0 10px}
+.evpanel .fchip{background:#193653;border:1px solid #2B4866;color:#cdd8e6}
+.evpanel .fchip.on{background:#E30B3B;border-color:#E30B3B;color:#fff}
 /* 03 전체/전반/후반 세그먼트 */
 .st-seg{display:flex;gap:4px;background:var(--soft);border:1px solid var(--line);border-radius:12px;padding:3px;margin-bottom:12px}
 .st-seg .segb{flex:1;padding:8px 6px;border-radius:9px;font-weight:800;font-size:13px;color:var(--muted);background:transparent}
@@ -4086,25 +4121,30 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
           var assistLbl=tl({en:"Assist",ko:"도움",ja:"アシスト",zh:"助攻",es:"Asist.",hi:"सहायता",vi:"Kiến tạo",th:"แอสซิสต์",ru:"Пас",de:"Vorlage",fr:"Passe",it:"Assist"});
           var rev=ev.slice().reverse();
           function inner(e){
-            if(e.kind==="sub") return '<div class="tl-sub">'+(e.inName?'▲ '+esc(e.inName):'')+(e.outName?'<br>▼ '+esc(e.outName):'')+'</div>';
+            if(e.kind==="sub") return '<div class="tl-sub">'+(e.inName?'<span class="subln"><span class="tl-ico up">▲</span>'+esc(e.inName)+'</span>':'')+(e.outName?'<br><span class="subln"><span class="tl-ico down">▼</span>'+esc(e.outName)+'</span>':'')+'</div>';
             var pstr=e.player?esc(e.player):(e.kind==="goal"?esc(goalLbl):'');
             var ps='<span class="who">'+pstr+(e.kind==="goal"&&e.own?' (OG)':'')+(e.kind==="goal"&&e.pen?' (PEN)':'')+'</span>';
             if(e.kind==="goal"&&e.assist)ps+=' <span class="ass">('+esc(assistLbl)+' '+esc(e.assist)+')</span>';
-            if(e.kind==="goal"&&(e.hs!=null||e.as!=null))ps+='<div class="tl-sc">'+(e.hs==null?0:e.hs)+' – '+(e.as==null?0:e.as)+'</div>';
-            return ps;
+            return ps;   // 득점 점수는 반대편 열 배지로
           }
+          function icoS(e){ if(e.kind==="goal")return '<span class="tl-ico goal">⚽</span>'; if(e.kind==="card")return (e.card==="yellow"?'<span class="tl-ico cardy"></span>':'<span class="tl-ico cardr"></span>'); return ''; }
           var htShown=false, rows='';
           // 01 시안: 상단 상태+점수 구분선(종료/진행). 예정·점수 미수신은 생략(0 주입 금지).
           if(stateOf(g)!=="scheduled" && g.hs!=null && g.as!=null) rows+='<div class="tl-ht tl-top">'+esc(statusText(g))+'<b>'+g.hs+' – '+g.as+'</b></div>';
           rev.forEach(function(e,i){
             var isHome=e.team==="home";
-            var ic=e.kind==="goal"?'⚽':(e.kind==="card"?(e.card==="yellow"?'🟨':(e.card==="yellowred"?'🟨🟥':'🟥')):(e.kind==="sub"?'🔄':'•'));
             var minTxt=(e.minute!=null?e.minute+(e.extra?'+'+e.extra:''):'')+"'";
-            rows+='<div class="tl-row '+(isHome?"h":"a")+'"><div class="tl-l">'+(isHome?inner(e):'')+'</div><div class="tl-c"><span class="tl-ic">'+ic+'</span><span class="tl-min">'+minTxt+'</span></div><div class="tl-r">'+(isHome?'':inner(e))+'</div></div>';
+            var side='<span class="tl-ev">'+icoS(e)+inner(e)+'</span>';
+            var isGoal=e.kind==="goal";
+            var gsc=(isGoal&&(e.hs!=null||e.as!=null))?('<span class="tl-gsc">'+(e.hs==null?0:e.hs)+' – '+(e.as==null?0:e.as)+'</span>'):'';
+            var goalCls=isGoal?' goal':'';
+            rows+='<div class="tl-row '+(isHome?"h":"a")+goalCls+'"><div class="tl-l">'+(isHome?side:gsc)+'</div><div class="tl-c"><span class="tl-pill">'+minTxt+'</span></div><div class="tl-r">'+(isHome?gsc:side)+'</div></div>';
             var cur=e.minute||0, nxt=(rev[i+1]&&rev[i+1].minute)||0;
             if(!htShown&&cur>45&&nxt<=45&&nxt>0){ rows+='<div class="tl-ht">'+t("htEnd")+'</div>'; htShown=true; }
           });
-          dtBody('<div class="tl">'+rows+'</div>');
+          var evpHs='<div class="evp-h"><span class="bar"></span><span class="evp-t">'+tl({en:"Match events",ko:"경기 이벤트",ja:"試合イベント",zh:"比赛事件",es:"Eventos",hi:"मैच इवेंट",vi:"Sự kiện trận",th:"เหตุการณ์",ru:"События матча",de:"Spielereignisse",fr:"Événements",it:"Eventi"})+'</span></div>';
+          var evpTs='<div class="evp-teams"><span class="et">'+(g.homeLogo?'<img src="'+esc(g.homeLogo)+'" onerror="this.remove()">':'')+esc(tnTeam(g.home||""))+' (H)</span><span class="et a">'+(g.awayLogo?'<img src="'+esc(g.awayLogo)+'" onerror="this.remove()">':'')+esc(tnTeam(g.away||""))+' (A)</span></div>';
+          dtBody('<div class="evpanel">'+evpHs+evpTs+'<div class="tl">'+rows+'</div></div>');
           return;
         }
         var h='<div class="flow">'+ev.map(function(e){ var who=e.team===1?"h":(e.team===2?"a":""); return '<div class="fe '+who+'"><span class="fcl">'+esc(e.minute?(e.minute+"'"):"")+'</span><span class="ftx">'+esc(e.text||"")+'</span></div>'; }).join("")+'</div>';
@@ -4136,10 +4176,16 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
       function evInner(e){
         var plink=e.pid?('<span class="who pl-c" data-pid="'+esc(String(e.pid))+'" data-pnm="'+esc(e.player||"")+'">'+esc(e.player||"")+'</span>'):('<span class="who">'+esc(e.player||"")+'</span>');
         var av=(e.player&&e._kind!=="sub")?('<span class="tl-av">'+avatarHTML(evPhoto(e.player),e.player,null,26)+'</span>'):'';
-        var sub=e._kind==="sub"?('<div class="tl-sub">▲ '+esc(e.player||"")+(e.assist?'<br>▼ '+esc(e.assist):'')+'</div>'):(av+plink+(e.assist?' <span class="ass">('+esc(e.assist)+')</span>':''));
+        // D01: 교체는 투입(초록▲)/아웃(빨강▼) 두 줄 + 색 구분 화살표
+        var sub=e._kind==="sub"?('<div class="tl-sub"><span class="subln"><span class="tl-ico up">▲</span>'+esc(e.player||"")+'</span>'+(e.assist?'<br><span class="subln"><span class="tl-ico down">▼</span>'+esc(e.assist)+'</span>':'')+'</div>'):(av+plink+(e.assist?' <span class="ass">('+esc(e.assist)+')</span>':''));
         var detailTxt=(e.detail&&!/normal goal/i.test(e.detail)&&e._kind!=="sub")?'<div class="tl-dt">'+esc(e.detail)+'</div>':'';
-        var scoreTag=e._isGoal?'<div class="tl-sc">'+e._hs+' – '+e._as+'</div>':'';
-        return sub+detailTxt+scoreTag;
+        return sub+detailTxt;   // 득점 당시 점수는 반대편 열에 배지로(renderTl에서 처리)
+      }
+      // D01: 이벤트 종류 아이콘 배지(골/카드). 교체 화살표는 텍스트에 포함되어 여기선 생략.
+      function icoBadge(e){
+        if(e._kind==="goal") return '<span class="tl-ico goal">⚽</span>';
+        if(e._kind==="card") return /red/i.test(e.detail)?'<span class="tl-ico cardr"></span>':'<span class="tl-ico cardy"></span>';
+        return '';
       }
       function renderTl(){
         var box=$("#tlBody"); if(!box)return;
@@ -4159,7 +4205,10 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
           var minTxt=(e.minute!=null?e.minute+(e.extra?"+"+e.extra:""):"")+"'";
           // 이 이벤트가 후반(>45)이고 다음(아래) 이벤트가 전반이면 그 사이에 '전반 종료' 삽입
           var cur=e.minute||0, nxt=(rev[i+1]&&rev[i+1].minute)||0;
-          h+='<div class="tl-row '+(isHome?"h":"a")+'"><div class="tl-l">'+(isHome?evInner(e):'')+'</div><div class="tl-c"><span class="tl-ic">'+emoOf(e)+'</span><span class="tl-min">'+minTxt+'</span></div><div class="tl-r">'+(isHome?'':evInner(e))+'</div></div>';
+          var side='<span class="tl-ev">'+icoBadge(e)+evInner(e)+'</span>';
+          var gsc=e._isGoal?('<span class="tl-gsc">'+e._hs+' – '+e._as+'</span>'):'';
+          var goalCls=e._isGoal?' goal':'';
+          h+='<div class="tl-row '+(isHome?"h":"a")+goalCls+'"><div class="tl-l">'+(isHome?side:gsc)+'</div><div class="tl-c"><span class="tl-pill">'+minTxt+'</span></div><div class="tl-r">'+(isHome?gsc:side)+'</div></div>';
           if(!htShown && cur>45 && nxt<=45 && nxt>0){ var _bn=rev[i+1]; var _hht=(_bn&&_bn._hs!=null)?(' <b>'+_bn._hs+' – '+_bn._as+'</b>'):''; h+='<div class="tl-ht">'+t("htEnd")+_hht+'</div>'; htShown=true; }
         });
         box.innerHTML='<div class="tl">'+h+'</div>';
@@ -4179,7 +4228,11 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
           '<div class="eg-nm">'+esc(lastGoal.player||"")+'</div>'+(lastGoal.assist?'<div class="eg-as">'+tl({en:"Assist",ko:"도움",ja:"アシスト",zh:"助攻",es:"Asist.",hi:"सहायता",vi:"Kiến tạo",th:"แอสซิสต์",ru:"Пас",de:"Vorlage",fr:"Passe",it:"Assist"})+' '+esc(lastGoal.assist)+'</div>':'')+'</div>'+
           '<div class="eg-sc">'+lastGoal._hs+' – '+lastGoal._as+'</div></div>';
       }
-      dtBody(goalBanner+'<div class="tl-chips" id="tlChips">'+chips.map(function(c){return '<button class="fchip'+(c[0]==="all"?" on":"")+'" data-f="'+c[0]+'">'+c[1]+'</button>';}).join("")+'</div><div id="tlBody"></div>'+info);
+      // D01 확정: 타임라인 전체를 #102641 군청 패널에 (밝은 테마에서도 군청). 제목·양팀·기존 필터 포함.
+      var evpH='<div class="evp-h"><span class="bar"></span><span class="evp-t">'+tl({en:"Match events",ko:"경기 이벤트",ja:"試合イベント",zh:"比赛事件",es:"Eventos",hi:"मैच इवेंट",vi:"Sự kiện trận",th:"เหตุการณ์",ru:"События матча",de:"Spielereignisse",fr:"Événements",it:"Eventi"})+'</span></div>';
+      var evpTeams='<div class="evp-teams"><span class="et">'+(g.homeLogo?'<img src="'+esc(g.homeLogo)+'" onerror="this.remove()">':'')+esc(tnTeam(g.home||""))+' (H)</span><span class="et a">'+(g.awayLogo?'<img src="'+esc(g.awayLogo)+'" onerror="this.remove()">':'')+esc(tnTeam(g.away||""))+' (A)</span></div>';
+      var chipsHtml='<div class="tl-chips" id="tlChips">'+chips.map(function(c){return '<button class="fchip'+(c[0]==="all"?" on":"")+'" data-f="'+c[0]+'">'+c[1]+'</button>';}).join("")+'</div>';
+      dtBody(goalBanner+'<div class="evpanel">'+evpH+evpTeams+chipsHtml+'<div id="tlBody"></div></div>'+info);
       renderTl();
       $("#tlChips").querySelectorAll(".fchip").forEach(function(b){ b.onclick=function(){ evFilter=b.dataset.f; $("#tlChips").querySelectorAll(".fchip").forEach(function(x){x.classList.toggle("on",x===b);}); renderTl(); }; });
     }).catch(function(){ dtBody('<div class="msg"><div class="big">⚠️</div>'+t("m_evFail")+'</div>'); });
