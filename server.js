@@ -21,7 +21,7 @@ const app = express();
 const server = http.createServer(app);
 
 const PORT = process.env.PORT || 3000;
-const APP_VERSION = 'v583';
+const APP_VERSION = 'v584';
 
 // ============================================================
 //  📏 성능 계측(instrumentation) — 엔드포인트 지연·캐시·공급사·WS·이벤트루프
@@ -3799,7 +3799,22 @@ app.get('/api/basketball/standing', async (req, res) => {
         }
       }
     }
-  } catch (e) { /* 아래: 검증된 정상 캐시 → 조회 실패 */ }
+  } catch (e) { /* 아래: API-Sports 공식 → 검증된 정상 캐시 → 조회 실패 */ }
+  // TheSports가 해당 대회 순위표를 제공하지 않을 때(예: KBL has_table=0) → 별도 순위 화면과 '동일 소스'인 API-Sports 공식 순위로 폴백.
+  //   (diary 집계가 아니라 공급사 공식 순위. 두 화면이 같은 대회·시즌 표를 쓰도록 통일.)
+  try {
+    const leagueName = String(req.query.league || '');
+    if (leagueName) {
+      const ab = await rankBasketball(leagueName, String(req.query.season || '')).catch(() => null);
+      if (ab && ab.table && ab.table.length >= 2) {
+        const KL = TS_LANG['basketball'] || { team: {}, comp: {} };
+        const table = ab.table.map(r => ({ teamId: r.teamId, team: r.team, teamKo: (KL.team && KL.team[r.teamId]) || '', logo: r.logo, played: r.played, win: r.win, loss: r.loss, pct: (r.pct != null ? parseFloat(r.pct) : (r.played ? +(r.win / r.played).toFixed(3) : 0)), pf: null, pa: null, rank: r.rank }));
+        const v = { found: true, league: leagueName, leagueKo: (KL.comp && KL.comp[comp]) || '', leagueLogo: '', season: ab.season || '', table, src: 'apisports' };
+        _bskStandCache.set(comp, { t: Date.now(), v, good: true });
+        return res.json(v);
+      }
+    }
+  } catch (e) { /* 폴백 실패 → 캐시/조회실패 */ }
   // 공식 조회 실패 → 같은 대회의 '검증된 정상 캐시'(과거 공식 성공분) 우선 사용(나이 무관)
   const cg = _bskStandCache.get(comp);
   if (cg && cg.good && cg.v && cg.v.table && cg.v.table.length) return res.json(Object.assign({}, cg.v, { cached: true }));

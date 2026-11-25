@@ -4710,7 +4710,7 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
   function loadBasketballRank(g){
     if(!g.leagueId){ dtDrop("bskrank"); return; }
     dtLoading(); var tk=_dtTok;
-    fetch("/api/basketball/standing?comp="+encodeURIComponent(g.leagueId)+"&date="+encodeURIComponent(String(g.date||"").slice(0,10)||S.date)+"&id="+encodeURIComponent(g.id||"")).then(function(r){return r.json();}).then(function(j){
+    fetch("/api/basketball/standing?comp="+encodeURIComponent(g.leagueId)+"&league="+encodeURIComponent(g.league||"")+"&date="+encodeURIComponent(String(g.date||"").slice(0,10)||S.date)+"&id="+encodeURIComponent(g.id||"")).then(function(r){return r.json();}).then(function(j){
       if(!dtFresh(tk))return;
       if(!j||!j.found||!j.table||!j.table.length){
         // 공식 순위 조회 실패(diary 집계를 정상 순위로 대체하지 않음) → 탭 유지 + 재시도
