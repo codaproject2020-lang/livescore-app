@@ -4,6 +4,14 @@
 //  - WebSocket: 실시간 채팅 + 접속인원(presence)
 //  - 정적 프론트엔드 서빙
 // ============================================================
+// ⚠️⚠️ 데이터 소스 정책(2026-11 확정): 모든 API는 **TheSports(tsFetch)만** 사용.
+//   API-Sports 구독 해지됨 → asRaw()/APISPORTS_KEY 에 의존하는 경로는 전부 '죽은 코드'이며
+//   신규 기능에서 asRaw() 사용 금지. 기존 API-Sports 전용 엔드포인트(아래)는 TheSports로 이관 필요:
+//   /api/team/as, /api/team/squad, /api/team/stats, /api/player, /api/table(축구外 폴백),
+//   /api/football/teamanalysis, /api/basketball/{teamstats,shotchart,playerbox}, /api/mlb/predlineup 등.
+//   (라이브 스코어 메인 피드는 TS/GS=TheSports·Goalserve 이므로 영향 없음.)
+//   migration 체크리스트: LIVEUP-API-SOURCE-AUDIT.md 참고.
+// ============================================================
 import express from 'express';
 import { WebSocketServer } from 'ws';
 import http from 'http';
@@ -21,7 +29,7 @@ const app = express();
 const server = http.createServer(app);
 
 const PORT = process.env.PORT || 3000;
-const APP_VERSION = 'v595';
+const APP_VERSION = 'v596';
 
 // ============================================================
 //  📏 성능 계측(instrumentation) — 엔드포인트 지연·캐시·공급사·WS·이벤트루프
@@ -1414,22 +1422,18 @@ app.get('/api/team/as', async (req, res) => {
 app.get('/api/team/squad', async (req, res) => {
   const sport = String(req.query.sport || 'football').toLowerCase();
   const id = req.query.id;
-  if (!APISPORTS_KEY) return res.json({ players: [], note: 'needKey' });
+  if (!APISPORTS_KEY && sport !== 'football') return res.json({ players: [], note: 'needKey' });   // 축구는 TheSports 사용(키 불필요)
   if (!id) return res.json({ players: [], note: 'noId' });
   try {
     if (sport === 'football') {
-      const j = await asRaw('football', `/players/squads?team=${encodeURIComponent(id)}`, 86400000).catch(() => null);
-      const sq = j && j.response && j.response[0];
-      const players = ((sq && sq.players) || []).map(p => ({ id: p.id, name: p.name, number: p.number, pos: p.position, photo: p.photo || '', age: p.age }));
-      if (players.length) return res.json({ players, note: '' });
-      // 폴백: 제공처 선수단 미제공 → 직전 경기 라인업(선발+벤치)을 '엔트리'로. 가짜 생성 아님(실제 출전 선수).
-      const last = await lastMatchLineup(parseInt(id, 10)).catch(() => null);
+      // ⚽ TheSports 전용: 정식 선수단 패키지 권한이 없어 '직전 경기 라인업(선발+벤치)'을 엔트리로 제공(실제 출전 선수, 가짜 생성 없음).
+      const last = await tsFbTeamLastLineup(String(id), new Date().toISOString().slice(0, 10)).catch(() => null);
       if (last && (last.startXI || []).length) {
-        const mk = (p, role) => ({ id: p.id, name: p.name, number: p.number, pos: p.pos, photo: p.photo || '', role });
+        const mk = (p, role) => ({ id: p.id, name: p.name, number: (p.number != null ? p.number : ''), pos: p.pos || '', photo: p.photo || '', role });
         const lp = [].concat((last.startXI || []).map(p => mk(p, 'start')), (last.subs || []).map(p => mk(p, 'bench')));
-        return res.json({ players: lp, kind: 'last', formation: last.formation || '', coach: last.coach || '', lastDate: last.lastDate || '', lastOpp: last.lastOpp || '', note: 'last' });
+        return res.json({ players: lp, kind: 'last', formation: last.formation || '', coach: last.coach || '', lastDate: last.lastDate || '', lastOpp: last.lastOpp || '', note: 'last', src: 'thesports' });
       }
-      return res.json({ players: [], note: 'empty' });
+      return res.json({ players: [], note: 'empty', src: 'thesports' });
     }
     if (sport === 'basketball') {
       // R024: 새 시즌 로스터 미반영 시 직전 시즌으로 폴백(선수단 빈 화면 방지). API-Sports 농구는 선수 사진 미제공.
@@ -5151,6 +5155,46 @@ async function tsFootLineup(tsid, wantRaw) {
     { team: '', logo: '', formation: r.away_formation || (r.away && r.away.formation) || '', coach: (r.away_coach && r.away_coach.name) || '', startXI: A.xi, subs: A.subs }
   ];
   return { teams, debug: dbg, confirmed: r.confirmed };
+}
+// ⚽ TheSports 전용: 팀의 '직전 종료 경기 라인업(선발+벤치)' — diary로 최근 종료 경기 tsid를 찾아 tsFootLineup으로 라인업 추출.
+//    API-Sports 미사용. 선수단 패키지 권한이 없을 때 선수단 탭 폴백에 사용(실제 출전 선수).
+const _tsSquadCache = new Map();
+async function tsFbTeamLastLineup(teamId, baseDate) {
+  teamId = String(teamId);
+  const ck = teamId + '|' + baseDate;
+  const hit = _tsSquadCache.get(ck); if (hit && Date.now() - hit.t < 6 * 3600e3) return hit.v;
+  const ymdOf = i => new Date(Date.parse(baseDate + 'T12:00:00Z') - i * 864e5).toISOString().slice(0, 10).replace(/-/g, '');
+  const MAX_DAYS = 160, BATCH = 12;
+  let found = null, teamNames = {};
+  try {
+    for (let start = 0; start < MAX_DAYS && !found; start += BATCH) {
+      const days = []; for (let i = start; i < Math.min(start + BATCH, MAX_DAYS); i++) days.push(ymdOf(i));
+      const ds = await Promise.all(days.map(ymd => tsFetch('/football/match/diary', { date: ymd }, 6 * 3600e3, 8000).catch(() => null)));
+      ds.forEach(d => {
+        if (!d) return;
+        ((d.results_extra && d.results_extra.team) || []).forEach(t => { teamNames[t.id] = t.name; });
+        (d.results || []).forEach(m => {
+          if (!(String(m.home_team_id) === teamId || String(m.away_team_id) === teamId)) return;
+          if (Number(m.status_id) !== 8) return;   // 8=FT(정상 종료)만
+          const mt = Number(m.match_time) || 0;
+          if (!found || mt > found.mt) found = { id: m.id, mt, isHome: String(m.home_team_id) === teamId, homeTid: m.home_team_id, awayTid: m.away_team_id };
+        });
+      });
+    }
+  } catch (e) { }
+  if (!found) { _tsSquadCache.set(ck, { t: Date.now(), v: null }); return null; }
+  const lu = await tsFootLineup(found.id).catch(() => null);
+  const side = lu && lu.teams ? (found.isHome ? lu.teams[0] : lu.teams[1]) : null;
+  if (!side || !(side.startXI || []).length) { _tsSquadCache.set(ck, { t: Date.now(), v: null }); return null; }
+  const oppTid = found.isHome ? found.awayTid : found.homeTid;
+  const v = {
+    formation: side.formation || '', coach: side.coach || '',
+    startXI: side.startXI || [], subs: side.subs || [],
+    lastDate: found.mt ? new Date(found.mt * 1000).toISOString() : '',
+    lastOpp: teamNames[oppTid] || ''
+  };
+  _tsSquadCache.set(ck, { t: Date.now(), v });
+  return v;
 }
 // ③ 직전 경기 선발(참고용) — 팀의 가장 최근 종료 경기에서 그 팀의 선발을 가져온다. 당시 날짜·상대 포함.
 async function lastMatchLineup(teamId) {
