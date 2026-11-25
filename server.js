@@ -21,7 +21,7 @@ const app = express();
 const server = http.createServer(app);
 
 const PORT = process.env.PORT || 3000;
-const APP_VERSION = 'v584';
+const APP_VERSION = 'v586';
 
 // ============================================================
 //  📏 성능 계측(instrumentation) — 엔드포인트 지연·캐시·공급사·WS·이벤트루프
@@ -3752,13 +3752,24 @@ app.get('/api/basketball/teamgames', async (req, res) => {
 // 🏀 농구 순위표 — TheSports 순위 엔드포인트 미인가 → diary(날짜별)에서 '해당 대회' 경기를 모아 승패 집계.
 //   대회 ID 기준이라 '엉뚱한 리그' 섞임 없음. 대회별 30분 캐시.
 const _bskStandCache = new Map();
+// 시즌 표기 일치 판정: 명시 시즌이 응답 시즌과 같은 시즌인지(과거 시즌 요청을 현재 시즌으로 대체 금지).
+//   둘 다 4자리 연도가 있으면 연도 일치, 아니면 정규화 문자열 일치. 어느 한쪽이라도 비면 '불일치'로 간주(안전).
+function _bskSeasonMatch(a, b) {
+  a = String(a || ''); b = String(b || '');
+  if (!a || !b) return false;
+  const ya = (a.match(/\d{4}/) || [])[0], yb = (b.match(/\d{4}/) || [])[0];
+  if (ya && yb) return ya === yb;
+  return _nrm(a) === _nrm(b);
+}
 app.get('/api/basketball/standing', async (req, res) => {
   res.set('Cache-Control', 'no-store');
   const comp = String(req.query.comp || '');
   if (!comp) return res.json({ found: false, error: 'no comp' });
-  // 공식 '정상(good)' 결과만 30분 즉시 재사용
+  const reqSeason = String(req.query.season || '');   // 비어 있으면 현재 시즌 요청으로 간주
+  // 공식 '정상(good)' 결과만 30분 즉시 재사용 — 단, 명시 시즌이 있으면 캐시 시즌이 일치할 때만.
   const hitc = _bskStandCache.get(comp);
-  if (hitc && hitc.good && hitc.v && Date.now() - hitc.t < 1800000) return res.json(hitc.v);
+  if (hitc && hitc.good && hitc.v && Date.now() - hitc.t < 1800000
+      && (!reqSeason || _bskSeasonMatch(reqSeason, hitc.v.season))) return res.json(hitc.v);
   const nv = v => (v == null || v === '') ? null : (isNaN(+v) ? null : +v);
   // ✅ 우선2: 공식 공급사 순위만 '정상 순위'로 사용(일부 diary 집계는 순위로 쓰지 않음).
   //   원문 스키마(docs.thesports.com 확인): 대회의 현재 시즌(season/list: is_current·has_table) →
@@ -3800,24 +3811,32 @@ app.get('/api/basketball/standing', async (req, res) => {
       }
     }
   } catch (e) { /* 아래: API-Sports 공식 → 검증된 정상 캐시 → 조회 실패 */ }
-  // TheSports가 해당 대회 순위표를 제공하지 않을 때(예: KBL has_table=0) → 별도 순위 화면과 '동일 소스'인 API-Sports 공식 순위로 폴백.
-  //   (diary 집계가 아니라 공급사 공식 순위. 두 화면이 같은 대회·시즌 표를 쓰도록 통일.)
+  // TheSports가 해당 대회 순위표를 제공하지 않을 때(원인 미확정: has_table=0 여부는 운영 원문으로 확인 필요)
+  //   → 별도 순위 화면과 '동일 소스'인 API-Sports 공식 순위(정규시즌)로 폴백.
+  //   (diary 집계가 아니라 공급사 공식 순위.) ⚠️ 과거 시즌 요청을 현재 시즌으로 대체하지 않는다:
+  //   명시 시즌(reqSeason)이 있으면 API-Sports 응답 시즌이 '같은 시즌'일 때만 사용. API-Sports 순위는 정규시즌 기준.
   try {
     const leagueName = String(req.query.league || '');
     if (leagueName) {
-      const ab = await rankBasketball(leagueName, String(req.query.season || '')).catch(() => null);
+      const ab = await rankBasketball(leagueName, reqSeason).catch(() => null);
       if (ab && ab.table && ab.table.length >= 2) {
-        const KL = TS_LANG['basketball'] || { team: {}, comp: {} };
-        const table = ab.table.map(r => ({ teamId: r.teamId, team: r.team, teamKo: (KL.team && KL.team[r.teamId]) || '', logo: r.logo, played: r.played, win: r.win, loss: r.loss, pct: (r.pct != null ? parseFloat(r.pct) : (r.played ? +(r.win / r.played).toFixed(3) : 0)), pf: null, pa: null, rank: r.rank }));
-        const v = { found: true, league: leagueName, leagueKo: (KL.comp && KL.comp[comp]) || '', leagueLogo: '', season: ab.season || '', table, src: 'apisports' };
-        _bskStandCache.set(comp, { t: Date.now(), v, good: true });
-        return res.json(v);
+        const abSeason = ab.season || '';
+        const seasonOk = !reqSeason || _bskSeasonMatch(reqSeason, abSeason);   // 시즌 불일치 시 폴백 금지
+        if (seasonOk) {
+          const KL = TS_LANG['basketball'] || { team: {}, comp: {} };
+          const table = ab.table.map(r => ({ teamId: r.teamId, team: r.team, teamKo: (KL.team && KL.team[r.teamId]) || '', logo: r.logo, played: r.played, win: r.win, loss: r.loss, pct: (r.pct != null ? parseFloat(r.pct) : (r.played ? +(r.win / r.played).toFixed(3) : 0)), pf: null, pa: null, rank: r.rank }));
+          const v = { found: true, league: leagueName, leagueKo: (KL.comp && KL.comp[comp]) || '', leagueLogo: '', season: abSeason, scope: 'regular', table, src: 'apisports' };
+          _bskStandCache.set(comp, { t: Date.now(), v, good: true });
+          return res.json(v);
+        }
       }
     }
   } catch (e) { /* 폴백 실패 → 캐시/조회실패 */ }
-  // 공식 조회 실패 → 같은 대회의 '검증된 정상 캐시'(과거 공식 성공분) 우선 사용(나이 무관)
+  // 공식 조회 실패 → 같은 대회의 '검증된 정상 캐시'(과거 공식 성공분) 우선 사용(나이 무관).
+  //   단, 명시 시즌이 있으면 캐시 시즌이 '같은 시즌'일 때만(과거↔현재 혼동 방지).
   const cg = _bskStandCache.get(comp);
-  if (cg && cg.good && cg.v && cg.v.table && cg.v.table.length) return res.json(Object.assign({}, cg.v, { cached: true }));
+  if (cg && cg.good && cg.v && cg.v.table && cg.v.table.length
+      && (!reqSeason || _bskSeasonMatch(reqSeason, cg.v.season))) return res.json(Object.assign({}, cg.v, { cached: true }));
   // 캐시도 없으면 '공식 순위 조회 실패' + 재시도. diary 집계를 정상 순위로 표시하지 않음.
   return res.json({ found: false, error: 'official-standing-failed', retry: true });
 });
