@@ -1861,13 +1861,14 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
     feat.sort(heroCmp);
     var featList=feat.filter(function(g){ return gidOf(g)!==heroId; }).slice(0,8);
     var anyLive=(games||[]).some(function(g){ return stateOf(g)==="live"&&allIsMain(g)&&!isStaleLive(g); });
-    v.appendChild(hmHead(tl({en:"Featured matches",ko:"주요 경기",ja:"注目試合",zh:"重点比赛",es:"Partidos destacados",hi:"मुख्य मैच",vi:"Trận nổi bật",th:"แมตช์เด่น",ru:"Главные матчи",de:"Top-Spiele",fr:"Matchs à la une",it:"Partite in evidenza"}),
-      tl({en:"Live · starts within 6h",ko:"진행 중 · 6시간 이내",ja:"進行中・6時間以内",zh:"进行中·6小时内",es:"En vivo · en 6h",hi:"लाइव · 6घं के भीतर",vi:"Live · trong 6 giờ",th:"สด · ใน 6 ชม.",ru:"Лайв · в 6ч",de:"Live · in 6 Std.",fr:"En direct · dans 6h",it:"Live · entro 6h"}), eff==="live"&&anyLive));
-    if(!featList.length){
-      var nf=(eff==="live")?tl({en:"No featured matches live right now.",ko:"지금 진행 중인 주요 경기가 없습니다.",ja:"進行中の注目試合はありません。",zh:"暂无进行中的重点比赛。",es:"Sin partidos en vivo.",hi:"अभी कोई लाइव मुख्य मैच नहीं।",vi:"Chưa có trận nổi bật trực tiếp.",th:"ยังไม่มีแมตช์เด่นสด",ru:"Нет live-матчей.",de:"Keine Top-Spiele live.",fr:"Aucun match en direct.",it:"Nessuna partita live."})
-        :tl({en:"No featured matches within 6h.",ko:"6시간 이내 주요 경기가 없습니다.",ja:"6時間以内の注目試合はありません。",zh:"6小时内暂无重点比赛。",es:"Sin destacados en 6h.",hi:"6घं में कोई मुख्य मैच नहीं।",vi:"Không có trận nổi bật trong 6 giờ.",th:"ไม่มีแมตช์เด่นใน 6 ชม.",ru:"Нет главных матчей в 6ч.",de:"Keine Top-Spiele in 6 Std.",fr:"Aucun match à la une sous 6h.",it:"Nessuna partita in evidenza entro 6h."});
-      v.appendChild(el("div","hm-empty",'<span class="e-ic">📭</span>'+nf));
-    } else { var vb=el("div","hm-vlist"); featList.forEach(function(g){ vb.appendChild(hmFixture(g,false)); }); v.appendChild(vb); }
+    // 주요 경기 조건에 맞는 경기가 없으면 섹션(제목+안내박스+여백)을 통째로 숨기고 '종목별 경기'가 바로 이어지게 한다.
+    //   (로딩·조회 실패·연결 끊김은 위에서 이미 분기 처리됨 → 이 숨김과 구분. 선정·필터·데이터 로직은 그대로.)
+    //   자동 갱신으로 대상 경기가 생기면 renderHomeMock 재호출 시 featList가 채워져 자동으로 다시 표시된다.
+    if(featList.length){
+      v.appendChild(hmHead(tl({en:"Featured matches",ko:"주요 경기",ja:"注目試合",zh:"重点比赛",es:"Partidos destacados",hi:"मुख्य मैच",vi:"Trận nổi bật",th:"แมตช์เด่น",ru:"Главные матчи",de:"Top-Spiele",fr:"Matchs à la une",it:"Partite in evidenza"}),
+        tl({en:"Live · starts within 6h",ko:"진행 중 · 6시간 이내",ja:"進行中・6時間以内",zh:"进行中·6小时内",es:"En vivo · en 6h",hi:"लाइव · 6घं के भीतर",vi:"Live · trong 6 giờ",th:"สด · ใน 6 ชม.",ru:"Лайв · в 6ч",de:"Live · in 6 Std.",fr:"En direct · dans 6h",it:"Live · entro 6h"}), eff==="live"&&anyLive));
+      var vb=el("div","hm-vlist"); featList.forEach(function(g){ vb.appendChild(hmFixture(g,false)); }); v.appendChild(vb);
+    }
     // ===== 종목별 경기(가로) — 기존 종목 순서 유지, 영역 내 스와이프 =====
     v.appendChild(hmHead(tl({en:"By sport",ko:"종목별 경기",ja:"種目別の試合",zh:"分项目比赛",es:"Por deporte",hi:"खेल अनुसार",vi:"Theo môn",th:"ตามกีฬา",ru:"По видам спорта",de:"Nach Sportart",fr:"Par sport",it:"Per sport"}),""));
     var viewAll=tl({en:"View all",ko:"전체 보기",ja:"すべて見る",zh:"查看全部",es:"Ver todo",hi:"सभी देखें",vi:"Xem tất cả",th:"ดูทั้งหมด",ru:"Все",de:"Alle ansehen",fr:"Voir tout",it:"Vedi tutto"});
