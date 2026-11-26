@@ -29,7 +29,7 @@ const app = express();
 const server = http.createServer(app);
 
 const PORT = process.env.PORT || 3000;
-const APP_VERSION = 'v614';
+const APP_VERSION = 'v615';
 
 // ============================================================
 //  📏 성능 계측(instrumentation) — 엔드포인트 지연·캐시·공급사·WS·이벤트루프
@@ -150,7 +150,7 @@ async function ytMeta(videoId) {
 const adminSubs = new Map();        // 관리자 알림 구독: endpoint -> subscription
 let _lastErrPush = 0;
 // 기능 토글/메인터넌스 (관리자가 바꾸면 전체 유저에 즉시 반영, 코드/배포 불필요)
-const CFG = { flags: {}, maint: '', bskSrc: 'thesports', ftbSrc: 'thesports', volSrc: 'thesports', bsbSrc: 'thesports', alertsOff: false, alertsNight: false, bigPin: '', updatedAt: 0 };
+const CFG = { flags: {}, maint: '', bskSrc: 'thesports', ftbSrc: 'thesports', volSrc: 'thesports', bsbSrc: 'thesports', alertsOff: false, alertsNight: false, bigPin: '', starTeamIds: '', updatedAt: 0 };
 function logError(src, type, msg, extra, force) {
   try {
     const e = { ts: Date.now(), src: src || 'server', type: type || 'error', msg: String((msg && msg.message) || msg || '').slice(0, 600), extra: extra || null };
@@ -335,7 +335,7 @@ async function initDB() {
       errorsCol = db.collection('errors'); await errorsCol.createIndex({ ts: -1 }).catch(() => {});
       configCol = db.collection('config');
       const c = await configCol.findOne({ _id: 'main' });
-      if (c) { CFG.flags = c.flags || {}; CFG.maint = c.maint || ''; CFG.bskSrc = c.bskSrc || 'thesports'; CFG.ftbSrc = c.ftbSrc || 'thesports'; CFG.volSrc = c.volSrc || 'thesports'; CFG.bsbSrc = c.bsbSrc || 'thesports'; CFG.alertsOff = !!c.alertsOff; CFG.alertsNight = !!c.alertsNight; CFG.bigPin = c.bigPin || ''; CFG.ytChannels = Array.isArray(c.ytChannels) ? c.ytChannels : []; CFG.updatedAt = c.updatedAt || 0;
+      if (c) { CFG.flags = c.flags || {}; CFG.maint = c.maint || ''; CFG.bskSrc = c.bskSrc || 'thesports'; CFG.ftbSrc = c.ftbSrc || 'thesports'; CFG.volSrc = c.volSrc || 'thesports'; CFG.bsbSrc = c.bsbSrc || 'thesports'; CFG.alertsOff = !!c.alertsOff; CFG.alertsNight = !!c.alertsNight; CFG.bigPin = c.bigPin || ''; CFG.starTeamIds = c.starTeamIds || ''; CFG.ytChannels = Array.isArray(c.ytChannels) ? c.ytChannels : []; CFG.updatedAt = c.updatedAt || 0;
         // 🎥 트래커 URL(72시간마다 갱신) 복원 — 관리자가 저장한 값이 하드코딩 기본값을 덮어씀(재배포 불필요)
         if (c.tracker) { ['football', 'basketball', 'volleyball', 'baseball', 'hockey', 'lol', 'dota2', 'csgo'].forEach(s => { if (typeof c.tracker[s] === 'string' && c.tracker[s]) TRACKER_URLS[s] = c.tracker[s]; }); console.log('[DB] 트래커 URL 복원'); }
       }
@@ -405,7 +405,7 @@ async function sendWelcomeMail(to, name) {
   try { await mailer.sendMail({ from: MAIL_FROM, to, subject: 'LIVE UP 가입을 환영합니다 🎉', html }); }
   catch (e) { console.error('welcome mail failed:', e.message); }
 }
-app.get('/api/config', (req, res) => res.json({ build: APP_VERSION, googleClientId: GOOGLE_CLIENT_ID, flags: CFG.flags || {}, maint: CFG.maint || '', bskSrc: CFG.bskSrc || 'auto', ftbSrc: CFG.ftbSrc || 'thesports', volSrc: CFG.volSrc || 'thesports', bigPin: CFG.bigPin || '' }));
+app.get('/api/config', (req, res) => res.json({ build: APP_VERSION, googleClientId: GOOGLE_CLIENT_ID, flags: CFG.flags || {}, maint: CFG.maint || '', bskSrc: CFG.bskSrc || 'auto', ftbSrc: CFG.ftbSrc || 'thesports', volSrc: CFG.volSrc || 'thesports', bigPin: CFG.bigPin || '', starTeamIds: CFG.starTeamIds || '' }));
 app.post('/api/auth/google', async (req, res) => {
   const cred = req.body && req.body.credential;
   if (!GOOGLE_CLIENT_ID) return res.json({ ok: false, error: '서버에 GOOGLE_CLIENT_ID 미설정' });
@@ -624,8 +624,9 @@ app.post('/api/admin/config', (req, res) => {
   if (typeof b.alertsNight === 'boolean') CFG.alertsNight = b.alertsNight;
   // 🏅 운영자 대표경기 수동 지정 핀 ('sport:id' 또는 빈 문자열로 해제)
   if (typeof b.bigPin === 'string') CFG.bigPin = b.bigPin.trim().slice(0, 80);
+  if (typeof b.starTeamIds === 'string') CFG.starTeamIds = b.starTeamIds.trim().slice(0, 200);
   CFG.updatedAt = Date.now();
-  if (configCol) configCol.updateOne({ _id: 'main' }, { $set: { flags: CFG.flags, maint: CFG.maint, bskSrc: CFG.bskSrc, ftbSrc: CFG.ftbSrc, volSrc: CFG.volSrc, alertsOff: CFG.alertsOff, alertsNight: CFG.alertsNight, bigPin: CFG.bigPin || '', ytChannels: CFG.ytChannels || [], updatedAt: CFG.updatedAt } }, { upsert: true }).catch(() => {});
+  if (configCol) configCol.updateOne({ _id: 'main' }, { $set: { flags: CFG.flags, maint: CFG.maint, bskSrc: CFG.bskSrc, ftbSrc: CFG.ftbSrc, volSrc: CFG.volSrc, alertsOff: CFG.alertsOff, alertsNight: CFG.alertsNight, bigPin: CFG.bigPin || '', starTeamIds: CFG.starTeamIds || '', ytChannels: CFG.ytChannels || [], updatedAt: CFG.updatedAt } }, { upsert: true }).catch(() => {});
   res.json({ ok: true, flags: CFG.flags, maint: CFG.maint, bskSrc: CFG.bskSrc, ftbSrc: CFG.ftbSrc, volSrc: CFG.volSrc, alertsOff: CFG.alertsOff, alertsNight: CFG.alertsNight, bigPin: CFG.bigPin || '' });
 });
 // 관리자: 폰 알림 구독 / 테스트
@@ -1469,8 +1470,15 @@ app.get('/api/player', async (req, res) => {
   if (!id) return res.json({ player: null, note: 'noId' });
   const sp = ['football', 'basketball', 'baseball'].includes(sport) ? sport : 'football';
   try {
-    const r = await tsFetch('/' + sp + '/player/list', { uuid: id }, 6 * 3600e3, 9000).catch(() => null);
-    const p = r && r.results && r.results[0];
+    // 축구: 문서 확인 경로 basic-info/player 우선(player/list 는 플랜 제한 가능) → 폴백 player/list.
+    const paths = sp === 'football' ? ['/football/basic-info/player', '/football/player/list'] : ['/' + sp + '/player/list'];
+    let p = null;
+    for (const path of paths) {
+      const r = await tsFetch(path, { uuid: id }, 6 * 3600e3, 9000).catch(() => null);
+      const x = r && r.results;
+      const cand = Array.isArray(x) ? x[0] : x;
+      if (cand && (cand.name || cand.id)) { p = cand; break; }
+    }
     if (!p) return res.json({ player: null, note: 'empty', src: 'thesports' });
     const num = v => (v == null || v === '' || isNaN(+v)) ? null : +v;
     // 생년(unix초) → 나이
