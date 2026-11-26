@@ -3342,9 +3342,10 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
     loadYTApi(function(){
       if(!$("#ytpCard"))return;
       try{
+        // 🎬 자동재생: 브라우저 정책상 소리 있는 자동재생은 차단되므로 '음소거 자동재생'으로 시작(사용자가 소리 켜면 들림).
         new YT.Player("ytpCard",{ videoId:h.videoId, host:"https://www.youtube-nocookie.com",
-          playerVars:{autoplay:0,playsinline:1,rel:0,modestbranding:1},
-          events:{ onError:function(){ hlFallback(); } }});
+          playerVars:{autoplay:1,mute:1,playsinline:1,rel:0,modestbranding:1},
+          events:{ onReady:function(e){ try{ e.target.mute(); e.target.playVideo(); }catch(_){} }, onError:function(){ hlFallback(); } }});
       }catch(e){ hlFallback(); }
     });
   }
