@@ -29,7 +29,7 @@ const app = express();
 const server = http.createServer(app);
 
 const PORT = process.env.PORT || 3000;
-const APP_VERSION = 'v598';
+const APP_VERSION = 'v599';
 
 // ============================================================
 //  📏 성능 계측(instrumentation) — 엔드포인트 지연·캐시·공급사·WS·이벤트루프
@@ -3856,7 +3856,8 @@ const FB_LEAGUE_HINT = {
   'k league 1': { names: ['kleague1', 'kleague'], country: ['southkorea', 'korea', 'korearepublic'], notName: ['kleague2', 'women', 'wk'] },
   'j1 league': { names: ['j1league', 'j1'], country: ['japan'], notName: ['j2', 'j3', 'women', 'we'] },
   'saudi pro league': { names: ['saudiproleague', 'prolearue', 'saudileague'], country: ['saudiarabia', 'saudi'], notName: ['division1', 'women'] },
-  'major league soccer': { names: ['majorleaguesoccer', 'mls'], country: ['usa', 'unitedstates', 'america'], notName: ['nextpro', 'usl', 'women'] }
+  'major league soccer': { names: ['majorleaguesoccer', 'mls'], country: ['usa', 'unitedstates', 'america'], notName: ['nextpro', 'usl', 'women'] },
+  'uefa champions league': { names: ['uefachampionsleague', 'championsleague', 'ucleague'], country: [], notName: ['women', 'youth', 'u19', 'qualification', 'qualifying', 'conference', 'europa', 'futsal'] }
 };
 const _fbCompResolveCache = new Map();
 async function _fbResolveCompByName(leagueName, baseDate) {
@@ -3912,12 +3913,12 @@ async function _fbLoadCompIdx() {
     const comps = (cl && cl.results) || [];
     const ctrys = (co && co.results) || [];
     if (comps.length) {
-      const ccName = new Map(); ctrys.forEach(c => { if (c && c.id) ccName.set(c.id, _nrm(c.name)); });
+      const ccName = new Map(), ccDisp = new Map(); ctrys.forEach(c => { if (c && c.id) { ccName.set(c.id, _nrm(c.name)); ccDisp.set(c.id, c.name || ''); } });
       const byId = new Map(), nameIdx = [];
       comps.forEach(c => {
         if (!c || !c.id) return;
         byId.set(c.id, c);
-        nameIdx.push({ id: c.id, n: _nrm(c.name), sn: _nrm(c.short_name), cc: ccName.get(c.country_id) || '', gender: c.gender || 1 });
+        nameIdx.push({ id: c.id, n: _nrm(c.name), sn: _nrm(c.short_name), cc: ccName.get(c.country_id) || '', ccd: ccDisp.get(c.country_id) || '', gender: c.gender || 1 });
       });
       _fbCompIdx.byId = byId; _fbCompIdx.nameIdx = nameIdx; _fbCompIdx.t = Date.now();
     }
@@ -4040,6 +4041,146 @@ async function rankFootballTS(league, season) {
   }));
   return { table, kind: 'football', season: seasonLabel, compName: (comp && comp.name) || '', source: 'thesports', promotions: Object.values(promos), splits: true, formNa: true };
 }
+// ========================================================================
+// 🔎 탐색(리그·팀·선수 찾기) — TheSports 전용. 라이브 피드와 캐시·호출 분리.
+//   축구: comp 카탈로그(실제 compId) + season table 로 팀 enumerate(순위표 보유 리그).
+//   농구: AB_RANK_ID(실제 compId: NBA=12·KBL=91·WKBL=92·EuroLeague=120) + season/list + table.
+//   야구: /baseball/competition/list + season table (대칭 엔드포인트 — 플랜 미인증. 미수신 시 '준비 중').
+//   ⚠️ 원칙: 확인된 ID/엔드포인트만 사용. 추정 생성 금지. 오늘 경기 유무와 무관하게 동작(카탈로그/최근시즌 기준).
+// ========================================================================
+// 주요 리그 우선순위(종목별). 축구는 comp 카탈로그에서 이름+국가힌트로 실제 compId 를 런타임 해석(캐시).
+const DISCOVER_FB = [
+  { key: 'epl',     label: 'English Premier League', ko: '프리미어리그',  flag: '🏴',  match: 'premier league' },
+  { key: 'laliga',  label: 'Spanish La Liga',        ko: '라리가',        flag: '🇪🇸', match: 'la liga' },
+  { key: 'bundes',  label: 'German Bundesliga',      ko: '분데스리가',    flag: '🇩🇪', match: 'bundesliga' },
+  { key: 'seriea',  label: 'Italian Serie A',        ko: '세리에 A',      flag: '🇮🇹', match: 'serie a' },
+  { key: 'ligue1',  label: 'French Ligue 1',         ko: '리그 1',        flag: '🇫🇷', match: 'ligue 1' },
+  { key: 'ucl',     label: 'UEFA Champions League',  ko: '챔피언스리그',  flag: '🇪🇺', match: 'uefa champions league' },
+  { key: 'k1',      label: 'K League 1',             ko: 'K리그1',        flag: '🇰🇷', match: 'k league 1' }
+];
+const DISCOVER_BK = [
+  { key: 'nba',  id: '12',  label: 'NBA',       ko: 'NBA',        flag: '🇺🇸' },
+  { key: 'kbl',  id: '91',  label: 'KBL',       ko: 'KBL',        flag: '🇰🇷' },
+  { key: 'wkbl', id: '92',  label: 'WKBL',      ko: 'WKBL (여)',  flag: '🇰🇷', gender: 'W' },
+  { key: 'el',   id: '120', label: 'EuroLeague', ko: '유로리그',  flag: '🇪🇺' }
+];
+const _discCache = new Map();   // key -> { t, v }
+function _discGet(k, maxAge) { const h = _discCache.get(k); return (h && Date.now() - h.t < maxAge) ? h.v : null; }
+function _discSet(k, v) { _discCache.set(k, { t: Date.now(), v }); return v; }
+
+// 축구 주요 리그 → 실제 compId 해석(카탈로그 기반, 6h 캐시).
+async function discoverFootballLeagues() {
+  const cached = _discGet('fb:major', 6 * 3600e3); if (cached) return cached;
+  const idx = await _fbLoadCompIdx();
+  if (!idx.byId.size) return [];
+  const out = [];
+  for (const L of DISCOVER_FB) {
+    const compId = _fbMatchCompByName(idx, L.match);
+    if (!compId) continue;
+    const c = idx.byId.get(compId) || {};
+    out.push({ id: compId, key: L.key, name: L.label, nameKo: L.ko, flag: L.flag, logo: c.logo || '', country: c.ccd || '', sport: 'football', tier: 'major', gender: 'M' });
+  }
+  return _discSet('fb:major', out);
+}
+// 축구 국가별 전체 리그(남자부, 카탈로그). 국가명 표시 + 리그 수. 24h 캐시.
+async function discoverFootballCountries() {
+  const cached = _discGet('fb:ctry', 12 * 3600e3); if (cached) return cached;
+  const idx = await _fbLoadCompIdx();
+  if (!idx.byId.size) return [];
+  const majorIds = new Set((await discoverFootballLeagues()).map(x => x.id));
+  const byC = new Map();
+  for (const it of idx.nameIdx) {
+    if (it.gender && it.gender !== 1) continue;        // 남자부만(여자부 뒤쪽 라운드)
+    const c = idx.byId.get(it.id); if (!c) continue;
+    const cname = it.ccd || '(기타)';
+    const a = byC.get(cname) || []; a.push({ id: c.id, name: c.name || '', logo: c.logo || '', major: majorIds.has(c.id) }); byC.set(cname, a);
+  }
+  const arr = [...byC.entries()].map(([country, leagues]) => ({ country, count: leagues.length, leagues: leagues.sort((a, b) => a.name.localeCompare(b.name)) }))
+    .sort((a, b) => b.count - a.count);
+  return _discSet('fb:ctry', arr);
+}
+// 농구 주요 리그 — 실제 compId 로 대회명/로고 보강.
+async function discoverBasketballLeagues() {
+  const cached = _discGet('bk:major', 6 * 3600e3); if (cached) return cached;
+  const info = await bskResolveComps(DISCOVER_BK.map(x => x.id)).catch(() => ({}));
+  const out = DISCOVER_BK.map(L => ({ id: L.id, key: L.key, name: (info[L.id] && info[L.id].name) || L.label, nameKo: L.ko, flag: L.flag, logo: (info[L.id] && info[L.id].logo) || '', sport: 'basketball', tier: 'major', gender: L.gender || 'M' }));
+  return _discSet('bk:major', out);
+}
+
+// GET /api/discover/leagues?sport=football|basketball|baseball
+app.get('/api/discover/leagues', async (req, res) => {
+  res.set('Cache-Control', 'no-store');
+  const sport = String(req.query.sport || 'football').toLowerCase();
+  try {
+    if (sport === 'football') {
+      const [major, countries] = await Promise.all([discoverFootballLeagues(), discoverFootballCountries()]);
+      return res.json({ sport, major, countries, src: 'thesports' });
+    }
+    if (sport === 'basketball') {
+      const major = await discoverBasketballLeagues();
+      return res.json({ sport, major, countries: [], note: 'bk-countries-na', src: 'thesports' });
+    }
+    if (sport === 'baseball') {
+      // 야구 대회 카탈로그: /baseball/competition/list (플랜 미인증). 수신 시 사용, 아니면 '준비 중'.
+      const cached = _discGet('bb:major', 6 * 3600e3);
+      if (cached) return res.json({ sport, major: cached, countries: [], src: 'thesports' });
+      let major = [];
+      try {
+        const r = await tsFetch('/baseball/competition/list', {}, 6 * 3600e3, 9000).catch(() => null);
+        const comps = (r && r.results) || [];
+        const WANT = [{ re: /mlb|major league/i, ko: 'MLB', flag: '🇺🇸' }, { re: /\bkbo\b|korea/i, ko: 'KBO', flag: '🇰🇷' }, { re: /npb|nippon|japan/i, ko: 'NPB', flag: '🇯🇵' }];
+        WANT.forEach(w => { const c = comps.find(x => x && w.re.test(String(x.name || ''))); if (c && c.id) major.push({ id: c.id, name: c.name, nameKo: w.ko, flag: w.flag, logo: c.logo || '', sport: 'baseball', tier: 'major', gender: 'M' }); });
+        if (major.length) _discSet('bb:major', major);
+      } catch (e) {}
+      return res.json({ sport, major, countries: [], note: major.length ? undefined : 'bb-catalog-unverified', src: 'thesports' });
+    }
+    return res.json({ sport, major: [], countries: [], note: 'sport-na' });
+  } catch (e) { return res.json({ error: String((e && e.message) || e), major: [], countries: [] }); }
+});
+
+// GET /api/discover/teams?sport=&league=<compId>&season=
+//  축구/농구: season table rows → 팀(id·name·logo). 순위표 보유 리그 기준. seasonUsed 명시.
+app.get('/api/discover/teams', async (req, res) => {
+  res.set('Cache-Control', 'no-store');
+  const sport = String(req.query.sport || 'football').toLowerCase();
+  const league = String(req.query.league || '');
+  const season = String(req.query.season || '');
+  if (!league) return res.json({ teams: [], error: 'no league' });
+  const ck = sport + ':' + league + ':' + season;
+  const cached = _discGet('teams:' + ck, 30 * 60e3); if (cached) return res.json(cached);
+  try {
+    if (sport === 'football') {
+      const r = await rankFootballTS(league, season).catch(() => null);
+      if (!r) return res.json(_discSet('teams:' + ck, { teams: [], note: 'no-table', sport, league }));
+      const teams = (r.table || []).filter(x => x.teamId).map(x => ({ id: x.teamId, name: x.team || '', logo: x.logo || '' }));
+      // 중복 팀(그룹/조별 중복) 제거 — teamId 기준.
+      const seen = new Set(), uniq = [];
+      teams.forEach(t => { if (!seen.has(t.id)) { seen.add(t.id); uniq.push(t); } });
+      return res.json(_discSet('teams:' + ck, { teams: uniq, seasonUsed: r.season || '', note: (r.note || (uniq.length ? '' : 'no-table')), compName: r.compName || '', sport, league, src: 'thesports' }));
+    }
+    if (sport === 'basketball') {
+      const sl = await tsFetch('/basketball/season/list', { uuid: league }, 6 * 3600e3, 9000).catch(() => null);
+      const seasons = (sl && sl.results) || [];
+      let pick = null;
+      if (season) pick = seasons.find(s => String(s.year || '').indexOf(season) === 0) || null;
+      if (!pick) pick = seasons.find(s => s.is_current) || seasons.find(s => s.has_table) || seasons[0] || null;
+      if (!pick || !pick.id) return res.json(_discSet('teams:' + ck, { teams: [], note: 'no-season', sport, league }));
+      const td = await tsFetch('/basketball/season/recent/table/detail', { uuid: pick.id }, 30 * 60e3, 9000).catch(() => null);
+      const tables = (td && td.results && td.results.tables) || [];
+      const rows = tables.length === 1 ? (tables[0].rows || []) : [].concat(...tables.map(t => t.rows || []));
+      const ids = [...new Set(rows.map(r => r.team_id).filter(Boolean))];
+      const nm = await bskResolveNames(ids).catch(() => ({}));
+      const teams = ids.map(id => ({ id, name: (nm[id] && nm[id].name) || '', logo: (nm[id] && nm[id].logo) || '' }));
+      return res.json(_discSet('teams:' + ck, { teams, seasonUsed: String(pick.year || ''), note: teams.length ? '' : 'no-table', sport, league, src: 'thesports' }));
+    }
+    if (sport === 'baseball') {
+      // 야구 팀 enumerate: 순위표 엔드포인트 미인증 → 준비 중(추정 생성 금지).
+      return res.json(_discSet('teams:' + ck, { teams: [], note: 'bb-teams-unverified', sport, league }));
+    }
+    return res.json({ teams: [], note: 'sport-na' });
+  } catch (e) { return res.json({ teams: [], error: String((e && e.message) || e) }); }
+});
+
 // ⚽ 축구 순위표 — TheSports 대회 ID 기준 diary 집계(순위 전용 엔드포인트 미인증 폴백). 승점=3승+1무.
 const _fbStandCache = new Map();
 app.get('/api/football/dstanding', async (req, res) => {
