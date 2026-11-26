@@ -29,7 +29,7 @@ const app = express();
 const server = http.createServer(app);
 
 const PORT = process.env.PORT || 3000;
-const APP_VERSION = 'v618';
+const APP_VERSION = 'v619';
 
 // ============================================================
 //  📏 성능 계측(instrumentation) — 엔드포인트 지연·캐시·공급사·WS·이벤트루프
@@ -1470,14 +1470,21 @@ app.get('/api/player', async (req, res) => {
   if (!id) return res.json({ player: null, note: 'noId' });
   const sp = ['football', 'basketball', 'baseball'].includes(sport) ? sport : 'football';
   try {
-    // 축구: 문서 확인 경로 basic-info/player 우선(player/list 는 플랜 제한 가능) → 폴백 player/list.
-    const paths = sp === 'football' ? ['/football/basic-info/player', '/football/player/list'] : ['/' + sp + '/player/list'];
+    // 선수 상세 경로/파라미터가 플랜·버전마다 달라, 여러 후보를 순차 시도하고 '선수 필드가 실제로 담긴' 첫 응답을 사용.
+    //   후보: basic-info/player, player/list, player/additional/list, player (각각 uuid·id 파라미터 둘 다 시도).
+    const bases = sp === 'football'
+      ? ['/football/basic-info/player', '/football/player/list', '/football/player/additional/list', '/football/player']
+      : ['/' + sp + '/player/list', '/' + sp + '/basic-info/player', '/' + sp + '/player'];
+    const isPlayer = o => o && typeof o === 'object' && (o.name || o.shirt_number != null || o.birthday != null || o.position != null || o.height != null);
     let p = null;
-    for (const path of paths) {
-      const r = await tsFetch(path, { uuid: id }, 6 * 3600e3, 9000).catch(() => null);
-      const x = r && r.results;
-      const cand = Array.isArray(x) ? x[0] : x;
-      if (cand && (cand.name || cand.id)) { p = cand; break; }
+    outer:
+    for (const path of bases) {
+      for (const pk of ['uuid', 'id']) {
+        const r = await tsFetch(path, { [pk]: id }, 6 * 3600e3, 9000).catch(() => null);
+        const x = r && r.results;
+        const cand = Array.isArray(x) ? x[0] : x;
+        if (isPlayer(cand)) { p = cand; break outer; }
+      }
     }
     if (!p) return res.json({ player: null, note: 'empty', src: 'thesports' });
     const num = v => (v == null || v === '' || isNaN(+v)) ? null : +v;
