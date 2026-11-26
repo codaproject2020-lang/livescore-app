@@ -29,7 +29,7 @@ const app = express();
 const server = http.createServer(app);
 
 const PORT = process.env.PORT || 3000;
-const APP_VERSION = 'v611';
+const APP_VERSION = 'v612';
 
 // ============================================================
 //  📏 성능 계측(instrumentation) — 엔드포인트 지연·캐시·공급사·WS·이벤트루프
@@ -4362,22 +4362,25 @@ app.get('/api/football/probe', async (req, res) => {
   res.set('Cache-Control', 'no-store');
   const season = String(req.query.season || ''), team = String(req.query.team || ''), comp = String(req.query.comp || '');
   const tries = [];
+  // 문서 확인 경로(thesports-docs). advanced/database-data 티어 권한 여부 확인용.
   if (season) {
-    tries.push(['season.player.stats', '/football/season/player/stats', { uuid: season }]);
-    tries.push(['season.team.stats', '/football/season/team/stats', { uuid: season }]);
-    tries.push(['season.recent.player', '/football/season/recent/player/detail', { uuid: season }]);
-    tries.push(['season.recent.team', '/football/season/recent/team/detail', { uuid: season }]);
-    tries.push(['season.bracket', '/football/season/bracket', { uuid: season }]);
-    tries.push(['bracket.detail', '/football/bracket/detail', { uuid: season }]);
+    tries.push(['season.player.stats', '/football/season/player/stats/list', { uuid: season }]);
+    tries.push(['season.player.statistics', '/football/season/player/statistics/list', { uuid: season }]);
+    tries.push(['season.team.stats', '/football/season/team/stats/list', { uuid: season }]);
+    tries.push(['season.team.statistics', '/football/season/team/statistics/list', { uuid: season }]);
+    tries.push(['season.topscorer', '/football/season/topscorer/list', { uuid: season }]);
+    tries.push(['season.top_scorer', '/football/season/top_scorer/list', { uuid: season }]);
   }
   if (team) {
-    tries.push(['team.honor', '/football/team/honor', { uuid: team }]);
-    tries.push(['honor.list.team', '/football/honor/list', { uuid: team }]);
-    tries.push(['transfer.list', '/football/transfer/list', { uuid: team }]);
-    tries.push(['team.detail', '/football/team/detail', { uuid: team }]);
-    tries.push(['team.trophy', '/football/team/trophy', { uuid: team }]);
+    tries.push(['team.ability', '/football/team/ability/list', { uuid: team }]);      // 확인됨: 팀 특성 레이더
+    tries.push(['team.honor', '/football/team/honor/list', { uuid: team }]);
+    tries.push(['team.record', '/football/team/record/list', { uuid: team }]);
+    tries.push(['player.transfer', '/football/player/transfer/list', { uuid: team }]);
   }
-  if (comp) tries.push(['comp.table.promotion', '/football/competition/table/detail', { uuid: comp }]);
+  if (comp) {
+    tries.push(['bracket', '/football/bracket/list', { uuid: comp }]);
+    tries.push(['comp.bracket', '/football/competition/bracket/list', { uuid: comp }]);
+  }
   const out = {};
   for (const [key, path, params] of tries) {
     try {
@@ -4389,6 +4392,26 @@ app.get('/api/football/probe', async (req, res) => {
     } catch (e) { out[key] = { err: String((e && e.message) || e) }; }
   }
   res.json({ season, team, comp, probe: out });
+});
+
+// ⚽ 팀 특성(레이더) — TheSports advanced-data `/football/team/ability/list?uuid=`.
+//    ability: [[31,94,..],[32,..],...] 31-공격 32-조직력 33-수비 34-전환 35-세트피스 36-시스템. 강함/약함(상세 level).
+app.get('/api/team/ability', async (req, res) => {
+  res.set('Cache-Control', 'no-store');
+  const id = String(req.query.id || ''); if (!id) return res.json({ found: false });
+  const ck = 'tability:' + id; const c = _discGet(ck, 12 * 3600e3); if (c) return res.json(c);
+  try {
+    const r = await tsFetch('/football/team/ability/list', { uuid: id }, 12 * 3600e3, 9000).catch(() => null);
+    const a = r && r.results && r.results[0];
+    if (!a || !Array.isArray(a.ability) || !a.ability.length) return res.json(_discSet(ck, { found: false, src: 'thesports' }));
+    const LBL = { 31: 'attack', 32: 'organization', 33: 'defend', 34: 'transition', 35: 'setpiece', 36: 'system' };
+    const radar = a.ability.filter(x => Array.isArray(x) && LBL[x[0]]).map(x => ({ key: LBL[x[0]], type: x[0], value: Number(x[1]) || 0 }));
+    // 강함(level 1)·약함(level 3) 상세 추출(ability_detail)
+    const DET = { 31: { 1: 'Finishing', 2: 'Individual attacking', 3: 'Attacking variety', 4: 'Sustained pressure', 5: 'Long shots', 6: 'Chance conversion' }, 32: { 1: 'Game control', 2: 'Center penetration', 3: 'Settled play creativity', 4: 'Width utilization', 5: 'Playmaking', 6: 'Build-up play' }, 33: { 1: 'Defensive efficiency', 2: 'Chance prevention', 3: 'High press', 4: 'Defensive shape', 5: 'Individual defending', 6: 'Aerial dominance' }, 34: { 1: 'Defensive transition', 2: 'Offensive transition', 3: 'Transition decisions', 4: 'Transition hub' }, 35: { 1: 'Set piece attack', 2: 'Set piece defense', 3: 'Penalty', 4: 'Set piece routines' }, 36: { 1: 'Squad robustness', 2: 'Coaching adaptation', 3: 'Mentality discipline', 4: 'Endurance consistency' } };
+    const strong = [], weak = [];
+    (a.ability_detail || []).forEach(grp => { if (!Array.isArray(grp)) return; const typ = grp[0]; for (let i = 1; i < grp.length; i++) { const d = grp[i]; if (!Array.isArray(d)) continue; const nm = (DET[typ] || {})[d[0]]; if (!nm) continue; if (d[3] === 1 && strong.length < 4) strong.push(nm); else if (d[3] === 3 && weak.length < 4) weak.push(nm); } });
+    return res.json(_discSet(ck, { found: true, comprehensive: a.comprehensive || null, radar, strong, weak, src: 'thesports' }));
+  } catch (e) { return res.json({ found: false, error: String((e && e.message) || e) }); }
 });
 
 // ⚽ 팀 역대 순위 — 대회의 과거 시즌 순위표에서 팀의 최종 순위 추출(검증된 season/list + table/detail). 추정 없음.
