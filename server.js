@@ -29,7 +29,7 @@ const app = express();
 const server = http.createServer(app);
 
 const PORT = process.env.PORT || 3000;
-const APP_VERSION = 'v613';
+const APP_VERSION = 'v614';
 
 // ============================================================
 //  📏 성능 계측(instrumentation) — 엔드포인트 지연·캐시·공급사·WS·이벤트루프
@@ -723,9 +723,19 @@ app.get('/api/news', async (req, res) => {
 function hlKey(sport, matchId) { return String(sport || '').toLowerCase() + ':' + String(matchId || ''); }
 function hlPublic(h) { return h ? { sport: h.sport, matchId: h.matchId, videoId: h.videoId, url: h.url, title: h.title || '', channel: h.channel || '', channelId: h.channelId || '', authorUrl: h.authorUrl || '', thumb: h.thumb || (h.videoId ? `https://i.ytimg.com/vi/${h.videoId}/hqdefault.jpg` : ''), official: !!h.official, officialName: h.officialName || '', home: h.home || '', away: h.away || '', league: h.league || '', updatedAt: h.updatedAt || 0 } : null; }
 // 공개: 해당 경기의 하이라이트 1건
-app.get('/api/highlight', (req, res) => {
-  const k = hlKey(req.query.sport, req.query.id);
-  res.json({ ok: true, highlight: hlPublic(HIGHLIGHTS.get(k)) });
+app.get('/api/highlight', async (req, res) => {
+  const sport = String(req.query.sport || '').toLowerCase(), id = String(req.query.id || '');
+  const k = hlKey(sport, id);
+  let hl = HIGHLIGHTS.get(k);
+  // 등록분이 없고 '종료' 경기(finished=1 + 팀명)면 서버가 1회 자동 탐색(경기당 캐시·제외·할당량 보호).
+  if (!hl && String(req.query.finished) === '1' && req.query.home && req.query.away) {
+    try {
+      const r = await hlLookupOnce({ sport, matchId: id, home: String(req.query.home), away: String(req.query.away), league: String(req.query.league || ''), date: String(req.query.date || '') });
+      if (r && r.highlight) return res.json({ ok: true, highlight: r.highlight });
+      if (r && r.candidate) return res.json({ ok: true, highlight: hlPublic(r.candidate), candidate: true });
+    } catch (e) {}
+  }
+  res.json({ ok: true, highlight: hlPublic(hl) });
 });
 // 관리자: 전체 목록
 app.get('/api/admin/highlights', (req, res) => {
@@ -5505,6 +5515,33 @@ async function tsFootLineup(tsid, wantRaw) {
   ];
   return { teams, debug: dbg, confirmed: r.confirmed };
 }
+// 🩹 TheSports 축구 부상·결장 정보 — lineup/detail 응답의 injury 필드(실데이터만, 미제공 시 빈 배열).
+//    형태 변형 수용: results.injury = [[home...],[away...]] 또는 {home,away}. 각 항목에서 선수명/사유/포지션 추출.
+function _tsInjSide(arr) {
+  return (arr || []).filter(x => x && typeof x === 'object').map(p => ({
+    id: p.player_id || p.id || '',
+    name: String(p.player_name || p.name || '').trim(),
+    logo: p.logo || p.photo || '',
+    position: p.position || p.pos || '',
+    reason: String(p.reason || p.type_name || p.describe || p.type || '').trim(),
+    missed: p.missed != null ? p.missed : (p.will_miss != null ? p.will_miss : null)
+  })).filter(p => p.name);
+}
+async function tsFootInjuries(tsid) {
+  const resp = await tsFetch('/football/match/lineup/detail', { uuid: tsid }, 3600e3, 8000).catch(() => null);
+  const r = (resp && resp.results) ? resp.results : (resp || {});
+  let inj = r.injury || r.injuries || r.absent || null;
+  let home = [], away = [];
+  if (Array.isArray(inj)) { home = _tsInjSide(inj[0]); away = _tsInjSide(inj[1]); }
+  else if (inj && typeof inj === 'object') { home = _tsInjSide(inj.home); away = _tsInjSide(inj.away); }
+  return { home, away, found: !!(home.length || away.length) };
+}
+app.get('/api/football/injuries', async (req, res) => {
+  const raw = String(req.query.id || ''); const tsid = raw.replace(/^ts/, '');
+  if (!tsid) return res.json({ found: false, home: [], away: [] });
+  try { const r = await tsFootInjuries(tsid); res.json(r); }
+  catch (e) { res.json({ found: false, home: [], away: [], error: String(e.message || e) }); }
+});
 // 🏟️ TheSports 전용: 팀의 최근(종료)·다음(예정) 경기 + 팀명/로고 — 종목별 diary 스캔(API-Sports 미사용).
 //    window: 과거 ~90일, 미래 ~21일. 결과: {name, logo, events:[최근 종료 최대8], next:[예정 최대6]}.
 const _tsTeamGamesCache = new Map();
@@ -6859,6 +6896,23 @@ async function hlAutoMatch(m) {
   const q = Object.assign({}, base, { queuedAt: Date.now() });
   HL_QUEUE.set(key, q); if (hlQueueCol) hlQueueCol.updateOne({ key }, { $set: q }, { upsert: true }).catch(() => {});
   return { status: 'queued', candidate: q };
+}
+// 🎬 사용자 상세 조회 시 1회 자동 탐색(경기당 가드). "매 조회마다 검색"을 막기 위해 경기당 6h 캐시.
+//   등록분/큐/제외/할당량을 모두 존중. 확신 시 등록, 애매하면 후보 반환(프런트에서 카드 표시).
+const _hlTried = new Map();   // key -> ts
+async function hlLookupOnce(m) {
+  const key = hlKey(m.sport, m.matchId);
+  if (HIGHLIGHTS.has(key)) return { highlight: hlPublic(HIGHLIGHTS.get(key)) };
+  if (HL_QUEUE.has(key)) return { candidate: HL_QUEUE.get(key) };
+  if (HL_EXCLUDE.has('match:' + key)) return { status: 'excluded' };
+  const last = _hlTried.get(key); if (last && (Date.now() - last) < 6 * 3600e3) return { status: 'tried' };
+  _hlTried.set(key, Date.now());
+  if (_hlTried.size > 2000) { const now = Date.now(); for (const [k, t] of _hlTried) { if (now - t > 12 * 3600e3) _hlTried.delete(k); } }
+  if (!YT_KEY || ytBudgetLeft() <= 0) return { status: 'nobudget' };
+  const r = await hlAutoMatch(m);
+  if (r.status === 'registered') return { highlight: r.highlight };
+  if (r.status === 'queued') return { candidate: r.candidate };
+  return r;
 }
 function _hlFeedFinished(g) {
   if (!g) return false;
