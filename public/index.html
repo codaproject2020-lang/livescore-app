@@ -1429,6 +1429,10 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
     [/gs\s*caltex|kixx|지에스칼텍스|gs칼텍스/i,"서울 GS칼텍스 KIXX"]
   ];
   function vbKoName(name){ var n=String(name||""); for(var i=0;i<VB_KO.length;i++){ if(VB_KO[i][0].test(n))return VB_KO[i][1]; } return ""; }
+  // 🧑 검증된 한국어 선수명 사전(공급사 선수 ID 기준). AiScore 한국어 표기 대조 초기본. 표시명만 바꾸고 ID/번호/기록/사진/클릭은 원본 유지.
+  //   미등록 선수는 원문 보존(임의 음역 금지). 공급사 한국어 필드가 있으면 그게 우선, 그다음 이 사전.
+  var KN_PLAYER={"1l4rjnhx5xzm7vx":"니키타 카이킨","3glrw7hy7407qdy":"프레드릭 슈볼드","8yomo4hzpx2q0j6":"오딘 루라스 비요르투프","4wyrn4hdj14q86p":"요스테인 군데르센","8yomo4hv4dlq0j6":"프레드릭 안드레 비욘칸","965mkyh3k4e9r1g":"손드레 아우클렌","l7oqdeh4k26r510":"패트릭 베르그","2y8m4zhglloql07":"손드레 펫","4jwq2ghvnzn3m0v":"올레 디드릭 블롬베르그","n54qllhd6v6qvy9":"올라 브린힐드센","ednm9whglv6ryox":"하우게, 젠스","318q66h4l59pqo9":"이삭 아론 스종","3glrw7hjzyeqdyj":"하이탐 알리사미","dn1m1gho86omoep":"안드레아스 헬머센","4wyrn4he1kywq86":"조슈아 키톨라노","3glrw7hzw59qdyj":"율리안 페이 룬드","4jwq2ghv9v53m0v":"이삭 딥비크 매트","zp5rzghzw345q82":"조엘 무부카","dj2ryohj9dl8q1z":"마그누스 베크 리스네스","ednm9wh9o3eryox":"울릭 살트네스","4wyrn4hd5vgjq86":"루카스 융비르트","y0or5jhe5p37qwz":"카스퍼 요르겐센","965mkyh3o5xzr1g":"자비에르 음부얌바","6ypq3nhw25z0md7":"조아오 비토르 토니치","1l4rjnhx7130m7v":"미구엘 프렉톤","dn1m1gh3nz54moe":"나바이베 디방고","x7lm7ph0jxlxm2w":"크리스토프 다넥","3glrw7h036eqdyj":"로버트 루비치치","x7lm7phoxvzm2wd":"알레산드로 셰프","y0or5jh3lg5wqwz":"사무엘 아데니란","4wyrn4h4ypo9q86":"모세 우소르","4jwq2ghvj95m0ve":"토비아스 쉬츠나우어","k82rekh1gy3repz":"사사 칼라지치","n54qllhx9p0qvy9":"홀바스, 사샤","318q66hvg1jeqo9":"다니엘 엘파들리","zp5rzghz466oq82":"멜라이로 보가르데"};
+  function tnPlayer(id,name,ko){ if(LANG!=="ko")return name||""; if(ko)return ko; var k=id!=null?String(id):""; return (k&&KN_PLAYER[k])||name||""; }
   // 종목 스코프 우선 → (배구 KOVO 토큰) → 정적 사전(큐레이션) → 원문. 현재 종목이 'all'이면 스코프 생략(정적만).
   function tnTeam(name,sp){ if(LANG!=="ko"||!name)return name; var k=knorm(name); sp=sp||_curSp();
     if(sp&&sp!=="all"){ var v=KN_TEAM_SP[sp+"|"+k]; if(v)return v; }
@@ -4145,7 +4149,7 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
         if(tm.startXI&&tm.startXI.length) h+=pitchHtml(tm.startXI);
         else h+='<div class="msg"><div class="big">📋</div>'+t("notProvided")+'</div>';
         if(tm.coach)h+='<div class="lu-coach"><span>'+t("coach")+'</span> '+esc(tm.coach)+'</div>';
-        if(tm.subs&&tm.subs.length){ h+='<div style="font-size:12px;font-weight:800;color:#8a93a3;margin:10px 0 4px">'+t("subsPlayers")+'</div><div class="subs">'+tm.subs.map(function(p){var pid=p.id!=null?String(p.id):"";return '<span class="subchip'+(pid?' pl-c':'')+'" data-pid="'+esc(pid)+'" data-pnm="'+esc(p.name||"")+'">'+(p.number!==""?p.number+" ":"")+esc(p.name)+'</span>'}).join("")+'</div>'; }
+        if(tm.subs&&tm.subs.length){ h+='<div style="font-size:12px;font-weight:800;color:#8a93a3;margin:10px 0 4px">'+t("subsPlayers")+'</div><div class="subs">'+tm.subs.map(function(p){var pid=p.id!=null?String(p.id):"";return '<span class="subchip'+(pid?' pl-c':'')+'" data-pid="'+esc(pid)+'" data-pnm="'+esc(p.name||"")+'">'+(p.number!==""?p.number+" ":"")+esc(tnPlayer(p.id,p.name,p.nameKo))+'</span>'}).join("")+'</div>'; }
         dtBody(h);
         var _db=$("#dtBody"); if(_db){
           _db.querySelectorAll(".lu-tb").forEach(function(b){ b.onclick=function(){ luSel=+b.dataset.i; renderLu(); }; });
@@ -4168,7 +4172,7 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
           (p.captain?'<span class="pv-cap">C</span>':'')+
           (rt?'<span class="pv-rt" style="background:'+ratingColor(rt)+'">'+esc(rt)+'</span>':'')+'</div>'+
           '<div class="pv-no">#'+(p.number!==""?p.number:"")+'</div>'+
-          '<div class="pv-nm">'+esc(p.name)+'</div></div>';
+          '<div class="pv-nm">'+esc(tnPlayer(p.id,p.name,p.nameKo))+'</div></div>';
       });
       ph+='</div>';
       return ph;
@@ -4180,7 +4184,7 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
     else { var per=[1,4,3,3]; var i=0; [0,1,2,3].forEach(function(ri){ rows[ri+1]=xi.slice(i,i+per[ri]); i+=per[ri]; }); if(i<xi.length)(rows[4]=rows[4]||[]).push.apply(rows[4],xi.slice(i)); }
     var keys=Object.keys(rows).sort(function(a,b){return a-b});
     var html='<div class="pitch">';
-    keys.forEach(function(k){ html+='<div class="rowf">'+rows[k].map(function(p){var pid=p.id!=null?String(p.id):"";return '<div class="pl'+(pid?' pl-c':'')+'" data-pid="'+esc(pid)+'" data-pnm="'+esc(p.name||"")+'"><div class="no">'+(p.number!==""?p.number:"")+'</div><div class="pn">'+esc(p.name)+'</div></div>'}).join("")+'</div>'; });
+    keys.forEach(function(k){ html+='<div class="rowf">'+rows[k].map(function(p){var pid=p.id!=null?String(p.id):"";return '<div class="pl'+(pid?' pl-c':'')+'" data-pid="'+esc(pid)+'" data-pnm="'+esc(p.name||"")+'"><div class="no">'+(p.number!==""?p.number:"")+'</div><div class="pn">'+esc(tnPlayer(p.id,p.name,p.nameKo))+'</div></div>'}).join("")+'</div>'; });
     html+='</div>';
     return html;
   }
@@ -4251,7 +4255,8 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
       function emoOf(e){ return e._kind==="goal"?(/own/i.test(e.detail)?"⚽":"⚽"):(e._kind==="card"?(/red/i.test(e.detail)?"🟥":"🟨"):(e._kind==="sub"?"🔄":(/var/i.test(e.type)?"📺":"•"))); }
       function evPhoto(nm){ try{ return (_dt&&_dt._fbPhotos&&_dt._fbPhotos[String(nm||"").toLowerCase()])||null; }catch(_){ return null; } }
       function evInner(e){
-        var plink=e.pid?('<span class="who pl-c" data-pid="'+esc(String(e.pid))+'" data-pnm="'+esc(e.player||"")+'">'+esc(e.player||"")+'</span>'):('<span class="who">'+esc(e.player||"")+'</span>');
+        var _pnm=tnPlayer(e.pid,e.player||"");
+        var plink=e.pid?('<span class="who pl-c" data-pid="'+esc(String(e.pid))+'" data-pnm="'+esc(e.player||"")+'">'+esc(_pnm)+'</span>'):('<span class="who">'+esc(_pnm)+'</span>');
         var av=(e.player&&e._kind!=="sub")?('<span class="tl-av">'+avatarHTML(evPhoto(e.player),e.player,null,26)+'</span>'):'';
         // D01: 교체는 투입(초록▲)/아웃(빨강▼) 두 줄 + 색 구분 화살표
         var sub=e._kind==="sub"?('<div class="tl-sub"><span class="subln"><span class="tl-ico up">▲</span>'+esc(e.player||"")+'</span>'+(e.assist?'<br><span class="subln"><span class="tl-ico down">▼</span>'+esc(e.assist)+'</span>':'')+'</div>'):(av+plink+(e.assist?' <span class="ass">('+esc(e.assist)+')</span>':''));
@@ -5920,7 +5925,7 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
       var pl=(dt.squad&&dt.squad.players)||[];
       if(dt.squad.error){ box.innerHTML='<div class="msg"><div class="big">⚠️</div>'+t("m_loadfail")+'</div>'; return; }
       if(!pl.length){ box.innerHTML='<div class="msg"><div class="big">👥</div>'+tl({en:"Squad not provided by our data source for this team.",ko:"이 팀 선수단은 데이터 제공처에서 제공되지 않습니다.",ja:"このチームの選手は未提供です。",zh:"数据方未提供该队阵容。",es:"Plantilla no disponible.",hi:"दस्ता उपलब्ध नहीं।",vi:"Chưa có đội hình.",th:"ไม่มีข้อมูลผู้เล่น",ru:"Состав недоступен.",de:"Kader nicht verfügbar.",fr:"Effectif indisponible.",it:"Rosa non disponibile."})+'</div>'; return; }
-      function sqRow(p){ return '<div class="sv-row sq-pl" data-pid="'+esc(p.id!=null?p.id:"")+'" data-pnm="'+esc(p.name)+'" style="cursor:pointer"><div class="sl" style="flex:1;min-width:0">'+(p.photo?'<img src="'+esc(p.photo)+'" style="width:26px;height:26px;border-radius:50%;object-fit:cover;margin-right:7px" onerror="this.remove()">':'')+'<span style="min-width:0;overflow:hidden;text-overflow:ellipsis">'+(p.number?'<b style="color:var(--muted);margin-right:6px">'+esc(p.number)+'</b>':'')+esc(p.name)+'</span></div><div class="sr" style="font-size:12px;color:var(--muted)">'+(p.pos?esc(p.pos)+' ':'')+'<span class="chev">›</span></div></div>'; }
+      function sqRow(p){ return '<div class="sv-row sq-pl" data-pid="'+esc(p.id!=null?p.id:"")+'" data-pnm="'+esc(p.name)+'" style="cursor:pointer"><div class="sl" style="flex:1;min-width:0">'+(p.photo?'<img src="'+esc(p.photo)+'" style="width:26px;height:26px;border-radius:50%;object-fit:cover;margin-right:7px" onerror="this.remove()">':'')+'<span style="min-width:0;overflow:hidden;text-overflow:ellipsis">'+(p.number?'<b style="color:var(--muted);margin-right:6px">'+esc(p.number)+'</b>':'')+esc(tnPlayer(p.id,p.name,p.nameKo))+'</span></div><div class="sr" style="font-size:12px;color:var(--muted)">'+(p.pos?esc(p.pos)+' ':'')+'<span class="chev">›</span></div></div>'; }
       // 🧑‍🤝‍🧑 제공처 선수단 미제공 → '직전 경기 엔트리'(선발+벤치). 실제 출전 선수만, 평점/추정 없음.
       if(dt.squad.kind==="last"){
         var sq=dt.squad; var starters=pl.filter(function(p){return p.role==="start";}); var bench=pl.filter(function(p){return p.role==="bench";});
