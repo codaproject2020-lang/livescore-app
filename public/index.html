@@ -2246,8 +2246,8 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
     ]
   };
   // 하위·리저브·유소년·여자부(남자 리그에 한함) 오인 방지용 — 대회명에 이런 토큰이 있으면 상위 빅리그로 보지 않음
-  //   명령서(최종): 연령별 중 U16·U18·U19만 하단. U20·U21·U17 등 '나머지 연령'과 U22는 기존 순서 유지. U23은 상단(아래 effLeagueRank).
-  var SUBTIER_RE=/\bU\s?1[689]\b|reserve|리저브|\bII\b|\bB\b\s*team|amateur|아마추어|universit|college|대학|2군|academy|아카데미|2\.\s*bundesliga|segunda|championship\s*2|division\s*2|2부|3부/i;
+  //   명령서(최종): 모든 연령별(유스/미성년자) 경기는 하단으로 — U13~U23 전부 후순위.
+  var SUBTIER_RE=/\bU\s?(1[0-9]|2[0-3])\b|youth|유소년|유스|reserve|리저브|\bII\b|\bB\b\s*team|amateur|아마추어|universit|college|대학|2군|academy|아카데미|2\.\s*bundesliga|segunda|championship\s*2|division\s*2|2부|3부/i;
   // ⭐ 명령서3: 호날두·메시·손흥민 소속 팀 예외. '해당 팀' 경기만 기타 성인리그보다 위 + 빅매치 후보 포함.
   //   리그 전체 승격 아님(팀만). 빅리그(NBA·UCL·5대리그 등 위상<900)보다 위로는 올리지 않음.
   //   이적 시 아래 name/team만 갱신. TheSports 팀 ID는 운영자가 /api/config.starTeamIds(쉼표구분)로 보강 가능.
@@ -2281,7 +2281,7 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
   // 상단 메인경기(#9/#15): 빅리그 안에서만. 진행 경기 → 예정 경기 → 종료 순. 결승·PO 우선. 리그 우선순위는 그 다음.
   //   적합 경기 없으면 null → 영역 숨김(하위리그/무관 경기로 채우지 않음).
   // 유스 팀 판별(U15~U23 등) — 리그명이 '국제 친선'이어도 팀명이 유스면 빅매치에서 제외
-  var YOUTH_TEAM_RE=/\bU[\s-]?1[689]\b|\breserves?\b|리저브|\bacadem(y|ia|ie)\b|아카데미|2군|\bB[\s-]?team\b|\bII\b|\bjuniors?\b|\bjr\b|\bunivers(ity|idad|ité)?\b|\bcollege\b|대학|\bamateur\b|아마추어/i;
+  var YOUTH_TEAM_RE=/\bU[\s-]?(1[0-9]|2[0-3])\b|유소년|유스\b|\byouth\b|\breserves?\b|리저브|\bacadem(y|ia|ie)\b|아카데미|2군|\bB[\s-]?team\b|\bII\b|\bjuniors?\b|\bjr\b|\bunivers(ity|idad|ité)?\b|\bcollege\b|대학|\bamateur\b|아마추어/i;
   // 유스·리저브 경기 판별(국제 친선도 양 팀 연령 확인) — 빅매치·통합 라이브 후보에서 제외
   function isYouthGame(g){ return YOUTH_TEAM_RE.test(String(g.home||"")) || YOUTH_TEAM_RE.test(String(g.away||"")) || YOUTH_TEAM_RE.test(String(g.league||"")); }
   // 취소·연기·중단·몰수 등 '정상 진행 아님' 판별 — 빅매치 후보에서 제외
@@ -2305,10 +2305,8 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
   // 후보 선정용 유효 리그 순위(명령서 종목별 규칙 반영).
   //   · 표에 있으면 그대로(농구 NBA=0 등)  · 성인 국가대표: 축구=본선/주요예선 최상위(0), 농구·야구=본선만 프로리그 바로 아래(0.5)·예선/친선은 기타성인(950)
   //   · ⭐ 스타 팀(호날두·메시·손흥민) 경기=기타 성인리그(999)보다 위(500), 빅리그 아래.
-  var U23_RE=/\bU[\s-]?23\b/i;
   function effLeagueRank(sp,g){
-    // 명령서: U23은 성인 국제 경기와 같은 상단 우선순위로.
-    if(sp==="football" && U23_RE.test(String(g.league||"")+" "+String(g.home||"")+" "+String(g.away||""))) return 0;
+    // 유스/미성년자(U13~U23 등)는 하단(leagueRank에서 SUBTIER=1200). 국제대회라도 상단 금지.
     var r=leagueRank(sp,g.league,g.country);
     // ⭐ 스타 팀(호날두·메시·손흥민): 소속 리그(사우디·MLS)가 뭐든 '상단 그룹(5대리그·UCL과 함께)'으로.
     //    이미 그보다 높은 리그면 그대로 유지(min).
@@ -2683,8 +2681,10 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
     var st=stateOf(g), live=st==="live", sch=st==="scheduled";
     var sp=g.sport||"football"; var ic=SPORT_ICON[sp]||"🏟";
     var _schx=sch?schLabel(g):""; var _schPast=sch&&_schx!==t("startSoon");
+    var _startLbl=tl({en:"Start",ko:"시작",ja:"開始",zh:"开始",es:"Inicio",hi:"शुरू",vi:"Bắt đầu",th:"เริ่ม",ru:"Старт",de:"Start",fr:"Début",it:"Inizio"});
     var stHtml= live?('<span class="ags-live">LIVE</span><span class="ags-min">'+statusText(g)+'</span>')
-      : (sch?('<span class="ags-tm">'+hhmm(g.date)+'</span>'+(_schPast?'<span class="ags-min" style="color:#b06a00">'+_schx+'</span>':'')) : '<span class="ags-fin">'+t("finished")+'</span>');
+      : (sch?('<span class="ags-tm">'+hhmm(g.date)+'</span>'+(_schPast?'<span class="ags-min" style="color:#b06a00">'+_schx+'</span>':''))
+             : ('<span class="ags-fin">'+t("finished")+'</span>'+(g.date?'<span class="ags-min">'+_startLbl+' '+hhmm(g.date)+'</span>':'')));   // 종료 경기도 시작 시각 표시
     var sc=function(v){ return sch?'':(v==null?'-':v); };
     function tl2(name,logo,sv,away){ return '<div class="ags-ln"><span class="ags-ha '+(away?"a":"h")+'">'+(away?"A":"H")+'</span>'+(logo?'<img class="ags-lg" src="'+esc(logo)+'" onerror="this.outerHTML=\'<span class=\\\'ags-lg ph\\\'>🛡️</span>\'">':'<span class="ags-lg ph">🛡️</span>')+'<span class="ags-nm">'+esc(tnTeam(name||""))+'</span><span class="ags-sc'+(live?" live":"")+'">'+sc(sv)+'</span></div>'; }
     var row=el("div","ags-row");
@@ -3498,6 +3498,48 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
       var mb=$("#ovRankMore"); if(mb)mb.onclick=function(){ openStandings(sport,lg,g); };
     }
   }
+  // ⚽ 개요 안 '이벤트' 요약(주요 기록 다음) — 라이브/종료 경기 골·카드 등 간략 타임라인 + 전체 이벤트 바로가기.
+  function loadOverviewEvents(g){
+    var box=$("#ovEvents"); if(!box)return; var tk=_dtTok;
+    var isTs=String(g.id).indexOf("ts")===0;
+    var url=isTs?("/api/football/live?id="+encodeURIComponent(g.id)):("/api/asports/events?fixture="+encodeURIComponent(g.apiFixture||g.id));
+    fetch(url).then(function(r){return r.json()}).then(function(j){
+      if(tk!==_dtTok||!$("#ovEvents"))return;
+      var ev=(j&&j.events)||[];
+      var rows=ev.map(function(e){
+        var min=(e.minute!=null?(e.minute+(e.extra?'+'+e.extra:'')+"'"):"");
+        var team=(e.team===1||e.team==="home"||e.team===g.home)?"h":((e.team===2||e.team==="away"||e.team===g.away)?"a":"");
+        var kind=/goal/i.test((e.type||"")+(e.detail||"")+(e.kind||""))?"goal":(/card/i.test((e.type||"")+(e.detail||"")+(e.kind||""))?(/red/i.test((e.detail||"")+(e.card||""))?"red":"card"):((e.kind==="sub"||/subst/i.test(e.type||""))?"sub":"etc"));
+        var txt=e.text||tnPlayer(e.pid,e.player||"")||e.detail||"";
+        if(kind==="sub"&&!txt)txt=(e.inName||"")+(e.outName?(" ↔ "+e.outName):"");
+        return {min:min,team:team,kind:kind,txt:txt};
+      }).filter(function(r){return r.txt;});
+      // 골·카드·교체 위주, 최신순 최대 8개
+      var key=rows.filter(function(r){return r.kind==="goal"||r.kind==="card"||r.kind==="red"||r.kind==="sub";});
+      var list=(key.length?key:rows).slice().reverse().slice(0,8);
+      if(!list.length){ box.innerHTML=''; return; }
+      var ic={goal:"⚽",card:"🟨",red:"🟥",sub:"🔄",etc:"•"};
+      var h='<div class="dt-sec-t" style="margin-top:18px">⚽ '+t("eventsTab")+'</div><div class="flow">'+
+        list.map(function(e){ return '<div class="fe '+e.team+'"><span class="fcl">'+esc(e.min)+'</span><span class="ftx">'+(ic[e.kind]||"•")+' '+esc(e.txt)+'</span></div>'; }).join("")+
+        '</div><div class="ov-jump" style="margin-top:6px"><button class="ovj" data-go="events">⚽ '+t("eventsTab")+' ›</button></div>';
+      box.innerHTML=h;
+      box.querySelectorAll(".ovj").forEach(function(b){ b.onclick=function(){ _dt.tab=b.dataset.go; renderDetail(); }; });
+    }).catch(function(){ if($("#ovEvents"))$("#ovEvents").innerHTML=''; });
+  }
+  // 📰 개요 안 '뉴스' 요약(최근경기 다음) — 종목 뉴스 상위 몇 건.
+  function loadOverviewNews(g){
+    var box=$("#ovNews"); if(!box)return; var tk=_dtTok;
+    var cat=tmNewsCat("football");
+    fetch("/api/news?cat="+encodeURIComponent(cat)).then(function(r){return r.json()}).then(function(j){
+      if(tk!==_dtTok||!$("#ovNews"))return;
+      var items=(j&&(j.items||j.news||j.articles))||(Array.isArray(j)?j:[]);
+      if(!items.length){ box.innerHTML=''; return; }
+      var show=items.slice(0,5);
+      var h='<div class="dt-sec-t" style="margin-top:18px">📰 '+t("news")+'</div>'+
+        show.map(function(n){ var u=n.url||n.link||"#"; var ti=n.title||n.headline||""; var src=n.source||n.author||""; if(!ti)return ''; return '<a class="ovnews-row" href="'+esc(u)+'" target="_blank" rel="noopener" style="display:block;padding:9px 2px;border-bottom:1px solid var(--line);text-decoration:none;color:var(--navy)"><div style="font-weight:600;font-size:13.5px;line-height:1.35">'+esc(ti)+'</div>'+(src?'<div style="color:#8a93a3;font-size:11px;margin-top:2px">'+esc(src)+'</div>':'')+'</a>'; }).join("");
+      box.innerHTML=h;
+    }).catch(function(){ if($("#ovNews"))$("#ovNews").innerHTML=''; });
+  }
   function renderOverview(g,sport){
     var h='<div id="dtHlCard"></div>';   // 🎬 종료 경기 공식 하이라이트 — 개요 최상단
     if(stateOf(g)==="scheduled"){
@@ -3517,7 +3559,7 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
       // 농구는 아래에서 쿼터 '표'로 표시(경쟁사 동일). 배구/하키는 기존 칩.
       if(g.setScores&&g.setScores.length&&sport!=="basketball"){ var lab=(sport==="hockey"?t("periodScore"):t("setScore")); h+='<div class="dt-sec-t">'+lab+'</div><div style="display:flex;flex-wrap:wrap;gap:6px">'+g.setScores.map(function(p,i){return '<span class="chipq"><b class="qk">'+periodColLabel(sport,i,g.isHalves)+'</b>'+(p.home==null?"-":p.home)+":"+(p.away==null?"-":p.away)+'</span>'}).join("")+'</div>'; }
     }
-    // 축구 개요 요약: 경기 흐름 그래프(F01) → 핵심 통계 → 이벤트 → 최근성적/순위
+    // 축구 개요 순서(명령서): 현재상황(+경기흐름) → 주요 기록 → 이벤트 → 최근경기 → 뉴스 → 순위
     if(sport==="football"&&stateOf(g)!=="scheduled"){
       h+='<div id="ovFlow"></div>';
       h+='<div id="ovStats"><div class="dt-sec-t" style="margin-top:18px">📊 '+t("keyStats")+'</div><p style="color:#8a93a3;font-size:13px">'+t("loading")+'</p></div>';
@@ -3528,6 +3570,7 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
       _jb+='<button class="ovj" id="ovjEvents" data-go="events" style="display:'+(_av.events===true?'':'none')+'">⚽ '+t("eventsTab")+' ›</button>';
       if(_mlive&&_av.stats!==false) _jb+='<button class="ovj" data-go="stats">📊 '+t("statsTab")+' ›</button>';
       h+='<div class="ov-jump">'+_jb+'</div>';
+      h+='<div id="ovEvents"></div>';   // ⚽ 이벤트(주요 기록 다음)
       h+='<div id="ovInjury"></div>';   // 🩹 부상·결장 정보(실데이터 있을 때만)
     } else if(sport==="football"){
       h+='<div class="ov-jump"><button class="ovj" data-go="lineup">👥 '+t("lineup")+' ›</button></div>';
@@ -3550,15 +3593,16 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
          '<button class="ovj" data-go="bskrec">📈 '+t("recordTab")+' ›</button>'+
          '</div>';
     }
-    // 최근 전적 / 상대전적 (축구=API-Sports 팀ID 기반) + 순위 링크
+    // 최근 전적 / 상대전적 (축구=API-Sports 팀ID 기반) → 뉴스 → 순위 링크
     h+='<div id="ovForm"></div>';
+    if(sport==="football"&&stateOf(g)!=="scheduled") h+='<div id="ovNews"></div>';   // 📰 뉴스(최근경기 다음)
     h+='<div class="dt-sec-t" style="margin-top:20px">🏆 '+t("leagueRank")+'</div><div id="ovRankTbl"><p style="color:#8a93a3;font-size:13px">'+t("loading")+'</p></div>';
     dtBody(h);
     try{ renderHlCard(); }catch(_){}   // 🎬 개요 최상단 하이라이트 렌더(있을 때만)
     loadOverviewRank(g,sport);
     // 개요 → 탭 이동 버튼
     var db=$("#dtBody"); if(db){ db.querySelectorAll(".ovj").forEach(function(btn){ btn.onclick=function(){ _dt.tab=btn.dataset.go; renderDetail(); }; }); }
-    if(sport==="football"&&stateOf(g)!=="scheduled"){ loadOverviewStats(g); loadOverviewStars(g); loadFootballFlow(g); loadFootballInjuries(g); }
+    if(sport==="football"&&stateOf(g)!=="scheduled"){ loadOverviewStats(g); loadOverviewStars(g); loadFootballFlow(g); loadFootballInjuries(g); loadOverviewEvents(g); loadOverviewNews(g); }
     if(sport==="basketball"&&stateOf(g)!=="scheduled"){ loadOverviewBskPlay(g); loadOverviewBskStats(g); }
     loadForm(g,sport);
   }
