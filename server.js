@@ -29,7 +29,7 @@ const app = express();
 const server = http.createServer(app);
 
 const PORT = process.env.PORT || 3000;
-const APP_VERSION = 'v602';
+const APP_VERSION = 'v603';
 
 // ============================================================
 //  📏 성능 계측(instrumentation) — 엔드포인트 지연·캐시·공급사·WS·이벤트루프
@@ -4279,11 +4279,11 @@ const DISC_TEAM_ALIAS = {
 };
 function _discAliasFor(name) { return DISC_TEAM_ALIAS[_nrm(name)] || []; }
 
-// 검색 인덱스(주요 리그 팀 + 전체 리그). 1h 캐시. (전역 팀/선수 검색 엔드포인트는 플랜 미인증 → 인덱스 기반.)
-async function _discBuildIndex() {
-  const cached = _discGet('search:idx', 3600e3); if (cached) return cached;
-  const leagues = [], teams = [], seenT = new Set();
-  // 리그: 축구(주요+국가별 카탈로그) + 농구/야구 주요
+// 검색 인덱스 — 리그는 즉시(카탈로그 캐시), 팀은 백그라운드 빌드(검색이 매번 무거운 호출 안 하도록).
+let _discLeagues = null, _discTeams = null, _discTeamsBuilding = false;
+async function _discLeaguesIndex() {
+  if (_discLeagues && Date.now() - _discLeagues.t < 3600e3) return _discLeagues.v;
+  const leagues = [];
   try {
     const fbMajor = await discoverFootballLeagues();
     const fbCtry = await discoverFootballCountries();
@@ -4292,20 +4292,28 @@ async function _discBuildIndex() {
     const bk = await discoverBasketballLeagues().catch(() => []);
     bk.forEach(l => leagues.push({ type: 'league', id: l.id, name: l.name, nameKo: l.nameKo || '', flag: l.flag || '', sport: 'basketball', tier: 'major' }));
   } catch (e) {}
-  // 팀: 축구 주요리그 참가팀(별칭 부착). (타 종목 팀은 리그 선택 후 조회 — 인덱스 비용 억제.)
-  try {
-    const fbMajor = await discoverFootballLeagues();
-    for (const lg of fbMajor) {
-      const r = await rankFootballTS(lg.id, '').catch(() => null);
-      (r && r.table || []).forEach(row => {
-        if (!row.teamId || seenT.has(row.teamId)) return; seenT.add(row.teamId);
-        teams.push({ type: 'team', id: row.teamId, name: row.team || '', logo: row.logo || '', sport: 'football', league: r.compName || lg.name, aliases: _discAliasFor(row.team) });
-      });
-    }
-  } catch (e) {}
-  const idx = { leagues, teams, builtAt: Date.now() };
-  return _discSet('search:idx', idx);
+  _discLeagues = { t: Date.now(), v: leagues };
+  return leagues;
 }
+// 팀 인덱스: 캐시 있으면 반환, 없으면 백그라운드 빌드 시작하고 현재값(또는 [])을 즉시 반환. 축구 주요리그 참가팀.
+function _discTeamsIndex() {
+  if (_discTeams && Date.now() - _discTeams.t < 3600e3) return _discTeams.v;
+  if (!_discTeamsBuilding) {
+    _discTeamsBuilding = true;
+    (async () => {
+      try {
+        const fbMajor = await discoverFootballLeagues();
+        const results = await Promise.all(fbMajor.map(lg => rankFootballTS(lg.id, '').catch(() => null)));
+        const seen = new Set(), teams = [];
+        results.forEach((r, i) => { const lg = fbMajor[i]; (r && r.table || []).forEach(row => { if (!row.teamId || seen.has(row.teamId)) return; seen.add(row.teamId); teams.push({ type: 'team', id: row.teamId, name: row.team || '', logo: row.logo || '', sport: 'football', league: (r && r.compName) || lg.name, aliases: _discAliasFor(row.team) }); }); });
+        _discTeams = { t: Date.now(), v: teams };
+      } catch (e) {} finally { _discTeamsBuilding = false; }
+    })();
+  }
+  return (_discTeams && _discTeams.v) || [];
+}
+// 부팅 후 워밍(사용자 첫 검색 전에 인덱스 준비).
+setTimeout(() => { _discLeaguesIndex().catch(() => {}); _discTeamsIndex(); }, 9000);
 
 // GET /api/discover/search?q=&sport=
 app.get('/api/discover/search', async (req, res) => {
@@ -4314,9 +4322,13 @@ app.get('/api/discover/search', async (req, res) => {
   const spf = String(req.query.sport || '').toLowerCase();
   if (q.length < 1) return res.json({ q, leagues: [], teams: [], players: [], note: 'empty-q' });
   try {
-    const idx = await _discBuildIndex();
-    const qn = _nrm(q);
-    const hay = o => [o.name, o.nameKo || '', ...(o.aliases || [])].map(_nrm).filter(Boolean);
+    const idx = { leagues: await _discLeaguesIndex(), teams: _discTeamsIndex() };
+    const warming = !_discTeams;   // 팀 인덱스 준비 중 표시
+    // ⚠️ 한글 보존 정규화(_nrm은 한글을 제거해 빈 문자열이 되어 전부 매칭되는 버그) — 공백·구두점만 제거, 글자/숫자(유니코드) 유지.
+    const _nrmS = s => String(s || '').toLowerCase().replace(/\s+/g, '').replace(/[.\-_'’·]/g, '');
+    const qn = _nrmS(q);
+    if (!qn) return res.json({ q, leagues: [], teams: [], players: [], note: 'empty-q' });
+    const hay = o => [o.name, o.nameKo || '', ...(o.aliases || [])].map(_nrmS).filter(Boolean);
     const rank = arr => {
       const exact = [], partial = [];
       arr.forEach(o => { if (spf && o.sport !== spf) return; const h = hay(o); if (h.some(x => x === qn)) exact.push(o); else if (h.some(x => x.includes(qn))) partial.push(o); });
@@ -4325,7 +4337,7 @@ app.get('/api/discover/search', async (req, res) => {
     const leagues = rank(idx.leagues).slice(0, 20);
     const teams = rank(idx.teams).slice(0, 30);
     // 선수 전역 검색: TheSports 전역 선수검색 엔드포인트 미인증 → 미지원(선수단에서 접근). 정직 표기.
-    res.json({ q, leagues, teams, players: [], playersNote: 'player-search-na', src: 'thesports', indexedTeams: idx.teams.length });
+    res.json({ q, leagues, teams, players: [], playersNote: 'player-search-na', warming: warming && !teams.length, src: 'thesports', indexedTeams: idx.teams.length });
   } catch (e) { res.json({ q, leagues: [], teams: [], players: [], error: String((e && e.message) || e) }); }
 });
 
