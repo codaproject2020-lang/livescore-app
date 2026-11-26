@@ -3602,25 +3602,36 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
       var EXP=46;                                         // 반당 기대 포인트수(≈분)
       var pts=[]; (j.data||[]).forEach(function(arr,h){ (arr||[]).forEach(function(v,i){ pts.push({ m: h*per + (i/EXP)*per, v:v }); }); });
       if(!pts.length){ loadFootballFlowGoals(g); return; }
-      var W=328,H=120,PL=4,PR=4,PT=6,PB=16,iw=W-PL-PR,ih=H-PT-PB,midY=PT+ih/2;
+      // 📈 경기흐름(모멘텀) — 부드러운 그라데이션 양방향 파형(홈=군청 위, 원정=레드 아래). 마지막 시안 디자인.
+      var W=340,H=150,PL=6,PR=6,PT=10,PB=22,iw=W-PL-PR,ih=H-PT-PB,midY=PT+ih/2;
       var X=function(m){ return PL+Math.min(1,m/FULL)*iw; };
       var Yv=function(v){ v=Math.max(-100,Math.min(100,v)); return midY-(v/100)*(ih/2); };
-      var up='M'+X(pts[0].m).toFixed(1)+' '+midY, dn='M'+X(pts[0].m).toFixed(1)+' '+midY;
-      pts.forEach(function(p){ up+=' L'+X(p.m).toFixed(1)+' '+Yv(Math.max(0,p.v)).toFixed(1); });
-      up+=' L'+X(pts[pts.length-1].m).toFixed(1)+' '+midY+' Z';
-      pts.forEach(function(p){ dn+=' L'+X(p.m).toFixed(1)+' '+Yv(Math.min(0,p.v)).toFixed(1); });
-      dn+=' L'+X(pts[pts.length-1].m).toFixed(1)+' '+midY+' Z';
+      // Catmull-Rom → 베지어(부드러운 곡선)
+      function smooth(P){ var d=''; for(var i=0;i<P.length-1;i++){ var p0=P[i-1]||P[i],p1=P[i],p2=P[i+1],p3=P[i+2]||p2; var c1x=p1[0]+(p2[0]-p0[0])/6,c1y=p1[1]+(p2[1]-p0[1])/6,c2x=p2[0]-(p3[0]-p1[0])/6,c2y=p2[1]-(p3[1]-p1[1])/6; d+=' C'+c1x.toFixed(1)+' '+c1y.toFixed(1)+' '+c2x.toFixed(1)+' '+c2y.toFixed(1)+' '+p2[0].toFixed(1)+' '+p2[1].toFixed(1); } return d; }
+      var topP=pts.map(function(p){ return [X(p.m),Yv(Math.max(0,p.v))]; });
+      var botP=pts.map(function(p){ return [X(p.m),Yv(Math.min(0,p.v))]; });
+      function area(P){ var x0=P[0][0].toFixed(1),xn=P[P.length-1][0].toFixed(1); return 'M'+x0+' '+midY.toFixed(1)+' L'+x0+' '+P[0][1].toFixed(1)+smooth(P)+' L'+xn+' '+midY.toFixed(1)+' Z'; }
+      function line(P){ return 'M'+P[0][0].toFixed(1)+' '+P[0][1].toFixed(1)+smooth(P); }
+      var NAVY='#1b3a63', RED='#c93b4b';
       var htX=X(per).toFixed(1);
+      // 그리드(15분 간격)
+      var grid=''; for(var gm=0;gm<=FULL+1;gm+=15){ var gx=X(gm).toFixed(1); grid+='<line x1="'+gx+'" y1="'+PT+'" x2="'+gx+'" y2="'+(H-PB)+'" stroke="rgba(0,0,0,.05)" stroke-width="1"/>'; }
+      var axis=''; for(var am=0;am<=90;am+=15){ var ax=X(am).toFixed(1),anc=(am===0?'start':am===90?'end':'middle'); axis+='<text x="'+ax+'" y="'+(H-6)+'" font-size="9" text-anchor="'+anc+'" fill="#9aa6b6">'+am+"'"+'</text>'; }
       var title='<div class="dt-sec-t">📈 '+t("matchFlow")+'</div>';
       var svg='<svg viewBox="0 0 '+W+' '+H+'" class="mmt-svg" preserveAspectRatio="none">'+
-        '<path d="'+up+'" fill="rgba(43,108,240,.85)"/>'+
-        '<path d="'+dn+'" fill="rgba(28,166,90,.85)"/>'+
-        '<line x1="'+PL+'" y1="'+midY+'" x2="'+(W-PR)+'" y2="'+midY+'" stroke="rgba(0,0,0,.12)" stroke-width="1"/>'+
-        '<line x1="'+htX+'" y1="'+PT+'" x2="'+htX+'" y2="'+(H-PB)+'" stroke="rgba(0,0,0,.14)" stroke-dasharray="3 3"/>'+
-        '<text x="'+PL+'" y="'+(H-3)+'" font-size="8" fill="#9aa6b6">0\'</text>'+
-        '<text x="'+htX+'" y="'+(H-3)+'" font-size="8" text-anchor="middle" fill="#9aa6b6">'+per+'\'</text>'+
-        '<text x="'+X(90).toFixed(1)+'" y="'+(H-3)+'" font-size="8" text-anchor="end" fill="#9aa6b6">90\'</text></svg>';
-      var lg='<div class="mmt-lg"><span><i style="background:#2b6cf0"></i>'+esc(g.home)+'</span><span><i style="background:#1ca65a"></i>'+esc(g.away)+'</span><span class="mut">'+tl({en:"Attack momentum",ko:"공격 모멘텀",ja:"攻撃の勢い",zh:"进攻势头",es:"Impulso de ataque",hi:"अटैक मोमेंटम",vi:"Đà tấn công",th:"โมเมนตัมบุก",ru:"Импульс атаки",de:"Angriffsmomentum",fr:"Élan offensif",it:"Spinta offensiva"})+'</span></div>';
+        '<defs>'+
+          '<linearGradient id="mmtUp" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="'+NAVY+'" stop-opacity="0.95"/><stop offset="1" stop-color="'+NAVY+'" stop-opacity="0.18"/></linearGradient>'+
+          '<linearGradient id="mmtDn" x1="0" y1="1" x2="0" y2="0"><stop offset="0" stop-color="'+RED+'" stop-opacity="0.95"/><stop offset="1" stop-color="'+RED+'" stop-opacity="0.18"/></linearGradient>'+
+        '</defs>'+
+        grid+
+        '<path d="'+area(topP)+'" fill="url(#mmtUp)"/>'+
+        '<path d="'+area(botP)+'" fill="url(#mmtDn)"/>'+
+        '<path d="'+line(topP)+'" fill="none" stroke="'+NAVY+'" stroke-width="1.6" stroke-linejoin="round"/>'+
+        '<path d="'+line(botP)+'" fill="none" stroke="'+RED+'" stroke-width="1.6" stroke-linejoin="round"/>'+
+        '<line x1="'+PL+'" y1="'+midY+'" x2="'+(W-PR)+'" y2="'+midY+'" stroke="rgba(0,0,0,.18)" stroke-width="1"/>'+
+        '<line x1="'+htX+'" y1="'+PT+'" x2="'+htX+'" y2="'+(H-PB)+'" stroke="rgba(0,0,0,.22)" stroke-dasharray="3 3"/>'+
+        axis+'</svg>';
+      var lg='<div class="mmt-lg"><span><i style="background:'+NAVY+'"></i>'+esc(g.home)+'</span><span><i style="background:'+RED+'"></i>'+esc(g.away)+'</span><span class="mut">'+tl({en:"Attack momentum",ko:"공격 모멘텀",ja:"攻撃の勢い",zh:"进攻势头",es:"Impulso de ataque",hi:"अटैक मोमेंटम",vi:"Đà tấn công",th:"โมเมนตัมบุก",ru:"Импульс атаки",de:"Angriffsmomentum",fr:"Élan offensif",it:"Spinta offensiva"})+'</span></div>';
       bx.innerHTML=title+'<div class="mmt-wrap">'+svg+lg+'</div>';
     }).catch(function(){ loadFootballFlowGoals(g); });
   }
@@ -5828,6 +5839,7 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
       var r='';
       if(tm.league)r+='<div class="sv-row"><div class="sl">'+tl({en:"League",ko:"소속 리그",ja:"リーグ",zh:"联赛",es:"Liga",hi:"लीग",vi:"Giải",th:"ลีก",ru:"Лига",de:"Liga",fr:"Ligue",it:"Lega"})+'</div><div class="sr">'+esc(tm.league)+'</div></div>';
       if(tm.stadium)r+='<div class="sv-row"><div class="sl">'+tl({en:"Stadium",ko:"홈구장",ja:"本拠地",zh:"主场",es:"Estadio",hi:"स्टेडियम",vi:"Sân nhà",th:"สนาม",ru:"Стадион",de:"Stadion",fr:"Stade",it:"Stadio"})+'</div><div class="sr">'+esc(tm.stadium)+'</div></div>';
+      if(tm.venueCap)r+='<div class="sv-row"><div class="sl">'+tl({en:"Capacity",ko:"수용 인원",ja:"収容人数",zh:"容量",es:"Aforo",hi:"क्षमता",vi:"Sức chứa",th:"ความจุ",ru:"Вместимость",de:"Kapazität",fr:"Capacité",it:"Capienza"})+'</div><div class="sr">'+esc(Number(tm.venueCap).toLocaleString())+'</div></div>';
       if(tm.manager)r+='<div class="sv-row"><div class="sl">'+tl({en:"Manager",ko:"감독",ja:"監督",zh:"主教练",es:"Entrenador",hi:"कोच",vi:"HLV",th:"ผจก.",ru:"Тренер",de:"Trainer",fr:"Entraîneur",it:"Allenatore"})+'</div><div class="sr">'+esc(tm.manager)+(tm.coachNat?' · '+esc(tm.coachNat):'')+'</div></div>';
       if(tm.formation)r+='<div class="sv-row"><div class="sl">'+tl({en:"Formation",ko:"포메이션",ja:"フォーメーション",zh:"阵型",es:"Formación",hi:"फॉर्मेशन",vi:"Sơ đồ",th:"แผนการเล่น",ru:"Схема",de:"Formation",fr:"Formation",it:"Modulo"})+'</div><div class="sr">'+esc(tm.formation)+'</div></div>';
       if(tm.venueCity)r+='<div class="sv-row"><div class="sl">'+tl({en:"City",ko:"도시",ja:"都市",zh:"城市",es:"Ciudad",hi:"शहर",vi:"Thành phố",th:"เมือง",ru:"Город",de:"Stadt",fr:"Ville",it:"Città"})+'</div><div class="sr">'+esc(tm.venueCity)+(tm.venueCountry?', '+esc(tm.venueCountry):'')+'</div></div>';

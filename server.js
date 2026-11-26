@@ -29,7 +29,7 @@ const app = express();
 const server = http.createServer(app);
 
 const PORT = process.env.PORT || 3000;
-const APP_VERSION = 'v604';
+const APP_VERSION = 'v606';
 
 // ============================================================
 //  📏 성능 계측(instrumentation) — 엔드포인트 지연·캐시·공급사·WS·이벤트루프
@@ -1340,11 +1340,18 @@ app.get('/api/team/as', async (req, res) => {
         if (tt && tt.name) {
           const cc = await _tsCountryName(tt.countryId).catch(() => '');
           const fy = Number(tt.foundation);   // 창단 '연도'
+          // 감독·경기장 보강(모두 TheSports 인증 경로). 미제공 필드는 숨김(가짜 생성 없음).
+          const [coach, venue] = await Promise.all([
+            tt.coachId ? tsCoach(tt.coachId).catch(() => null) : Promise.resolve(null),
+            tt.venueId ? tsVenue(tt.venueId).catch(() => null) : Promise.resolve(null)
+          ]);
           team = {
             id: idStr, name: tt.name, badge: tt.logo || '', country: cc || '',
             formed: (fy >= 1800 && fy <= (new Date().getUTCFullYear() + 1)) ? fy : '',
             totalPlayers: tt.totalPlayers || 0, foreignPlayers: tt.foreignPlayers || 0,
-            marketValue: tt.marketValue || 0, marketCur: tt.marketCur || ''
+            marketValue: tt.marketValue || 0, marketCur: tt.marketCur || '',
+            manager: (coach && coach.name) || '', coachNat: (coach && coach.nationality) || '', formation: (coach && coach.formation) || '',
+            stadium: (venue && venue.name) || '', venueCity: (venue && venue.city) || '', venueCap: (venue && venue.capacity != null) ? venue.capacity : null
           };
         }
       }
