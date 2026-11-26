@@ -29,7 +29,7 @@ const app = express();
 const server = http.createServer(app);
 
 const PORT = process.env.PORT || 3000;
-const APP_VERSION = 'v608';
+const APP_VERSION = 'v609';
 
 // ============================================================
 //  📏 성능 계측(instrumentation) — 엔드포인트 지연·캐시·공급사·WS·이벤트루프
@@ -4400,7 +4400,9 @@ app.get('/api/football/teamhistory', async (req, res) => {
     const comp = idx.byId.get(compId), cur = comp && comp.cur_season_id;
     const L = await _fbLoadSeasonList();
     let seasons = (L.byComp.get(compId) || []).slice();
-    if (!seasons.length && cur && L.byId.has(cur)) { const rc = L.byId.get(cur).competition_id; if (rc) seasons = (L.byComp.get(rc) || []).slice(); }
+    // comp/additional의 대회ID와 season/list의 competition_id가 다를 수 있어, 현재시즌ID로 보정한 대회ID의 시즌도 병합(과거 시즌 누락 방지).
+    if (cur && L.byId.has(cur)) { const rc = L.byId.get(cur).competition_id; if (rc && rc !== compId) seasons = seasons.concat(L.byComp.get(rc) || []); }
+    const _sn = new Set(); seasons = seasons.filter(s => { if (!s.id || _sn.has(s.id)) return false; _sn.add(s.id); return true; });
     seasons = seasons.filter(s => s.hasTable).sort((a, b) => (a.year < b.year ? 1 : -1)).slice(0, 10);
     const out = [];
     for (const s of seasons) {
