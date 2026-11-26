@@ -29,7 +29,7 @@ const app = express();
 const server = http.createServer(app);
 
 const PORT = process.env.PORT || 3000;
-const APP_VERSION = 'v609';
+const APP_VERSION = 'v611';
 
 // ============================================================
 //  📏 성능 계측(instrumentation) — 엔드포인트 지연·캐시·공급사·WS·이벤트루프
@@ -108,7 +108,10 @@ let visitorsCol = null;             // 방문자 영속 컬렉션(연결 시)
 // ============================================================
 const ERRLOG = [];                 // 최근 에러 링버퍼(관리자 화면 표시)
 const ERR_MAX = 300;
-let errorsCol = null, configCol = null, adminSubsCol = null, highlightsCol = null, bskSnapCol = null, langCol = null;
+let errorsCol = null, configCol = null, adminSubsCol = null, highlightsCol = null, bskSnapCol = null, langCol = null, hlQueueCol = null, hlExcludeCol = null;
+// 🎬 하이라이트 자동탐색 상태(메모리 미러): 검수 대기 큐 + 제외(오연결 재등록 방지)
+const HL_QUEUE = new Map();   // key -> candidate doc
+const HL_EXCLUDE = new Set(); // 'match:'+key | 'vid:'+videoId
 // 🌐 TheSports 한국어 번역 캐시(팀/리그 id → 한글명). 종목별. 메모리 + Mongo(ts_lang) 영속.
 const TS_LANG = {};
 const TS_LANG_SPORTS = { football: 'football', basketball: 'basketball', baseball: 'baseball', volleyball: 'volleyball', hockey: 'ice_hockey' };
@@ -332,7 +335,7 @@ async function initDB() {
       errorsCol = db.collection('errors'); await errorsCol.createIndex({ ts: -1 }).catch(() => {});
       configCol = db.collection('config');
       const c = await configCol.findOne({ _id: 'main' });
-      if (c) { CFG.flags = c.flags || {}; CFG.maint = c.maint || ''; CFG.bskSrc = c.bskSrc || 'thesports'; CFG.ftbSrc = c.ftbSrc || 'thesports'; CFG.volSrc = c.volSrc || 'thesports'; CFG.bsbSrc = c.bsbSrc || 'thesports'; CFG.alertsOff = !!c.alertsOff; CFG.alertsNight = !!c.alertsNight; CFG.bigPin = c.bigPin || ''; CFG.updatedAt = c.updatedAt || 0;
+      if (c) { CFG.flags = c.flags || {}; CFG.maint = c.maint || ''; CFG.bskSrc = c.bskSrc || 'thesports'; CFG.ftbSrc = c.ftbSrc || 'thesports'; CFG.volSrc = c.volSrc || 'thesports'; CFG.bsbSrc = c.bsbSrc || 'thesports'; CFG.alertsOff = !!c.alertsOff; CFG.alertsNight = !!c.alertsNight; CFG.bigPin = c.bigPin || ''; CFG.ytChannels = Array.isArray(c.ytChannels) ? c.ytChannels : []; CFG.updatedAt = c.updatedAt || 0;
         // 🎥 트래커 URL(72시간마다 갱신) 복원 — 관리자가 저장한 값이 하드코딩 기본값을 덮어씀(재배포 불필요)
         if (c.tracker) { ['football', 'basketball', 'volleyball', 'baseball', 'hockey', 'lol', 'dota2', 'csgo'].forEach(s => { if (typeof c.tracker[s] === 'string' && c.tracker[s]) TRACKER_URLS[s] = c.tracker[s]; }); console.log('[DB] 트래커 URL 복원'); }
       }
@@ -344,6 +347,8 @@ async function initDB() {
       console.log(`[DB] 운영 config/에러/관리자알림 로드 (관리자구독 ${asList.length})`);
       // 🎬 하이라이트 로드
       try { highlightsCol = db.collection('highlights'); await highlightsCol.createIndex({ key: 1 }, { unique: true }).catch(() => {}); const hls = await highlightsCol.find({}).toArray(); for (const h of hls) { if (h.key) HIGHLIGHTS.set(h.key, h); } console.log(`[DB] 하이라이트 ${hls.length}건 로드`); } catch (e) { console.error('[DB] highlights 로드 실패:', e.message); }
+      // 🎬 하이라이트 자동탐색: 검수 대기 큐 + 제외(오연결 재등록 방지) 로드
+      try { hlQueueCol = db.collection('hl_queue'); await hlQueueCol.createIndex({ key: 1 }, { unique: true }).catch(() => {}); const qs = await hlQueueCol.find({}).toArray(); for (const q of qs) { if (q.key) HL_QUEUE.set(q.key, q); } hlExcludeCol = db.collection('hl_exclude'); const ex = await hlExcludeCol.find({}).toArray(); for (const e of ex) { if (e._id) HL_EXCLUDE.add(e._id); } console.log(`[DB] 하이라이트 큐 ${qs.length}건 · 제외 ${ex.length}건 로드`); } catch (e) { console.error('[DB] hl 큐/제외 로드 실패:', e.message); }
       // 🗄️ 농구 종료경기 박스/흐름 스냅샷 영속 저장(서버 재시작 후에도 유지). 48h TTL 자동정리.
       try { bskSnapCol = db.collection('bsk_snap'); await bskSnapCol.createIndex({ at: 1 }, { expireAfterSeconds: 172800 }).catch(() => {}); const cnt = await bskSnapCol.estimatedDocumentCount().catch(() => 0); console.log(`[DB] 농구 스냅샷 컬렉션 준비(보존 ${cnt}건)`); } catch (e) { console.error('[DB] bsk_snap 초기화 실패:', e.message); }
       // 🌐 TheSports 한국어 번역(팀/리그) 영속 캐시 — 재시작 후에도 유지, 24h마다 갱신
@@ -620,7 +625,7 @@ app.post('/api/admin/config', (req, res) => {
   // 🏅 운영자 대표경기 수동 지정 핀 ('sport:id' 또는 빈 문자열로 해제)
   if (typeof b.bigPin === 'string') CFG.bigPin = b.bigPin.trim().slice(0, 80);
   CFG.updatedAt = Date.now();
-  if (configCol) configCol.updateOne({ _id: 'main' }, { $set: { flags: CFG.flags, maint: CFG.maint, bskSrc: CFG.bskSrc, ftbSrc: CFG.ftbSrc, volSrc: CFG.volSrc, alertsOff: CFG.alertsOff, alertsNight: CFG.alertsNight, bigPin: CFG.bigPin || '', updatedAt: CFG.updatedAt } }, { upsert: true }).catch(() => {});
+  if (configCol) configCol.updateOne({ _id: 'main' }, { $set: { flags: CFG.flags, maint: CFG.maint, bskSrc: CFG.bskSrc, ftbSrc: CFG.ftbSrc, volSrc: CFG.volSrc, alertsOff: CFG.alertsOff, alertsNight: CFG.alertsNight, bigPin: CFG.bigPin || '', ytChannels: CFG.ytChannels || [], updatedAt: CFG.updatedAt } }, { upsert: true }).catch(() => {});
   res.json({ ok: true, flags: CFG.flags, maint: CFG.maint, bskSrc: CFG.bskSrc, ftbSrc: CFG.ftbSrc, volSrc: CFG.volSrc, alertsOff: CFG.alertsOff, alertsNight: CFG.alertsNight, bigPin: CFG.bigPin || '' });
 });
 // 관리자: 폰 알림 구독 / 테스트
@@ -6749,6 +6754,207 @@ app.get('/api/youtube', async (req, res) => {
     cache.set(ck, { t: Date.now(), v });
     res.json(v);
   } catch (e) { res.status(502).json({ error: String(e.message || e) }); }
+});
+
+// ============================================================
+//  🎬 공식 하이라이트 자동 탐색 엔진 (YouTube Data API · 할당량 관리 · 검수 큐 · 오연결 제외)
+//    원칙: 확인된 공식 채널 우선, 양 팀 제목 매칭·날짜 근접 종합. 불확실하면 자동노출 금지(검수 큐).
+//    풀경기·인터뷰·예고·시뮬·라이브는 하이라이트로 취급하지 않음. 사용자 상세 조회 시 검색 반복 없음(배치만).
+// ============================================================
+// 공식 채널 레지스트리 = 시드(OFFICIAL_CHANNELS) + 관리자 추가(CFG.ytChannels). 확인된 채널만.
+function ytChannels() { return (OFFICIAL_CHANNELS || []).concat(Array.isArray(CFG.ytChannels) ? CFG.ytChannels : []); }
+function officialMatch2(channelId, authorUrl) {
+  const cid = String(channelId || ''), au = String(authorUrl || '').toLowerCase();
+  return ytChannels().find(o => (cid && cid === o.channelId) || (o.handle && au.indexOf(String(o.handle).toLowerCase()) >= 0)) || null;
+}
+// 일일 할당량(검색 1회=100 units, 무료 10000/day ≈ 100회). 안전 버짓.
+const YT_DAILY_SEARCHES = Math.max(0, parseInt(process.env.YT_DAILY_SEARCHES || '80', 10));
+let ytQuota = { day: '', used: 0 };
+function ytDayKey() { return new Date().toISOString().slice(0, 10); }
+function ytBudgetLeft() { const d = ytDayKey(); if (ytQuota.day !== d) ytQuota = { day: d, used: 0 }; return Math.max(0, YT_DAILY_SEARCHES - ytQuota.used); }
+function ytUse(n) { const d = ytDayKey(); if (ytQuota.day !== d) ytQuota = { day: d, used: 0 }; ytQuota.used += n; }
+function _hlNorm(s) { return String(s || '').toLowerCase().replace(/[^a-z0-9가-힣]+/g, ' ').trim(); }
+function _hlTokens(s) { return _hlNorm(s).split(' ').filter(w => w.length >= 3); }
+const HL_BAD_RE = /(full\s*match|full\s*game|entire\s*match|\breplay\b|다시보기|전체\s*경기|풀\s*경기|interview|인터뷰|press\s*conf|기자회견|preview|예고|pre[-\s]?match|simulation|시뮬|efootball|fifa\s*\d|pes\s*\d|live\s*stream|생중계)/i;
+const HL_GOOD_RE = /(highlight|하이라이트|ハイライト|resumen|résumé|melhores momentos|集锦|全场集锦|goals?\b)/i;
+function _hlExcluded(key, vid) { return HL_EXCLUDE.has('match:' + key) || (vid && HL_EXCLUDE.has('vid:' + vid)); }
+// YouTube 검색(여러 후보). 할당량 차감 + 1h 캐시.
+async function ytSearchList(q, maxResults) {
+  if (!YT_KEY) return { items: [], needKey: true };
+  const mr = Math.min(8, Math.max(1, maxResults || 5));
+  const ck = 'YTL:' + mr + ':' + q, hit = cache.get(ck);
+  if (hit && Date.now() - hit.t < 3600000) return hit.v;
+  if (ytBudgetLeft() <= 0) return { items: [], budget: 0 };
+  try {
+    const url = `https://www.googleapis.com/youtube/v3/search?part=snippet&type=video&maxResults=${mr}&order=relevance&videoEmbeddable=true&q=${encodeURIComponent(q)}&key=${YT_KEY}`;
+    const r = await fetch(url); const j = await r.json(); ytUse(1);
+    if (j && j.error) return { items: [], apiError: (j.error.message || 'yt error') };
+    const items = (j.items || []).map(it => ({ videoId: it.id && it.id.videoId, title: (it.snippet && it.snippet.title) || '', channelId: (it.snippet && it.snippet.channelId) || '', channelTitle: (it.snippet && it.snippet.channelTitle) || '', publishedAt: (it.snippet && it.snippet.publishedAt) || '' })).filter(x => x.videoId);
+    const v = { items }; cache.set(ck, { t: Date.now(), v }); return v;
+  } catch (e) { return { items: [], err: String((e && e.message) || e) }; }
+}
+// 경기↔영상 자동 매칭. status: registered|queued|none|exists|excluded|nobudget
+async function hlAutoMatch(m) {
+  const sport = String(m.sport || '').toLowerCase(), matchId = String(m.matchId || '');
+  if (!sport || !matchId) return { status: 'none' };
+  const key = hlKey(sport, matchId);
+  if (HIGHLIGHTS.has(key)) return { status: 'exists' };
+  if (HL_EXCLUDE.has('match:' + key)) return { status: 'excluded' };
+  const home = m.home || '', away = m.away || '', league = m.league || '';
+  if (!home || !away) return { status: 'none' };
+  if (ytBudgetLeft() <= 0) return { status: 'nobudget' };
+  const htok = _hlTokens(home), atok = _hlTokens(away);
+  if (!htok.length || !atok.length) return { status: 'none' };
+  const dateMs = m.dateMs || (m.date ? Date.parse(m.date) : 0);
+  const sr = await ytSearchList(`${home} vs ${away} highlights ${league || ''}`.trim(), 6);
+  if (sr.needKey) return { status: 'none', note: 'needKey' };
+  if (sr.budget === 0) return { status: 'nobudget' };
+  let best = null, bestScore = 0;
+  for (const it of (sr.items || [])) {
+    if (_hlExcluded(key, it.videoId)) continue;
+    if (HL_BAD_RE.test(it.title)) continue;                     // 풀경기·인터뷰·예고·시뮬·라이브 배제
+    const tn = _hlNorm(it.title);
+    const hHit = htok.some(w => tn.indexOf(w) >= 0), aHit = atok.some(w => tn.indexOf(w) >= 0);
+    if (!(hHit && aHit)) continue;                              // 양 팀 모두 제목에 있어야(오연결 방지)
+    const off = officialMatch2(it.channelId, '');
+    let score = 0;
+    if (off) score += 5;
+    if (HL_GOOD_RE.test(it.title)) score += 2;
+    if (dateMs && it.publishedAt) { const dd = (Date.parse(it.publishedAt) - dateMs) / 86400000; if (dd >= -1 && dd <= 10) score += 2; else if (dd < -2 || dd > 30) score -= 3; }  // 게시일만으로 판단 금지 → 경기일 근접 가점
+    if (score > bestScore) { bestScore = score; best = Object.assign({ off }, it); }
+  }
+  if (!best) return { status: 'none' };
+  const base = { key, sport, matchId, videoId: best.videoId, url: 'https://www.youtube.com/watch?v=' + best.videoId, title: best.title, channel: best.channelTitle, channelId: best.channelId, authorUrl: '', thumb: `https://i.ytimg.com/vi/${best.videoId}/hqdefault.jpg`, official: !!best.off, officialName: best.off ? best.off.name : '', home, away, league, score: bestScore, publishedAt: best.publishedAt };
+  // 확신(공식 채널 + 점수 충분) → 자동 등록. 아니면 검수 큐.
+  if (best.off && bestScore >= 7) {
+    const doc = Object.assign({}, base, { addedAt: Date.now(), updatedAt: Date.now(), auto: true });
+    HIGHLIGHTS.set(key, doc);
+    if (highlightsCol) highlightsCol.updateOne({ key }, { $set: doc }, { upsert: true }).catch(() => {});
+    HL_QUEUE.delete(key); if (hlQueueCol) hlQueueCol.deleteOne({ key }).catch(() => {});
+    return { status: 'registered', highlight: hlPublic(doc) };
+  }
+  const q = Object.assign({}, base, { queuedAt: Date.now() });
+  HL_QUEUE.set(key, q); if (hlQueueCol) hlQueueCol.updateOne({ key }, { $set: q }, { upsert: true }).catch(() => {});
+  return { status: 'queued', candidate: q };
+}
+function _hlFeedFinished(g) {
+  if (!g) return false;
+  if (Number(g.status_id) === 8) return true;
+  const s = String(g.status || g.statusLong || g.statusText || '').toUpperCase();
+  if (/\b(FT|AET|PEN|AP|AOT|END|FINISHED|FINAL|FULL[-\s]?TIME)\b/.test(s) || s.indexOf('종료') >= 0) return true;
+  return false;
+}
+function _ymdSeoul(off) { return new Date(Date.now() + (off || 0) * 86400000).toISOString().slice(0, 10); }
+const HL_SPORTS = ['football', 'basketball', 'baseball', 'volleyball', 'hockey', 'esports'];
+let _hlScanBusy = false, _hlLastScan = 0, _hlLastResult = null;
+// 배치 스캔: 종료 경기(피드) 중 미등록·미제외·미대기 건을 할당량 내에서 자동 매칭.
+async function hlAutoScan(opts) {
+  opts = opts || {}; const cap = opts.max || 12;
+  if (_hlScanBusy) return { busy: true };
+  if (!YT_KEY) return { needKey: true };
+  if (ytBudgetLeft() <= 0) return { budget: 0, note: 'daily quota exhausted' };
+  _hlScanBusy = true;
+  let scanned = 0, registered = 0, queued = 0, skipped = 0;
+  try {
+    const tz = 'Asia/Seoul', dates = [_ymdSeoul(0), _ymdSeoul(-1)];
+    outer:
+    for (const sport of HL_SPORTS) {
+      for (const date of dates) {
+        let v = null; try { v = await fullGamesCached(sport, date, tz); } catch (_) {}
+        for (const g of ((v && v.games) || [])) {
+          if (!_hlFeedFinished(g)) continue;
+          const id = String(g.id || ''); if (!id) continue;
+          const key = hlKey(sport, id);
+          if (HIGHLIGHTS.has(key) || HL_QUEUE.has(key) || HL_EXCLUDE.has('match:' + key)) { skipped++; continue; }
+          if (ytBudgetLeft() <= 0) break outer;
+          scanned++;
+          const r = await hlAutoMatch({ sport, matchId: id, home: g.home, away: g.away, league: g.league, date: g.date || date });
+          if (r.status === 'registered') registered++; else if (r.status === 'queued') queued++;
+          if (registered + queued >= cap) break outer;
+        }
+      }
+    }
+  } catch (e) {} finally { _hlScanBusy = false; }
+  _hlLastScan = Date.now(); _hlLastResult = { scanned, registered, queued, skipped, budgetLeft: ytBudgetLeft(), at: _hlLastScan };
+  return _hlLastResult;
+}
+// 서버 스케줄러: 플래그(flags.hlAuto) ON + 키 있을 때 10분마다 소량 스캔(할당량 보호). 라이브 갱신과 분리.
+setInterval(() => { try { if (CFG.flags && CFG.flags.hlAuto && YT_KEY && ytBudgetLeft() > 0) hlAutoScan({ max: 8 }).catch(() => {}); } catch (_) {} }, 10 * 60000);
+
+// 관리자: 자동탐색 상태(할당량·큐·제외·채널·마지막 스캔)
+app.get('/api/admin/highlight/status', (req, res) => {
+  if (!adminOK(req)) return res.status(401).json({ ok: false });
+  res.json({ ok: true, ytKey: !!YT_KEY, auto: !!(CFG.flags && CFG.flags.hlAuto), budget: { daily: YT_DAILY_SEARCHES, left: ytBudgetLeft(), used: ytQuota.used, day: ytQuota.day }, queue: HL_QUEUE.size, excluded: HL_EXCLUDE.size, highlights: HIGHLIGHTS.size, channels: ytChannels(), lastScan: _hlLastResult });
+});
+// 관리자: 지금 자동스캔 실행
+app.post('/api/admin/highlight/autoscan', async (req, res) => {
+  if (!adminOK(req)) return res.status(401).json({ ok: false });
+  const r = await hlAutoScan({ max: Math.min(30, Math.max(1, +(req.body && req.body.max) || 12)) });
+  res.json({ ok: true, result: r });
+});
+// 관리자: 검수 대기 큐 목록
+app.get('/api/admin/highlight/queue', (req, res) => {
+  if (!adminOK(req)) return res.status(401).json({ ok: false });
+  res.json({ ok: true, count: HL_QUEUE.size, items: Array.from(HL_QUEUE.values()).sort((a, b) => (b.queuedAt || 0) - (a.queuedAt || 0)).map(hlPublic) });
+});
+// 관리자: 큐 승인 → 하이라이트 등록
+app.post('/api/admin/highlight/queue/approve', (req, res) => {
+  if (!adminOK(req)) return res.status(401).json({ ok: false });
+  const key = hlKey((req.body || {}).sport, (req.body || {}).matchId);
+  const c = HL_QUEUE.get(key); if (!c) return res.json({ ok: false, error: '큐에 없습니다.' });
+  const doc = Object.assign({}, c, { addedAt: Date.now(), updatedAt: Date.now(), auto: true }); delete doc.queuedAt;
+  HIGHLIGHTS.set(key, doc); if (highlightsCol) highlightsCol.updateOne({ key }, { $set: doc }, { upsert: true }).catch(() => {});
+  HL_QUEUE.delete(key); if (hlQueueCol) hlQueueCol.deleteOne({ key }).catch(() => {});
+  res.json({ ok: true, highlight: hlPublic(doc) });
+});
+// 관리자: 큐 반려(+옵션: 영상/경기 제외해 재등록 방지)
+app.post('/api/admin/highlight/queue/reject', (req, res) => {
+  if (!adminOK(req)) return res.status(401).json({ ok: false });
+  const b = req.body || {}; const key = hlKey(b.sport, b.matchId);
+  const c = HL_QUEUE.get(key);
+  HL_QUEUE.delete(key); if (hlQueueCol) hlQueueCol.deleteOne({ key }).catch(() => {});
+  if (b.exclude) { const vids = ['match:' + key]; if (c && c.videoId) vids.push('vid:' + c.videoId); vids.forEach(x => { HL_EXCLUDE.add(x); if (hlExcludeCol) hlExcludeCol.updateOne({ _id: x }, { $set: { at: Date.now() } }, { upsert: true }).catch(() => {}); }); }
+  res.json({ ok: true });
+});
+// 관리자: 오연결 제외(등록·큐 제거 + 재등록 방지). {sport, matchId, videoId?, excludeVideo?}
+app.post('/api/admin/highlight/exclude', (req, res) => {
+  if (!adminOK(req)) return res.status(401).json({ ok: false });
+  const b = req.body || {}; const key = hlKey(b.sport, b.matchId);
+  const cur = HIGHLIGHTS.get(key) || HL_QUEUE.get(key);
+  const vid = b.videoId || (cur && cur.videoId) || '';
+  HIGHLIGHTS.delete(key); if (highlightsCol) highlightsCol.deleteOne({ key }).catch(() => {});
+  HL_QUEUE.delete(key); if (hlQueueCol) hlQueueCol.deleteOne({ key }).catch(() => {});
+  const ids = ['match:' + key]; if (vid && b.excludeVideo !== false) ids.push('vid:' + vid);
+  ids.forEach(x => { HL_EXCLUDE.add(x); if (hlExcludeCol) hlExcludeCol.updateOne({ _id: x }, { $set: { at: Date.now() } }, { upsert: true }).catch(() => {}); });
+  res.json({ ok: true, excluded: ids });
+});
+app.post('/api/admin/highlight/unexclude', (req, res) => {
+  if (!adminOK(req)) return res.status(401).json({ ok: false });
+  const id = String((req.body || {}).id || ''); if (!id) return res.json({ ok: false });
+  HL_EXCLUDE.delete(id); if (hlExcludeCol) hlExcludeCol.deleteOne({ _id: id }).catch(() => {});
+  res.json({ ok: true });
+});
+// 관리자: 공식 채널 레지스트리(확인된 채널만 등록). seed는 읽기전용, 관리자추가분만 수정.
+app.get('/api/admin/ytchannels', (req, res) => {
+  if (!adminOK(req)) return res.status(401).json({ ok: false });
+  res.json({ ok: true, seed: OFFICIAL_CHANNELS, custom: CFG.ytChannels || [] });
+});
+app.post('/api/admin/ytchannels', (req, res) => {
+  if (!adminOK(req)) return res.status(401).json({ ok: false });
+  const b = req.body || {}; const channelId = String(b.channelId || '').trim(), name = String(b.name || '').trim(), league = String(b.league || '').trim(), handle = String(b.handle || '').trim();
+  if (!/^UC[0-9A-Za-z_-]{22}$/.test(channelId)) return res.json({ ok: false, error: '유효한 YouTube 채널 ID(UC…)가 아닙니다.' });
+  CFG.ytChannels = (CFG.ytChannels || []).filter(c => c.channelId !== channelId);
+  CFG.ytChannels.push({ league, name: name || league || channelId, channelId, handle, addedAt: Date.now() });
+  CFG.updatedAt = Date.now();
+  if (configCol) configCol.updateOne({ _id: 'main' }, { $set: { ytChannels: CFG.ytChannels, updatedAt: CFG.updatedAt } }, { upsert: true }).catch(() => {});
+  res.json({ ok: true, custom: CFG.ytChannels });
+});
+app.delete('/api/admin/ytchannels', (req, res) => {
+  if (!adminOK(req)) return res.status(401).json({ ok: false });
+  const channelId = String((req.query && req.query.channelId) || (req.body && req.body.channelId) || '').trim();
+  CFG.ytChannels = (CFG.ytChannels || []).filter(c => c.channelId !== channelId); CFG.updatedAt = Date.now();
+  if (configCol) configCol.updateOne({ _id: 'main' }, { $set: { ytChannels: CFG.ytChannels, updatedAt: CFG.updatedAt } }, { upsert: true }).catch(() => {});
+  res.json({ ok: true, custom: CFG.ytChannels });
 });
 
 // ============================================================
