@@ -29,7 +29,7 @@ const app = express();
 const server = http.createServer(app);
 
 const PORT = process.env.PORT || 3000;
-const APP_VERSION = 'v607';
+const APP_VERSION = 'v608';
 
 // ============================================================
 //  📏 성능 계측(instrumentation) — 엔드포인트 지연·캐시·공급사·WS·이벤트루프
@@ -4349,6 +4349,41 @@ app.get('/api/discover/search', async (req, res) => {
     // 선수 전역 검색: TheSports 전역 선수검색 엔드포인트 미인증 → 미지원(선수단에서 접근). 정직 표기.
     res.json({ q, leagues, teams, players: [], playersNote: 'player-search-na', warming: warming && !teams.length, src: 'thesports', indexedTeams: idx.teams.length });
   } catch (e) { res.json({ q, leagues: [], teams: [], players: [], error: String((e && e.message) || e) }); }
+});
+
+// 🔬 축구 고급 데이터 가용성 프로브 — 시안의 선수데이터/팀데이터/토너먼트/우승 패널용 후보 엔드포인트 실응답 확인.
+//    (plan 권한·경로 확인용 진단. 결과를 보고 되는 패널만 다음 라운드에 구현.)
+app.get('/api/football/probe', async (req, res) => {
+  res.set('Cache-Control', 'no-store');
+  const season = String(req.query.season || ''), team = String(req.query.team || ''), comp = String(req.query.comp || '');
+  const tries = [];
+  if (season) {
+    tries.push(['season.player.stats', '/football/season/player/stats', { uuid: season }]);
+    tries.push(['season.team.stats', '/football/season/team/stats', { uuid: season }]);
+    tries.push(['season.recent.player', '/football/season/recent/player/detail', { uuid: season }]);
+    tries.push(['season.recent.team', '/football/season/recent/team/detail', { uuid: season }]);
+    tries.push(['season.bracket', '/football/season/bracket', { uuid: season }]);
+    tries.push(['bracket.detail', '/football/bracket/detail', { uuid: season }]);
+  }
+  if (team) {
+    tries.push(['team.honor', '/football/team/honor', { uuid: team }]);
+    tries.push(['honor.list.team', '/football/honor/list', { uuid: team }]);
+    tries.push(['transfer.list', '/football/transfer/list', { uuid: team }]);
+    tries.push(['team.detail', '/football/team/detail', { uuid: team }]);
+    tries.push(['team.trophy', '/football/team/trophy', { uuid: team }]);
+  }
+  if (comp) tries.push(['comp.table.promotion', '/football/competition/table/detail', { uuid: comp }]);
+  const out = {};
+  for (const [key, path, params] of tries) {
+    try {
+      const r = await tsFetch(path, params, 0, 8000).catch(e => ({ _err: String((e && e.message) || e) }));
+      if (r && r._err) { out[key] = { err: r._err }; continue; }
+      const results = r && r.results;
+      const n = Array.isArray(results) ? results.length : (results && typeof results === 'object' ? Object.keys(results).length : 0);
+      out[key] = { code: (r && r.code), n, sample: Array.isArray(results) ? Object.keys(results[0] || {}).slice(0, 14) : (results && typeof results === 'object' ? Object.keys(results).slice(0, 14) : null) };
+    } catch (e) { out[key] = { err: String((e && e.message) || e) }; }
+  }
+  res.json({ season, team, comp, probe: out });
 });
 
 // ⚽ 팀 역대 순위 — 대회의 과거 시즌 순위표에서 팀의 최종 순위 추출(검증된 season/list + table/detail). 추정 없음.
