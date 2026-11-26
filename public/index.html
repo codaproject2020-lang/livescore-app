@@ -5660,7 +5660,7 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
         st+=row(tl({en:"Cards (Y/R)",ko:"카드 (옐로/레드)",ja:"カード",zh:"黄/红牌",es:"Tarjetas",hi:"कार्ड",vi:"Thẻ",th:"ใบเหลือง/แดง",ru:"Карточки",de:"Karten",fr:"Cartons",it:"Cartellini"}),(s.yellow!=null||s.red!=null)?((s.yellow||0)+" / "+(s.red||0)):"");
         if(st)h+='<div class="sv-sec"><div class="sv-sh">'+tl({en:"Season stats",ko:"시즌 기록",ja:"シーズン記録",zh:"赛季数据",es:"Estadísticas",hi:"सीज़न आँकड़े",vi:"Thống kê mùa",th:"สถิติฤดูกาล",ru:"Статистика",de:"Saisonstats",fr:"Stats saison",it:"Statistiche"})+(p.season?'<span style="font-size:11px;color:var(--muted);font-weight:600"> '+esc(String(p.season))+'</span>':'')+'</div><div class="sv-card">'+st+'</div></div>';
       }
-      h+='<div class="sv-foot">'+tl({en:"Player profile from API-Sports.",ko:"선수 정보는 API-Sports 제공.",ja:"選手情報はAPI-Sports。",zh:"球员资料来自 API-Sports。",es:"Datos de API-Sports.",hi:"API-Sports से।",vi:"Dữ liệu từ API-Sports.",th:"จาก API-Sports",ru:"Данные API-Sports.",de:"Daten API-Sports.",fr:"Données API-Sports.",it:"Dati API-Sports."})+'</div></div>';
+      h+='<div class="sv-foot">'+tl({en:"Player profile from TheSports.",ko:"선수 정보는 TheSports 제공.",ja:"選手情報はTheSports。",zh:"球员资料来自 TheSports。",es:"Datos de TheSports.",hi:"TheSports से।",vi:"Dữ liệu từ TheSports.",th:"จาก TheSports",ru:"Данные TheSports.",de:"Daten TheSports.",fr:"Données TheSports.",it:"Dati TheSports."})+'</div></div>';
       $("#plBody").innerHTML=h;
     }).catch(function(){ if($("#plBody"))$("#plBody").innerHTML='<div class="msg"><div class="big">⚠️</div>'+t("loadFailRetry")+'</div>'; });
   }

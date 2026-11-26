@@ -29,7 +29,7 @@ const app = express();
 const server = http.createServer(app);
 
 const PORT = process.env.PORT || 3000;
-const APP_VERSION = 'v601';
+const APP_VERSION = 'v602';
 
 // ============================================================
 //  📏 성능 계측(instrumentation) — 엔드포인트 지연·캐시·공급사·WS·이벤트루프
@@ -1431,51 +1431,42 @@ app.get('/api/team/stats', async (req, res) => {
 });
 
 // 👤 선수 상세(명령서 ②-7·#8): API-Sports 선수 프로필 + 시즌 기록 (team_id 아닌 정확한 player_id 사용). 장기 캐시(쿼터 보호).
+// 선수 상세 — TheSports 전용(`/{sport}/player/list?uuid=`). API-Sports 제거.
+//  핵심 필드(name·logo·position)는 검증됨. 그 외(생년·신장·체중·국적·등번호)는 있으면 표시, 없으면 숨김(가짜 생성 금지).
+async function _tsPlayerTeamName(sport, teamId) {
+  if (!teamId) return '';
+  try {
+    if (sport === 'football') { const t = await tsFootTeam(teamId); return (t && t.name) || ''; }
+    const r = await tsFetch('/' + sport + '/team/list', { uuid: teamId }, 24 * 3600e3, 8000).catch(() => null);
+    const t = r && r.results && r.results[0]; return (t && (t.name || t.short_name)) || '';
+  } catch (e) { return ''; }
+}
 app.get('/api/player', async (req, res) => {
   const sport = String(req.query.sport || 'football').toLowerCase();
   const id = req.query.id;
-  if (!APISPORTS_KEY) return res.json({ player: null, note: 'needKey' });
   if (!id) return res.json({ player: null, note: 'noId' });
+  const sp = ['football', 'basketball', 'baseball'].includes(sport) ? sport : 'football';
   try {
-    if (sport === 'football') {
-      const m = String(req.query.season || '').match(/\d{4}/); const sy = m ? +m[0] : new Date().getFullYear();
-      let j = null;
-      for (const s of [sy, sy - 1]) {
-        j = await asRaw('football', `/players?id=${encodeURIComponent(id)}&season=${s}`, 21600000).catch(() => null);
-        if (j && j.response && j.response.length) { j._sy = s; break; }
-        j = null;
-      }
-      const r = j && j.response && j.response[0];
-      if (!r) return res.json({ player: null, note: 'empty' });
-      const p = r.player || {};
-      // 통계 항목이 여러 개(클럽·대표팀)면 출전수 많은 클럽 기록 우선(국가대표 'England' 등이 대표로 뜨는 문제 방지)
-      const stats = (r.statistics || []).slice();
-      stats.sort((a, b) => ((b.games && b.games.appearences) || 0) - ((a.games && a.games.appearences) || 0));
-      const st = stats[0] || {};
-      return res.json({
-        player: {
-          id: p.id, name: p.name, firstname: p.firstname, lastname: p.lastname, photo: p.photo,
-          age: p.age, nationality: p.nationality, height: p.height, weight: p.weight,
-          team: st.team && st.team.name, teamLogo: st.team && st.team.logo, league: st.league && st.league.name, season: j._sy,
-          position: st.games && st.games.position,
-          stats: {
-            appearances: st.games && st.games.appearences, minutes: st.games && st.games.minutes,
-            goals: st.goals && st.goals.total, assists: st.goals && st.goals.assists,
-            yellow: st.cards && st.cards.yellow, red: st.cards && st.cards.red,
-            rating: st.games && st.games.rating
-          }
-        }
-      });
-    }
-    if (sport === 'basketball') {
-      const season = hoopSeason();
-      const j = await asRaw('basketball', `/players?id=${encodeURIComponent(id)}&season=${encodeURIComponent(season)}`, 21600000).catch(() => null);
-      const r = j && j.response && j.response[0];
-      if (!r) return res.json({ player: null, note: 'empty' });
-      return res.json({ player: { id: r.id, name: ((r.firstname || '') + ' ' + (r.lastname || '')).trim(), age: r.age, nationality: r.country && r.country.name, height: r.height && (r.height.meters || r.height.feets), weight: r.weight && (r.weight.kilograms || r.weight.pounds), season, stats: null } });
-    }
-    return res.json({ player: null, note: 'sport-todo' });
-  } catch (e) { return res.json({ player: null, error: String(e.message || e) }); }
+    const r = await tsFetch('/' + sp + '/player/list', { uuid: id }, 6 * 3600e3, 9000).catch(() => null);
+    const p = r && r.results && r.results[0];
+    if (!p) return res.json({ player: null, note: 'empty', src: 'thesports' });
+    const num = v => (v == null || v === '' || isNaN(+v)) ? null : +v;
+    // 생년(unix초) → 나이
+    let age = null;
+    const bd = num(p.birthday);
+    if (bd && bd > 0) { const y = Math.floor((Date.now() / 1000 - bd) / (365.25 * 86400)); if (y > 0 && y < 120) age = y; }
+    const ht = num(p.height), wt = num(p.weight);
+    // 국적: 숫자 id가 아닌 문자열만 표시(국가 id는 숨김)
+    const nat = (typeof p.nationality === 'string' && !/^\d+$/.test(p.nationality)) ? p.nationality : '';
+    const team = await _tsPlayerTeamName(sp, p.team_id).catch(() => '');
+    return res.json({
+      player: {
+        id: p.id, name: p.name || '', photo: p.logo || '', nationality: nat,
+        position: p.position || '', number: p.shirt_number != null ? p.shirt_number : (p.number != null ? p.number : null),
+        age, height: ht ? (ht + ' cm') : '', weight: wt ? (wt + ' kg') : '', team, season: '', stats: null
+      }, src: 'thesports'
+    });
+  } catch (e) { return res.json({ player: null, error: String((e && e.message) || e) }); }
 });
 
 // ============================================================
