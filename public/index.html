@@ -2306,7 +2306,8 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
   //   · 표에 있으면 그대로(농구 NBA=0 등)  · 성인 국가대표: 축구=본선/주요예선 최상위(0), 농구·야구=본선만 프로리그 바로 아래(0.5)·예선/친선은 기타성인(950)
   //   · ⭐ 스타 팀(호날두·메시·손흥민) 경기=기타 성인리그(999)보다 위(500), 빅리그 아래.
   function effLeagueRank(sp,g){
-    // 유스/미성년자(U13~U23 등)는 하단(leagueRank에서 SUBTIER=1200). 국제대회라도 상단 금지.
+    // 유스/미성년자(U13~U23 등)는 하단. 리그명이 '국제 친선'처럼 성인 이름이어도 '팀명'이 유스면(U16 등) 하단으로.
+    if(isYouthGame(g)) return 1300;
     var r=leagueRank(sp,g.league,g.country);
     // ⭐ 스타 팀(호날두·메시·손흥민): 소속 리그(사우디·MLS)가 뭐든 '상단 그룹(5대리그·UCL과 함께)'으로.
     //    이미 그보다 높은 리그면 그대로 유지(min).
@@ -2554,11 +2555,12 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
     // 국가 필터가 적용돼 있으면 그 범위 안에서 리그를 뽑는다(일관성)
     var scope=applyCountry(games.slice());
     var cnt={},ord=[];
-    scope.forEach(function(g){ var k=leagueKey(g); if(!k)return; if(!cnt[k]){cnt[k]={n:0,logo:g.leagueLogo,country:g.country};ord.push(k);} cnt[k].n++; });
+    scope.forEach(function(g){ var k=leagueKey(g); if(!k)return; if(!cnt[k]){cnt[k]={n:0,logo:g.leagueLogo,country:g.country,adult:0};ord.push(k);} cnt[k].n++; if(!isYouthGame(g))cnt[k].adult++; });
     if(ord.length<2)return null;   // 리그가 하나뿐이면 칩 불필요
-    // #8: 목록과 동일한 우선순위 규칙(leagueRank). 같은 순위면 경기수 많은 순, 그다음 이름순(갱신마다 순서 고정).
+    // #8: 목록과 동일한 우선순위. '국제 친선'이라도 소속 경기가 전부 유스(U16 등)면 칩도 하단(1300).
+    function chipRank(k){ return cnt[k].adult===0 ? 1300 : leagueRank(S.sport,k,cnt[k].country); }
     ord.sort(function(a,b){
-      var ra=leagueRank(S.sport,a,cnt[a].country),rb=leagueRank(S.sport,b,cnt[b].country);
+      var ra=chipRank(a),rb=chipRank(b);
       if(ra!==rb)return ra-rb;
       if(cnt[b].n!==cnt[a].n)return cnt[b].n-cnt[a].n;
       return a<b?-1:(a>b?1:0);
@@ -2862,7 +2864,8 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
   function agStRank(g){ var s=stateOf(g); return s==="live"?0:(s==="scheduled"?1:2); }
   // 데이터(라인업·라이브 커버리지) 있는 경기를 같은 상태 안에서 앞으로
   function covRank(g){ return (g&&g.cov&&(g.cov.mlive||g.cov.lineup))?0:1; }
-  function gameOrderCmp(a,b){ var ra=agStRank(a),rb=agStRank(b); if(ra!==rb)return ra-rb; var ca=covRank(a),cb=covRank(b); if(ca!==cb)return ca-cb; return (a.date||"")<(b.date||"")?-1:1; }
+  function gameOrderCmp(a,b){ var ya=isYouthGame(a)?1:0,yb=isYouthGame(b)?1:0; if(ya!==yb)return ya-yb;   // 성인 먼저, 유스(U16 등) 뒤로
+    var ra=agStRank(a),rb=agStRank(b); if(ra!==rb)return ra-rb; var ca=covRank(a),cb=covRank(b); if(ca!==cb)return ca-cb; return (a.date||"")<(b.date||"")?-1:1; }
   function agShiftDate(ds,delta){ try{ var p=ds.split("-"); var d=new Date(+p[0],+p[1]-1,+p[2]); d.setDate(d.getDate()+delta); var mm=("0"+(d.getMonth()+1)).slice(-2),dd=("0"+d.getDate()).slice(-2); return d.getFullYear()+"-"+mm+"-"+dd; }catch(e){ return ds; } }
 
   // ====== 리그 블록 ======
@@ -2872,8 +2875,10 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
     var groups=order.map(function(k){return m[k]});
     // #8: 빅리그 우선 정렬(버튼과 동일 규칙). 같은 순위면 경기수↓·이름순 → 갱신마다 순서 고정(마이너가 앞에 안 옴).
     function grpCov(grp){ var n=0; grp.games.forEach(function(g){ if(g.cov&&(g.cov.mlive||g.cov.lineup))n++; }); return n; }
+    // 그룹 순위 = 소속 경기의 최저(=최상위) effLeagueRank. '국제 친선'이라도 전부 U16이면 1300으로 하단.
+    function grpRank(grp){ var best=9999; grp.games.forEach(function(g){ var r=effLeagueRank(g.sport||S.sport,g); if(r<best)best=r; }); return best; }
     groups.sort(function(a,b){
-      var ra=leagueRank(S.sport,a.lg,a.co),rb=leagueRank(S.sport,b.lg,b.co);
+      var ra=grpRank(a),rb=grpRank(b);
       if(ra!==rb)return ra-rb;
       var ca=grpCov(a),cb=grpCov(b);
       if(cb!==ca)return cb-ca;   // 데이터(라인업·라이브) 있는 리그를 메인 상단으로
