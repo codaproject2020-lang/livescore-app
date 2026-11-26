@@ -29,7 +29,7 @@ const app = express();
 const server = http.createServer(app);
 
 const PORT = process.env.PORT || 3000;
-const APP_VERSION = 'v603';
+const APP_VERSION = 'v604';
 
 // ============================================================
 //  📏 성능 계측(instrumentation) — 엔드포인트 지연·캐시·공급사·WS·이벤트루프
@@ -4224,15 +4224,18 @@ app.get('/api/discover/teams', async (req, res) => {
       let pick = null;
       if (season) pick = seasons.find(s => String(s.year || '').indexOf(season) === 0) || null;
       if (!pick) pick = seasons.find(s => s.is_current) || seasons.find(s => s.has_table) || seasons[0] || null;
-      if (!pick || !pick.id) return res.json(_discSet('teams:' + ck, { teams: [], note: 'no-season', sport, league }));
-      const td = await tsFetch('/basketball/season/recent/table/detail', { uuid: pick.id }, 30 * 60e3, 9000).catch(() => null);
-      const tables = (td && td.results && td.results.tables) || [];
-      const rows = tables.length === 1 ? (tables[0].rows || []) : [].concat(...tables.map(t => t.rows || []));
-      const ids = [...new Set(rows.map(r => r.team_id).filter(Boolean))];
-      const nm = await bskResolveNames(ids).catch(() => ({}));
-      let teams = ids.map(id => ({ id, name: (nm[id] && nm[id].name) || '', logo: (nm[id] && nm[id].logo) || '' })).filter(x => x.name);
-      let seasonUsed = String(pick.year || '');
-      if (!teams.length) { const dt = await _diaryTeamsOfComp('basketball', league).catch(() => ({ teams: [] })); teams = dt.teams || []; seasonUsed = seasonUsed || dt.seasonUsed || ''; }
+      let teams = [], seasonUsed = '';
+      if (pick && pick.id) {
+        const td = await tsFetch('/basketball/season/recent/table/detail', { uuid: pick.id }, 30 * 60e3, 9000).catch(() => null);
+        const tables = (td && td.results && td.results.tables) || [];
+        const rows = tables.length === 1 ? (tables[0].rows || []) : [].concat(...tables.map(t => t.rows || []));
+        const ids = [...new Set(rows.map(r => r.team_id).filter(Boolean))];
+        const nm = await bskResolveNames(ids).catch(() => ({}));
+        teams = ids.map(id => ({ id, name: (nm[id] && nm[id].name) || '', logo: (nm[id] && nm[id].logo) || '' })).filter(x => x.name);
+        seasonUsed = String(pick.year || '');
+      }
+      // 순위표가 없거나(예: NBA) 비면 diary에서 팀 enumerate(검증된 엔드포인트).
+      if (!teams.length) { const dt = await _diaryTeamsOfComp('basketball', league).catch(() => ({ teams: [] })); teams = (dt.teams || []).slice().sort((a, b) => String(a.name).localeCompare(String(b.name))); seasonUsed = seasonUsed || dt.seasonUsed || ''; }
       return res.json(_discSet('teams:' + ck, { teams, seasonUsed, note: teams.length ? '' : 'no-table', sport, league, src: 'thesports' }));
     }
     if (sport === 'baseball') {
