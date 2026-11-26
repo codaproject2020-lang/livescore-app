@@ -29,7 +29,7 @@ const app = express();
 const server = http.createServer(app);
 
 const PORT = process.env.PORT || 3000;
-const APP_VERSION = 'v600';
+const APP_VERSION = 'v601';
 
 // ============================================================
 //  📏 성능 계측(instrumentation) — 엔드포인트 지연·캐시·공급사·WS·이벤트루프
@@ -4153,23 +4153,29 @@ async function _bbResolveMajorComps() {
   }
   return _discSet('bb:compids', found);
 }
-// 야구 팀 enumerate — 순위표 엔드포인트 미인증 → 해당 대회 diary(시즌 창)에서 team_id 수집 → team/list 로 이름 해석.
-async function _bbTeamsOfComp(compId) {
-  const ck = 'bbteams:' + compId; const cached = _discGet(ck, 6 * 3600e3); if (cached) return cached;
+// 팀 enumerate(순위표 미제공 대회용) — 해당 대회 diary(시즌 창)에서 team_id 수집 → 팀 이름/로고 해석.
+//  야구·농구 공통. 검증된 diary 엔드포인트만 사용(가짜 생성 없음, 시즌 표기).
+async function _diaryTeamsOfComp(sport, compId) {
+  const ck = 'dteams:' + sport + ':' + compId; const cached = _discGet(ck, 6 * 3600e3); if (cached) return cached;
   const ids = new Set(); let season = '';
-  for (let i = 0; i <= 168; i += 14) {
+  for (let i = 0; i <= 200; i += 10) {
     const dt = new Date(Date.now() - i * 864e5); const ymd = dt.toISOString().slice(0, 10).replace(/-/g, '');
-    const d = await tsFetch('/baseball/match/diary', { date: ymd }, 6 * 3600e3, 8000).catch(() => null);
+    const d = await tsFetch('/' + sport + '/match/diary', { date: ymd }, 6 * 3600e3, 8000).catch(() => null);
     const rows = (d && d.results) || [];
     rows.forEach(m => { if (m && String(m.competition_id) === String(compId)) { if (m.home_team_id) ids.add(m.home_team_id); if (m.away_team_id) ids.add(m.away_team_id); if (!season) season = String(dt.getUTCFullYear()); } });
     if (ids.size >= 40) break;
   }
   const idArr = [...ids];
-  const teams = [];
-  for (let i = 0; i < idArr.length; i += 8) {
-    const chunk = idArr.slice(i, i + 8);
-    const got = await Promise.all(chunk.map(id => tsFetch('/baseball/team/list', { uuid: id }, 24 * 3600e3, 8000).then(r => (r && r.results && r.results[0]) || null).catch(() => null)));
-    got.forEach((tdat, k) => { teams.push({ id: chunk[k], name: (tdat && (tdat.name || tdat.short_name)) || '', logo: (tdat && tdat.logo) || '' }); });
+  let teams = [];
+  if (sport === 'basketball') {
+    const nm = await bskResolveNames(idArr).catch(() => ({}));
+    teams = idArr.map(id => ({ id, name: (nm[id] && nm[id].name) || '', logo: (nm[id] && nm[id].logo) || '' }));
+  } else {
+    for (let i = 0; i < idArr.length; i += 8) {
+      const chunk = idArr.slice(i, i + 8);
+      const got = await Promise.all(chunk.map(id => tsFetch('/' + sport + '/team/list', { uuid: id }, 24 * 3600e3, 8000).then(r => (r && r.results && r.results[0]) || null).catch(() => null)));
+      got.forEach((tdat, k) => { teams.push({ id: chunk[k], name: (tdat && (tdat.name || tdat.short_name)) || '', logo: (tdat && tdat.logo) || '' }); });
+    }
   }
   const out = { teams: teams.filter(t => t.name), seasonUsed: season };
   return _discSet(ck, out);
@@ -4233,17 +4239,103 @@ app.get('/api/discover/teams', async (req, res) => {
       const rows = tables.length === 1 ? (tables[0].rows || []) : [].concat(...tables.map(t => t.rows || []));
       const ids = [...new Set(rows.map(r => r.team_id).filter(Boolean))];
       const nm = await bskResolveNames(ids).catch(() => ({}));
-      const teams = ids.map(id => ({ id, name: (nm[id] && nm[id].name) || '', logo: (nm[id] && nm[id].logo) || '' }));
-      return res.json(_discSet('teams:' + ck, { teams, seasonUsed: String(pick.year || ''), note: teams.length ? '' : 'no-table', sport, league, src: 'thesports' }));
+      let teams = ids.map(id => ({ id, name: (nm[id] && nm[id].name) || '', logo: (nm[id] && nm[id].logo) || '' })).filter(x => x.name);
+      let seasonUsed = String(pick.year || '');
+      if (!teams.length) { const dt = await _diaryTeamsOfComp('basketball', league).catch(() => ({ teams: [] })); teams = dt.teams || []; seasonUsed = seasonUsed || dt.seasonUsed || ''; }
+      return res.json(_discSet('teams:' + ck, { teams, seasonUsed, note: teams.length ? '' : 'no-table', sport, league, src: 'thesports' }));
     }
     if (sport === 'baseball') {
       // 야구 팀 enumerate: 순위표 엔드포인트 미인증 → 해당 대회 diary(시즌 창)에서 팀 수집(team/list로 이름 해석).
-      const bt = await _bbTeamsOfComp(league).catch(() => ({ teams: [] }));
+      const bt = await _diaryTeamsOfComp('baseball', league).catch(() => ({ teams: [] }));
       const teams = (bt.teams || []).slice().sort((a, b) => String(a.name).localeCompare(String(b.name)));
       return res.json(_discSet('teams:' + ck, { teams, seasonUsed: bt.seasonUsed || '', note: teams.length ? '' : 'bb-teams-unverified', sport, league, src: 'thesports' }));
     }
     return res.json({ teams: [], note: 'sport-na' });
   } catch (e) { return res.json({ teams: [], error: String((e && e.message) || e) }); }
+});
+
+// 🔎 통합 검색 — 한글 별칭 사전(검증된 주요 클럽). 정규화 키(소문자·공백제거) → 검색 토큰(한글/약칭 포함).
+//   ⚠️ 확인된 별칭만. 유사 이름으로 서로 다른 팀 병합 금지. 성인/유스 구분(이 사전은 성인 1군만).
+const DISC_TEAM_ALIAS = {
+  'arsenal': ['아스널', '아스날', '거너스'],
+  'manchesterunited': ['맨유', '맨체스터유나이티드', '맨체스터 유나이티드', 'man utd', 'manutd'],
+  'manchestercity': ['맨시티', '맨체스터시티', '맨체스터 시티', 'man city', 'mancity'],
+  'liverpool': ['리버풀'],
+  'chelsea': ['첼시'],
+  'tottenhamhotspur': ['토트넘', '토트넘홋스퍼', '토트넘 홋스퍼', '스퍼스', 'spurs'],
+  'newcastleunited': ['뉴캐슬', '뉴캐슬유나이티드'],
+  'astonvilla': ['아스톤빌라', '아스톤 빌라', '애스턴빌라'],
+  'westhamunited': ['웨스트햄', '웨스트햄유나이티드'],
+  'evertonfc': ['에버튼'], 'everton': ['에버튼'],
+  'realmadrid': ['레알마드리드', '레알 마드리드', '레알'],
+  'barcelona': ['바르셀로나', '바르샤', 'fc바르셀로나', 'fcbarcelona'],
+  'atleticomadrid': ['아틀레티코마드리드', '아틀레티코', '아틀레티코 마드리드'],
+  'sevillafc': ['세비야'], 'sevilla': ['세비야'],
+  'valenciacf': ['발렌시아'], 'valencia': ['발렌시아'],
+  'bayernmunich': ['바이에른뮌헨', '바이에른 뮌헨', '뮌헨', 'fc바이에른'], 'bayernmunchen': ['바이에른뮌헨', '뮌헨'],
+  'borussiadortmund': ['도르트문트', '보루시아도르트문트', 'bvb'],
+  'bayerleverkusen': ['레버쿠젠', '바이어레버쿠젠'],
+  'rbleipzig': ['라이프치히', 'rb라이프치히'],
+  'juventus': ['유벤투스', '유베'],
+  'intermilan': ['인터밀란', '인터', 'fc인테르', 'internazionale'], 'internazionale': ['인터밀란', '인터'],
+  'acmilan': ['ac밀란', '밀란', 'acmilan'], 'milan': ['밀란'],
+  'napoli': ['나폴리'],
+  'asroma': ['as로마', '로마'], 'roma': ['로마'],
+  'parissaintgermain': ['파리생제르맹', '파리', 'psg', '생제르맹'],
+  'olympiquemarseille': ['마르세유', '올림피크마르세유'],
+  'olympiquelyonnais': ['리옹', '올림피크리옹'], 'lyon': ['리옹'],
+  'asmonaco': ['모나코'], 'monaco': ['모나코']
+};
+function _discAliasFor(name) { return DISC_TEAM_ALIAS[_nrm(name)] || []; }
+
+// 검색 인덱스(주요 리그 팀 + 전체 리그). 1h 캐시. (전역 팀/선수 검색 엔드포인트는 플랜 미인증 → 인덱스 기반.)
+async function _discBuildIndex() {
+  const cached = _discGet('search:idx', 3600e3); if (cached) return cached;
+  const leagues = [], teams = [], seenT = new Set();
+  // 리그: 축구(주요+국가별 카탈로그) + 농구/야구 주요
+  try {
+    const fbMajor = await discoverFootballLeagues();
+    const fbCtry = await discoverFootballCountries();
+    fbMajor.forEach(l => leagues.push({ type: 'league', id: l.id, name: l.name, nameKo: l.nameKo || '', flag: l.flag || '', sport: 'football', tier: 'major' }));
+    fbCtry.forEach(c => (c.leagues || []).forEach(l => leagues.push({ type: 'league', id: l.id, name: l.name, nameKo: '', flag: '', sport: 'football', country: c.country })));
+    const bk = await discoverBasketballLeagues().catch(() => []);
+    bk.forEach(l => leagues.push({ type: 'league', id: l.id, name: l.name, nameKo: l.nameKo || '', flag: l.flag || '', sport: 'basketball', tier: 'major' }));
+  } catch (e) {}
+  // 팀: 축구 주요리그 참가팀(별칭 부착). (타 종목 팀은 리그 선택 후 조회 — 인덱스 비용 억제.)
+  try {
+    const fbMajor = await discoverFootballLeagues();
+    for (const lg of fbMajor) {
+      const r = await rankFootballTS(lg.id, '').catch(() => null);
+      (r && r.table || []).forEach(row => {
+        if (!row.teamId || seenT.has(row.teamId)) return; seenT.add(row.teamId);
+        teams.push({ type: 'team', id: row.teamId, name: row.team || '', logo: row.logo || '', sport: 'football', league: r.compName || lg.name, aliases: _discAliasFor(row.team) });
+      });
+    }
+  } catch (e) {}
+  const idx = { leagues, teams, builtAt: Date.now() };
+  return _discSet('search:idx', idx);
+}
+
+// GET /api/discover/search?q=&sport=
+app.get('/api/discover/search', async (req, res) => {
+  res.set('Cache-Control', 'no-store');
+  const q = String(req.query.q || '').trim();
+  const spf = String(req.query.sport || '').toLowerCase();
+  if (q.length < 1) return res.json({ q, leagues: [], teams: [], players: [], note: 'empty-q' });
+  try {
+    const idx = await _discBuildIndex();
+    const qn = _nrm(q);
+    const hay = o => [o.name, o.nameKo || '', ...(o.aliases || [])].map(_nrm).filter(Boolean);
+    const rank = arr => {
+      const exact = [], partial = [];
+      arr.forEach(o => { if (spf && o.sport !== spf) return; const h = hay(o); if (h.some(x => x === qn)) exact.push(o); else if (h.some(x => x.includes(qn))) partial.push(o); });
+      return exact.concat(partial);
+    };
+    const leagues = rank(idx.leagues).slice(0, 20);
+    const teams = rank(idx.teams).slice(0, 30);
+    // 선수 전역 검색: TheSports 전역 선수검색 엔드포인트 미인증 → 미지원(선수단에서 접근). 정직 표기.
+    res.json({ q, leagues, teams, players: [], playersNote: 'player-search-na', src: 'thesports', indexedTeams: idx.teams.length });
+  } catch (e) { res.json({ q, leagues: [], teams: [], players: [], error: String((e && e.message) || e) }); }
 });
 
 // ⚽ 축구 순위표 — TheSports 대회 ID 기준 diary 집계(순위 전용 엔드포인트 미인증 폴백). 승점=3승+1무.
