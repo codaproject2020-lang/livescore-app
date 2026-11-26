@@ -5867,6 +5867,8 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
       h+='</div>';
       // 3) 다음 일정
       if(nx.length){ h+='<div class="sv-sec"><div class="sv-sh">'+tl({en:"Upcoming",ko:"다음 경기 일정",ja:"今後の予定",zh:"未来赛程",es:"Próximos",hi:"आगामी",vi:"Sắp tới",th:"โปรแกรมหน้า",ru:"Расписание",de:"Kommende Spiele",fr:"À venir",it:"Prossime"})+'</div><div class="sv-card">'+nx.map(function(e){ return '<div class="sv-row"><div class="sl" style="flex:1;min-width:0"><span style="font-size:11px;color:var(--muted);width:66px;flex:0 0 auto">'+esc(String(e.date||"").slice(5,10))+(e.time?" "+esc(String(e.time).slice(0,5)):"")+'</span><span style="min-width:0;overflow:hidden;text-overflow:ellipsis">'+esc(e.home)+' <span style="color:var(--muted)">vs</span> '+esc(e.away)+'</span></div></div>'; }).join("")+'</div></div>'; }
+      // 3.5) 역대 순위(과거 시즌 최종 순위)
+      h+='<div id="tmHistSec"></div>';
       // 4) 관련 뉴스(개요 미리보기)
       h+='<div id="tmNewsPrev"></div>';
       h+='<div class="sv-foot">'+tl({en:"Team profile from data provider. Tap a result to open the match or opponent.",ko:"팀 정보는 데이터 제공처 제공. 결과를 누르면 경기 또는 상대 팀으로 이동합니다.",ja:"データ提供元のチーム情報。結果をタップで試合/相手へ。",zh:"球队资料来自数据提供方。点击结果查看比赛或对手。",es:"Perfil del proveedor. Toca un resultado para ver el partido.",hi:"डेटा प्रदाता से। परिणाम टैप करें।",vi:"Hồ sơ từ nhà cung cấp. Chạm kết quả để mở trận.",th:"ข้อมูลจากผู้ให้บริการ แตะผลเพื่อเปิดแมตช์",ru:"Профиль от поставщика. Нажмите результат.",de:"Profil vom Anbieter. Ergebnis antippen.",fr:"Profil du fournisseur. Touchez un résultat.",it:"Profilo dal fornitore. Tocca un risultato."})+'</div>';
@@ -5876,7 +5878,28 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
       // 📅 최근 5경기 폴백: /api/team/as 이벤트가 비면 diary 집계로 채운다(클릭=상대 팀).
       if(!ev.length){ loadTeamGames(function(j){ var fb=$("#tmRecentFb"); if(!fb)return; var html=tmRecentRows(j,tm.name||name); if(html){ fb.innerHTML=html; bindFgRows(fb); } else { fb.innerHTML='<div class="msg"><div class="big">📅</div>'+t("noRecentRec")+'</div>'; } }); }
       loadRankCard(tm);
+      loadTeamHistory(tm);
       loadNewsPrev(tm);
+    }
+    // 역대 순위 — 과거 시즌 최종 순위 꺾은선(1위가 위). 축구·리그 필요.
+    function loadTeamHistory(tm){
+      var sec=$("#tmHistSec"); if(!sec)return;
+      var lg=ctx.league||tm.league||"";
+      if(sp!=="football"||!teamId){ sec.innerHTML=''; return; }
+      fetch("/api/football/teamhistory?team="+encodeURIComponent(teamId)+"&league="+encodeURIComponent(lg)).then(function(r){return r.json();}).then(function(j){
+        if(!$("#tmHistSec"))return; var ss=(j&&j.seasons)||[];
+        if(ss.length<2){ $("#tmHistSec").innerHTML=''; return; }
+        var maxR=Math.max.apply(null,ss.map(function(s){return s.rank;})); maxR=Math.max(maxR,2);
+        var W=328,H=150,PL=28,PR=14,PT=22,PB=24,iw=W-PL-PR,ih=H-PT-PB;
+        var n=ss.length;
+        var X=function(i){ return PL+(n<=1?0:(i/(n-1))*iw); };
+        var Y=function(rk){ return PT+((rk-1)/(maxR-1))*ih; };
+        var ln='',dots='',lbls='',xl='';
+        ss.forEach(function(s,i){ var x=X(i).toFixed(1),y=Y(s.rank).toFixed(1); ln+=(i?' L':'M')+x+' '+y; dots+='<circle cx="'+x+'" cy="'+y+'" r="3.5" fill="#f0920f"/>'; lbls+='<text x="'+x+'" y="'+(Y(s.rank)-8).toFixed(1)+'" font-size="10" text-anchor="middle" fill="var(--navy)" font-weight="700">'+s.rank+'</text>'; var yr=String(s.year||"").replace(/^(\d{2})\d{2}-(\d{2})\d{2}$/,"$1-$2").replace(/^\d{2}(\d{2})$/,"$1"); if(n<=8||i%2===0)xl+='<text x="'+x+'" y="'+(H-7)+'" font-size="9" text-anchor="middle" fill="#9aa6b6">'+esc(yr)+'</text>'; });
+        var grid='<line x1="'+PL+'" y1="'+Y(1).toFixed(1)+'" x2="'+(W-PR)+'" y2="'+Y(1).toFixed(1)+'" stroke="rgba(0,0,0,.06)"/><text x="'+(PL-6)+'" y="'+(Y(1)+3).toFixed(1)+'" font-size="9" text-anchor="end" fill="#9aa6b6">1</text><text x="'+(PL-6)+'" y="'+(Y(maxR)+3).toFixed(1)+'" font-size="9" text-anchor="end" fill="#9aa6b6">'+maxR+'</text>';
+        var svg='<svg viewBox="0 0 '+W+' '+H+'" style="width:100%;height:auto">'+grid+'<path d="'+ln+'" fill="none" stroke="#f0920f" stroke-width="2" stroke-linejoin="round"/>'+dots+lbls+xl+'</svg>';
+        $("#tmHistSec").innerHTML='<div class="sv-sec"><div class="sv-sh">'+tl({en:"League finishes",ko:"역대 순위",ja:"歴代順位",zh:"历年排名",es:"Clasificaciones",hi:"ऐतिहासिक रैंक",vi:"Thứ hạng qua các mùa",th:"อันดับย้อนหลัง",ru:"Места по сезонам",de:"Platzierungen",fr:"Classements",it:"Piazzamenti"})+(j.compName?'<span style="font-size:11px;color:var(--muted);font-weight:600">'+esc(tnLeague(j.compName)||j.compName)+'</span>':'')+'</div><div class="sv-card" style="padding:6px 4px">'+svg+'</div></div>';
+      }).catch(function(){ if($("#tmHistSec"))$("#tmHistSec").innerHTML=''; });
     }
     function loadRankCard(tm){
       var sec=$("#tmRankSec"); if(!sec)return;

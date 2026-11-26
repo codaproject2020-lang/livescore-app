@@ -29,7 +29,7 @@ const app = express();
 const server = http.createServer(app);
 
 const PORT = process.env.PORT || 3000;
-const APP_VERSION = 'v606';
+const APP_VERSION = 'v607';
 
 // ============================================================
 //  📏 성능 계측(instrumentation) — 엔드포인트 지연·캐시·공급사·WS·이벤트루프
@@ -4349,6 +4349,36 @@ app.get('/api/discover/search', async (req, res) => {
     // 선수 전역 검색: TheSports 전역 선수검색 엔드포인트 미인증 → 미지원(선수단에서 접근). 정직 표기.
     res.json({ q, leagues, teams, players: [], playersNote: 'player-search-na', warming: warming && !teams.length, src: 'thesports', indexedTeams: idx.teams.length });
   } catch (e) { res.json({ q, leagues: [], teams: [], players: [], error: String((e && e.message) || e) }); }
+});
+
+// ⚽ 팀 역대 순위 — 대회의 과거 시즌 순위표에서 팀의 최종 순위 추출(검증된 season/list + table/detail). 추정 없음.
+app.get('/api/football/teamhistory', async (req, res) => {
+  res.set('Cache-Control', 'no-store');
+  const team = String(req.query.team || ''), league = String(req.query.league || ''), compQ = String(req.query.comp || '');
+  if (!team) return res.json({ seasons: [] });
+  try {
+    const idx = await _fbLoadCompIdx();
+    let compId = (compQ && idx.byId.has(compQ)) ? compQ : (league ? _fbMatchCompByName(idx, league) : '');
+    if (!compId) return res.json({ seasons: [], note: 'no-comp' });
+    const ck = 'teamhist:' + team + ':' + compId;
+    const cached = _discGet(ck, 12 * 3600e3); if (cached) return res.json(cached);
+    const comp = idx.byId.get(compId), cur = comp && comp.cur_season_id;
+    const L = await _fbLoadSeasonList();
+    let seasons = (L.byComp.get(compId) || []).slice();
+    if (!seasons.length && cur && L.byId.has(cur)) { const rc = L.byId.get(cur).competition_id; if (rc) seasons = (L.byComp.get(rc) || []).slice(); }
+    seasons = seasons.filter(s => s.hasTable).sort((a, b) => (a.year < b.year ? 1 : -1)).slice(0, 10);
+    const out = [];
+    for (const s of seasons) {
+      const r = await tsFetch('/football/season/recent/table/detail', { uuid: s.id }, 6 * 3600e3, 9000).catch(() => null);
+      const tables = (r && r.results && r.results.tables) || [];
+      const rows = tables.length === 1 ? (tables[0].rows || []) : [].concat(...tables.map(t => t.rows || []));
+      const row = rows.find(x => String(x.team_id) === String(team));
+      if (row && row.position) out.push({ year: s.year, rank: +row.position, teams: rows.length });
+    }
+    out.sort((a, b) => (a.year < b.year ? -1 : 1));
+    const resp = { seasons: out, compName: (comp && comp.name) || '', src: 'thesports' };
+    return res.json(_discSet(ck, resp));
+  } catch (e) { return res.json({ seasons: [], error: String((e && e.message) || e) }); }
 });
 
 // ⚽ 축구 순위표 — TheSports 대회 ID 기준 diary 집계(순위 전용 엔드포인트 미인증 폴백). 승점=3승+1무.
