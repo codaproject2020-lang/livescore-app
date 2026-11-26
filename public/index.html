@@ -2252,9 +2252,9 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
   //   리그 전체 승격 아님(팀만). 빅리그(NBA·UCL·5대리그 등 위상<900)보다 위로는 올리지 않음.
   //   이적 시 아래 name/team만 갱신. TheSports 팀 ID는 운영자가 /api/config.starTeamIds(쉼표구분)로 보강 가능.
   var STAR_TEAMS={ names:[
-    {re:/al[\s-]?nassr|알[\s-]?나스르/i, player:"Cristiano Ronaldo", team:"Al-Nassr"},
-    {re:/inter\s*miami|인터\s*마이애미/i, player:"Lionel Messi", team:"Inter Miami"},
-    {re:/\bLAFC\b|los\s*angeles\s*fc|los\s*angeles\s*football\s*club|엘에이\s*에프씨|LA\s*FC\b/i, player:"Son Heung-min", team:"Los Angeles FC"}
+    {re:/al[\s-]?nassr|알[\s-]?나스르/i, player:"Cristiano Ronaldo", team:"Al-Nassr", alias:"호날두 크리스티아누 ronaldo cristiano"},
+    {re:/inter\s*miami|인터\s*마이애미/i, player:"Lionel Messi", team:"Inter Miami", alias:"메시 리오넬 messi lionel"},
+    {re:/\bLAFC\b|los\s*angeles\s*fc|los\s*angeles\s*football\s*club|엘에이\s*에프씨|LA\s*FC\b/i, player:"Son Heung-min", team:"Los Angeles FC", alias:"손흥민 쏘니 son heungmin sonny"}
   ]};
   function _starIds(){ try{ return String(window.__starTeamIds||"").split(",").map(function(x){return x.trim();}).filter(Boolean); }catch(e){ return []; } }
   function starTeamOf(g){
@@ -5536,7 +5536,13 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
       var _ko=function(nm,sp){ if(!nm)return ""; var kk=knorm(nm); return ((sp&&KN_TEAM_SP[sp+"|"+kk])||KN_TEAM[kk]||""); };
       var _koL=function(nm){ if(!nm)return ""; return KN_LEAGUE[knorm(nm)]||""; };
       var hits=list.filter(function(g){
-        var hay=(String(g.home||"")+" "+String(g.away||"")+" "+String(g.league||"")+" "+_ko(g.home,g.sport)+" "+_ko(g.away,g.sport)+" "+_koL(g.league)).toLowerCase();
+        // 🔎 화면에 보이는 '한글 표시명'(tnTeam/tnLeague)을 그대로 검색 대상에 포함 → 한글로 보이는 팀은 한글로 검색됨.
+        //    + 스타 선수(손흥민·메시·호날두 등)는 소속팀 경기가 잡히도록 선수명 별칭 포함.
+        var sa=(typeof starTeamOf==="function")?starTeamOf(g):null;
+        var hay=(String(g.home||"")+" "+String(g.away||"")+" "+String(g.league||"")+" "
+          +tnTeam(g.home,g.sport)+" "+tnTeam(g.away,g.sport)+" "+tnLeague(g.league||"")+" "+tnGroup(g.country,g.league||"")+" "
+          +_ko(g.home,g.sport)+" "+_ko(g.away,g.sport)+" "+_koL(g.league)+" "
+          +(sa&&sa.alias?sa.alias:"")).toLowerCase();
         return hay.indexOf(q)>=0;
       });
       if(!hits.length){ body.innerHTML='<div class="msg"><div class="big">🔍</div>'+esc(t("noGames"))+'</div>'; return; }
