@@ -873,6 +873,14 @@ html[data-theme="dark"] .cpl .cpt{color:#9aa6b6}
 .foulq{font-size:11px;font-weight:800;color:var(--red);background:#fff1f1;border:1px solid #ffd7d7;border-radius:6px;padding:2px 8px}
 .rank.bsk .bskrow{cursor:pointer}
 .rank.bsk .plink{color:var(--navy);font-weight:700;border-bottom:1px dotted var(--line)}
+.bskpl{display:flex;align-items:flex-start;gap:9px}
+.bskpl .avw{flex:0 0 auto;width:38px;height:38px;border-radius:50%;overflow:hidden;background:var(--soft);border:1.5px solid var(--line)}
+.bskpl .avw img{width:100%;height:100%;object-fit:cover;display:block}
+.bskpl-i{min-width:0;flex:1}
+.st-badge{display:inline-block;margin-left:6px;font-size:10px;font-weight:800;color:#2563c9;background:#eaf1fd;border:1px solid #cfe0fb;border-radius:5px;padding:1px 5px;vertical-align:middle}
+html[data-theme="dark"] .st-badge{background:#15233c;border-color:#2c3a54;color:#8fb6f5}
+.dt-share{display:flex;align-items:center;gap:5px;background:var(--soft);border:1px solid var(--line);border-radius:16px;padding:5px 12px;font-size:12.5px;font-weight:700;color:var(--navy);cursor:pointer;white-space:nowrap}
+.dt-share:active{opacity:.6}
 .pstats{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
 .pst{background:var(--soft);border-radius:10px;padding:9px 4px;text-align:center}
 .pst .v{display:block;font-size:17px;font-weight:900;color:var(--navy)}
@@ -4585,7 +4593,12 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
       if(sec2.length) parts.push(sec2.join(' '));
       return '<div class="bsx">'+parts.join(' · ')+'</div>';
     }
-    function row(p){ return '<tr class="bskrow" data-pid="'+esc(String(p.id||""))+'"><td class="tm" style="text-align:left">'+(p.number?('<span style="color:#8a93a3;font-size:11px">#'+esc(String(p.number))+'</span> '):'')+'<span class="plink">'+esc(p.name||"-")+'</span>'+sub(p)+'</td><td style="font-weight:800">'+p.pts+'</td><td>'+p.reb+'</td><td>'+p.ast+'</td></tr>'; }
+    var LSTART=tl({en:"Starter",ko:"선발",ja:"先発",zh:"首发",es:"Titular",hi:"स्टार्टर",vi:"Đá chính",th:"ตัวจริง",ru:"Старт",de:"Starter",fr:"Titulaire",it:"Titolare"});
+    function row(p){
+      var av=avatarHTML(p.photo,p.name,p.number,38,"bskav");
+      var badge=(p.starter===true)?('<span class="st-badge">'+LSTART+'</span>'):'';
+      var nm='<span class="plink">'+(p.number?('<span style="color:#8a93a3;font-size:11px;font-weight:600">#'+esc(String(p.number))+'</span> '):'')+esc(p.name||"-")+'</span>'+badge;
+      return '<tr class="bskrow" data-pid="'+esc(String(p.id||""))+'"><td class="tm" style="text-align:left"><div class="bskpl">'+av+'<div class="bskpl-i">'+nm+sub(p)+'</div></div></td><td style="font-weight:800">'+p.pts+'</td><td>'+p.reb+'</td><td>'+p.ast+'</td></tr>'; }
     function tot(arr){ var o={pts:0,reb:0,ast:0}; arr.forEach(function(p){o.pts+=(+p.pts||0);o.reb+=(+p.reb||0);o.ast+=(+p.ast||0);}); return o; }
     function tbl(arr,teamName){ if(!arr.length)return '';
       var T=tot(arr);
@@ -4965,8 +4978,9 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
   function openBskTeam(tid,name,logo,date){
     if(!tid)return;
     var o=overlay("ovBskTeam");
-    o.innerHTML='<div class="dt-bar"><button class="bk" id="btBack">‹</button><div class="ti">'+esc(tnTeam(name||""))+'</div></div><div class="dt-body" id="btBody" style="padding:14px 14px 40px"><div class="msg"><div class="big">⏳</div>'+t("loading")+'</div></div>';
+    o.innerHTML='<div class="dt-bar"><button class="bk" id="btBack">‹</button><div class="ti">'+esc(tnTeam(name||""))+'</div>'+shareBtnHtml("btShare")+'</div><div class="dt-body" id="btBody" style="padding:14px 14px 40px"><div class="msg"><div class="big">⏳</div>'+t("loading")+'</div></div>';
     var bb=$("#btBack"); if(bb)bb.onclick=function(){ closeOverlay("ovBskTeam"); };
+    bindShareBtn("btShare",tnTeam(name||""));
     fetch("/api/basketball/teamgames?tid="+encodeURIComponent(tid)+"&date="+encodeURIComponent(date?String(date).slice(0,10):S.date)).then(function(r){return r.json();}).then(function(j){
       var b=$("#btBody"); if(!b)return;
       if(!j||!j.found||!j.games||!j.games.length){ b.innerHTML='<div class="msg"><div class="big">📋</div>'+t("noRecentRec")+'</div>'; return; }
@@ -5001,8 +5015,9 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
   function openFbTeam(tid,name,logo,date){
     if(!tid){ return; }
     var o=overlay("ovFbTeam");
-    o.innerHTML='<div class="dt-bar"><button class="bk" id="ftBack">‹</button><div class="ti">'+esc(tnTeam(name||""))+'</div></div><div class="dt-body" id="ftBody" style="padding:14px 14px 40px"><div class="msg"><div class="big">⏳</div>'+t("loading")+'</div></div>';
+    o.innerHTML='<div class="dt-bar"><button class="bk" id="ftBack">‹</button><div class="ti">'+esc(tnTeam(name||""))+'</div>'+shareBtnHtml("ftShare")+'</div><div class="dt-body" id="ftBody" style="padding:14px 14px 40px"><div class="msg"><div class="big">⏳</div>'+t("loading")+'</div></div>';
     var bb=$("#ftBack"); if(bb)bb.onclick=function(){ closeOverlay("ovFbTeam"); };
+    bindShareBtn("ftShare",tnTeam(name||""));
     fetch("/api/football/teamgames?tid="+encodeURIComponent(tid)+"&date="+encodeURIComponent(date?String(date).slice(0,10):S.date)).then(function(r){return r.json();}).then(function(j){
       var b=$("#ftBody"); if(!b)return;
       if(!j||!j.found||!j.games||!j.games.length){ b.innerHTML='<div class="msg"><div class="big">📋</div>'+t("noRecentRec")+'</div>'; return; }
@@ -5244,8 +5259,9 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
   // 🏐 배구 팀 상세(경기/순위) — K02/K03. API-Sports teamgames + 순위.
   function openVolleyTeam(teamId,name,league,season){
     var o=overlay("ovVbTeam"); var tab="games";
-    o.innerHTML='<div class="dt-bar"><button class="bk" id="vtBack">‹</button><div class="ti">'+esc(name||"")+'</div></div><div class="dt-body" id="vtMain"></div>';
+    o.innerHTML='<div class="dt-bar"><button class="bk" id="vtBack">‹</button><div class="ti">'+esc(name||"")+'</div>'+shareBtnHtml("vtShare")+'</div><div class="dt-body" id="vtMain"></div>';
     $("#vtBack").onclick=function(){ closeOverlay("ovVbTeam"); };
+    bindShareBtn("vtShare",name||"");
     var fav=teamFav(name);
     function render(){
       var head='<div class="sv-prof" style="align-items:center;margin-bottom:8px"><div style="font-size:30px">🏐</div><div style="flex:1;min-width:0"><h3 style="margin:0;font-size:17px;color:var(--navy)">'+esc(name||"")+'</h3></div><button class="sv-editb" id="vtFav" style="'+(fav?"background:var(--navy);color:#fff;border-color:var(--navy)":"")+'">'+(fav?"★ "+tl({en:"Following",ko:"관심 등록됨",ja:"登録済",zh:"已关注",es:"Siguiendo",hi:"फॉलो",vi:"Đang theo",th:"ติดตามแล้ว",ru:"В избранном",de:"Folgt",fr:"Suivi",it:"Seguito"}):"☆ "+tl({en:"Follow",ko:"관심 등록",ja:"登録",zh:"关注",es:"Seguir",hi:"फॉलो",vi:"Theo dõi",th:"ติดตาม",ru:"В избранное",de:"Folgen",fr:"Suivre",it:"Segui"}))+'</button></div>';
@@ -5729,8 +5745,9 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
   }
   function openFootballTeam(teamId,teamName,teamLogo,matchTsid,side){
     luArm(); var o=overlay("ovFbTeam");
-    o.innerHTML='<div class="dt-bar"><button class="bk" id="ftBack">‹</button><div class="ti">'+esc(teamName||"")+'</div></div><div class="dt-body" id="ftBody"><div class="msg"><div class="big">⏳</div>'+t("loading")+'</div></div>';
+    o.innerHTML='<div class="dt-bar"><button class="bk" id="ftBack">‹</button><div class="ti">'+esc(teamName||"")+'</div>'+shareBtnHtml("ftShare2")+'</div><div class="dt-body" id="ftBody"><div class="msg"><div class="big">⏳</div>'+t("loading")+'</div></div>';
     $("#ftBack").onclick=function(){ closeOverlay("ovFbTeam"); };
+    bindShareBtn("ftShare2",teamName||"");
     fetch("/api/football/tsteam?id="+encodeURIComponent(teamId)+"&match="+encodeURIComponent(matchTsid||"")+"&side="+encodeURIComponent(side||"home")).then(function(r){return r.json();}).then(function(j){
       if(!$("#ftBody"))return;
       if(!j||!j.found||!j.team){ $("#ftBody").innerHTML='<div class="msg"><div class="big">📋</div>'+t("noRecentRec")+'</div>'; return; }
@@ -5806,8 +5823,9 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
     var _tok=(window.__tmTok=(window.__tmTok||0)+1);   // 늦은 응답이 다른 팀 화면을 덮지 않도록 토큰 가드
     var dt={ tab:"overview", base:null, rank:undefined, news:undefined, squad:undefined, stats:undefined };
     var o=overlay("ovTeam");
-    o.innerHTML='<div class="dt-bar"><button class="bk" id="tmBack">‹</button><div class="ti">'+esc(name)+'</div></div><div class="dt-body" id="tmBody"><div class="msg"><div class="big">⏳</div>'+t("loading")+'</div></div>';
+    o.innerHTML='<div class="dt-bar"><button class="bk" id="tmBack">‹</button><div class="ti">'+esc(name)+'</div>'+shareBtnHtml("tmShare")+'</div><div class="dt-body" id="tmBody"><div class="msg"><div class="big">⏳</div>'+t("loading")+'</div></div>';
     $("#tmBack").onclick=function(){ closeOverlay("ovTeam"); };
+    bindShareBtn("tmShare",name);
     var canStats=(teamId&&sp==="football"), canSquad=(teamId&&(sp==="football"||sp==="basketball"));
     var asOk=(teamId&&(sp==="football"||sp==="basketball"||sp==="baseball"||sp==="volleyball"));
     var url=asOk?("/api/team/as?sport="+encodeURIComponent(sp)+"&id="+encodeURIComponent(teamId)):("/api/team/recent?name="+encodeURIComponent(name)+"&sport="+encodeURIComponent(sp));
@@ -6170,6 +6188,19 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
     if(navigator.clipboard&&navigator.clipboard.writeText){ navigator.clipboard.writeText(url).then(function(){ toastMsg(t("linkCopied")); }).catch(function(){ toastMsg(t("copyFail"),1); }); }
     else toastMsg(url);
   }
+  // 🔗 팀 상세 공유: 팀명 + 앱 URL. navigator.share 없으면 링크 복사.
+  function shareTeam(name){
+    var url=shareUrl(), title="LIVE UP · "+(name||"");
+    if(navigator.share){ navigator.share({title:title,text:title,url:url}).catch(function(){}); return; }
+    if(navigator.clipboard&&navigator.clipboard.writeText){ navigator.clipboard.writeText(url).then(function(){ toastMsg(t("linkCopied")); }).catch(function(){ toastMsg(t("copyFail"),1); }); }
+    else openShare();
+  }
+  // 상세 헤더 공유 버튼 HTML(팀명 옆). 반환 후 bindShareBtn 으로 바인딩.
+  function shareBtnHtml(id){
+    var lbl=tl({en:"Share",ko:"공유",ja:"共有",zh:"分享",es:"Compartir",hi:"शेयर",vi:"Chia sẻ",th:"แชร์",ru:"Поделиться",de:"Teilen",fr:"Partager",it:"Condividi"});
+    return '<button class="dt-share" id="'+id+'" style="margin-left:auto"><span style="font-size:14px">⤴</span>'+lbl+'</button>';
+  }
+  function bindShareBtn(id,name){ var b=document.getElementById(id); if(b)b.onclick=function(){ shareTeam(name); }; }
   // 경기 공유 바텀시트(명령서 10)
   function openMatchShare(g,sport){
     var url=matchUrl(g,sport), sp=sport||S.sport, ic=SPORT_ICON[sp]||"🏟";
