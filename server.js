@@ -29,7 +29,7 @@ const app = express();
 const server = http.createServer(app);
 
 const PORT = process.env.PORT || 3000;
-const APP_VERSION = 'v599';
+const APP_VERSION = 'v600';
 
 // ============================================================
 //  📏 성능 계측(instrumentation) — 엔드포인트 지연·캐시·공급사·WS·이벤트루프
@@ -4058,12 +4058,32 @@ const DISCOVER_FB = [
   { key: 'ucl',     label: 'UEFA Champions League',  ko: '챔피언스리그',  flag: '🇪🇺', match: 'uefa champions league' },
   { key: 'k1',      label: 'K League 1',             ko: 'K리그1',        flag: '🇰🇷', match: 'k league 1' }
 ];
+//  ⚠️ 농구 대회 UUID 는 하드코딩하지 않는다(숫자 12/91/… 는 API-Sports ID라 TheSports엔 무효).
+//     diary(results_extra.competition)의 실제 TheSports comp id를 bskLeagueAlias로 식별해 해석(검증된 엔드포인트).
 const DISCOVER_BK = [
-  { key: 'nba',  id: '12',  label: 'NBA',       ko: 'NBA',        flag: '🇺🇸' },
-  { key: 'kbl',  id: '91',  label: 'KBL',       ko: 'KBL',        flag: '🇰🇷' },
-  { key: 'wkbl', id: '92',  label: 'WKBL',      ko: 'WKBL (여)',  flag: '🇰🇷', gender: 'W' },
-  { key: 'el',   id: '120', label: 'EuroLeague', ko: '유로리그',  flag: '🇪🇺' }
+  { key: 'nba',  alias: 'NBA',        label: 'NBA',        ko: 'NBA',        flag: '🇺🇸' },
+  { key: 'kbl',  alias: 'KBL',        label: 'KBL',        ko: 'KBL',        flag: '🇰🇷' },
+  { key: 'wkbl', alias: 'WKBL',       label: 'WKBL',       ko: 'WKBL (여)',  flag: '🇰🇷', gender: 'W' },
+  { key: 'el',   alias: 'EuroLeague', label: 'EuroLeague', ko: '유로리그',   flag: '🇪🇺' }
 ];
+// 농구 주요 대회 → 실제 TheSports comp uuid 해석. 최근 날짜 diary 를 훑어 results_extra.competition 에서 식별. 12h 캐시.
+async function _bskResolveMajorComps() {
+  const cached = _discGet('bk:compids', 12 * 3600e3); if (cached) return cached;
+  const want = {}; DISCOVER_BK.forEach(x => { want[x.alias] = null; });
+  const offs = [0, -1, -2, -3, -5, -7, -10, -14, -21];
+  for (const off of offs) {
+    if (Object.values(want).every(Boolean)) break;
+    const ymd = new Date(Date.now() + off * 864e5).toISOString().slice(0, 10).replace(/-/g, '');
+    const d = await tsFetch('/basketball/match/diary', { date: ymd }, 6 * 3600e3, 9000).catch(() => null);
+    const comps = (d && d.results_extra && d.results_extra.competition) || [];
+    comps.forEach(c => {
+      if (!c || !c.id) return;
+      const alias = bskLeagueAlias(c.name || c.short_name || '');
+      if (want.hasOwnProperty(alias) && !want[alias]) want[alias] = { id: c.id, name: c.name || c.short_name || '', logo: c.logo || '' };
+    });
+  }
+  return _discSet('bk:compids', want);
+}
 const _discCache = new Map();   // key -> { t, v }
 function _discGet(k, maxAge) { const h = _discCache.get(k); return (h && Date.now() - h.t < maxAge) ? h.v : null; }
 function _discSet(k, v) { _discCache.set(k, { t: Date.now(), v }); return v; }
@@ -4102,9 +4122,57 @@ async function discoverFootballCountries() {
 // 농구 주요 리그 — 실제 compId 로 대회명/로고 보강.
 async function discoverBasketballLeagues() {
   const cached = _discGet('bk:major', 6 * 3600e3); if (cached) return cached;
-  const info = await bskResolveComps(DISCOVER_BK.map(x => x.id)).catch(() => ({}));
-  const out = DISCOVER_BK.map(L => ({ id: L.id, key: L.key, name: (info[L.id] && info[L.id].name) || L.label, nameKo: L.ko, flag: L.flag, logo: (info[L.id] && info[L.id].logo) || '', sport: 'basketball', tier: 'major', gender: L.gender || 'M' }));
+  const resolved = await _bskResolveMajorComps().catch(() => ({}));
+  const out = [];
+  for (const L of DISCOVER_BK) {
+    const r = resolved[L.alias];
+    if (!r || !r.id) continue;                 // 미해석(최근 경기 없음) → 노출 안 함(추정 금지)
+    let logo = r.logo;
+    if (!logo) { const ci = await bskCompInfo(r.id).catch(() => null); if (ci) logo = ci.logo || ''; }
+    out.push({ id: r.id, key: L.key, name: r.name || L.label, nameKo: L.ko, flag: L.flag, logo: logo || '', sport: 'basketball', tier: 'major', gender: L.gender || 'M' });
+  }
   return _discSet('bk:major', out);
+}
+
+// 야구 주요 대회(MLB·KBO·NPB) → 실제 comp uuid. 야구는 비시즌 대비 넓은 창으로 diary 스캔. 12h 캐시.
+const DISCOVER_BB = [
+  { key: 'mlb', re: /mlb|major league/i, label: 'MLB', ko: 'MLB', flag: '🇺🇸' },
+  { key: 'kbo', re: /\bkbo\b|korea/i,    label: 'KBO', ko: 'KBO', flag: '🇰🇷' },
+  { key: 'npb', re: /npb|nippon|japan/i, label: 'NPB', ko: 'NPB', flag: '🇯🇵' }
+];
+async function _bbResolveMajorComps() {
+  const cached = _discGet('bb:compids', 12 * 3600e3); if (cached) return cached;
+  const found = {};
+  const offs = [0, -3, -7, -14, -21, -30, -45, -60, -90, -120];
+  for (const off of offs) {
+    if (DISCOVER_BB.every(x => found[x.key])) break;
+    const ymd = new Date(Date.now() + off * 864e5).toISOString().slice(0, 10).replace(/-/g, '');
+    const d = await tsFetch('/baseball/match/diary', { date: ymd }, 6 * 3600e3, 9000).catch(() => null);
+    const comps = (d && d.results_extra && d.results_extra.competition) || [];
+    DISCOVER_BB.forEach(T => { if (found[T.key]) return; const c = comps.find(x => x && x.id && T.re.test(String(x.name || x.short_name || ''))); if (c) found[T.key] = { id: c.id, name: c.name || c.short_name || '', logo: c.logo || '' }; });
+  }
+  return _discSet('bb:compids', found);
+}
+// 야구 팀 enumerate — 순위표 엔드포인트 미인증 → 해당 대회 diary(시즌 창)에서 team_id 수집 → team/list 로 이름 해석.
+async function _bbTeamsOfComp(compId) {
+  const ck = 'bbteams:' + compId; const cached = _discGet(ck, 6 * 3600e3); if (cached) return cached;
+  const ids = new Set(); let season = '';
+  for (let i = 0; i <= 168; i += 14) {
+    const dt = new Date(Date.now() - i * 864e5); const ymd = dt.toISOString().slice(0, 10).replace(/-/g, '');
+    const d = await tsFetch('/baseball/match/diary', { date: ymd }, 6 * 3600e3, 8000).catch(() => null);
+    const rows = (d && d.results) || [];
+    rows.forEach(m => { if (m && String(m.competition_id) === String(compId)) { if (m.home_team_id) ids.add(m.home_team_id); if (m.away_team_id) ids.add(m.away_team_id); if (!season) season = String(dt.getUTCFullYear()); } });
+    if (ids.size >= 40) break;
+  }
+  const idArr = [...ids];
+  const teams = [];
+  for (let i = 0; i < idArr.length; i += 8) {
+    const chunk = idArr.slice(i, i + 8);
+    const got = await Promise.all(chunk.map(id => tsFetch('/baseball/team/list', { uuid: id }, 24 * 3600e3, 8000).then(r => (r && r.results && r.results[0]) || null).catch(() => null)));
+    got.forEach((tdat, k) => { teams.push({ id: chunk[k], name: (tdat && (tdat.name || tdat.short_name)) || '', logo: (tdat && tdat.logo) || '' }); });
+  }
+  const out = { teams: teams.filter(t => t.name), seasonUsed: season };
+  return _discSet(ck, out);
 }
 
 // GET /api/discover/leagues?sport=football|basketball|baseball
@@ -4121,17 +4189,12 @@ app.get('/api/discover/leagues', async (req, res) => {
       return res.json({ sport, major, countries: [], note: 'bk-countries-na', src: 'thesports' });
     }
     if (sport === 'baseball') {
-      // 야구 대회 카탈로그: /baseball/competition/list (플랜 미인증). 수신 시 사용, 아니면 '준비 중'.
       const cached = _discGet('bb:major', 6 * 3600e3);
       if (cached) return res.json({ sport, major: cached, countries: [], src: 'thesports' });
-      let major = [];
-      try {
-        const r = await tsFetch('/baseball/competition/list', {}, 6 * 3600e3, 9000).catch(() => null);
-        const comps = (r && r.results) || [];
-        const WANT = [{ re: /mlb|major league/i, ko: 'MLB', flag: '🇺🇸' }, { re: /\bkbo\b|korea/i, ko: 'KBO', flag: '🇰🇷' }, { re: /npb|nippon|japan/i, ko: 'NPB', flag: '🇯🇵' }];
-        WANT.forEach(w => { const c = comps.find(x => x && w.re.test(String(x.name || ''))); if (c && c.id) major.push({ id: c.id, name: c.name, nameKo: w.ko, flag: w.flag, logo: c.logo || '', sport: 'baseball', tier: 'major', gender: 'M' }); });
-        if (major.length) _discSet('bb:major', major);
-      } catch (e) {}
+      const resolved = await _bbResolveMajorComps().catch(() => ({}));
+      const major = [];
+      DISCOVER_BB.forEach(T => { const r = resolved[T.key]; if (r && r.id) major.push({ id: r.id, name: r.name || T.label, nameKo: T.ko, flag: T.flag, logo: r.logo || '', sport: 'baseball', tier: 'major', gender: 'M' }); });
+      if (major.length) _discSet('bb:major', major);
       return res.json({ sport, major, countries: [], note: major.length ? undefined : 'bb-catalog-unverified', src: 'thesports' });
     }
     return res.json({ sport, major: [], countries: [], note: 'sport-na' });
@@ -4174,8 +4237,10 @@ app.get('/api/discover/teams', async (req, res) => {
       return res.json(_discSet('teams:' + ck, { teams, seasonUsed: String(pick.year || ''), note: teams.length ? '' : 'no-table', sport, league, src: 'thesports' }));
     }
     if (sport === 'baseball') {
-      // 야구 팀 enumerate: 순위표 엔드포인트 미인증 → 준비 중(추정 생성 금지).
-      return res.json(_discSet('teams:' + ck, { teams: [], note: 'bb-teams-unverified', sport, league }));
+      // 야구 팀 enumerate: 순위표 엔드포인트 미인증 → 해당 대회 diary(시즌 창)에서 팀 수집(team/list로 이름 해석).
+      const bt = await _bbTeamsOfComp(league).catch(() => ({ teams: [] }));
+      const teams = (bt.teams || []).slice().sort((a, b) => String(a.name).localeCompare(String(b.name)));
+      return res.json(_discSet('teams:' + ck, { teams, seasonUsed: bt.seasonUsed || '', note: teams.length ? '' : 'bb-teams-unverified', sport, league, src: 'thesports' }));
     }
     return res.json({ teams: [], note: 'sport-na' });
   } catch (e) { return res.json({ teams: [], error: String((e && e.message) || e) }); }
