@@ -29,7 +29,7 @@ const app = express();
 const server = http.createServer(app);
 
 const PORT = process.env.PORT || 3000;
-const APP_VERSION = 'v617';
+const APP_VERSION = 'v618';
 
 // ============================================================
 //  📏 성능 계측(instrumentation) — 엔드포인트 지연·캐시·공급사·WS·이벤트루프
@@ -6861,6 +6861,31 @@ async function ytSearchList(q, maxResults) {
     const v = { items }; cache.set(ck, { t: Date.now(), v }); return v;
   } catch (e) { return { items: [], err: String((e && e.message) || e) }; }
 }
+// 🎬 영상 재생 가능성 확인: 임베드 허용(status.embeddable) + 국가(regionRestriction) 차단 여부. videos.list = 1 unit.
+//   ⚠️ '임베드 국가 제한'(업로더가 특정 국가만 임베드 허용)은 API 미제공이라 완전히는 못 거름 → 프런트 폴백 병행.
+const HL_REGION = (process.env.HL_REGION || 'KR').trim().toUpperCase();
+async function ytVideoCheck(ids, region) {
+  if (!YT_KEY || !ids || !ids.length) return {};
+  if (ytBudgetLeft() <= 0) return {};
+  region = (region || HL_REGION).toUpperCase();
+  const ck = 'YTV:' + region + ':' + ids.slice(0, 50).join(','); const hit = cache.get(ck);
+  if (hit && Date.now() - hit.t < 6 * 3600000) return hit.v;
+  try {
+    const url = `https://www.googleapis.com/youtube/v3/videos?part=contentDetails,status&id=${ids.slice(0, 50).join(',')}&key=${YT_KEY}`;
+    const r = await fetch(url); const j = await r.json(); ytUse(1);
+    const out = {};
+    (j.items || []).forEach(v => {
+      const emb = !v.status || v.status.embeddable !== false;
+      const rr = (v.contentDetails && v.contentDetails.regionRestriction) || {};
+      let okRegion = true;
+      if (rr.blocked && rr.blocked.indexOf(region) >= 0) okRegion = false;
+      if (rr.allowed && rr.allowed.indexOf(region) < 0) okRegion = false;
+      out[v.id] = { embeddable: emb, okRegion, playable: emb && okRegion };
+    });
+    cache.set(ck, { t: Date.now(), v: out });
+    return out;
+  } catch (e) { return {}; }
+}
 // 경기↔영상 자동 매칭. status: registered|queued|none|exists|excluded|nobudget
 async function hlAutoMatch(m) {
   const sport = String(m.sport || '').toLowerCase(), matchId = String(m.matchId || '');
@@ -6877,18 +6902,29 @@ async function hlAutoMatch(m) {
   const sr = await ytSearchList(`${home} vs ${away} highlights ${league || ''}`.trim(), 6);
   if (sr.needKey) return { status: 'none', note: 'needKey' };
   if (sr.budget === 0) return { status: 'nobudget' };
-  let best = null, bestScore = 0;
+  // 1차: 제목 매칭 통과 후보 수집(양 팀 + 하이라이트 키워드, 배제어 제외)
+  const cands = [];
   for (const it of (sr.items || [])) {
     if (_hlExcluded(key, it.videoId)) continue;
     if (HL_BAD_RE.test(it.title)) continue;                     // 풀경기·인터뷰·예고·시뮬·라이브 배제
     const tn = _hlNorm(it.title);
     const hHit = htok.some(w => tn.indexOf(w) >= 0), aHit = atok.some(w => tn.indexOf(w) >= 0);
     if (!(hHit && aHit)) continue;                              // 양 팀 모두 제목에 있어야(오연결 방지)
+    cands.push(it);
+  }
+  if (!cands.length) return { status: 'none' };
+  // 2차: 재생 가능성 확인(임베드 허용 + 국가 차단 아님). 축구가 국가제한 채널로 오매칭되는 문제 방지.
+  const chk = await ytVideoCheck(cands.map(c => c.videoId));
+  let best = null, bestScore = 0;
+  for (const it of cands) {
+    const pc = chk[it.videoId];
+    if (pc && pc.playable === false) continue;                  // 임베드 불가·국가 차단 영상은 자동 등록 후보에서 제외
     const off = officialMatch2(it.channelId, '');
     let score = 0;
     if (off) score += 5;
     if (HL_GOOD_RE.test(it.title)) score += 2;
     if (dateMs && it.publishedAt) { const dd = (Date.parse(it.publishedAt) - dateMs) / 86400000; if (dd >= -1 && dd <= 10) score += 2; else if (dd < -2 || dd > 30) score -= 3; }  // 게시일만으로 판단 금지 → 경기일 근접 가점
+    if (pc && pc.playable) score += 1;                          // 재생 확인된 영상 가점
     if (score > bestScore) { bestScore = score; best = Object.assign({ off }, it); }
   }
   if (!best) return { status: 'none' };
