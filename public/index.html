@@ -6378,7 +6378,7 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
       var T_ALL=tl({en:"All",ko:"전체",ja:"すべて",zh:"全部",es:"Todas",hi:"सभी",vi:"Tất cả",th:"ทั้งหมด",ru:"Все",de:"Alle",fr:"Toutes",it:"Tutte"});
       var T_UN=tl({en:"Unread",ko:"읽지 않음",ja:"未読",zh:"未读",es:"No leídas",hi:"अपठित",vi:"Chưa đọc",th:"ยังไม่อ่าน",ru:"Непрочит.",de:"Ungelesen",fr:"Non lues",it:"Non lette"});
       var T_READALL=tl({en:"Mark all read",ko:"모두 읽음",ja:"全部既読",zh:"全部已读",es:"Marcar leídas",hi:"सभी पढ़ी",vi:"Đọc hết",th:"อ่านทั้งหมด",ru:"Прочитать все",de:"Alle gelesen",fr:"Tout lu",it:"Segna lette"});
-      var h='<div class="dt-bar"><button class="bk" id="ibBack">‹</button><div class="ti">'+tl({en:"Notifications",ko:"알림함",ja:"通知一覧",zh:"通知",es:"Notificaciones",hi:"सूचनाएँ",vi:"Thông báo",th:"การแจ้งเตือน",ru:"Уведомления",de:"Mitteilungen",fr:"Notifications",it:"Notifiche"})+'</div><button class="bk" id="ibSet" title="'+esc(t("alarmSet"))+'" style="margin-left:auto;font-size:17px">⚙ '+t("grpSettings")+'</button></div>';
+      var h='<div class="dt-bar"><button class="bk" id="ibBack">‹</button><div class="ti">'+tl({en:"Notifications",ko:"알림함",ja:"通知一覧",zh:"通知",es:"Notificaciones",hi:"सूचनाएँ",vi:"Thông báo",th:"การแจ้งเตือน",ru:"Уведомления",de:"Mitteilungen",fr:"Notifications",it:"Notifiche"})+'</div><button id="ibSet" title="'+esc(t("alarmSet"))+'" style="margin-left:auto;flex:0 0 auto;width:auto;height:auto;white-space:nowrap;display:inline-flex;align-items:center;gap:4px;font-size:13px;font-weight:700;color:var(--navy);background:var(--soft);border:1px solid var(--line);border-radius:16px;padding:7px 13px;cursor:pointer;font-family:inherit">⚙ '+t("grpSettings")+'</button></div>';
       h+='<div class="sv-wrap">';
       h+='<div class="ib-tabs"><button class="ib-tab'+(tab==="all"?" on":"")+'" data-ib="all">'+T_ALL+'</button><button class="ib-tab'+(tab==="unread"?" on":"")+'" data-ib="unread">'+T_UN+(unreadN?' <span class="ib-badge">'+unreadN+'</span>':'')+'</button><button class="ib-readall" id="ibRead">'+T_READALL+'</button></div>';
       // 종목 필터칩
@@ -6502,8 +6502,22 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
     $("#toTeam").onclick=function(){ closeOverlay("ovAlerts"); openFavTeams("teams"); };
     $("#nTest").onclick=function(){
       if(!window.Notification){ alert(tl({en:"Notifications are not supported on this device.",ko:"이 기기는 알림을 지원하지 않습니다.",ja:"この端末は通知に対応していません。",zh:"本设备不支持通知。",es:"No compatible.",hi:"समर्थित नहीं।",vi:"Không hỗ trợ.",th:"ไม่รองรับ",ru:"Не поддерживается.",de:"Nicht unterstützt.",fr:"Non pris en charge.",it:"Non supportato."})); return; }
-      var send=function(){ var body=tl({en:"Test notification ✓",ko:"테스트 알림입니다 ✓",ja:"テスト通知 ✓",zh:"测试通知 ✓",es:"Prueba ✓",hi:"टेस्ट ✓",vi:"Thử ✓",th:"ทดสอบ ✓",ru:"Тест ✓",de:"Test ✓",fr:"Test ✓",it:"Prova ✓"}); try{ new Notification("LIVE UP",{body:body,icon:"/logo-t.png"}); }catch(e){} addInbox({title:"LIVE UP",body:body}); toastMsg("🔔 OK"); };
-      if(Notification.permission==="granted")send(); else Notification.requestPermission().then(function(p){ if(p==="granted")send(); else openAlerts(); });
+      var body=tl({en:"Test notification ✓",ko:"테스트 알림입니다 ✓",ja:"テスト通知 ✓",zh:"测试通知 ✓",es:"Prueba ✓",hi:"टेस्ट ✓",vi:"Thử ✓",th:"ทดสอบ ✓",ru:"Тест ✓",de:"Test ✓",fr:"Test ✓",it:"Prova ✓"});
+      // 서버→기기 실제 웹푸시 테스트(골 알림과 동일 경로). 성공하면 실제 경기 알림도 옵니다.
+      var serverTest=function(){
+        try{ new Notification("LIVE UP",{body:body,icon:"/logo-t.png"}); }catch(e){} addInbox({title:"LIVE UP",body:body});
+        if(navigator.serviceWorker&&navigator.serviceWorker.ready){
+          navigator.serviceWorker.ready.then(function(reg){ return reg.pushManager.getSubscription(); }).then(function(sub){
+            if(!sub){ toastMsg(tl({en:"Turn on 'All notifications' first.",ko:"먼저 '전체 알림'을 켜고 다시 시도하세요.",ja:"先に通知をオン。",zh:"请先开启通知。",es:"Activa notificaciones.",hi:"पहले सूचनाएँ चालू करें।",vi:"Bật thông báo trước.",th:"เปิดแจ้งเตือนก่อน",ru:"Включите уведомления.",de:"Erst Mitteilungen aktivieren.",fr:"Activez d'abord.",it:"Attiva prima."}),1); return; }
+            fetch("/api/push/test",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({endpoint:sub.endpoint})}).then(function(r){return r.json()}).then(function(j){
+              if(j&&j.ok) toastMsg("🔔 "+tl({en:"Server push sent — check your device tray.",ko:"서버 푸시 발송 — 기기 알림을 확인하세요.",ja:"サーバー送信済み。",zh:"已发送，请查看通知。",es:"Enviado al dispositivo.",hi:"भेजा गया।",vi:"Đã gửi.",th:"ส่งแล้ว",ru:"Отправлено.",de:"Gesendet.",fr:"Envoyé.",it:"Inviato."}));
+              else toastMsg(tl({en:"Push not delivered. Re-enable notifications.",ko:"푸시 미전달 — 알림을 껐다 켜서 재구독하세요.",ja:"未達。再登録してください。",zh:"未送达，请重新订阅。",es:"No entregado. Reactiva.",hi:"नहीं पहुँचा।",vi:"Chưa gửi được.",th:"ส่งไม่สำเร็จ",ru:"Не доставлено.",de:"Nicht zugestellt.",fr:"Non livré.",it:"Non consegnato."}),1);
+            }).catch(function(){ toastMsg(t("loadFailRetry"),1); });
+          }).catch(function(){});
+        }
+      };
+      if(Notification.permission==="granted"){ try{syncPushSub();}catch(e){} serverTest(); }
+      else Notification.requestPermission().then(function(p){ if(p==="granted"){ try{syncPushSub();}catch(e){} setTimeout(serverTest,900); } else openAlerts(); });
     };
   }
   // ====== 관심 팀·선수 (이미지 05) ======
