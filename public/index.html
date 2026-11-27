@@ -1010,7 +1010,7 @@ html[data-theme="dark"] .st-badge{background:#15233c;border-color:#2c3a54;color:
 .bm-top{font-weight:600;font-size:12px;margin:0 0 8px;padding-bottom:7px;border-bottom:1px solid rgba(255,255,255,.34)}
 .bm-team img,.bm-team .ph{width:46px;height:46px}
 /* 통합 라이브 배너 */
-.unilive{display:flex;align-items:center;justify-content:space-between;width:calc(100% - 32px);margin:10px 16px 0;background:linear-gradient(135deg,#1b2a4a,#223457);color:#fff;border:none;border-radius:13px;padding:13px 16px;cursor:pointer;font-family:inherit}
+.unilive{display:flex;align-items:center;justify-content:center;gap:9px;width:calc(100% - 32px);margin:10px 16px 0;background:linear-gradient(135deg,#1b2a4a,#223457);color:#fff;border:none;border-radius:13px;padding:13px 16px;cursor:pointer;font-family:inherit}
 .unilive:active{opacity:.92}
 .unilive .ul-l{display:flex;align-items:center;gap:9px;min-width:0}
 .unilive .ul-dot{width:9px;height:9px;border-radius:50%;background:var(--red);flex:0 0 auto;box-shadow:0 0 0 0 rgba(229,55,68,.6);animation:ulpulse 1.6s infinite}
@@ -1618,7 +1618,7 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
     if(stateOf(g)!=="scheduled") return t("startSoon");
     var ts=g&&g.date?new Date(g.date).getTime():0; if(!ts) return t("startSoon");
     var past=Date.now()-ts;
-    if(past > 4*3600e3) return tl({en:"Postponed",ko:"연기됨",ja:"延期",zh:"延期",es:"Aplazado",hi:"स्थगित",vi:"Hoãn",th:"เลื่อน",ru:"Перенесён",de:"Verschoben",fr:"Reporté",it:"Rinviata"});
+    if(past > 4*3600e3) return tl({en:"Postponed",ko:"연기",ja:"延期",zh:"延期",es:"Aplazado",hi:"स्थगित",vi:"Hoãn",th:"เลื่อน",ru:"Перенесён",de:"Verschoben",fr:"Reporté",it:"Rinviata"});
     if(past > 20*60e3) return tl({en:"Checking status",ko:"경기 상태 확인 중",ja:"状態確認中",zh:"确认状态中",es:"Verificando estado",hi:"स्थिति जाँच",vi:"Đang kiểm tra",th:"กำลังตรวจสอบ",ru:"Проверка статуса",de:"Status wird geprüft",fr:"Vérification du statut",it:"Verifica stato"});
     return t("startSoon");
   }
@@ -1706,8 +1706,16 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
   }
   // 통합 라이브(전 종목 주요 경기) 진입 — D안: 독립 배너 대신 주요 경기 제목 옆 버튼에서 호출
   function goUnifiedLive(){ if(S.sport!=="all"){ S.sport="all"; S.country=""; S.leagueF=""; S.filter="main"; if(S.screen==="live"||S.screen==="fav"){ S.base="home"; S.screen="home"; } load(); } }
-  // ====== 렌더: 통합 라이브 배너 — D안 적용으로 상시 숨김(진입은 '전체 라이브 보기' 버튼) ======
-  function renderUniLive(){ var b=$("#uniLive"); if(b)b.classList.add("hide"); }
+  // ====== 렌더: 통합 라이브 배너 — 홈/라이브(종목 선택 시)에서 중앙 정렬로 노출. 눌러 전 종목 통합 진입.
+  function renderUniLive(){
+    var b=$("#uniLive"); if(!b)return;
+    var show=(S.screen==="home"||S.screen==="live")&&S.sport!=="all";
+    b.classList.toggle("hide",!show);
+    if(!show)return;
+    var tx=$("#uniLiveTx"); if(tx)tx.textContent=tl({en:"View all live",ko:"전체 라이브 보기",ja:"全ライブを見る",zh:"查看全部直播",es:"Ver todo en vivo",hi:"सभी लाइव देखें",vi:"Xem tất cả live",th:"ดูไลฟ์ทั้งหมด",ru:"Весь лайв",de:"Alle live",fr:"Tout en direct",it:"Tutto live"});
+    var sub=$("#uniLiveSub"); if(sub)sub.textContent="";
+    b.onclick=function(){ goUnifiedLive(); };
+  }
   // ====== 렌더: 날짜바 ======
   function renderDate(){
     $("#dLabel").textContent=dateLabel(S.date);
@@ -6396,7 +6404,12 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
       o.querySelectorAll("[data-ib]").forEach(function(b){ b.onclick=function(){ tab=b.dataset.ib; render(); }; });
       o.querySelectorAll("[data-sp]").forEach(function(b){ b.onclick=function(){ spf=b.dataset.sp; render(); }; });
       var body=$("#ibBody");
-      if(!items.length){ body.innerHTML='<div class="msg"><div class="big">🔕</div>'+tl({en:"No notifications yet.",ko:"받은 알림이 없습니다.",ja:"通知はありません。",zh:"暂无通知。",es:"Sin notificaciones.",hi:"कोई सूचना नहीं।",vi:"Chưa có thông báo.",th:"ยังไม่มีการแจ้งเตือน",ru:"Нет уведомлений.",de:"Keine Mitteilungen.",fr:"Aucune notification.",it:"Nessuna notifica."})+'</div>'; return; }
+      if(!items.length){
+        // 빈 상태 자체를 '탭하면 알림 받을 팀·경기 선택'으로(종 아이콘 눌러도 설정이 열리게).
+        body.innerHTML='<button id="ibEmptyGo" style="display:block;width:100%;background:none;border:none;cursor:pointer;font-family:inherit;padding:30px 16px 6px;text-align:center"><div style="font-size:44px;line-height:1">🔕</div><div style="margin-top:10px;color:var(--muted);font-size:14px;font-weight:600">'+tl({en:"No notifications yet.",ko:"받은 알림이 없습니다.",ja:"通知はありません。",zh:"暂无通知。",es:"Sin notificaciones.",hi:"कोई सूचना नहीं।",vi:"Chưa có thông báo.",th:"ยังไม่มีการแจ้งเตือน",ru:"Нет уведомлений.",de:"Keine Mitteilungen.",fr:"Aucune notification.",it:"Nessuna notifica."})+'</div><div style="margin-top:12px;display:inline-flex;align-items:center;gap:6px;background:var(--navy);color:#fff;border-radius:16px;padding:9px 16px;font-size:13.5px;font-weight:800">🔔 '+tl({en:"Pick teams & matches to get alerts ›",ko:"알림 받을 팀·경기 선택하기 ›",ja:"通知する試合・チームを選ぶ ›",zh:"选择通知的比赛·球队 ›",es:"Elegir equipos y partidos ›",hi:"टीम·मैच चुनें ›",vi:"Chọn đội/trận để nhận báo ›",th:"เลือกทีม/แมตช์เพื่อรับแจ้งเตือน ›",ru:"Выбрать команды и матчи ›",de:"Teams/Spiele für Alarme wählen ›",fr:"Choisir équipes/matchs ›",it:"Scegli squadre/partite ›"})+'</div></button>';
+        var eg=$("#ibEmptyGo"); if(eg)eg.onclick=function(){ closeOverlay("ovInbox"); openAlerts(); };
+        return;
+      }
       var L_TODAY=tl({en:"Today",ko:"오늘",ja:"今日",zh:"今天",es:"Hoy",hi:"आज",vi:"Hôm nay",th:"วันนี้",ru:"Сегодня",de:"Heute",fr:"Aujourd'hui",it:"Oggi"});
       var L_EARLIER=tl({en:"Earlier",ko:"이전 알림",ja:"以前",zh:"更早",es:"Anteriores",hi:"पहले",vi:"Trước đó",th:"ก่อนหน้า",ru:"Ранее",de:"Früher",fr:"Plus tôt",it:"Precedenti"});
       var html="", lastGrp=null;
@@ -6447,7 +6460,11 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
     $("#shCopy").onclick=function(){ copyLink(); };
     o.querySelectorAll(".sh-soc").forEach(function(b){ b.onclick=function(){ var s=socials[+b.dataset.si]; var act=s[4];
       if(act==="more"){ if(navigator.share){ navigator.share({title:"LIVE UP",text:txt,url:url}).catch(function(){}); } else copyLink(); return; }
-      if(act==="kakao"||act==="insta"){ copyLink(function(){ toast(tl({en:"Link copied — paste it in the app",ko:"링크 복사됨 — 앱에 붙여넣기 하세요",ja:"リンクをコピー。アプリに貼り付け",zh:"已复制链接，粘贴到应用",es:"Enlace copiado — pégalo en la app",hi:"लिंक कॉपी — ऐप में पेस्ट करें",vi:"Đã chép — dán vào ứng dụng",th:"คัดลอกแล้ว วางในแอป",ru:"Ссылка скопирована — вставьте в приложение",de:"Link kopiert — in der App einfügen",fr:"Lien copié — collez-le dans l'app",it:"Link copiato — incollalo nell'app"}),true); }); return; }
+      if(act==="kakao"||act==="insta"){
+        // 카톡·인스타는 웹 공유 URL이 없어 → 휴대폰 공유 시트로 '직접 공유'(목록에서 카톡/인스타 선택). 미지원 기기만 링크 복사 폴백.
+        if(navigator.share){ navigator.share({title:"LIVE UP",text:txt,url:url}).then(function(){ toast(t("linkCopied"),true); }).catch(function(){}); }
+        else { copyLink(function(){ toast(tl({en:"Link copied — paste it in the app",ko:"링크 복사됨 — 앱에 붙여넣기 하세요",ja:"リンクをコピー。アプリに貼り付け",zh:"已复制链接，粘贴到应用",es:"Enlace copiado — pégalo en la app",hi:"लिंक कॉपी — ऐप में पेस्ट करें",vi:"Đã chép — dán vào ứng dụng",th:"คัดลอกแล้ว วางในแอป",ru:"Ссылка скопирована — вставьте в приложение",de:"Link kopiert — in der App einfügen",fr:"Lien copié — collez-le dans l'app",it:"Link copiato — incollalo nell'app"}),true); }); }
+        return; }
       window.open(act,"_blank","noopener"); }; });
   }
   // ====== 알림 설정 (이미지 06) ======
