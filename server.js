@@ -29,7 +29,7 @@ const app = express();
 const server = http.createServer(app);
 
 const PORT = process.env.PORT || 3000;
-const APP_VERSION = 'v634';
+const APP_VERSION = 'v635';
 
 // ============================================================
 //  📏 성능 계측(instrumentation) — 엔드포인트 지연·캐시·공급사·WS·이벤트루프
@@ -108,7 +108,10 @@ let visitorsCol = null;             // 방문자 영속 컬렉션(연결 시)
 // ============================================================
 const ERRLOG = [];                 // 최근 에러 링버퍼(관리자 화면 표시)
 const ERR_MAX = 300;
-let errorsCol = null, configCol = null, adminSubsCol = null, highlightsCol = null, bskSnapCol = null, langCol = null, hlQueueCol = null, hlExcludeCol = null;
+let errorsCol = null, configCol = null, adminSubsCol = null, highlightsCol = null, bskSnapCol = null, langCol = null, hlQueueCol = null, hlExcludeCol = null, fbPStatsCol = null;
+// ⚽ 축구 선수 매치스탯 캐시(경기 id → {ps:[player_stats], t}). player_stats/list는 '최근 120초 변경분' 증분 피드라
+//    라이브 중 1분마다 폴링해 누적 저장해야 종료 후에도 상세 스탯을 보여줄 수 있다(AiScore와 동일 방식).
+const _fbPStats = new Map();
 // 🎬 하이라이트 자동탐색 상태(메모리 미러): 검수 대기 큐 + 제외(오연결 재등록 방지)
 const HL_QUEUE = new Map();   // key -> candidate doc
 const HL_EXCLUDE = new Set(); // 'match:'+key | 'vid:'+videoId
@@ -351,6 +354,7 @@ async function initDB() {
       try { hlQueueCol = db.collection('hl_queue'); await hlQueueCol.createIndex({ key: 1 }, { unique: true }).catch(() => {}); const qs = await hlQueueCol.find({}).toArray(); for (const q of qs) { if (q.key) HL_QUEUE.set(q.key, q); } hlExcludeCol = db.collection('hl_exclude'); const ex = await hlExcludeCol.find({}).toArray(); for (const e of ex) { if (e._id) HL_EXCLUDE.add(e._id); } console.log(`[DB] 하이라이트 큐 ${qs.length}건 · 제외 ${ex.length}건 로드`); } catch (e) { console.error('[DB] hl 큐/제외 로드 실패:', e.message); }
       // 🗄️ 농구 종료경기 박스/흐름 스냅샷 영속 저장(서버 재시작 후에도 유지). 48h TTL 자동정리.
       try { bskSnapCol = db.collection('bsk_snap'); await bskSnapCol.createIndex({ at: 1 }, { expireAfterSeconds: 172800 }).catch(() => {}); const cnt = await bskSnapCol.estimatedDocumentCount().catch(() => 0); console.log(`[DB] 농구 스냅샷 컬렉션 준비(보존 ${cnt}건)`); } catch (e) { console.error('[DB] bsk_snap 초기화 실패:', e.message); }
+      try { fbPStatsCol = db.collection('fb_pstats'); await fbPStatsCol.createIndex({ at: 1 }, { expireAfterSeconds: 259200 }).catch(() => {}); const docs = await fbPStatsCol.find({}).limit(5000).toArray().catch(() => []); for (const d of docs) { if (d._id && d.ps) _fbPStats.set(d._id, { ps: d.ps, t: d.at ? +new Date(d.at) : Date.now() }); } console.log(`[DB] 축구 선수스탯 캐시 로드 ${docs.length}건`); } catch (e) { console.error('[DB] fb_pstats 초기화 실패:', e.message); }
       // 🌐 TheSports 한국어 번역(팀/리그) 영속 캐시 — 재시작 후에도 유지, 24h마다 갱신
       try { langCol = db.collection('ts_lang'); for (const sp of Object.keys(TS_LANG_SPORTS)) { const d = await langCol.findOne({ _id: sp }).catch(() => null); if (d && d.team) { TS_LANG[sp] = { team: d.team, comp: d.comp || {}, at: d.at || 0, loading: false }; } } console.log('[DB] TheSports 한국어 번역 캐시 로드'); } catch (e) { console.error('[DB] ts_lang 초기화 실패:', e.message); }
     } catch (e) { console.error('[DB] 운영 컬렉션 초기화 실패:', e.message); }
@@ -5591,6 +5595,30 @@ const _FB_MP_LABEL = {
   fouls_drawn: 'Fouls drawn', fouls_committed: 'Fouls', offsides: 'Offsides', big_chances_created: 'Big chances', long_balls: 'Long balls'
 };
 const _FB_MP_SKIP = new Set(['id','player_id','uuid','name','player_name','logo','photo','position','pos','first','captain','on_bench','type','shirt_number','number','x','y','incidents','team_id','sub']);
+// ⚽ player_stats/list 폴러 — 최근 120초 변경된 경기들의 선수 스탯을 받아 경기별로 누적 저장(메모리+Mongo).
+let _fbPSInflight = null, _fbPSLast = 0;
+async function fbPlayerStatsTick() {
+  if (_fbPSInflight) return _fbPSInflight;           // 동시 중복 호출 방지
+  if (Date.now() - _fbPSLast < 8000) return;         // 과도 호출 방지(8초)
+  _fbPSLast = Date.now();
+  _fbPSInflight = (async () => {
+    try {
+      const r = await tsFetch('/football/match/player_stats/list', {}, 3000, 9000).catch(() => null);
+      const arr = (r && r.results) || [];
+      const now = Date.now();
+      for (const m of arr) {
+        if (!m || !m.id || !Array.isArray(m.player_stats) || !m.player_stats.length) continue;
+        _fbPStats.set(m.id, { ps: m.player_stats, t: now });
+        if (fbPStatsCol) fbPStatsCol.updateOne({ _id: m.id }, { $set: { ps: m.player_stats, at: new Date() } }, { upsert: true }).catch(() => {});
+      }
+      // 메모리 상한(최근 2000경기)
+      if (_fbPStats.size > 2000) { const ks = [..._fbPStats.entries()].sort((a, b) => a[1].t - b[1].t); for (let i = 0; i < ks.length - 2000; i++) _fbPStats.delete(ks[i][0]); }
+    } catch (e) {} finally { _fbPSInflight = null; }
+  })();
+  return _fbPSInflight;
+}
+setInterval(() => { fbPlayerStatsTick().catch(() => {}); }, 60000);
+setTimeout(() => { fbPlayerStatsTick().catch(() => {}); }, 4000);
 async function tsFootMatchPlayer(tsid, pid, wantDebug) {
   const resp = await tsFetch('/football/match/lineup/detail', { uuid: tsid }, 60e3, 9000).catch(() => null);
   const r = (resp && resp.results) ? resp.results : (resp || {});
@@ -5638,16 +5666,15 @@ async function tsFootMatchPlayer(tsid, pid, wantDebug) {
     if (red) pushStat('Red', red);
     if (pens) pushStat('Penalty', pens);
   }
-  // ✅ 정식 상세 선수 매치스탯(정확한 경로: /football/match/player_stats/list, uuid=경기).
-  //    있으면 AiScore와 동일한 전체 스탯으로 교체(터치 외 모든 지표 제공). 없으면 위 incidents 집계 유지.
+  // ✅ 정식 상세 선수 매치스탯 — player_stats/list는 '최근 120초 변경분' 증분 피드라 uuid 단건 조회가 안 됨.
+  //    서버가 1분마다 폴링해 쌓아둔 캐시(_fbPStats)에서 이 경기의 선수 스탯을 읽는다(라이브 중 쌓이고 종료 후 유지).
   let rich = null, rawStats = null;
   try {
-    const ps = await tsFetch('/football/match/player_stats/list', { uuid: tsid }, 60e3, 9000).catch(() => null);
-    const arr = (ps && ps.results) || [];
-    const row = arr.find(m => m && String(m.id) === String(tsid)) || arr[0];
-    const list = (row && row.player_stats) || [];
+    let hit = _fbPStats.get(tsid);
+    if (!hit) { await fbPlayerStatsTick().catch(() => {}); hit = _fbPStats.get(tsid); }   // 캐시에 없으면 즉시 1회 폴링 시도
+    const list = (hit && hit.ps) || [];
     rich = list.find(x => String(x.player_id) === pstr) || null;
-    if (wantDebug) rawStats = { got: arr.length, hasRow: !!row, playerStatsLen: list.length, sampleKeys: list[0] ? Object.keys(list[0]) : null };
+    if (wantDebug) rawStats = { cached: !!hit, playerStatsLen: list.length, sampleKeys: list[0] ? Object.keys(list[0]) : null };
   } catch (e) {}
   if (rich) {
     const s2 = [];
