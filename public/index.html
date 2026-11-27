@@ -4786,11 +4786,13 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
     var fgpct=(fg.a>0)?(fg.m/fg.a*100).toFixed(1)+'%':'-';
     var two=(fg.m-p3.m)+'-'+(fg.a-p3.a);
     // NBA식 2단 스탯 그리드(AiScore 동일)
+    var pm=(p.pm==null?'-':(p.pm>0?'+'+p.pm:String(p.pm)));
     var grid1='<div class="pstats bsk2">'+st("MIN",p.min)+st("PTS",p.pts)+st("REB",p.reb)+st("AST",p.ast)+st("STL",p.stl)+st("BLK",p.blk)+'</div>';
-    var grid2='<div class="pstats bsk2">'+st("FG",p.fg)+st("FG%",fgpct)+st("2PT",two)+st("3PT",p.p3)+st("FT",p.ft)+st("TO/PF",(p.to==null?'-':p.to)+'/'+(p.pf==null?'-':p.pf))+'</div>';
+    var grid2='<div class="pstats bsk2">'+st("FG",p.fg)+st("FG%",fgpct)+st("2PT",two)+st("3PT",p.p3)+st("FT",p.ft)+st("+/-",pm)+'</div>';
+    var grid3='<div style="display:flex;gap:14px;margin-top:8px;font-size:12.5px;color:var(--muted);font-weight:700"><span>TO '+(p.to==null?'-':p.to)+'</span><span>PF '+(p.pf==null?'-':p.pf)+'</span><span>OREB '+(p.oreb==null?'-':p.oreb)+'</span><span>DREB '+(p.dreb==null?'-':p.dreb)+'</span></div>';
     o.innerHTML='<div class="dt-bar"><button class="bk" id="plBack">‹</button><div class="ti">'+esc(p.name||"")+'</div></div>'+
       '<div class="dt-body"><div style="display:flex;align-items:center;gap:12px;margin:6px 0 14px">'+photo+'<div><div style="font-weight:800;font-size:16px">'+esc(p.name||"")+'</div><div style="color:var(--muted);font-size:13px">'+(p.number?("#"+esc(String(p.number))+" · "):"")+esc(team||"")+'</div></div></div>'+
-      '<div class="dt-sec-t">📊 '+cg+'</div>'+grid1+grid2+
+      '<div class="dt-sec-t">📊 '+cg+'</div>'+grid1+grid2+grid3+
       '<div id="bpShot"></div></div>';
     $("#plBack").onclick=function(){ closeOverlay("ovPlayer"); };
     // 🎯 이 선수의 슛차트(쿼터별) — shotchart에서 해당 선수 pid만 필터

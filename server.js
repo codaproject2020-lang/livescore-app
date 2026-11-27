@@ -29,7 +29,7 @@ const app = express();
 const server = http.createServer(app);
 
 const PORT = process.env.PORT || 3000;
-const APP_VERSION = 'v632';
+const APP_VERSION = 'v633';
 
 // ============================================================
 //  📏 성능 계측(instrumentation) — 엔드포인트 지연·캐시·공급사·WS·이벤트루프
@@ -3504,7 +3504,9 @@ function tsBskPlayer(p) {
   const n = i => +s[i] || 0;
   return { id: p[0], name: String(p[1] || '').trim(), photo: p[2] || '', number: p[3] || '',
     min: n(0), fg: pair(s[1]), p3: pair(s[2]), ft: pair(s[3]),
-    oreb: n(4), dreb: n(5), reb: n(6), ast: n(7), stl: n(8), blk: n(9), to: n(10), pf: n(11), pts: n(13),
+    oreb: n(4), dreb: n(5), reb: n(6), ast: n(7), stl: n(8), blk: n(9), to: n(10), pf: n(11),
+    pm: (s.length > 12 ? n(12) : null),   // s[12] = +/- (득실 마진). 실데이터 검증(LeBron +14, Barlow -4).
+    pts: n(13),
     // s[16]: 선발 구분(0=선발, 1=벤치) — 실데이터 검증. 필드 없으면 null.
     starter: (s.length > 16 ? (String(s[16]) === '0') : null) };
 }
