@@ -29,7 +29,7 @@ const app = express();
 const server = http.createServer(app);
 
 const PORT = process.env.PORT || 3000;
-const APP_VERSION = 'v633';
+const APP_VERSION = 'v634';
 
 // ============================================================
 //  📏 성능 계측(instrumentation) — 엔드포인트 지연·캐시·공급사·WS·이벤트루프
@@ -5591,7 +5591,7 @@ const _FB_MP_LABEL = {
   fouls_drawn: 'Fouls drawn', fouls_committed: 'Fouls', offsides: 'Offsides', big_chances_created: 'Big chances', long_balls: 'Long balls'
 };
 const _FB_MP_SKIP = new Set(['id','player_id','uuid','name','player_name','logo','photo','position','pos','first','captain','on_bench','type','shirt_number','number','x','y','incidents','team_id','sub']);
-async function tsFootMatchPlayer(tsid, pid) {
+async function tsFootMatchPlayer(tsid, pid, wantDebug) {
   const resp = await tsFetch('/football/match/lineup/detail', { uuid: tsid }, 60e3, 9000).catch(() => null);
   const r = (resp && resp.results) ? resp.results : (resp || {});
   const homeArr = (r.lineup && r.lineup.home) || r.home || r.home_players || (Array.isArray(r.lineup) ? r.lineup[0] : null) || [];
@@ -5638,6 +5638,39 @@ async function tsFootMatchPlayer(tsid, pid) {
     if (red) pushStat('Red', red);
     if (pens) pushStat('Penalty', pens);
   }
+  // ✅ 정식 상세 선수 매치스탯(정확한 경로: /football/match/player_stats/list, uuid=경기).
+  //    있으면 AiScore와 동일한 전체 스탯으로 교체(터치 외 모든 지표 제공). 없으면 위 incidents 집계 유지.
+  let rich = null, rawStats = null;
+  try {
+    const ps = await tsFetch('/football/match/player_stats/list', { uuid: tsid }, 60e3, 9000).catch(() => null);
+    const arr = (ps && ps.results) || [];
+    const row = arr.find(m => m && String(m.id) === String(tsid)) || arr[0];
+    const list = (row && row.player_stats) || [];
+    rich = list.find(x => String(x.player_id) === pstr) || null;
+    if (wantDebug) rawStats = { got: arr.length, hasRow: !!row, playerStatsLen: list.length, sampleKeys: list[0] ? Object.keys(list[0]) : null };
+  } catch (e) {}
+  if (rich) {
+    const s2 = [];
+    const p2 = (label, val) => { if (val == null || val === '') return; s2.push({ label, value: String(val) }); };
+    const pair = (succ, total, pct) => { if (total == null && succ == null) return null; if (total == null) return String(succ); if (succ == null) return String(total); const pc = (pct && total > 0) ? ' (' + (succ / total * 100).toFixed(1) + '%)' : ''; return succ + '/' + total + pc; };
+    p2('Minutes', rich.minutes_played); p2('Goals', rich.goals); p2('Assists', rich.assists);
+    if (rich.saves != null) p2('Saves', rich.saves);
+    if (rich.shots != null || rich.shots_on_target != null) p2('Shots', pair(rich.shots_on_target, rich.shots, false));
+    if (rich.passes != null || rich.passes_accuracy != null) p2('Passes', rich.passes_accuracy != null ? (rich.passes_accuracy + (rich.passes > 0 ? ' (' + (rich.passes_accuracy / rich.passes * 100).toFixed(1) + '%)' : '')) : String(rich.passes));
+    p2('Key passes', rich.key_passes);
+    if (rich.crosses != null) p2('Crosses', pair(rich.crosses_accuracy, rich.crosses, false));
+    if (rich.long_balls != null) p2('Long balls', pair(rich.long_balls_accuracy, rich.long_balls, false));
+    if (rich.dribble != null) p2('Dribbles', pair(rich.dribble_succ, rich.dribble, false));
+    p2('Tackles', rich.tackles); p2('Interceptions', rich.interceptions); p2('Clearances', rich.clearances);
+    if (rich.blocked_shots != null) p2('Blocked shots', rich.blocked_shots);
+    if (rich.duels != null || rich.duels_won != null) p2('Duels won', pair(rich.duels_won, rich.duels, false));
+    p2('Fouls', rich.fouls); p2('Offsides', rich.offsides);
+    if (rich.big_chance_created) p2('Big chances', rich.big_chance_created);
+    if (rich.yellow_cards) p2('Yellow', rich.yellow_cards);
+    if (rich.red_cards) p2('Red', rich.red_cards);
+    if (s2.length) { stats.length = 0; Array.prototype.push.apply(stats, s2); }
+  }
+  const playedNow = didPlay || !!(rich && (rich.minutes_played || (rich.first === 1)));
   const out = {
     found: true,
     id: pstr,
@@ -5647,12 +5680,13 @@ async function tsFootMatchPlayer(tsid, pid) {
     position: p.position || p.pos || '',
     captain: p.captain ? 1 : 0,
     first: started ? 1 : 0,
-    played: didPlay ? 1 : 0,            // 출전 안 한 선수는 프런트에서 '미출전' 안내
-    rating: (p.rating != null && p.rating !== '' && String(p.rating) !== '0.0' && didPlay) ? String(p.rating) : null,
-    statsLimited: 1,                    // 상세 스탯(터치·패스 등)은 플랜 미제공임을 프런트에 표시
+    played: playedNow ? 1 : 0,            // 출전 안 한 선수는 프런트에서 '미출전' 안내
+    rating: ((rich && rich.rating != null && String(rich.rating) !== '0' && String(rich.rating) !== '0.0') ? String(rich.rating)
+      : ((p.rating != null && p.rating !== '' && String(p.rating) !== '0.0' && playedNow) ? String(p.rating) : null)),
+    statsLimited: rich ? 0 : 1,            // 상세 피드가 오면 '제한 없음'
     stats
   };
-  if (wantDebug) out.debug = { lineupPlayerKeys: Object.keys(p), incidents: inc.length };
+  if (wantDebug) out.debug = { lineupPlayerKeys: Object.keys(p), incidents: inc.length, richFound: !!rich, rawStats };
   return out;
 }
 // TheSports 선수 매치스탯 type 코드(추정·베스트에포트) — {type,value} 배열 포맷일 때 라벨링.
@@ -5698,6 +5732,27 @@ function _fbMergeStatContainer(c, pushStat, seen) {
     }
   });
 }
+// 🏀 농구 결장/부상 — TheSports 팀 부상 엔드포인트(/basketball/team/injury/list, uuid=팀). type: 1-부상,2-출전정지,3-불확실.
+async function tsBskTeamInjury(teamId) {
+  if (!teamId) return [];
+  const r = await tsFetch('/basketball/team/injury/list', { uuid: teamId }, 30 * 60e3, 9000).catch(() => null);
+  const row = (r && r.results && r.results[0]) || null;
+  const arr = (row && row.injury) || [];
+  const TYPE = { 1: 'Injured', 2: 'Suspended', 3: 'Questionable' };
+  const names = await bskResolveNames(arr.map(x => x.player_id)).catch(() => ({}));
+  return arr.map(x => ({ id: x.player_id, name: (names[x.player_id] && names[x.player_id].name) || '', logo: (names[x.player_id] && names[x.player_id].logo) || '',
+    type: TYPE[x.type] || '', reason: x.reason || '', missed: x.missed_matches != null ? x.missed_matches : null }))
+    .filter(x => x.name || x.reason);
+}
+app.get('/api/basketball/injuries', async (req, res) => {
+  res.set('Cache-Control', 'no-store');
+  const home = String(req.query.home || ''), away = String(req.query.away || '');
+  if (!home && !away) return res.json({ found: false, home: [], away: [] });
+  try {
+    const [h, a] = await Promise.all([tsBskTeamInjury(home).catch(() => []), tsBskTeamInjury(away).catch(() => [])]);
+    res.json({ found: !!(h.length || a.length), home: h, away: a });
+  } catch (e) { res.json({ found: false, home: [], away: [], error: String(e.message || e) }); }
+});
 app.get('/api/football/matchplayer', async (req, res) => {
   res.set('Cache-Control', 'no-store');
   const tsid = String(req.query.mid || '').replace(/^ts/, '');
@@ -5733,7 +5788,7 @@ app.get('/api/debug/fbmatch', async (req, res) => {
     }
     out.tsid = tsid || null;
     if (tsid) {
-      for (const path of ['/football/match/lineup/detail', '/football/match/player/stats', '/football/match/player/stats/list', '/football/match/detail_live']) {
+      for (const path of ['/football/match/lineup/detail', '/football/match/player_stats/list', '/football/team/injury/list', '/football/match/detail_live']) {
         out.raw[path] = await tsFetch(path, { uuid: tsid }, 5e3, 9000).catch(e => ({ err: String((e && e.message) || e) }));
       }
     } else {
@@ -5768,7 +5823,7 @@ app.get('/api/debug/bskmatch', async (req, res) => {
     }
     out.tsid = tsid || null;
     if (tsid) {
-      for (const path of ['/basketball/match/live/history', '/basketball/match/lineup_live', '/basketball/match/injury', '/basketball/match/lineup/detail']) {
+      for (const path of ['/basketball/match/live/history', '/basketball/match/lineup_live', '/basketball/team/injury/list', '/basketball/team/injury/list']) {
         out.raw[path] = await tsFetch(path, { uuid: tsid }, 5e3, 9000).catch(e => ({ err: String((e && e.message) || e) }));
       }
     } else { out.hint = 'No match found. Check team names or pass &mid=tsXXXX.'; }

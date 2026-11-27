@@ -4719,6 +4719,22 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
       el.querySelectorAll('.shotq').forEach(function(b){ b.onclick=function(){ _q=b.dataset.q; el.querySelectorAll('.shotq').forEach(function(x){ x.setAttribute('style',bs); }); b.setAttribute('style',bs+';'+bsOn); draw(); }; });
     }).catch(function(){ if($("#dtShot"))$("#dtShot").innerHTML=''; });
   }
+  // 🚑 농구 결장/부상 정보 — 양 팀 부상 명단(TheSports 팀 부상). 데이터 없으면 섹션 숨김.
+  function loadBskInjuries(g){
+    var box=$("#bskInj"); if(!box)return;
+    if(!g.homeTid&&!g.awayTid){ box.innerHTML=''; return; }
+    fetch("/api/basketball/injuries?home="+encodeURIComponent(g.homeTid||"")+"&away="+encodeURIComponent(g.awayTid||"")).then(function(r){return r.json()}).then(function(j){
+      if(!$("#bskInj"))return;
+      if(!j||!j.found){ box.innerHTML=''; return; }
+      var injType=function(t){ return ({Injured:{ko:"부상"},Suspended:{ko:"출전정지"},Questionable:{ko:"불확실"}}[t]||{})[LANG==="ko"?"ko":"x"]||t; };
+      function side(arr,nm){ if(!arr||!arr.length)return '';
+        return '<div class="inj-team">'+esc(tnTeam(nm,"basketball")||nm)+'</div>'+arr.map(function(p){
+          return '<div class="inj-row"><span class="avw">'+(p.logo?'<img src="'+esc(p.logo)+'" onerror="this.style.display=\'none\'">':'')+'</span><div class="inj-i"><div class="inj-nm">'+esc(tnPlayer(p.id,p.name)||p.name||"-")+'</div><div style="font-size:11.5px;color:var(--muted)">'+esc(injType(p.type))+(p.reason?(' · '+esc(p.reason)):'')+'</div></div></div>';
+        }).join("");
+      }
+      box.innerHTML='<div class="dt-sec-t" style="margin-top:16px">🚑 '+tl({en:"Injuries & absences",ko:"부상 및 결장 정보",ja:"負傷・欠場情報",zh:"伤停信息",es:"Lesiones y bajas",hi:"चोट/अनुपस्थिति",vi:"Chấn thương & vắng mặt",th:"บาดเจ็บ/ขาดลงสนาม",ru:"Травмы и пропуски",de:"Verletzungen & Ausfälle",fr:"Blessures & absences",it:"Infortuni e assenze"})+'</div>'+side(j.home,g.home)+side(j.away,g.away);
+    }).catch(function(){ if($("#bskInj"))$("#bskInj").innerHTML=''; });
+  }
   function loadBasketballBox(g){
     dtLoading();
     var LPLR=tl({en:"Player",ko:"선수",ja:"選手",zh:"球员",es:"Jugador",hi:"खिलाड़ी",vi:"Cầu thủ",th:"นักกีฬา",ru:"Игрок",de:"Spieler",fr:"Joueur",it:"Giocatore"});
@@ -4756,9 +4772,10 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
       (home||[]).forEach(function(p){ _bskPlayers[p.id]={p:p,team:g.home}; });
       (away||[]).forEach(function(p){ _bskPlayers[p.id]={p:p,team:g.away}; });
       var note=(src==='apisports')?'<p style="color:#8a93a3;font-size:11px;margin-bottom:8px">'+tl({en:"Official end-of-game player stats (API-Sports).",ko:"종료 경기 공식 선수 기록(API-Sports).",ja:"試合終了後の公式選手記録(API-Sports)。",zh:"赛后官方球员数据(API-Sports)。",es:"Estadísticas oficiales de jugadores (API-Sports).",hi:"आधिकारिक खिलाड़ी आँकड़े (API-Sports)।",vi:"Thống kê cầu thủ chính thức (API-Sports).",th:"สถิตินักกีฬาอย่างเป็นทางการ (API-Sports)",ru:"Официальная статистика игроков (API-Sports).",de:"Offizielle Spielerstatistik (API-Sports).",fr:"Stats des joueurs officielles (API-Sports).",it:"Statistiche giocatori ufficiali (API-Sports)."})+'</p>':'';
-      dtBody(note+tbl(home,g.home)+tbl(away,g.away)+'<div id="dtShot"></div>');
+      dtBody(note+tbl(home,g.home)+tbl(away,g.away)+'<div id="dtShot"></div><div id="bskInj"></div>');
       var db=$("#dtBody"); if(db){ db.querySelectorAll(".bskrow").forEach(function(tr){ tr.onclick=function(){ var e=_bskPlayers[tr.dataset.pid]; if(e)openBskPlayer(e.p,e.team); }; }); }
       loadBskShotChart(g);   // 🎯 슛차트(live/history)
+      loadBskInjuries(g);    // 🚑 결장/부상 정보(팀 부상 엔드포인트)
     }
     bskBox(g,function(j){ if(!$("#dtBody"))return;
       if(bskHasBox(j)){ render(j.home, j.away, 'thesports'); return; }
