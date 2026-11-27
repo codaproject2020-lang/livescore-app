@@ -29,7 +29,7 @@ const app = express();
 const server = http.createServer(app);
 
 const PORT = process.env.PORT || 3000;
-const APP_VERSION = 'v629';
+const APP_VERSION = 'v630';
 
 // ============================================================
 //  📏 성능 계측(instrumentation) — 엔드포인트 지연·캐시·공급사·WS·이벤트루프
@@ -5691,6 +5691,42 @@ app.get('/api/football/matchplayer', async (req, res) => {
   if (!tsid || !pid) return res.json({ found: false });
   try { res.json(await tsFootMatchPlayer(tsid, pid, dbg)); }
   catch (e) { res.json({ found: false, error: String(e.message || e) }); }
+});
+// 🔧 디버그: 축구 경기의 TheSports 원본 JSON(라인업/선수스탯 후보)을 그대로 덤프.
+//    사용법: /api/debug/fbmatch?home=팀명&away=팀명  (오늘 경기 기준, 다른 날이면 &date=YYYY-MM-DD)
+//    또는 경기 id를 알면 /api/debug/fbmatch?mid=ts12345
+//    → 브라우저에서 열어 전체 복사. 선수별 스탯이 어느 필드/코드로 오는지 확인용(운영에서만 TheSports 접속 가능).
+app.get('/api/debug/fbmatch', async (req, res) => {
+  res.set('Cache-Control', 'no-store');
+  const home = String(req.query.home || ''), away = String(req.query.away || '');
+  let tsid = String(req.query.mid || '').replace(/^ts/, '');
+  const date = /^\d{4}-\d{2}-\d{2}$/.test(String(req.query.date || '')) ? req.query.date : new Date().toISOString().slice(0, 10);
+  const out = { note: 'TheSports raw dump. Copy ALL and send back.', query: { home, away, date, mid: tsid || null }, tsid: null, matched: null, raw: {} };
+  try {
+    if (!tsid && (home || away)) {
+      const norm = s => String(s || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+      const nh = norm(home), na = norm(away);
+      const fit = (a, b) => a && b && (a.includes(b) || b.includes(a));
+      const prev = new Date(Date.parse(date + 'T12:00:00Z') - 864e5).toISOString().slice(0, 10);
+      const next = new Date(Date.parse(date + 'T12:00:00Z') + 864e5).toISOString().slice(0, 10);
+      for (const dt of [date, prev, next]) {
+        const games = await tsFootballGames(dt).catch(() => []);
+        const m = games.find(g => fit(norm(g.home), nh) && fit(norm(g.away), na))
+          || games.find(g => (nh && fit(norm(g.home), nh)) || (na && fit(norm(g.away), na)));
+        if (m) { tsid = String(m.id).replace(/^ts/, ''); out.matched = { home: m.home, away: m.away, league: m.league, date: dt }; break; }
+      }
+    }
+    out.tsid = tsid || null;
+    if (tsid) {
+      for (const path of ['/football/match/lineup/detail', '/football/match/player/stats', '/football/match/player/stats/list', '/football/match/detail_live']) {
+        out.raw[path] = await tsFetch(path, { uuid: tsid }, 5e3, 9000).catch(e => ({ err: String((e && e.message) || e) }));
+      }
+    } else {
+      out.hint = 'No match found. Check team names (use the names shown on the card) or pass &mid=tsXXXX.';
+    }
+  } catch (e) { out.error = String(e.message || e); }
+  res.set('Content-Type', 'application/json; charset=utf-8');
+  res.send(JSON.stringify(out, null, 2));
 });
 // 🏟️ TheSports 전용: 팀의 최근(종료)·다음(예정) 경기 + 팀명/로고 — 종목별 diary 스캔(API-Sports 미사용).
 //    window: 과거 ~90일, 미래 ~21일. 결과: {name, logo, events:[최근 종료 최대8], next:[예정 최대6]}.
