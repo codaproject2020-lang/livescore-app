@@ -29,7 +29,7 @@ const app = express();
 const server = http.createServer(app);
 
 const PORT = process.env.PORT || 3000;
-const APP_VERSION = 'v630';
+const APP_VERSION = 'v631';
 
 // ============================================================
 //  📏 성능 계측(instrumentation) — 엔드포인트 지연·캐시·공급사·WS·이벤트루프
@@ -5599,45 +5599,58 @@ async function tsFootMatchPlayer(tsid, pid) {
   const p = all.find(x => x && String(x.id || x.player_id || x.uuid) === pstr);
   if (!p) return { found: false };
   const info = await tsFbPlayer(pstr).catch(() => ({}));
-  // 스탯 수집: 매핑된 키 + 그 외 숫자형 키(일반 라벨). 제공값만, 빈/0만 있는 건 그대로 전달.
+  // ⚠️ TheSports 우리 플랜: 상세 선수 매치스탯 엔드포인트는 미인가('URL is not authorized').
+  //    → lineup/detail의 선수별 rating + incidents(골·카드·교체)만 제공. 그 안에서 뽑아낼 수 있는 값만 계산(임의 수치 금지).
+  //    incidents type: 1=골, 3=옐로, 4/11/17=레드(퇴장), 8=페널티, 9=교체(in/out). assist1=도움.
   const stats = [];
-  const seen = new Set();
-  const pushStat = (label, val) => { if (val == null || val === '' || val === 'null') return; stats.push({ label, value: String(val) }); };
-  // 1) 매핑 우선순위 순서대로
-  const order = ['rating','minutes_played','minutes','goals','assists','shots','shots_on_target','saves','touches','passes','passes_accuracy','pass_accuracy','key_passes','long_balls','crosses','dribbles','tackles','interceptions','clearances','blocks','blocked_shots','duels_won','fouls_drawn','fouls_committed','offsides','big_chances_created','yellow_cards','red_cards'];
-  order.forEach(k => { if (p[k] != null && !seen.has(_FB_MP_LABEL[k])) { seen.add(_FB_MP_LABEL[k]); pushStat(_FB_MP_LABEL[k] || k, p[k]); } });
-  // 2) 매핑 안 된 나머지 숫자형 키도 노출(데이터 숨기지 않음)
-  Object.keys(p).forEach(k => { if (_FB_MP_SKIP.has(k)) return; const lbl = _FB_MP_LABEL[k.toLowerCase()]; if (lbl && seen.has(lbl)) return; const v = p[k]; if (typeof v === 'number' || (typeof v === 'string' && v !== '' && !isNaN(+v))) { const L = lbl || k.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase()); if (seen.has(L)) return; seen.add(L); pushStat(L, v); } });
-  // 3) 상세 선수 스탯은 lineup player 객체에 없을 수 있음(평점만 제공). 별도 소스에서 보강 시도.
-  //    후보 엔드포인트를 돌며, '이 선수 id'를 가진 스탯 컨테이너를 재귀 탐색해 숫자/‘{type,value}’ 배열을 합친다.
-  let dbgRaw = null;
-  try {
-    const cand = ['/football/match/player/stats', '/football/match/player/stats/list'];
-    for (const path of cand) {
-      const sresp = await tsFetch(path, { uuid: tsid }, 60e3, 9000).catch(() => null);
-      if (!sresp) continue;
-      const sr = (sresp && sresp.results) ? sresp.results : sresp;
-      if (wantDebug && !dbgRaw) dbgRaw = { path, topKeys: sr && typeof sr === 'object' ? Object.keys(sr).slice(0, 10) : null, sample: JSON.stringify(sr).slice(0, 800) };
-      const container = _fbFindPlayerStat(sr, pstr);
-      if (container) {
-        _fbMergeStatContainer(container, pushStat, seen);
-        break;
-      }
+  const pushStat = (label, val) => { if (val == null || val === '') return; stats.push({ label, value: String(val) }); };
+  const inc = Array.isArray(p.incidents) ? p.incidents : [];
+  const MATCH_END = 90;   // 정규시간 기준(추가시간 별도 미제공) — 교체 분으로 출전시간 근사
+  let goals = 0, assists = 0, yellow = 0, red = 0, pens = 0, subOff = null, subOn = null;
+  inc.forEach(ev => {
+    const t = +ev.type;
+    const isScorer = ev.player && String(ev.player.id) === pstr;
+    const isAssist = ev.assist1 && String(ev.assist1.id) === pstr;
+    const minv = (ev.minute != null ? +ev.minute : (parseInt(ev.time, 10) || null));
+    if (t === 1) { if (isScorer) goals++; if (isAssist) assists++; }
+    else if (t === 3 && isScorer) yellow++;
+    else if ((t === 4 || t === 11 || t === 17) && isScorer) red++;
+    else if (t === 8 && isScorer) pens++;
+    else if (t === 9) {
+      if (ev.out_player && String(ev.out_player.id) === pstr) subOff = minv;
+      if (ev.in_player && String(ev.in_player.id) === pstr) subOn = minv;
     }
-  } catch (e) {}
+  });
+  const started = tsFbIsStarter(p);
+  const didPlay = started || subOn != null;
+  let minutes = null;
+  if (started) minutes = (subOff != null ? subOff : MATCH_END);
+  else if (subOn != null) minutes = Math.max(0, MATCH_END - subOn);
+  else minutes = 0;
+  // 표시 순서: 출전시간 → 득점 → 어시스트 → (옐로/레드/페널티는 발생 시만)
+  if (didPlay) {
+    pushStat('Minutes', minutes);
+    pushStat('Goals', goals);
+    pushStat('Assists', assists);
+    if (yellow) pushStat('Yellow', yellow);
+    if (red) pushStat('Red', red);
+    if (pens) pushStat('Penalty', pens);
+  }
   const out = {
-    found: stats.length > 0 || p.rating != null,
+    found: true,
     id: pstr,
     name: p.name || info.name || '',
     logo: p.logo || info.logo || '',
     number: (p.shirt_number != null ? p.shirt_number : (p.number != null ? p.number : '')),
     position: p.position || p.pos || '',
     captain: p.captain ? 1 : 0,
-    first: tsFbIsStarter(p) ? 1 : 0,
-    rating: (p.rating != null && p.rating !== '') ? String(p.rating) : null,
+    first: started ? 1 : 0,
+    played: didPlay ? 1 : 0,            // 출전 안 한 선수는 프런트에서 '미출전' 안내
+    rating: (p.rating != null && p.rating !== '' && String(p.rating) !== '0.0' && didPlay) ? String(p.rating) : null,
+    statsLimited: 1,                    // 상세 스탯(터치·패스 등)은 플랜 미제공임을 프런트에 표시
     stats
   };
-  if (wantDebug) out.debug = { lineupPlayerKeys: Object.keys(p), statsSource: dbgRaw };
+  if (wantDebug) out.debug = { lineupPlayerKeys: Object.keys(p), incidents: inc.length };
   return out;
 }
 // TheSports 선수 매치스탯 type 코드(추정·베스트에포트) — {type,value} 배열 포맷일 때 라벨링.
