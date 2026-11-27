@@ -29,7 +29,7 @@ const app = express();
 const server = http.createServer(app);
 
 const PORT = process.env.PORT || 3000;
-const APP_VERSION = 'v628';
+const APP_VERSION = 'v629';
 
 // ============================================================
 //  📏 성능 계측(instrumentation) — 엔드포인트 지연·캐시·공급사·WS·이벤트루프
@@ -5608,7 +5608,24 @@ async function tsFootMatchPlayer(tsid, pid) {
   order.forEach(k => { if (p[k] != null && !seen.has(_FB_MP_LABEL[k])) { seen.add(_FB_MP_LABEL[k]); pushStat(_FB_MP_LABEL[k] || k, p[k]); } });
   // 2) 매핑 안 된 나머지 숫자형 키도 노출(데이터 숨기지 않음)
   Object.keys(p).forEach(k => { if (_FB_MP_SKIP.has(k)) return; const lbl = _FB_MP_LABEL[k.toLowerCase()]; if (lbl && seen.has(lbl)) return; const v = p[k]; if (typeof v === 'number' || (typeof v === 'string' && v !== '' && !isNaN(+v))) { const L = lbl || k.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase()); if (seen.has(L)) return; seen.add(L); pushStat(L, v); } });
-  return {
+  // 3) 상세 선수 스탯은 lineup player 객체에 없을 수 있음(평점만 제공). 별도 소스에서 보강 시도.
+  //    후보 엔드포인트를 돌며, '이 선수 id'를 가진 스탯 컨테이너를 재귀 탐색해 숫자/‘{type,value}’ 배열을 합친다.
+  let dbgRaw = null;
+  try {
+    const cand = ['/football/match/player/stats', '/football/match/player/stats/list'];
+    for (const path of cand) {
+      const sresp = await tsFetch(path, { uuid: tsid }, 60e3, 9000).catch(() => null);
+      if (!sresp) continue;
+      const sr = (sresp && sresp.results) ? sresp.results : sresp;
+      if (wantDebug && !dbgRaw) dbgRaw = { path, topKeys: sr && typeof sr === 'object' ? Object.keys(sr).slice(0, 10) : null, sample: JSON.stringify(sr).slice(0, 800) };
+      const container = _fbFindPlayerStat(sr, pstr);
+      if (container) {
+        _fbMergeStatContainer(container, pushStat, seen);
+        break;
+      }
+    }
+  } catch (e) {}
+  const out = {
     found: stats.length > 0 || p.rating != null,
     id: pstr,
     name: p.name || info.name || '',
@@ -5620,13 +5637,59 @@ async function tsFootMatchPlayer(tsid, pid) {
     rating: (p.rating != null && p.rating !== '') ? String(p.rating) : null,
     stats
   };
+  if (wantDebug) out.debug = { lineupPlayerKeys: Object.keys(p), statsSource: dbgRaw };
+  return out;
+}
+// TheSports 선수 매치스탯 type 코드(추정·베스트에포트) — {type,value} 배열 포맷일 때 라벨링.
+const _FB_PSTAT_TYPE = { 1:'Minutes',2:'Goals',3:'Assists',4:'Shots',5:'Shots on target',6:'Touches',7:'Passes',8:'Pass %',9:'Key passes',10:'Crosses',11:'Long balls',12:'Dribbles',13:'Tackles',14:'Interceptions',15:'Clearances',16:'Blocks',17:'Saves',18:'Fouls',19:'Fouls drawn',20:'Offsides',21:'Yellow',22:'Red',23:'Duels won',24:'Big chances' };
+// 임의 JSON에서 player id를 가진 스탯 객체를 재귀로 찾음(여러 포맷 수용).
+function _fbFindPlayerStat(node, pid, depth) {
+  if (node == null || depth > 6) return null;
+  if (Array.isArray(node)) { for (const x of node) { const r = _fbFindPlayerStat(x, pid, (depth || 0) + 1); if (r) return r; } return null; }
+  if (typeof node === 'object') {
+    const idv = node.player_id || node.id || node.uuid || node.pid;
+    if (idv != null && String(idv) === String(pid)) {
+      // 스탯이 들어있을 법한 자식(배열/객체) 또는 자기 자신 반환
+      if (Array.isArray(node.stats) || Array.isArray(node.data) || Array.isArray(node.incidents)) return node;
+      // 숫자형 필드가 여럿이면 자신이 스탯 객체
+      const numK = Object.keys(node).filter(k => { const v = node[k]; return (typeof v === 'number') || (typeof v === 'string' && v !== '' && !isNaN(+v)); });
+      if (numK.length >= 3) return node;
+    }
+    for (const k of Object.keys(node)) { const r = _fbFindPlayerStat(node[k], pid, (depth || 0) + 1); if (r) return r; }
+  }
+  return null;
+}
+// 찾은 스탯 컨테이너에서 라벨/값을 뽑아 합침(키워드 키 또는 {type,value} 배열 모두 수용).
+function _fbMergeStatContainer(c, pushStat, seen) {
+  const arr = Array.isArray(c.stats) ? c.stats : (Array.isArray(c.data) ? c.data : null);
+  if (arr) {
+    arr.forEach(it => {
+      if (!it || typeof it !== 'object') return;
+      const type = it.type != null ? +it.type : null;
+      const val = (it.value != null ? it.value : (it.count != null ? it.count : it.num));
+      const label = (type != null && _FB_PSTAT_TYPE[type]) || it.name || (type != null ? ('Stat ' + type) : null);
+      if (label && val != null && val !== '' && !seen.has(label)) { seen.add(label); pushStat(label, val); }
+    });
+    return;
+  }
+  // 키워드 키 객체
+  Object.keys(c).forEach(k => {
+    if (_FB_MP_SKIP.has(k)) return;
+    const lbl = _FB_MP_LABEL[k.toLowerCase()];
+    const v = c[k];
+    if (typeof v === 'number' || (typeof v === 'string' && v !== '' && !isNaN(+v))) {
+      const L = lbl || k.replace(/_/g, ' ').replace(/\b\w/g, ch => ch.toUpperCase());
+      if (!seen.has(L)) { seen.add(L); pushStat(L, v); }
+    }
+  });
 }
 app.get('/api/football/matchplayer', async (req, res) => {
   res.set('Cache-Control', 'no-store');
   const tsid = String(req.query.mid || '').replace(/^ts/, '');
   const pid = String(req.query.pid || '');
+  const dbg = req.query.debug === '1';
   if (!tsid || !pid) return res.json({ found: false });
-  try { res.json(await tsFootMatchPlayer(tsid, pid)); }
+  try { res.json(await tsFootMatchPlayer(tsid, pid, dbg)); }
   catch (e) { res.json({ found: false, error: String(e.message || e) }); }
 });
 // 🏟️ TheSports 전용: 팀의 최근(종료)·다음(예정) 경기 + 팀명/로고 — 종목별 diary 스캔(API-Sports 미사용).
