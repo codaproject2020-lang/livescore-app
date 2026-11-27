@@ -29,7 +29,7 @@ const app = express();
 const server = http.createServer(app);
 
 const PORT = process.env.PORT || 3000;
-const APP_VERSION = 'v631';
+const APP_VERSION = 'v632';
 
 // ============================================================
 //  📏 성능 계측(instrumentation) — 엔드포인트 지연·캐시·공급사·WS·이벤트루프
@@ -5737,6 +5737,39 @@ app.get('/api/debug/fbmatch', async (req, res) => {
     } else {
       out.hint = 'No match found. Check team names (use the names shown on the card) or pass &mid=tsXXXX.';
     }
+  } catch (e) { out.error = String(e.message || e); }
+  res.set('Content-Type', 'application/json; charset=utf-8');
+  res.send(JSON.stringify(out, null, 2));
+});
+// 🔧 디버그: 농구 경기의 TheSports 원본 JSON(라인업/기록/결장 후보)을 그대로 덤프.
+//    사용법: /api/debug/bskmatch?home=76ers&away=Heat  (오늘 경기, 다른 날이면 &date=YYYY-MM-DD) 또는 ?mid=ts12345
+app.get('/api/debug/bskmatch', async (req, res) => {
+  res.set('Cache-Control', 'no-store');
+  const home = String(req.query.home || ''), away = String(req.query.away || '');
+  let tsid = String(req.query.mid || '').replace(/^ts/, '');
+  const date = /^\d{4}-\d{2}-\d{2}$/.test(String(req.query.date || '')) ? req.query.date : new Date().toISOString().slice(0, 10);
+  const out = { note: 'TheSports basketball raw dump. Copy ALL and send back.', query: { home, away, date, mid: tsid || null }, tsid: null, matched: null, raw: {} };
+  try {
+    if (!tsid && (home || away)) {
+      const norm = s => String(s || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+      const nh = norm(home), na = norm(away);
+      const fit = (a, b) => a && b && (a.includes(b) || b.includes(a));
+      const prev = new Date(Date.parse(date + 'T12:00:00Z') - 864e5).toISOString().slice(0, 10);
+      const next = new Date(Date.parse(date + 'T12:00:00Z') + 864e5).toISOString().slice(0, 10);
+      for (const dt of [date, prev, next]) {
+        const d = await tsFetch('/basketball/match/diary', { date: dt.replace(/-/g, '') }, 8000).catch(() => null);
+        if (!d) continue;
+        const team = {}; (((d.results_extra || {}).team) || []).forEach(t => { team[t.id] = t.name; });
+        const m = (d.results || []).find(x => { const hn = norm(team[x.home_team_id]), an = norm(team[x.away_team_id]); return (fit(hn, nh) && fit(an, na)) || (nh && fit(hn, nh)) || (na && fit(an, na)); });
+        if (m) { tsid = String(m.id); out.matched = { home: team[m.home_team_id], away: team[m.away_team_id], date: dt }; break; }
+      }
+    }
+    out.tsid = tsid || null;
+    if (tsid) {
+      for (const path of ['/basketball/match/live/history', '/basketball/match/lineup_live', '/basketball/match/injury', '/basketball/match/lineup/detail']) {
+        out.raw[path] = await tsFetch(path, { uuid: tsid }, 5e3, 9000).catch(e => ({ err: String((e && e.message) || e) }));
+      }
+    } else { out.hint = 'No match found. Check team names or pass &mid=tsXXXX.'; }
   } catch (e) { out.error = String(e.message || e); }
   res.set('Content-Type', 'application/json; charset=utf-8');
   res.send(JSON.stringify(out, null, 2));
