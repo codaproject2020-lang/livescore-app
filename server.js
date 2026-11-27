@@ -29,7 +29,7 @@ const app = express();
 const server = http.createServer(app);
 
 const PORT = process.env.PORT || 3000;
-const APP_VERSION = 'v626';
+const APP_VERSION = 'v627';
 
 // ============================================================
 //  📏 성능 계측(instrumentation) — 엔드포인트 지연·캐시·공급사·WS·이벤트루프
@@ -3767,28 +3767,48 @@ app.get('/api/basketball/standing', async (req, res) => {
     if (season && season.id) {
       const sd = await tsFetch('/basketball/season/recent/table/detail', { uuid: season.id }, 1800e3, 9000).catch(() => null);
       const tbls = (sd && sd.results) || [];
+      const KL = TS_LANG['basketball'] || { team: {}, comp: {} };
+      const cinfo = await bskCompInfo(comp).catch(() => null);
+      // 행→테이블 변환(공통). team_id 이름/로고는 아래에서 일괄 해석 후 주입.
+      const mkTable = (rows, nm) => rows.map(r => {
+        const won = nv(r.won), lost = nv(r.lost);
+        const played = (won != null && lost != null) ? (won + lost) : null;
+        return { teamId: r.team_id, team: (nm[r.team_id] && nm[r.team_id].name) || '', teamKo: (KL.team && KL.team[r.team_id]) || '',
+          logo: (nm[r.team_id] && nm[r.team_id].logo) || '', played, win: won, loss: lost,
+          pct: (r.won_rate != null ? +(+r.won_rate).toFixed(3) : (played ? +(won / played).toFixed(3) : 0)),
+          pf: (r.points_avg != null ? +(+r.points_avg).toFixed(1) : null), pa: (r.points_against_avg != null ? +(+r.points_against_avg).toFixed(1) : null),
+          rank: nv(r.position) };
+      }).filter(r => r.played != null);
+      const sortTable = table => { table.sort((a, b) => (a.rank != null && b.rank != null) ? (a.rank - b.rank) : ((b.pct - a.pct) || (b.win - a.win))); table.forEach((r, i) => { if (r.rank == null) r.rank = i + 1; }); return table; };
+      // 1) 단일 '정규/시즌' 순위표 우선 (일반 리그: NBA 등)
       const pickT = tbls.find(t => t && t.scope === 5 && (t.rows || []).length)   // 5=Regular season
         || tbls.find(t => t && t.scope === 1 && (t.rows || []).length)            // 1=Season
-        || tbls.find(t => t && (t.rows || []).length);
-      const rrows = (pickT && pickT.rows) || [];
-      if (rrows.length >= 2) {
-        const KL = TS_LANG['basketball'] || { team: {}, comp: {} };
+        || ((tbls.length === 1 && (tbls[0].rows || []).length) ? tbls[0] : null);
+      if (pickT && (pickT.rows || []).length >= 2) {
+        const rrows = pickT.rows;
         const nm = await bskResolveNames(rrows.map(r => r.team_id)).catch(() => ({}));
-        const cinfo = await bskCompInfo(comp).catch(() => null);
-        const table = rrows.map(r => {
-          const won = nv(r.won), lost = nv(r.lost);
-          const played = (won != null && lost != null) ? (won + lost) : null;
-          return { teamId: r.team_id, team: (nm[r.team_id] && nm[r.team_id].name) || '', teamKo: (KL.team && KL.team[r.team_id]) || '',
-            logo: (nm[r.team_id] && nm[r.team_id].logo) || '', played, win: won, loss: lost,
-            pct: (r.won_rate != null ? +(+r.won_rate).toFixed(3) : (played ? +(won / played).toFixed(3) : 0)),
-            pf: (r.points_avg != null ? +(+r.points_avg).toFixed(1) : null), pa: (r.points_against_avg != null ? +(+r.points_against_avg).toFixed(1) : null),
-            rank: nv(r.position) };
-        }).filter(r => r.played != null);
+        const table = sortTable(mkTable(rrows, nm));
         if (table.length >= 2) {
-          table.sort((a, b) => (a.rank != null && b.rank != null) ? (a.rank - b.rank) : ((b.pct - a.pct) || (b.win - a.win)));
-          table.forEach((r, i) => { if (r.rank == null) r.rank = i + 1; });
           const v = { found: true, league: (cinfo && cinfo.name) || '', leagueKo: (KL.comp && KL.comp[comp]) || '', leagueLogo: (cinfo && cinfo.logo) || '', season: (season.year || ''), table, src: 'official' };
           _bskStandCache.set(comp, { t: Date.now(), v, good: true });   // 검증된 정상 캐시
+          return res.json(v);
+        }
+      }
+      // 2) 조별 예선(FIBA 등): 여러 개의 그룹 테이블을 모두 묶어서 반환(AiScore처럼 그룹별 순위 표시).
+      const grpTbls = tbls.filter(t => t && (t.rows || []).length);
+      if (grpTbls.length >= 1) {
+        const allIds = []; grpTbls.forEach(t => (t.rows || []).forEach(r => { if (r.team_id) allIds.push(r.team_id); }));
+        const nm = await bskResolveNames(allIds).catch(() => ({}));
+        const groups = grpTbls.map((t, gi) => {
+          const table = sortTable(mkTable(t.rows, nm));
+          const gname = (t.group && String(t.group)) || (t.name && String(t.name)) || (t.conference && String(t.conference)) || '';
+          return { name: gname || ('Group ' + String.fromCharCode(65 + gi)), table };
+        }).filter(gp => gp.table.length >= 1);
+        if (groups.length) {
+          // 단일 그룹이면 평면 table로도 제공(기존 렌더 호환), 복수면 groups로.
+          const v = { found: true, league: (cinfo && cinfo.name) || '', leagueKo: (KL.comp && KL.comp[comp]) || '', leagueLogo: (cinfo && cinfo.logo) || '', season: (season.year || ''),
+            groups, table: (groups.length === 1 ? groups[0].table : []), src: 'official-groups' };
+          _bskStandCache.set(comp, { t: Date.now(), v, good: true });
           return res.json(v);
         }
       }

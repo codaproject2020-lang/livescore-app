@@ -4755,7 +4755,7 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
       fetch('/api/basketball/playerbox?'+qs).then(function(r){return r.json()}).then(function(d){
         if(tk!==_dtTok||!$("#dtBody"))return;
         if(d&&(d.home&&d.home.length||d.away&&d.away.length)){ render(d.home||[], d.away||[], 'apisports'); }
-        else { bskTabState("box", "📋", bskNoBox(j,"box"), g); }   // 탭 유지 + 자료없음 안내 + 재시도
+        else { dtDrop("box"); }   // 자료 없으면 탭 자체 숨김(사용자 요청)
       }).catch(function(){ if(tk!==_dtTok||!$("#dtBody"))return; bskTabState("box", "⚠️", t("loadFailRetry"), g); });
     });
   }
@@ -4818,7 +4818,7 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
       fetch('/api/basketball/playerbox?'+qs).then(function(r){return r.json()}).then(function(d){
         if(tk!==_dtTok||!$("#dtBody"))return;
         if(d&&(d.home&&d.home.length||d.away&&d.away.length)){ render(d.home||[], d.away||[], {src:'apisports', starters:d.hasStarters}); }
-        else { bskTabState("bsklineup", "📋", bskNoBox(j,"lineup"), g); }   // 탭 유지 + 자료없음 안내 + 재시도
+        else { dtDrop("bsklineup"); }   // 자료 없으면 탭 자체 숨김
       }).catch(function(){ if(tk!==_dtTok||!$("#dtBody"))return; bskTabState("bsklineup", "⚠️", t("loadFailRetry"), g); });
     });
   }
@@ -4866,7 +4866,7 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
       fetch('/api/basketball/teamstats?'+qs).then(function(r){return r.json()}).then(function(d){
         if(tk!==_dtTok||!$("#dtBody"))return;
         if(d&&d.home&&d.away){ render(d.home, d.away, 'apisports'); }
-        else { bskTabState("bskteam", "📊", bskNoBox(j,"team"), g); }   // 탭 유지 + 자료없음 안내 + 재시도
+        else { dtDrop("bskteam"); }   // 자료 없으면 탭 자체 숨김
       }).catch(function(){ if(tk!==_dtTok||!$("#dtBody"))return; bskTabState("bskteam", "⚠️", t("loadFailRetry"), g); });
     });
   }
@@ -5187,22 +5187,25 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
     dtLoading(); var tk=_dtTok;
     fetch("/api/basketball/standing?comp="+encodeURIComponent(g.leagueId)+"&league="+encodeURIComponent(g.league||"")+"&date="+encodeURIComponent(String(g.date||"").slice(0,10)||S.date)+"&id="+encodeURIComponent(g.id||"")).then(function(r){return r.json();}).then(function(j){
       if(!dtFresh(tk))return;
-      if(!j||!j.found||!j.table||!j.table.length){
-        // 공식 순위 조회 실패(diary 집계를 정상 순위로 대체하지 않음) → 탭 유지 + 재시도
-        if(j&&(j.error==="official-standing-failed"||j.retry)){
-          dtBody('<div class="msg"><div class="big">⚠️</div>'+tl({en:"Couldn't load official standings.",ko:"공식 순위를 불러오지 못했습니다.",ja:"公式順位を取得できませんでした。",zh:"无法加载官方排名。",es:"No se pudo cargar la clasificación oficial.",hi:"आधिकारिक स्टैंडिंग लोड नहीं हो सकी।",vi:"Không tải được BXH chính thức.",th:"โหลดอันดับอย่างเป็นทางการไม่ได้",ru:"Не удалось загрузить официальную таблицу.",de:"Offizielle Tabelle konnte nicht geladen werden.",fr:"Impossible de charger le classement officiel.",it:"Impossibile caricare la classifica ufficiale."})+'<br><button class="refbtn" id="bskRankRetry" style="margin:12px auto 0;display:block">↻ '+t("retry")+'</button></div>');
-          var _rb=$("#bskRankRetry"); if(_rb)_rb.onclick=function(){ loadBasketballRank(g); }; return;
-        }
-        dtDrop("bskrank"); return;
-      }
-      j.table.forEach(function(r){ if(r.teamKo&&r.team)regKoTeam("basketball",r.team,r.teamKo); });
+      // 데이터 없으면(실패 포함) '정보 없음' 대신 순위표 탭 자체를 숨김(사용자 요청).
+      var grps=(j&&j.groups&&j.groups.length)?j.groups:null;
+      if(!j||!j.found||(!grps&&(!j.table||!j.table.length))){ dtDrop("bskrank"); return; }
       if(j.leagueKo&&j.league)KN_LEAGUE[knorm(j.league)]=j.leagueKo;
       var hT=g.homeTid, aT=g.awayTid;
+      // 한 그룹 순위 테이블 HTML 생성(공통)
+      function rankTbl(rows){
+        rows.forEach(function(r){ if(r.teamKo&&r.team)regKoTeam("basketball",r.team,r.teamKo); });
+        var s='<table class="rank"><thead><tr><th>#</th><th style="text-align:left">'+t("team")+'</th><th>'+t("playedShort")+'</th><th>'+t("winShort")+'</th><th>'+t("lossShort")+'</th><th>PCT</th></tr></thead><tbody>';
+        s+=rows.map(function(r){ var hl=(r.teamId===hT||r.teamId===aT);
+          return '<tr class="'+(hl?"rk-hl":"")+'" data-bt="'+esc(r.teamId||"")+'" data-bn="'+esc(r.team||"")+'" style="cursor:pointer"><td>'+r.rank+'</td><td class="tm" style="text-align:left">'+(r.logo?'<img src="'+esc(r.logo)+'" class="rk-lg" onerror="this.style.display=\'none\'">':"")+'<span>'+esc(tnTeam(r.team||""))+'</span></td><td>'+r.played+'</td><td>'+r.win+'</td><td>'+r.loss+'</td><td style="font-weight:800">'+(r.pct*100).toFixed(1)+'</td></tr>'; }).join("");
+        return s+'</tbody></table>';
+      }
       var h='<div class="dt-sec-t">🏆 '+esc(tnLeague(j.league||g.league||""))+'</div>';
-      h+='<table class="rank"><thead><tr><th>#</th><th style="text-align:left">'+t("team")+'</th><th>'+t("playedShort")+'</th><th>'+t("winShort")+'</th><th>'+t("lossShort")+'</th><th>PCT</th></tr></thead><tbody>';
-      h+=j.table.map(function(r){ var hl=(r.teamId===hT||r.teamId===aT);
-        return '<tr class="'+(hl?"rk-hl":"")+'" data-bt="'+esc(r.teamId||"")+'" data-bn="'+esc(r.team||"")+'" style="cursor:pointer"><td>'+r.rank+'</td><td class="tm" style="text-align:left">'+(r.logo?'<img src="'+esc(r.logo)+'" class="rk-lg" onerror="this.style.display=\'none\'">':"")+'<span>'+esc(tnTeam(r.team||""))+'</span></td><td>'+r.played+'</td><td>'+r.win+'</td><td>'+r.loss+'</td><td style="font-weight:800">'+(r.pct*100).toFixed(1)+'</td></tr>'; }).join("");
-      h+='</tbody></table>';
+      if(grps){   // 조별 예선(FIBA 등): 그룹마다 소제목 + 순위표
+        h+=grps.map(function(gp){ return '<div class="dt-sub-t" style="margin:12px 0 4px;font-weight:800;color:var(--muted,#888)">'+esc(gp.name||"")+'</div>'+rankTbl(gp.table||[]); }).join("");
+      } else {
+        h+=rankTbl(j.table);
+      }
       dtBody(h);
       var rdb=$("#dtBody"); if(rdb)rdb.querySelectorAll("tr[data-bt]").forEach(function(tr){ tr.onclick=function(){ var tid=tr.dataset.bt; if(tid)openBskTeam(tid,tr.dataset.bn,"",g.date); }; });
     }).catch(function(){ dtBody('<div class="msg">⚠️ '+t("loadFailRetry")+'</div>'); });
