@@ -5642,8 +5642,19 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
           +(sa&&sa.alias?sa.alias:"")).toLowerCase();
         return hay.indexOf(q)>=0;
       });
-      if(!hits.length){ body.innerHTML='<div class="msg"><div class="big">🔍</div>'+esc(t("noGames"))+'</div>'; return; }
-      body.innerHTML=""; var box=el("div","league"); var bd=el("div","lg-body"); hits.forEach(function(g){ bd.appendChild(gameCard(g)); }); box.appendChild(bd); body.appendChild(box);
+      // 🌟 스타 선수(메시·호날두·손흥민) 별칭 매칭 → 오늘 경기(종료 포함)가 없어도 '소속팀 바로가기' 결과 제공.
+      var starHits=[];
+      try{ (typeof STAR_TEAMS!=="undefined"?STAR_TEAMS.names:[]).forEach(function(dd){ var al=String(dd.alias||"").toLowerCase(); if(dd.re.test(q)||al.split(/\s+/).some(function(tok){return tok&&q.length>=2&&(tok.indexOf(q)>=0||q.indexOf(tok)>=0);})){ starHits.push(dd); } }); }catch(e){}
+      if(!hits.length&&!starHits.length){ body.innerHTML='<div class="msg"><div class="big">🔍</div>'+esc(t("noGames"))+'</div>'; return; }
+      body.innerHTML="";
+      if(starHits.length){
+        var sh=el("div"); sh.style.cssText="padding:4px 2px 8px";
+        sh.innerHTML='<div class="sv-sh" style="margin:2px 0 6px">'+tl({en:"Players / teams",ko:"선수 · 팀",ja:"選手・チーム",zh:"球员·球队",es:"Jugadores · equipos",hi:"खिलाड़ी·टीम",vi:"Cầu thủ · đội",th:"ผู้เล่น·ทีม",ru:"Игроки · команды",de:"Spieler · Teams",fr:"Joueurs · équipes",it:"Giocatori · squadre"})+'</div>'+
+          starHits.map(function(dd){ return '<div class="star-sr" data-tm="'+esc(dd.team)+'" style="display:flex;align-items:center;gap:11px;padding:11px 6px;border-bottom:1px solid var(--line);cursor:pointer"><span style="font-size:20px">⭐</span><div style="flex:1;min-width:0"><div style="font-size:14.5px;font-weight:700;color:var(--navy)">'+esc(dd.player||dd.team)+'</div><div style="font-size:12px;color:var(--muted)">'+esc(dd.team)+'</div></div><span class="chev" style="color:var(--muted)">›</span></div>'; }).join("");
+        body.appendChild(sh);
+        sh.querySelectorAll(".star-sr").forEach(function(row){ row.onclick=function(){ var nm=row.dataset.tm; closeOverlay("ovSearch"); if(typeof openTeam==="function")openTeam(nm,"football","",{}); else if(typeof openFind==="function")openFind("football"); }; });
+      }
+      if(hits.length){ var box=el("div","league"); var bd=el("div","lg-body"); hits.forEach(function(g){ bd.appendChild(gameCard(g)); }); box.appendChild(bd); body.appendChild(box); }
     });
   }
   function closeMenu(){ document.body.style.overflow=""; S.screen="home"; render(); }
