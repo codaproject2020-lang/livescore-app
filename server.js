@@ -29,7 +29,7 @@ const app = express();
 const server = http.createServer(app);
 
 const PORT = process.env.PORT || 3000;
-const APP_VERSION = 'v641';
+const APP_VERSION = 'v642';
 
 // ============================================================
 //  📏 성능 계측(instrumentation) — 엔드포인트 지연·캐시·공급사·WS·이벤트루프
@@ -5619,7 +5619,7 @@ async function fbPlayerStatsTick() {
 }
 setInterval(() => { fbPlayerStatsTick().catch(() => {}); }, 60000);
 setTimeout(() => { fbPlayerStatsTick().catch(() => {}); }, 4000);
-async function tsFootMatchPlayer(tsid, pid, wantDebug) {
+async function tsFootMatchPlayer(tsid, pid, wantDebug, isFin) {
   const resp = await tsFetch('/football/match/lineup/detail', { uuid: tsid }, 60e3, 9000).catch(() => null);
   const r = (resp && resp.results) ? resp.results : (resp || {});
   const homeArr = (r.lineup && r.lineup.home) || r.home || r.home_players || (Array.isArray(r.lineup) ? r.lineup[0] : null) || [];
@@ -5653,13 +5653,15 @@ async function tsFootMatchPlayer(tsid, pid, wantDebug) {
   });
   const started = tsFbIsStarter(p);
   const didPlay = started || subOn != null;
+  // 🔒 P0-02: 라이브(미종료) 중에는 '90분' 같은 종료용 기본값을 선수 출전시간에 넣지 않는다.
+  //   - 종료 경기(isFin)만 subOff 없는 선발을 90분으로 근사. 라이브면 교체로 '확정된 분'만 표시(선발 미교체는 Minutes 생략).
   let minutes = null;
-  if (started) minutes = (subOff != null ? subOff : MATCH_END);
-  else if (subOn != null) minutes = Math.max(0, MATCH_END - subOn);
+  if (started) { if (subOff != null) minutes = subOff; else if (isFin) minutes = MATCH_END; else minutes = null; }
+  else if (subOn != null) { minutes = isFin ? Math.max(0, MATCH_END - subOn) : null; }
   else minutes = 0;
   // 표시 순서: 출전시간 → 득점 → 어시스트 → (옐로/레드/페널티는 발생 시만)
   if (didPlay) {
-    pushStat('Minutes', minutes);
+    if (minutes != null) pushStat('Minutes', minutes);
     pushStat('Goals', goals);
     pushStat('Assists', assists);
     if (yellow) pushStat('Yellow', yellow);
@@ -5803,8 +5805,9 @@ app.get('/api/football/matchplayer', async (req, res) => {
   const tsid = String(req.query.mid || '').replace(/^ts/, '');
   const pid = String(req.query.pid || '');
   const dbg = req.query.debug === '1';
+  const isFin = req.query.fin === '1';   // P0-02: 종료 경기만 90분 근사 허용(라이브 중 90분 오표시 방지)
   if (!tsid || !pid) return res.json({ found: false });
-  try { res.json(await tsFootMatchPlayer(tsid, pid, dbg)); }
+  try { res.json(await tsFootMatchPlayer(tsid, pid, dbg, isFin)); }
   catch (e) { res.json({ found: false, error: String(e.message || e) }); }
 });
 // 🔧 디버그: 축구 경기의 TheSports 원본 JSON(라인업/선수스탯 후보)을 그대로 덤프.
