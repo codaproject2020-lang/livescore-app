@@ -3346,7 +3346,7 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
     var dsh=$("#dtShare"); if(dsh)dsh.onclick=function(){ openMatchShare(g,sport); };
     bindTabBar();
     renderHlCard();
-    var cols=d.querySelectorAll(".dt-head .tcol"); if(cols[0]){cols[0].style.cursor="pointer";cols[0].onclick=function(){ if(sport==="football"&&g.homeTid)openFootballTeam(g.homeTid,g.home,g.homeLogo,(g.tsid||g.id),"home"); else openTeam(g.home,sport); };} if(cols[1]){cols[1].style.cursor="pointer";cols[1].onclick=function(){ if(sport==="football"&&g.awayTid)openFootballTeam(g.awayTid,g.away,g.awayLogo,(g.tsid||g.id),"away"); else openTeam(g.away,sport); };}
+    var cols=d.querySelectorAll(".dt-head .tcol"); if(cols[0]){cols[0].style.cursor="pointer";cols[0].onclick=function(){ if(sport==="football"&&g.homeTid)openFootballTeam(g.homeTid,g.home,g.homeLogo,(g.tsid||g.id),"home"); else openTeam(g.home,sport,(g.homeTid||g.homeId||null),{logo:g.homeLogo||""}); };} if(cols[1]){cols[1].style.cursor="pointer";cols[1].onclick=function(){ if(sport==="football"&&g.awayTid)openFootballTeam(g.awayTid,g.away,g.awayLogo,(g.tsid||g.id),"away"); else openTeam(g.away,sport,(g.awayTid||g.awayId||null),{logo:g.awayLogo||""}); };}
     if(pinTrk) loadTrackerPinned(g,sport);
     renderDetailBody();
   }
@@ -3552,7 +3552,7 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
       var html='<div style="font-size:11.5px;color:var(--muted);margin-bottom:6px">'+esc(g.league||"")+seasonTag+'</div>'+warn+rankTableHtml(sport,rows,[g.home,g.away])+
         '<div style="text-align:center;margin-top:8px"><button class="refbtn" id="ovRankMore">'+tl({en:"Full table",ko:"전체 순위표 보기",ja:"全順位",zh:"完整排名",es:"Tabla completa",hi:"पूरी तालिका",vi:"BXH đầy đủ",th:"ตารางเต็ม",ru:"Вся таблица",de:"Ganze Tabelle",fr:"Classement complet",it:"Classifica completa"})+' ›</button></div>';
       $("#ovRankTbl").innerHTML=html;
-      $("#ovRankTbl").querySelectorAll(".rkrow").forEach(function(row){ row.style.cursor="pointer"; row.onclick=function(){ var nm=row.dataset.team; if(nm)openRankTeam(nm,sport,row.dataset.teamid||null,{league:(g.league||lg),season:seasonVal||""}); }; });
+      $("#ovRankTbl").querySelectorAll(".rkrow").forEach(function(row){ row.style.cursor="pointer"; row.onclick=function(){ var nm=row.dataset.team; if(nm)openRankTeam(nm,sport,row.dataset.teamid||null,{league:(g.league||lg),season:seasonVal||"",logo:row.dataset.logo||""}); }; });
       var mb=$("#ovRankMore"); if(mb)mb.onclick=function(){ openStandings(sport,lg,g); };
     }
   }
@@ -5736,7 +5736,7 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
       var played=(r.played!=null?r.played:(r.games!=null?r.games:((r.win!=null&&r.loss!=null)?(r.win+r.loss+(r.draw||0)):"-")));
       var tname=r.team||r.name||""; var tn=_nm(tname);
       var isHi=hi.some(function(x){return tn&&(tn.indexOf(x)>=0||x.indexOf(tn)>=0);});
-      h+='<tr class="rkrow'+(isHi?" rkhi":"")+'" data-team="'+esc(tname)+'" data-teamid="'+esc(r.teamId!=null?r.teamId:"")+'"><td class="rk">'+(r.rank||i+1)+'</td><td class="tm">'+(r.logo?'<img src="'+esc(r.logo)+'" style="width:18px;height:18px;vertical-align:middle;margin-right:5px" onerror="this.remove()">':'')+esc(tname)+'</td><td>'+played+'</td><td>'+(r.win!=null?r.win:(r.w!=null?r.w:"-"))+'</td>'+(isFb?'<td>'+(r.draw!=null?r.draw:(r.d!=null?r.d:"-"))+'</td>':'')+'<td>'+(r.loss!=null?r.loss:(r.lose!=null?r.lose:(r.l!=null?r.l:"-")))+'</td>'+(isFb?'<td style="white-space:nowrap">'+((r.gf!=null||r.ga!=null)?((r.gf!=null?r.gf:0)+':'+(r.ga!=null?r.ga:0)):"-")+'</td>':'')+(isVb?'<td style="white-space:nowrap">'+((r.sf!=null||r.sa!=null)?((r.sf!=null?r.sf:0)+':'+(r.sa!=null?r.sa:0)):"-")+'</td>':'')+(isBb?'<td>'+(r.pct!=null?r.pct:"-")+'</td><td>'+(r.gb!=null?r.gb:"-")+'</td>':(isHoop?'<td style="font-weight:800">'+(r.pct!=null?r.pct:"-")+'</td>':'<td style="font-weight:800">'+(r.points!=null&&r.points!==""?r.points:(r.pts!=null?r.pts:"-"))+'</td>'))+(isVb?'<td style="white-space:nowrap">'+vbFormCells(r.form)+'</td>':'')+'</tr>';
+      h+='<tr class="rkrow'+(isHi?" rkhi":"")+'" data-team="'+esc(tname)+'" data-teamid="'+esc(r.teamId!=null?r.teamId:"")+'" data-logo="'+esc(r.logo||"")+'"><td class="rk">'+(r.rank||i+1)+'</td><td class="tm">'+(r.logo?'<img src="'+esc(r.logo)+'" style="width:18px;height:18px;vertical-align:middle;margin-right:5px" onerror="this.remove()">':'')+esc(tname)+'</td><td>'+played+'</td><td>'+(r.win!=null?r.win:(r.w!=null?r.w:"-"))+'</td>'+(isFb?'<td>'+(r.draw!=null?r.draw:(r.d!=null?r.d:"-"))+'</td>':'')+'<td>'+(r.loss!=null?r.loss:(r.lose!=null?r.lose:(r.l!=null?r.l:"-")))+'</td>'+(isFb?'<td style="white-space:nowrap">'+((r.gf!=null||r.ga!=null)?((r.gf!=null?r.gf:0)+':'+(r.ga!=null?r.ga:0)):"-")+'</td>':'')+(isVb?'<td style="white-space:nowrap">'+((r.sf!=null||r.sa!=null)?((r.sf!=null?r.sf:0)+':'+(r.sa!=null?r.sa:0)):"-")+'</td>':'')+(isBb?'<td>'+(r.pct!=null?r.pct:"-")+'</td><td>'+(r.gb!=null?r.gb:"-")+'</td>':(isHoop?'<td style="font-weight:800">'+(r.pct!=null?r.pct:"-")+'</td>':'<td style="font-weight:800">'+(r.points!=null&&r.points!==""?r.points:(r.pts!=null?r.pts:"-"))+'</td>'))+(isVb?'<td style="white-space:nowrap">'+vbFormCells(r.form)+'</td>':'')+'</tr>';
     });
     if(h)h+='</tbody></table>';
     return h;
@@ -5772,7 +5772,7 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
     rows.forEach(function(r,i){
       var v=pick(r); var tn=_nm(r.team); var isHi=hi.some(function(x){return tn&&(tn.indexOf(x)>=0||x.indexOf(tn)>=0);});
       var pc=(mode==="all"&&r.promo&&r.promo.color)?r.promo.color:"";
-      h+='<tr class="rkrow'+(isHi?" rkhi":"")+'" data-team="'+esc(r.team||"")+'" data-teamid="'+esc(r.teamId!=null?r.teamId:"")+'">'+
+      h+='<tr class="rkrow'+(isHi?" rkhi":"")+'" data-team="'+esc(r.team||"")+'" data-teamid="'+esc(r.teamId!=null?r.teamId:"")+'" data-logo="'+esc(r.logo||"")+'">'+
         '<td class="rk'+(pc?" promo":"")+'"'+(pc?' style="--pc:'+esc(pc)+'"':'')+'>'+(v.rank||i+1)+'</td>'+
         '<td class="tm" style="text-align:left">'+(r.logo?'<img src="'+esc(r.logo)+'" style="width:18px;height:18px;vertical-align:middle;margin-right:5px" onerror="this.remove()">':'')+esc(r.team||"")+'</td>'+
         '<td>'+(v.p!=null?v.p:"-")+'</td><td>'+(v.w!=null?v.w:"-")+'</td><td>'+(v.d!=null?v.d:"-")+'</td><td>'+(v.l!=null?v.l:"-")+'</td>'+
@@ -5835,7 +5835,7 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
           fbStandRender($("#rkBody"),tb,[g.home,g.away],_ttlH,{promotions:(j&&j.promotions),formNa:(j&&j.formNa),scrollHi:true},function(row){ var nm=row.dataset.team; if(nm)openRankTeam(nm,sport,row.dataset.teamid,{league:(g.league||league||""),season:(j&&j.season)||""}); });
         } else {
           $("#rkBody").innerHTML=_ttlH+rankTableHtml(sport,tb,[g.home,g.away]);
-          $("#rkBody").querySelectorAll(".rkrow").forEach(function(row){ row.style.cursor="pointer"; row.onclick=function(){ var nm=row.dataset.team; if(nm)openRankTeam(nm,sport,row.dataset.teamid,{league:(g.league||league||""),season:(j&&j.season)||""}); }; });
+          $("#rkBody").querySelectorAll(".rkrow").forEach(function(row){ row.style.cursor="pointer"; row.onclick=function(){ var nm=row.dataset.team; if(nm)openRankTeam(nm,sport,row.dataset.teamid,{league:(g.league||league||""),season:(j&&j.season)||"",logo:row.dataset.logo||""}); }; });
           var hiRow=$("#rkBody").querySelector(".rkhi"); if(hiRow)hiRow.scrollIntoView({block:"center"});
         }
       }).catch(function(){ $("#rkBody").innerHTML='<div class="msg"><div class="big">⚠️</div>'+failMsg+'</div>'; });
@@ -5901,7 +5901,7 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
           fbStandRender($("#rkBody"),tb,[],_ttl2,{promotions:(j&&j.promotions),formNa:(j&&j.formNa)},function(row){ var nm=row.dataset.team; if(nm)openRankTeam(nm,st.sport,row.dataset.teamid,{league:curLeagueName(),season:(j&&j.season)||st.season||""}); });
         } else {
           $("#rkBody").innerHTML=_ttl2+rankTableHtml(st.sport,tb);
-          $("#rkBody").querySelectorAll(".rkrow").forEach(function(row){ row.style.cursor="pointer"; row.onclick=function(){ var nm=row.dataset.team; if(nm)openRankTeam(nm,st.sport,row.dataset.teamid,{league:curLeagueName(),season:(j&&j.season)||st.season||""}); }; });
+          $("#rkBody").querySelectorAll(".rkrow").forEach(function(row){ row.style.cursor="pointer"; row.onclick=function(){ var nm=row.dataset.team; if(nm)openRankTeam(nm,st.sport,row.dataset.teamid,{league:curLeagueName(),season:(j&&j.season)||st.season||"",logo:row.dataset.logo||""}); }; });
         }
       }).catch(function(){ if(o._rkToken!==token)return; $("#rkBody").innerHTML='<div class="msg"><div class="big">⚠️</div>'+failMsg+'</div>'; });
     }
@@ -6234,7 +6234,9 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
       var tm=dt.base&&dt.base.team; if(!tm)return;
       var ev=(dt.base.events)||[], nx=(dt.base.next)||[];
       var fav=teamFav(tm.name||name);
-      var badge=tm.badge?'<img src="'+esc(tm.badge)+'" style="width:60px;height:60px;object-fit:contain" onerror="this.outerHTML=\'<div style=font-size:38px>🛡️</div>\'">':'<div style="font-size:38px">🛡️</div>';
+      // R01: 팀 API에 로고가 없더라도 같은 팀으로 들어온 순위표/경기 카드의 로고(ctx.logo)를 재사용. 둘 다 없을 때만 방패.
+      var _blg=tm.badge||ctx.logo||"";
+      var badge=_blg?'<img src="'+esc(_blg)+'" style="width:60px;height:60px;object-fit:contain" onerror="this.outerHTML=\'<div style=font-size:38px>🛡️</div>\'">':'<div style="font-size:38px">🛡️</div>';
       var TAB=[["overview",tl({en:"Overview",ko:"개요",ja:"概要",zh:"概况",es:"Resumen",hi:"अवलोकन",vi:"Tổng quan",th:"ภาพรวม",ru:"Обзор",de:"Übersicht",fr:"Aperçu",it:"Panoramica"})]];
       if(canSquad)TAB.push(["squad",tl({en:"Squad",ko:"선수단",ja:"選手",zh:"阵容",es:"Plantilla",hi:"दस्ता",vi:"Đội hình",th:"ผู้เล่น",ru:"Состав",de:"Kader",fr:"Effectif",it:"Rosa"})]);
       if(canStats)TAB.push(["stats",tl({en:"Stats",ko:"통계",ja:"統計",zh:"数据",es:"Estadísticas",hi:"आँकड़े",vi:"Thống kê",th:"สถิติ",ru:"Статистика",de:"Statistik",fr:"Stats",it:"Statistiche"})]);
@@ -6545,9 +6547,13 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
     }
     fetch(url).then(function(r){return r.json()}).then(function(j){
       if(_tok!==window.__tmTok)return;
-      if(!j||!j.team){ $("#tmBody").innerHTML='<div class="msg"><div class="big">🔎</div>'+tl({en:"No team profile found from our data provider.",ko:"데이터 제공처에서 팀 정보를 찾지 못했습니다.",ja:"チーム情報が見つかりません。",zh:"未找到球队资料。",es:"Perfil no encontrado.",hi:"टीम प्रोफ़ाइल नहीं मिली।",vi:"Không tìm thấy hồ sơ đội.",th:"ไม่พบข้อมูลทีม",ru:"Профиль команды не найден.",de:"Kein Teamprofil gefunden.",fr:"Profil introuvable.",it:"Profilo non trovato."})+'<br><span style="font-size:12px;color:#9aa1ad">'+esc(name)+'</span></div>'; return; }
+      // R03: 팀 상세 응답이 비어도 '팀 전체 빈 화면' 금지. 이름·로고(ctx)로 헤더를 세우고 각 섹션(최근경기·순위·선수단·뉴스)은 독립 로드.
+      if(!j||!j.team){ dt.base={team:{name:name,badge:(ctx&&ctx.logo)||""},events:[],next:[],_softFail:true}; paint(); enrichFbTeam(); return; }
       dt.base=j; paint(); enrichFbTeam();
-    }).catch(function(){ if(_tok!==window.__tmTok)return; $("#tmBody").innerHTML='<div class="msg"><div class="big">⚠️</div>'+t("m_teamFail")+'<br><button class="refbtn" id="tmRetry" style="margin:12px auto 0">↻ '+t("retry")+'</button></div>'; var rb=$("#tmRetry"); if(rb)rb.onclick=function(){ openTeam(name,sp,teamId,ctx); }; });
+    }).catch(function(){ if(_tok!==window.__tmTok)return;
+      // 통신 오류·시간초과도 헤더는 유지. 각 섹션에서 자체 재시도. (기존 '전체 빈 화면+재시도'는 R03 위반)
+      dt.base={team:{name:name,badge:(ctx&&ctx.logo)||""},events:[],next:[],_softFail:true}; paint(); enrichFbTeam();
+    });
   }
   // ====== 뉴스 화면 (종목별 ESPN 피드 탭, 이미지 04) ======
   function openNews(){
