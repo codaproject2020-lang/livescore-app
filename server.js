@@ -29,7 +29,7 @@ const app = express();
 const server = http.createServer(app);
 
 const PORT = process.env.PORT || 3000;
-const APP_VERSION = 'v644';
+const APP_VERSION = 'v645';
 
 // ============================================================
 //  📏 성능 계측(instrumentation) — 엔드포인트 지연·캐시·공급사·WS·이벤트루프
@@ -1380,9 +1380,17 @@ app.get('/api/team/as', async (req, res) => {
       return res.json({ team, events: (tg && tg.events) || [], next: (tg && tg.next) || [], source: 'thesports' });
     }
     if (sport === 'basketball' || sport === 'baseball' || sport === 'volleyball' || sport === 'hockey') {
-      const tg = await tsTeamDiaryGames(sport, idStr, today).catch(() => null);
-      const team = { id: idStr, name: (tg && tg.name) || '', badge: (tg && tg.logo) || '' };
-      return res.json({ team, events: (tg && tg.events) || [], next: (tg && tg.next) || [], source: 'thesports' });
+      const nameQ = String(req.query.name || '').trim();
+      let useId = idStr;
+      let tg = await tsTeamDiaryGames(sport, useId, today).catch(() => null);
+      // R01: 순위표가 공급사 숫자 ID(API-Sports)를 넘겨 TheSports 조회가 비는 경우 → 팀명으로 실제 TheSports ID 복원 후 재조회.
+      //   (숫자 ID이고 결과가 비었을 때만 1회 복원. 이미 열린 경우는 그대로 사용.)
+      if (nameQ && (!tg || (!tg.name && !((tg.events || []).length) && !((tg.next || []).length))) && /^\d+$/.test(useId)) {
+        const rid = await tsResolveTeamIdByName(sport, nameQ, today).catch(() => null);
+        if (rid && rid !== useId) { useId = rid; tg = await tsTeamDiaryGames(sport, useId, today).catch(() => null); }
+      }
+      const team = { id: useId, name: (tg && tg.name) || nameQ || '', badge: (tg && tg.logo) || '' };
+      return res.json({ team, events: (tg && tg.events) || [], next: (tg && tg.next) || [], source: 'thesports', resolvedId: (useId !== idStr) ? useId : undefined });
     }
     return res.json({ team: null, events: [], next: [], note: 'sport-todo' });
   } catch (e) { return res.json({ team: null, events: [], next: [], error: String(e.message || e) }); }
@@ -5922,6 +5930,32 @@ async function tsTeamDiaryGames(sport, teamId, baseDate) {
   const v = { name, logo, events: recent, next: upcoming };
   _tsTeamGamesCache.set(ck, { t: Date.now(), v });
   return v;
+}
+// 🔑 R01: 종목 diary에서 '팀명 → TheSports 팀 ID' 복원. 순위표가 공급사 숫자 ID(API-Sports, 예: 154)를 넘겨
+//    TheSports 조회가 비는 경우, 같은 팀의 실제 TheSports ID로 연결하기 위함(이름만으로 ID 생성 금지: diary의 실제 team 목록만 사용).
+const _tsTeamIdByNameCache = new Map();
+async function tsResolveTeamIdByName(sport, wantName, baseDate) {
+  const norm = s => String(s || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+  const want = norm(wantName); if (!want) return null;
+  const key = sport + '|' + want + '|' + baseDate;
+  const hit = _tsTeamIdByNameCache.get(key); if (hit && Date.now() - hit.t < 6 * 3600e3) return hit.v;
+  const path = '/' + sport + '/match/diary';
+  const base = Date.parse(baseDate + 'T12:00:00Z');
+  const ymdOf = off => new Date(base - off * 864e5).toISOString().slice(0, 10).replace(/-/g, '');
+  const offsets = []; for (let o = -14; o <= 7; o++) offsets.push(o);   // NBA/KBL은 자주 경기 → 3주 창이면 전 팀 등장
+  const names = {};
+  try {
+    const BATCH = 11;
+    for (let s = 0; s < offsets.length; s += BATCH) {
+      const chunk = offsets.slice(s, s + BATCH);
+      const ds = await Promise.all(chunk.map(o => tsFetch(path, { date: ymdOf(o) }, 3600e3, 8000).catch(() => null)));
+      ds.forEach(d => { const ex = (d && d.results_extra) || {}; (ex.team || []).forEach(t => { if (t && t.id && t.name) names[t.id] = t.name; }); });
+    }
+  } catch (e) { }
+  let best = null, bestExact = false;
+  for (const id in names) { const n = norm(names[id]); if (!n) continue; if (n === want) { best = id; bestExact = true; break; } if (!best && (n.indexOf(want) >= 0 || want.indexOf(n) >= 0)) best = id; }
+  _tsTeamIdByNameCache.set(key, { t: Date.now(), v: best });
+  return best;
 }
 // ⚽ TheSports 전용: 팀의 '직전 종료 경기 라인업(선발+벤치)' — diary로 최근 종료 경기 tsid를 찾아 tsFootLineup으로 라인업 추출.
 //    API-Sports 미사용. 선수단 패키지 권한이 없을 때 선수단 탭 폴백에 사용(실제 출전 선수).

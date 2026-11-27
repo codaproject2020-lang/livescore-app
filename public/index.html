@@ -4845,8 +4845,11 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
     o.innerHTML='<div class="dt-bar"><button class="bk" id="plBack">‹</button><div class="ti">'+esc(p.name||"")+'</div></div>'+
       '<div class="dt-body"><div style="display:flex;align-items:center;gap:12px;margin:6px 0 14px">'+photo+'<div><div style="font-weight:800;font-size:16px">'+esc(p.name||"")+'</div><div style="color:var(--muted);font-size:13px">'+(p.number?("#"+esc(String(p.number))+" · "):"")+esc(team||"")+'</div></div></div>'+
       '<div class="dt-sec-t">📊 '+cg+'</div>'+grid1+grid2+grid3+
+      (p.id?'<div style="text-align:center;margin:14px 0 2px"><button class="refbtn" id="bpMore">'+tl({en:"View full profile",ko:"전체 프로필 보기",ja:"全プロフィール",zh:"查看完整资料",es:"Perfil completo",hi:"पूरी प्रोफ़ाइल",vi:"Hồ sơ đầy đủ",th:"ดูโปรไฟล์เต็ม",ru:"Полный профиль",de:"Ganzes Profil",fr:"Profil complet",it:"Profilo completo"})+' ›</button></div>':'')+
       '<div id="bpShot"></div></div>';
     $("#plBack").onclick=function(){ closeOverlay("ovPlayer"); };
+    // R05: 농구 경기 기록 카드 → 전체 프로필(시즌·커리어·지난 경기). 지속형 기본 카드로 열려 막다른 화면 없음.
+    var _bpm=$("#bpMore"); if(_bpm)_bpm.onclick=function(){ closeOverlay("ovPlayer"); openPlayer("basketball",String(p.id),p.name||"",{profile:true,photo:p.photo||"",number:(p.number!=null?p.number:""),team:team||""}); };
     // 🎯 이 선수의 슛차트(쿼터별) — shotchart에서 해당 선수 pid만 필터
     var g=(typeof _dt!=="undefined"&&_dt&&_dt.g)||null;
     if(g&&/^ts/.test(String(g.id||""))&&p.id){ openBskPlayerShot(p,g); }
@@ -5933,15 +5936,17 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
     var found=null;
     try{ Object.keys(S.data).forEach(function(k){ if(k.split("|")[0]!==sp)return; var d=S.data[k]; if(d&&d.games)d.games.forEach(function(g){ if(String(g.id)===gid||String(g.id)==="ts"+gid)found=g; }); }); }catch(_){}
     if(found){ if(S.sport!==sp)S.sport=sp; openDetail(found); return; }
-    // 🏀⚾ 농구·야구(명령서 3·6번): 팀 화면의 최근·예정 경기행을 누르면 '상대 팀'이 아니라 '그 경기 상세'를 연다. 공급사 경기 id 보존.
-    //    (팀 최근경기는 API-Sports 소스라 오늘 피드에 없을 수 있음 → 경기행 자체 데이터로 상세 헤더를 열고, 세부 자료는 각 탭/엔드포인트에서 미제공/재시도 처리.)
-    if((sp==="basketball"||sp==="baseball")&&gid){
+    // 🏀⚾⚽ 팀 화면의 최근·예정 경기행 → '상대 팀'이 아니라 '그 경기 상세'를 TheSports 경기 ID로 연다.
+    //    (현재 목록/피드에 없는 과거 경기라도 보존된 경기 ID로 상세를 열고, 세부 자료는 각 탭/엔드포인트에서 미제공/재시도 처리.)
+    //    R03/R04: 이름만 넘겨 상대팀 빈 화면으로 우회하던 경로 제거 — gid가 있으면 모든 종목에서 경기 상세로.
+    if(gid){
       var _st=(e.done===false)?"scheduled":((e.hs!=null||e.as!=null)?"finished":"scheduled");
-      var g2={ id:gid, sport:sp, home:e.home||"", away:e.away||"", hs:(e.hs!=null?e.hs:null), as:(e.as!=null?e.as:null), state:_st, date:e.date||"", league:e.league||"" };
+      var _gid2=(sp==="football"&&String(gid).indexOf("ts")!==0)?("ts"+gid):gid;
+      var g2={ id:_gid2, tsid:_gid2, sport:sp, home:e.home||"", away:e.away||"", hs:(e.hs!=null?e.hs:null), as:(e.as!=null?e.as:null), state:_st, date:e.date||"", league:e.league||"" };
       if(S.sport!==sp)S.sport=sp;
-      try{ openDetail(g2); }catch(_){}
-      return;
+      try{ openDetail(g2); return; }catch(_){}
     }
+    // 최후 폴백: 경기 ID가 전혀 없을 때만 상대 팀으로.
     var opp=(String(e.home||"").toLowerCase().indexOf(String(selfName||"").toLowerCase())>=0)?e.away:e.home;
     if(opp)openTeam(opp,sp);
   }
@@ -6229,7 +6234,7 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
     bindShareBtn("tmShare",name);
     var canStats=(teamId&&sp==="football"), canSquad=(teamId&&(sp==="football"||sp==="basketball"));
     var asOk=(teamId&&(sp==="football"||sp==="basketball"||sp==="baseball"||sp==="volleyball"));
-    var url=asOk?("/api/team/as?sport="+encodeURIComponent(sp)+"&id="+encodeURIComponent(teamId)):("/api/team/recent?name="+encodeURIComponent(name)+"&sport="+encodeURIComponent(sp));
+    var url=asOk?("/api/team/as?sport="+encodeURIComponent(sp)+"&id="+encodeURIComponent(teamId)+"&name="+encodeURIComponent(name||"")):("/api/team/recent?name="+encodeURIComponent(name)+"&sport="+encodeURIComponent(sp));
     function paint(){
       var tm=dt.base&&dt.base.team; if(!tm)return;
       var ev=(dt.base.events)||[], nx=(dt.base.next)||[];
@@ -6549,6 +6554,8 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
       if(_tok!==window.__tmTok)return;
       // R03: 팀 상세 응답이 비어도 '팀 전체 빈 화면' 금지. 이름·로고(ctx)로 헤더를 세우고 각 섹션(최근경기·순위·선수단·뉴스)은 독립 로드.
       if(!j||!j.team){ dt.base={team:{name:name,badge:(ctx&&ctx.logo)||""},events:[],next:[],_softFail:true}; paint(); enrichFbTeam(); return; }
+      // R01: 서버가 공급사 숫자 ID→TheSports ID로 복원했으면, 선수단·통계 탭도 같은 ID를 쓰도록 반영.
+      if(j.resolvedId&&j.resolvedId!==teamId){ teamId=j.resolvedId; }
       dt.base=j; paint(); enrichFbTeam();
     }).catch(function(){ if(_tok!==window.__tmTok)return;
       // 통신 오류·시간초과도 헤더는 유지. 각 섹션에서 자체 재시도. (기존 '전체 빈 화면+재시도'는 R03 위반)
