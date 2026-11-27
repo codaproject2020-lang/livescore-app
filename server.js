@@ -29,7 +29,7 @@ const app = express();
 const server = http.createServer(app);
 
 const PORT = process.env.PORT || 3000;
-const APP_VERSION = 'v627';
+const APP_VERSION = 'v628';
 
 // ============================================================
 //  📏 성능 계측(instrumentation) — 엔드포인트 지연·캐시·공급사·WS·이벤트루프
@@ -5576,6 +5576,58 @@ app.get('/api/football/injuries', async (req, res) => {
   if (!tsid) return res.json({ found: false, home: [], away: [] });
   try { const r = await tsFootInjuries(tsid); res.json(r); }
   catch (e) { res.json({ found: false, home: [], away: [], error: String(e.message || e) }); }
+});
+// ⚽ 경기 내 선수 기록(AiScore 동일) — lineup/detail 응답의 선수별 스탯/사건을 그대로 전달.
+//    바이오 API가 비어도 이 경기에서의 평점·출전·득점·세이브·패스 등을 보여준다(임의 수치 금지, 제공값만).
+const _FB_MP_LABEL = {
+  // key(소문자) → 표시 라벨(다국어는 프론트가 아닌 공통 영어/약어, 프론트에서 그대로 표시)
+  rating: 'Rating', minutes_played: 'Minutes', minutes: 'Minutes', goals: 'Goals', assists: 'Assists',
+  yellow_cards: 'Yellow', red_cards: 'Red', shots_total: 'Shots', shots: 'Shots', shots_on_goal: 'Shots on target', shots_on_target: 'Shots on target',
+  touches: 'Touches', passes: 'Passes', total_passes: 'Passes', passes_accuracy: 'Pass %', pass_accuracy: 'Pass %', key_passes: 'Key passes',
+  saves: 'Saves', tackles: 'Tackles', interceptions: 'Interceptions', clearances: 'Clearances', blocks: 'Blocks', blocked_shots: 'Blocked shots',
+  dribble_succ: 'Dribbles', dribbles: 'Dribbles', dribbles_success: 'Dribbles', crosses: 'Crosses', duels_won: 'Duels won', duels_total: 'Duels',
+  fouls_drawn: 'Fouls drawn', fouls_committed: 'Fouls', offsides: 'Offsides', big_chances_created: 'Big chances', long_balls: 'Long balls'
+};
+const _FB_MP_SKIP = new Set(['id','player_id','uuid','name','player_name','logo','photo','position','pos','first','captain','on_bench','type','shirt_number','number','x','y','incidents','team_id','sub']);
+async function tsFootMatchPlayer(tsid, pid) {
+  const resp = await tsFetch('/football/match/lineup/detail', { uuid: tsid }, 60e3, 9000).catch(() => null);
+  const r = (resp && resp.results) ? resp.results : (resp || {});
+  const homeArr = (r.lineup && r.lineup.home) || r.home || r.home_players || (Array.isArray(r.lineup) ? r.lineup[0] : null) || [];
+  const awayArr = (r.lineup && r.lineup.away) || r.away || r.away_players || (Array.isArray(r.lineup) ? r.lineup[1] : null) || [];
+  const all = [].concat(homeArr || [], awayArr || []);
+  const pstr = String(pid);
+  const p = all.find(x => x && String(x.id || x.player_id || x.uuid) === pstr);
+  if (!p) return { found: false };
+  const info = await tsFbPlayer(pstr).catch(() => ({}));
+  // 스탯 수집: 매핑된 키 + 그 외 숫자형 키(일반 라벨). 제공값만, 빈/0만 있는 건 그대로 전달.
+  const stats = [];
+  const seen = new Set();
+  const pushStat = (label, val) => { if (val == null || val === '' || val === 'null') return; stats.push({ label, value: String(val) }); };
+  // 1) 매핑 우선순위 순서대로
+  const order = ['rating','minutes_played','minutes','goals','assists','shots','shots_on_target','saves','touches','passes','passes_accuracy','pass_accuracy','key_passes','long_balls','crosses','dribbles','tackles','interceptions','clearances','blocks','blocked_shots','duels_won','fouls_drawn','fouls_committed','offsides','big_chances_created','yellow_cards','red_cards'];
+  order.forEach(k => { if (p[k] != null && !seen.has(_FB_MP_LABEL[k])) { seen.add(_FB_MP_LABEL[k]); pushStat(_FB_MP_LABEL[k] || k, p[k]); } });
+  // 2) 매핑 안 된 나머지 숫자형 키도 노출(데이터 숨기지 않음)
+  Object.keys(p).forEach(k => { if (_FB_MP_SKIP.has(k)) return; const lbl = _FB_MP_LABEL[k.toLowerCase()]; if (lbl && seen.has(lbl)) return; const v = p[k]; if (typeof v === 'number' || (typeof v === 'string' && v !== '' && !isNaN(+v))) { const L = lbl || k.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase()); if (seen.has(L)) return; seen.add(L); pushStat(L, v); } });
+  return {
+    found: stats.length > 0 || p.rating != null,
+    id: pstr,
+    name: p.name || info.name || '',
+    logo: p.logo || info.logo || '',
+    number: (p.shirt_number != null ? p.shirt_number : (p.number != null ? p.number : '')),
+    position: p.position || p.pos || '',
+    captain: p.captain ? 1 : 0,
+    first: tsFbIsStarter(p) ? 1 : 0,
+    rating: (p.rating != null && p.rating !== '') ? String(p.rating) : null,
+    stats
+  };
+}
+app.get('/api/football/matchplayer', async (req, res) => {
+  res.set('Cache-Control', 'no-store');
+  const tsid = String(req.query.mid || '').replace(/^ts/, '');
+  const pid = String(req.query.pid || '');
+  if (!tsid || !pid) return res.json({ found: false });
+  try { res.json(await tsFootMatchPlayer(tsid, pid)); }
+  catch (e) { res.json({ found: false, error: String(e.message || e) }); }
 });
 // 🏟️ TheSports 전용: 팀의 최근(종료)·다음(예정) 경기 + 팀명/로고 — 종목별 diary 스캔(API-Sports 미사용).
 //    window: 과거 ~90일, 미래 ~21일. 결과: {name, logo, events:[최근 종료 최대8], next:[예정 최대6]}.
