@@ -29,7 +29,7 @@ const app = express();
 const server = http.createServer(app);
 
 const PORT = process.env.PORT || 3000;
-const APP_VERSION = 'v640';
+const APP_VERSION = 'v641';
 
 // ============================================================
 //  📏 성능 계측(instrumentation) — 엔드포인트 지연·캐시·공급사·WS·이벤트루프
@@ -5697,6 +5697,24 @@ async function tsFootMatchPlayer(tsid, pid, wantDebug) {
     if (rich.red_cards) p2('Red', rich.red_cards);
     if (s2.length) { stats.length = 0; Array.prototype.push.apply(stats, s2); }
   }
+  // 📑 카테고리별 그룹(명령서 02 요구) — 값 없으면 숨김(null 행 제거), 전부 null 그룹 제거. GK는 포지션 G만.
+  let groups = null;
+  if (rich) {
+    const nvv = v => (v == null || v === '') ? null : String(v);
+    const pr = (s, t, pc) => { if (s == null && t == null) return null; if (t == null) return String(s); if (s == null) return String(t); return s + '/' + t + ((pc && t > 0) ? ' (' + (s / t * 100).toFixed(1) + '%)' : ''); };
+    const row = (k, v) => ({ k, v: (v === undefined ? null : v) });
+    const isGK = /^g/i.test(p.position || p.pos || '');
+    const sum = (a, b) => (a != null && b != null) ? (a + b) : null;
+    groups = [
+      { t: 'basic', rows: [row('Minutes', nvv(rich.minutes_played)), row('Goals', nvv(rich.goals)), row('Assists', nvv(rich.assists))] },
+      { t: 'attack', rows: [row('Shots', nvv(rich.shots)), row('Shots on target', nvv(rich.shots_on_target)), row('Dribbles', pr(rich.dribble_succ, rich.dribble, false)), row('Offsides', nvv(rich.offsides)), row('Big chance missed', nvv(rich.big_chance_missed))] },
+      { t: 'pass', rows: [row('Touches', null), row('Passes', pr(rich.passes_accuracy, rich.passes, true)), row('Key passes', nvv(rich.key_passes)), row('Big chances', nvv(rich.big_chance_created)), row('Long balls', pr(rich.long_balls_accuracy, rich.long_balls, false)), row('Crosses', pr(rich.crosses_accuracy, rich.crosses, false)), row('Poss lost', nvv(rich.poss_losts))] },
+      { t: 'defense', rows: [row('Tackles', pr(rich.tackles_succ, rich.tackles, false) || nvv(rich.tackles)), row('Interceptions', nvv(rich.interceptions)), row('Clearances', nvv(rich.clearances)), row('Blocked shots', nvv(rich.blocked_shots)), row('Ground duels', pr(rich.ground_won, sum(rich.ground_won, rich.ground_lost), false) || pr(rich.duel_won, sum(rich.duel_won, rich.duel_lost), false)), row('Aerial duels', pr(rich.aerial_won, sum(rich.aerial_won, rich.aerial_lost), false))] },
+      { t: 'foul', rows: [row('Fouls', nvv(rich.fouls)), row('Fouls drawn', nvv(rich.was_fouled)), row('Yellow', nvv(rich.yellow_cards)), row('Red', nvv(rich.red_cards))] }
+    ];
+    if (isGK) groups.push({ t: 'gk', rows: [row('Saves', nvv(rich.saves)), row('Punches', nvv(rich.punches)), row('Keeper sweeper', pr(rich.runs_out_succ, rich.runs_out, false)), row('High claim', nvv(rich.good_high_claim))] });
+    groups = groups.map(gp => ({ t: gp.t, rows: gp.rows.filter(r => r.v != null) })).filter(gp => gp.rows.length);
+  }
   const playedNow = didPlay || !!(rich && (rich.minutes_played || (rich.first === 1)));
   const out = {
     found: true,
@@ -5711,7 +5729,7 @@ async function tsFootMatchPlayer(tsid, pid, wantDebug) {
     rating: ((rich && rich.rating != null && String(rich.rating) !== '0' && String(rich.rating) !== '0.0') ? String(rich.rating)
       : ((p.rating != null && p.rating !== '' && String(p.rating) !== '0.0' && playedNow) ? String(p.rating) : null)),
     statsLimited: rich ? 0 : 1,            // 상세 피드가 오면 '제한 없음'
-    stats
+    stats, groups
   };
   if (wantDebug) out.debug = { lineupPlayerKeys: Object.keys(p), incidents: inc.length, richFound: !!rich, rawStats };
   return out;
