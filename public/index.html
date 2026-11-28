@@ -5221,8 +5221,10 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
     o.innerHTML='<div class="dt-bar"><button class="bk" id="btBack">‹</button><div class="ti">'+esc(tnTeam(name||""))+'</div>'+shareBtnHtml("btShare")+'</div><div class="dt-body" id="btBody" style="padding:14px 14px 40px"><div class="msg"><div class="big">⏳</div>'+t("loading")+'</div></div>';
     var bb=$("#btBack"); if(bb)bb.onclick=function(){ closeOverlay("ovBskTeam"); };
     bindShareBtn("btShare",tnTeam(name||""));
-    fetch("/api/basketball/teamgames?tid="+encodeURIComponent(tid)+"&date="+encodeURIComponent(date?String(date).slice(0,10):S.date)).then(function(r){return r.json();}).then(function(j){
+    fetch("/api/basketball/teamgames?tid="+encodeURIComponent(tid)+"&name="+encodeURIComponent(name||"")+"&date="+encodeURIComponent(date?String(date).slice(0,10):S.date)).then(function(r){return r.json();}).then(function(j){
       var b=$("#btBody"); if(!b)return;
+      // R01: 서버가 공급사 숫자 ID→TheSports ID로 복원했으면 이후 경기행·팀 클릭도 같은 ID 사용.
+      if(j&&j.resolvedId&&j.resolvedId!==tid){ tid=j.resolvedId; }
       if(!j||!j.found||!j.games||!j.games.length){ b.innerHTML='<div class="msg"><div class="big">📋</div>'+t("noRecentRec")+'</div>'; return; }
       if(j.nameKo&&j.name)regKoTeam("basketball",j.name,j.nameKo);
       j.games.forEach(function(m){ if(m.hKo&&m.hName)regKoTeam("basketball",m.hName,m.hKo); if(m.aKo&&m.aName)regKoTeam("basketball",m.aName,m.aKo); if(m.leagueKo&&m.league)KN_LEAGUE[knorm(m.league)]=m.leagueKo; });
