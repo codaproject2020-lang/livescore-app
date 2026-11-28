@@ -29,7 +29,7 @@ const app = express();
 const server = http.createServer(app);
 
 const PORT = process.env.PORT || 3000;
-const APP_VERSION = 'v658';
+const APP_VERSION = 'v659';
 
 // ============================================================
 //  📏 성능 계측(instrumentation) — 엔드포인트 지연·캐시·공급사·WS·이벤트루프
@@ -850,14 +850,26 @@ function _teamNews(items, teamTerms) {
     return longHit || _FBCUE_RE.test(txt);
   });
 }
-// 같은 사건의 재게시 묶기: 제목 토큰 집합의 겹침(자카드)로 판정 → 매체별 리워딩도 1건으로. 다른 프리뷰/결과는 분리 유지.
+// 같은 사건의 재게시/다른 각도 기사 묶기: 토큰 겹침(자카드) 또는 핵심어(인물·사건) 공유로 판정.
+//   매체별 리워딩·다른 각도의 같은 소식을 1건으로. 다른 프리뷰/결과(핵심어 다름)는 분리 유지.
 const _STOP = new Set(['the', 'and', 'for', 'with', '에서', '경기', '대한', '관련', '위해', '오늘', '선수', '그리고']);
+// 핵심어에서 제외할 일반 스포츠·수식어(2글자는 길이로 이미 제외 → 팀·도시명 자동 제외).
+const _GENERIC = new Set(['프로축구', '홈경기', '원정경기', '마지막', '다양한', '이벤트', '경기력', '현장에서', '하이라이트', '인터뷰', '풀타임', '라인업', '출전명단', '베스트', '승강', '플레이오프', '시즌', '리그', '라운드', '우승', '순위', '기록', '영상', '사진', '포토']);
 function _tokset(it) { return new Set(String(it.title || '').toLowerCase().replace(/[^가-힣a-z0-9 ]/g, ' ').split(/\s+/).filter(w => w.length >= 2 && !_STOP.has(w))); }
+function _keyset(it) { return new Set(String(it.title || '').toLowerCase().replace(/[^가-힣a-z0-9 ]/g, ' ').split(/\s+/).filter(w => w.length >= 3 && !_GENERIC.has(w))); }
 function _jac(a, b) { if (!a.size || !b.size) return 0; let inter = 0; a.forEach(x => { if (b.has(x)) inter++; }); return inter / (a.size + b.size - inter); }
+function _sharedKeys(a, b) { let n = 0; a.forEach(x => { if (b.has(x)) n++; }); return n; }
 function _simTo(tok, keptToks, thr) { return keptToks.some(kt => _jac(tok, kt) >= (thr || 0.5)); }
 function _dedupStory(list) {
-  const kept = [], toks = [];
-  for (const it of list) { const tk = _tokset(it); if (_simTo(tk, toks, 0.5)) continue; kept.push(it); toks.push(tk); }
+  const kept = [], toks = [], keys = [];
+  for (const it of list) {
+    const tk = _tokset(it), ky = _keyset(it);
+    // 자카드 유사 OR 핵심어(인물+사건 등) 2개 이상 공유 → 같은 소식으로 간주.
+    let dup = false;
+    for (let i = 0; i < kept.length; i++) { if (_jac(tk, toks[i]) >= 0.5 || _sharedKeys(ky, keys[i]) >= 2) { dup = true; break; } }
+    if (dup) continue;
+    kept.push(it); toks.push(tk); keys.push(ky);
+  }
   return kept;
 }
 // 상대팀 느슨 언급(‘광주전/광주 원정’ 등 포함) — 이미 홈팀 기사+창 안이라 느슨해도 안전.
@@ -865,6 +877,7 @@ function _mentionsLoose(it, terms) { const t = _fbNorm((it.title || '') + ' ' + 
 // Google News RSS 링크 → 실제 언론사 URL 해결. Google 정식 디코더(batchexecute): 기사 페이지에서 서명·타임스탬프 추출 → RPC로 원문 URL.
 //   실패/비해결 시 ok=false(프런트는 비클릭 처리). 1일 캐시. 비구글 URL은 그대로 통과.
 const _UAW = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36';
+const _GHDR = { 'User-Agent': _UAW, 'Cookie': 'CONSENT=YES+cb; SOCS=CAISNQgDEitib3E', 'Accept-Language': 'en-US,en;q=0.9' };   // 구글 동의 인터스티셜 우회
 const _glResolveCache = new Map();
 async function _resolveGNews(link) {
   if (!link) return { url: '', ok: false };
@@ -874,9 +887,9 @@ async function _resolveGNews(link) {
   const ck = 'gl|' + id; const c = _glResolveCache.get(ck); if (c && Date.now() - c.t < 86400000) return c.v;
   let out = { url: link, ok: false };
   try {
-    // 1) 기사 페이지에서 서명(data-n-a-sg)·타임스탬프(data-n-a-ts) 추출
+    // 1) 기사 페이지에서 서명(data-n-a-sg)·타임스탬프(data-n-a-ts) 추출 (정식 /articles/ 경로)
     const ctrl1 = new AbortController(); const to1 = setTimeout(() => ctrl1.abort(), 5000);
-    const r1 = await fetch('https://news.google.com/rss/articles/' + id, { headers: { 'User-Agent': _UAW }, signal: ctrl1.signal });
+    const r1 = await fetch('https://news.google.com/articles/' + id, { headers: _GHDR, signal: ctrl1.signal });
     const html = await r1.text(); clearTimeout(to1);
     const sg = html.match(/data-n-a-sg="([^"]+)"/); const ts = html.match(/data-n-a-ts="([^"]+)"/);
     if (sg && ts) {
@@ -885,7 +898,7 @@ async function _resolveGNews(link) {
       const freq = [[['Fbv4je', JSON.stringify(inner)]]];   // 검증된 디코더 형식(f.req=[[["Fbv4je", <inner-json>]]])
       const body = 'f.req=' + encodeURIComponent(JSON.stringify(freq));
       const ctrl2 = new AbortController(); const to2 = setTimeout(() => ctrl2.abort(), 5000);
-      const r2 = await fetch('https://news.google.com/_/DotsSplashUi/data/batchexecute', { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8', 'User-Agent': _UAW }, body, signal: ctrl2.signal });
+      const r2 = await fetch('https://news.google.com/_/DotsSplashUi/data/batchexecute', { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8', 'User-Agent': _UAW, 'Cookie': 'CONSENT=YES+cb' }, body, signal: ctrl2.signal });
       const txt = await r2.text(); clearTimeout(to2);
       // 응답 내 garturlres 뒤의 실제 URL 추출(이스케이프 복원)
       let m = txt.match(/garturlres\\?",\\?"(https?:[^"\\]+)/) || txt.match(/\\"(https?:\/\/(?!news\.google\.com)[^"\\]+)\\"/);
@@ -931,10 +944,11 @@ app.get('/api/footballnews', async (req, res) => {
       const promoH = rawH.filter(it => _mentionsLoose(it, oppTerms) && _FBCUE_RE.test((it.title || '') + ' ' + (it.desc || '')));
       const promoA = rawA.filter(it => _mentionsLoose(it, teamTerms) && _FBCUE_RE.test((it.title || '') + ' ' + (it.desc || '')));
       const thisMatch = _dedupStory(_thisMatch(_dedup([...vsCand, ...promoH, ...promoA]), matchTs)).slice(0, 6).map(map);
-      const tmToks = thisMatch.map(_tokset);
-      // 3) 팀 뉴스(성인팀, 도시 동명이의 제거) — 이번 경기 기사(유사 포함)는 제외.
-      const home = _dedupStory(_teamNews(_dedup(rawH), teamTerms)).filter(it => !_simTo(_tokset(it), tmToks, 0.5)).slice(0, 5).map(map);
-      const away = _dedupStory(_teamNews(_dedup(rawA), oppTerms)).filter(it => !_simTo(_tokset(it), tmToks, 0.5)).slice(0, 5).map(map);
+      const tmToks = thisMatch.map(_tokset); const tmKeys = thisMatch.map(_keyset);
+      const inTm = it => { const a = _tokset(it), k = _keyset(it); return tmToks.some((t, i) => _jac(a, t) >= 0.5 || _sharedKeys(k, tmKeys[i]) >= 2); };
+      // 3) 팀 뉴스(성인팀, 도시 동명이의 제거) — 이번 경기 기사(유사·같은 소식 포함)는 제외.
+      const home = _dedupStory(_teamNews(_dedup(rawH), teamTerms)).filter(it => !inTm(it)).slice(0, 5).map(map);
+      const away = _dedupStory(_teamNews(_dedup(rawA), oppTerms)).filter(it => !inTm(it)).slice(0, 5).map(map);
       if (mode === 'match') {
         await Promise.all([_resolveList(thisMatch), _resolveList(home), _resolveList(away)]);
         return res.json({ ok: true, mode, homeName: teamKo || team, awayName: oppKo || opp, h2h: linkFirst(thisMatch), thisMatch: linkFirst(thisMatch), home: linkFirst(home), away: linkFirst(away) });
@@ -989,13 +1003,36 @@ app.get('/api/footballnews', async (req, res) => {
   } catch (e) { res.json({ ok: false, mode, error: String((e && e.message) || e), direct: [], league: [], h2h: [], home: [], away: [] }); }
 });
 // 🔎 진단: 축구 뉴스 공급량 확인(원시 건수·관련성 통과·샘플). 운영에서 1회 호출해 표본 확인.
-// 🔎 진단: Google News 링크 1건 해결 결과(원문 URL·ok) 확인용(배포 후 링크 해결기 검증).
+// 🔎 진단: Google News 링크 1건 해결 — 단계별 상세(어디서 막히는지). verbose=1이면 각 단계 노출.
 app.get('/api/debug/glresolve', async (req, res) => {
   res.set('Cache-Control', 'no-store');
-  const u = String(req.query.u || '');
+  const u = String(req.query.u || ''); const verbose = String(req.query.verbose || '') === '1';
   if (!u) return res.json({ err: 'need u' });
-  try { const r = await _resolveGNews(u); res.json({ input: u, resolved: r.url, ok: r.ok }); }
-  catch (e) { res.json({ input: u, err: String((e && e.message) || e) }); }
+  try {
+    const r = await _resolveGNews(u);
+    if (!verbose) return res.json({ input: u, resolved: r.url, ok: r.ok });
+    // verbose: 단계 재현
+    const idm = u.match(/\/(?:articles|read)\/([^?\/]+)/); const id = idm ? idm[1] : '';
+    const out = { input: u, id, steps: {} };
+    if (id) {
+      try {
+        const r1 = await fetch('https://news.google.com/articles/' + id, { headers: _GHDR });
+        const html = await r1.text();
+        const sg = html.match(/data-n-a-sg="([^"]+)"/); const ts = html.match(/data-n-a-ts="([^"]+)"/);
+        const dp = html.match(/data-p="([^"]{0,120})/);
+        out.steps.page = { status: r1.status, htmlLen: html.length, sgFound: !!sg, tsFound: !!ts, sg: sg ? sg[1].slice(0, 12) + '…' : null, ts: ts ? ts[1] : null, dataPPrefix: dp ? dp[1] : null, htmlHead: html.slice(0, 200) };
+        if (sg && ts) {
+          const inner = ['garturlreq', [['X', 'X', ['X', 'X'], null, null, 1, 1, 'US:en', null, 1, null, null, null, null, null, 0, 1], 'X', 'X', 1, [1, 1, 1], 1, 1, null, 0, 0, null, 0], id, Number(ts[1]), sg[1]];
+          const body = 'f.req=' + encodeURIComponent(JSON.stringify([[['Fbv4je', JSON.stringify(inner)]]]));
+          const r2 = await fetch('https://news.google.com/_/DotsSplashUi/data/batchexecute', { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8', 'User-Agent': _UAW, 'Cookie': 'CONSENT=YES+cb' }, body });
+          const txt = await r2.text();
+          out.steps.rpc = { status: r2.status, len: txt.length, snippet: txt.slice(0, 400) };
+        }
+      } catch (e) { out.steps.err = String((e && e.message) || e); }
+    }
+    out.resolved = r.url; out.ok = r.ok;
+    res.json(out);
+  } catch (e) { res.json({ input: u, err: String((e && e.message) || e) }); }
 });
 app.get('/api/debug/fbnews', async (req, res) => {
   res.set('Cache-Control', 'no-store');
