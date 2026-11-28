@@ -29,7 +29,7 @@ const app = express();
 const server = http.createServer(app);
 
 const PORT = process.env.PORT || 3000;
-const APP_VERSION = 'v648';
+const APP_VERSION = 'v649';
 
 // ============================================================
 //  📏 성능 계측(instrumentation) — 엔드포인트 지연·캐시·공급사·WS·이벤트루프
@@ -5956,6 +5956,54 @@ app.get('/api/debug/bskmatch', async (req, res) => {
       }
     } else { out.hint = 'No match found. Check team names or pass &mid=tsXXXX.'; }
   } catch (e) { out.error = String(e.message || e); }
+  res.set('Content-Type', 'application/json; charset=utf-8');
+  res.send(JSON.stringify(out, null, 2));
+});
+// 🔧 디버그: 농구 선수/팀의 '시즌 통계 + 공식 선수단' 원본 덤프(운영에서만 TheSports 접속 가능).
+//   사용법: /api/debug/bskstats?team=Phoenix&player=Booker   (전체 복사해서 전달)
+//   - 팀명으로 TheSports 팀 ID를 복원하고, 그 팀의 최근 경기에서 대회·시즌 ID를 얻어 시즌통계/선수단/선수상세 원본을 그대로 담는다.
+//   - 값이 비거나 권한 거부면 그 응답(code/msg)도 그대로 남긴다. 공식 선수단(team/squad)과 직전 경기 엔트리는 구분해 표기. 비밀키 미노출.
+app.get('/api/debug/bskstats', async (req, res) => {
+  res.set('Cache-Control', 'no-store');
+  const teamQ = String(req.query.team || '').trim();
+  const playerQ = String(req.query.player || '').trim().toLowerCase();
+  const today = new Date().toISOString().slice(0, 10);
+  const out = { note: 'TheSports basketball season-stats + squad raw dump. Copy ALL and send back. (키/토큰 미포함)', query: { team: teamQ, player: playerQ || null }, resolved: {}, raw: {} };
+  const norm = s => String(s || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+  try {
+    // 1) 팀 TheSports ID 복원(diary 실제 team 목록에서 단일 후보)
+    const teamId = teamQ ? await tsResolveTeamIdByName('basketball', teamQ, today).catch(() => null) : null;
+    out.resolved.teamId = teamId || null;
+    // 2) 그 팀의 최근 경기에서 compId·seasonId·playerId(박스에서 이름 매칭) 확보
+    let compId = null, seasonId = null, playerId = null, playerName = null, matchId = null, squadSrc = null;
+    if (teamId) {
+      const ymdOf = i => new Date(Date.parse(today + 'T12:00:00Z') - i * 864e5).toISOString().slice(0, 10).replace(/-/g, '');
+      let found = null;
+      for (let s = 0; s < 40 && !found; s += 10) {
+        const days = []; for (let i = s; i < Math.min(s + 10, 40); i++) days.push(ymdOf(i));
+        const ds = await Promise.all(days.map(ymd => tsFetch('/basketball/match/diary', { date: ymd }, 3600000, 8000).catch(() => null)));
+        ds.forEach(d => { if (found || !d) return; (d.results || []).forEach(x => { if (found) return; if (x && (x.home_team_id === teamId || x.away_team_id === teamId)) found = x; }); });
+      }
+      if (found) { matchId = found.id; compId = found.competition_id || null; seasonId = found.season_id || null; }
+      // 박스에서 선수 ID 매칭(원본 lineup_live)
+      if (matchId && playerQ) {
+        const lu = await tsBasketballLineup(matchId).catch(() => null);
+        const all = lu ? [].concat(lu.home || [], lu.away || []) : [];
+        const hit = all.find(p => p && norm(p.name).includes(norm(playerQ)));
+        if (hit) { playerId = hit.id; playerName = hit.name; }
+      }
+    }
+    out.resolved = { teamId: teamId || null, compId, seasonId, matchId, playerId: playerId || null, playerName: playerName || null };
+    // 3) 원본 덤프(각각 code/msg까지 그대로)
+    const dump = (name, path, params) => tsFetch(path, params, 5e3, 9000).then(r => { out.raw[name] = { path, params, response: r }; }).catch(e => { out.raw[name] = { path, params, err: String((e && e.message) || e) }; });
+    const jobs = [];
+    if (seasonId) { jobs.push(dump('season.player_stats', '/basketball/season/player_stats/list', { uuid: seasonId })); jobs.push(dump('season.team_stats', '/basketball/season/team_stats/list', { uuid: seasonId })); jobs.push(dump('standing.detail', '/basketball/standing/detail', { uuid: seasonId })); }
+    if (teamId) { jobs.push(dump('team.squad(공식)', '/basketball/team/squad/list', { uuid: teamId })); jobs.push(dump('team.additional', '/basketball/team/additional/list', { uuid: teamId })); jobs.push(dump('team.list', '/basketball/team/list', { uuid: teamId })); }
+    if (teamId && seasonId) jobs.push(dump('player.list(byteam+season)', '/basketball/player/list', { team_id: teamId, season_id: seasonId }));
+    if (playerId) { jobs.push(dump('player.detail(uuid)', '/basketball/player/list', { uuid: playerId })); jobs.push(dump('player.additional', '/basketball/player/additional/list', { uuid: playerId })); }
+    await Promise.all(jobs);
+    out.hint = (!teamId) ? '팀명을 화면에 보이는 이름으로. 예: Phoenix / Philadelphia / Suwon KT.' : (!playerId && playerQ ? '선수 ID 미매칭 — 최근 경기 박스에 해당 선수가 없거나 이름 표기가 다름.' : '완료. raw 전체를 복사해 전달.');
+  } catch (e) { out.error = String((e && e.message) || e); }
   res.set('Content-Type', 'application/json; charset=utf-8');
   res.send(JSON.stringify(out, null, 2));
 });
