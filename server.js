@@ -29,7 +29,7 @@ const app = express();
 const server = http.createServer(app);
 
 const PORT = process.env.PORT || 3000;
-const APP_VERSION = 'v659';
+const APP_VERSION = 'v660';
 
 // ============================================================
 //  📏 성능 계측(instrumentation) — 엔드포인트 지연·캐시·공급사·WS·이벤트루프
@@ -827,9 +827,14 @@ function _relevant(it, termSets) {
 }
 function _dedup(list) { const seen = new Set(); const out = []; for (const it of list) { const k = _fbNorm(it.title).slice(0, 48); if (!k || seen.has(k)) continue; seen.add(k); out.push(it); } return out; }
 // 성인 1군 경기와 무관한 기사 제외: 유스·하위·여자팀·리저브.
-const _EXCL_RE = /유스|유소년|청소년|\bU-?1[0-9]\b|\bU-?2[0-3]\b|고교|고등부|학원축구|챌린지리그|주니어|리저브|reserve|youth|여자|여성|우먼|women|wk리그|we리그|wk-?league/i;
+const _EXCL_RE = /유스|유소년|청소년|\bU-?1[0-9]\b|\bU-?2[0-3]\b|고교|고등부|학원축구|챌린지리그|주니어|리저브|reserve|youth|여자|여성|우먼|women|womens|wk리그|we리그|위리그|we ?league|wk-?league|여자부|레지나|regina|벨레자|beleza|마이나비|mynavi|이나크|inac|나데시코|nadeshiko/i;
 // 축구 맥락 단서(팀 뉴스에서 '지명·도시 동명이의' 노이즈 제거용). 하나라도 있으면 축구 기사로 인정.
 const _FBCUE_RE = /축구|k리그|k-?league|j리그|j-?league|감독|구단|선수단|이적|원정|홈경기|승점|리그컵|르방컵|acl|챔피언스리그|우승|프리뷰|라인업|선발 명단|골키퍼|미드필더|수비수|공격수|도움|해트트릭|득점|실점|은퇴식|경기력|맞대결|프로축구|fc\b|united|시티즌|스틸러스|블루윙즈|상무|하나은행|전북 현대|레즈|엘로|선수가|선수는/i;
+// 프리뷰/맞대결 예고 단서: 제목·요약에 상대팀명이 없어도(본문에만 명시) 이번 경기 기사로 승격 판정하는 데 사용.
+const _PREVIEW_RE = /프리뷰|미리보기|프리 ?매치|맞대결|관전 ?포인트|예상 ?(라인업|선발|스코어)|선발 ?예상|격돌|대격돌|최종전|홈 ?최종|킥오프|선취|연승 ?도전|승격 ?도전|승리 ?도전|반등|노린다|겨룬다|격돌한다|원정 ?길|원정 ?나선|홈에서 ?맞|를 ?상대로|와 ?격돌|과 ?격돌/i;
+// 경기일 창 안 여부(프리뷰 승격용 — 본창보다 약간 타이트: −6 ~ +2일).
+function _inMatchWin(it, matchTs, lo, hi) { if (!matchTs || !it.ts) return false; const d = (it.ts - matchTs) / 86400000; return d >= (lo == null ? -6 : lo) && d <= (hi == null ? 2 : hi); }
+function _lgHit(txt, lgTerms) { const t = _fbNorm(txt); return (lgTerms || []).some(x => { const n = _fbNorm(x); return n.length >= 2 && t.includes(n); }); }
 // 이번 경기 직접 기사 판정: 제외군 + 게시일이 경기일 창(−8일~+3일) 안.
 function _thisMatch(items, matchTs) {
   const DAY = 86400000;
@@ -874,18 +879,28 @@ function _dedupStory(list) {
 }
 // 상대팀 느슨 언급(‘광주전/광주 원정’ 등 포함) — 이미 홈팀 기사+창 안이라 느슨해도 안전.
 function _mentionsLoose(it, terms) { const t = _fbNorm((it.title || '') + ' ' + (it.desc || '')); return terms.some(x => { const n = _fbNorm(x); return n.length >= 2 && t.includes(n); }); }
-// Google News RSS 링크 → 실제 언론사 URL 해결. Google 정식 디코더(batchexecute): 기사 페이지에서 서명·타임스탬프 추출 → RPC로 원문 URL.
-//   실패/비해결 시 ok=false(프런트는 비클릭 처리). 1일 캐시. 비구글 URL은 그대로 통과.
+// Google News RSS 링크 → 실제 언론사 URL 해결.
+//   원인 확정(v660): 서버(Render) IP는 Google이 HTTP 429로 차단 → 기사 페이지 HTML 미수신 → 서명(data-n-a-sg) 없음 → batchexecute 디코드 불가.
+//   그러나 사용자 브라우저/폰에서 Google News URL은 클라이언트에서 발행사로 정상 리다이렉트됨(스포츠경향 등 검증 완료).
+//   → 전략: 서버 디코드는 '베스트에포트'(200 수신 시 발행사 직링크 반환). 실패하면 Google News URL 자체를 **클릭 가능(ok:true)**으로 반환(사용자 기기에서 원문 도달).
+//   비구글 URL(ESPN 등)은 그대로 통과. 1일 캐시.
 const _UAW = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36';
 const _GHDR = { 'User-Agent': _UAW, 'Cookie': 'CONSENT=YES+cb; SOCS=CAISNQgDEitib3E', 'Accept-Language': 'en-US,en;q=0.9' };   // 구글 동의 인터스티셜 우회
 const _glResolveCache = new Map();
+// Google News 기사 URL을 사용자 브라우저가 발행사로 리다이렉트할 수 있는 정식 형태로 정규화(한국어 로케일 부여).
+function _gnewsCanon(id, origLink) {
+  const path = /\/read\//.test(origLink || '') ? 'read' : 'rss/articles';
+  return 'https://news.google.com/' + path + '/' + id + '?oc=5&hl=ko&gl=KR&ceid=KR:ko';
+}
 async function _resolveGNews(link) {
   if (!link) return { url: '', ok: false };
   if (!/news\.google\.com\/(rss\/)?(articles|read)/.test(link)) return { url: link, ok: /^https?:/.test(link) };
   const idm = link.match(/\/(?:articles|read)\/([^?\/]+)/); if (!idm) return { url: link, ok: false };
   const id = idm[1];
   const ck = 'gl|' + id; const c = _glResolveCache.get(ck); if (c && Date.now() - c.t < 86400000) return c.v;
-  let out = { url: link, ok: false };
+  // 폴백: 디코드 실패해도 Google News URL은 사용자 기기에서 발행사로 리다이렉트되므로 클릭 가능하게 둔다.
+  const gurl = _gnewsCanon(id, link);
+  let out = { url: gurl, ok: true, via: 'gnews' };
   try {
     // 1) 기사 페이지에서 서명(data-n-a-sg)·타임스탬프(data-n-a-ts) 추출 (정식 /articles/ 경로)
     const ctrl1 = new AbortController(); const to1 = setTimeout(() => ctrl1.abort(), 5000);
@@ -904,9 +919,9 @@ async function _resolveGNews(link) {
       let m = txt.match(/garturlres\\?",\\?"(https?:[^"\\]+)/) || txt.match(/\\"(https?:\/\/(?!news\.google\.com)[^"\\]+)\\"/);
       let url = m ? m[1] : '';
       url = url.replace(/\\u003d/gi, '=').replace(/\\u0026/gi, '&').replace(/\\u003f/gi, '?').replace(/\\u0025/gi, '%').replace(/\\\//g, '/');
-      if (url && /^https?:/.test(url) && !/news\.google\.com/.test(url)) out = { url, ok: true };
+      if (url && /^https?:/.test(url) && !/news\.google\.com/.test(url)) out = { url, ok: true, via: 'publisher' };
     }
-  } catch (e) { out = { url: link, ok: false }; }
+  } catch (e) { /* 네트워크 실패 → Google URL 폴백 유지(ok:true) */ }
   _glResolveCache.set(ck, { t: Date.now(), v: out });
   return out;
 }
@@ -940,9 +955,17 @@ app.get('/api/footballnews', async (req, res) => {
         _gnewsSearch('(' + _orPhrase(teamTerms) + ') (' + _orPhrase(oppTerms) + ')'),
         _gnewsSearch(_orPhrase(teamTerms)), _gnewsSearch(_orPhrase(oppTerms))]);
       // 2) 이번 경기 직접 기사 = 맞대결 결과 + (팀 기사 중 상대팀도 언급 + 축구단서). 유스·여자·과거 제외 + 경기일 창 + 스토리 중복 묶음.
+      //   + 프리뷰 승격: 상대팀명이 제목·요약에 없어도(본문에만 명시) 프리뷰 단서 + 경기일 창 + (대회명 언급 or 상대 느슨 언급)이면 이번 경기로 승격.
+      const lgPromo = Array.from(new Set([leagueKo, league, FBNEWS_LEAGUE_KO[_fbNorm(league)] || '', FBNEWS_LEAGUE_KO[_fbNorm(leagueKo)] || ''].filter(Boolean)));
+      const _promote = (it, oppT) => {
+        const tx = (it.title || '') + ' ' + (it.desc || '');
+        if (!_FBCUE_RE.test(tx)) return false;
+        if (_mentionsLoose(it, oppT)) return true;                                   // 상대팀 명시(종전 로직)
+        return _PREVIEW_RE.test(tx) && _inMatchWin(it, matchTs) && (_lgHit(tx, lgPromo) || _mentionsLoose(it, oppT));   // 프리뷰+창+대회명(본문-only 경기 명시 보완)
+      };
       const vsCand = rawVs.filter(it => _relevant(it, [teamTerms]) || _relevant(it, [oppTerms]));
-      const promoH = rawH.filter(it => _mentionsLoose(it, oppTerms) && _FBCUE_RE.test((it.title || '') + ' ' + (it.desc || '')));
-      const promoA = rawA.filter(it => _mentionsLoose(it, teamTerms) && _FBCUE_RE.test((it.title || '') + ' ' + (it.desc || '')));
+      const promoH = rawH.filter(it => _promote(it, oppTerms));
+      const promoA = rawA.filter(it => _promote(it, teamTerms));
       const thisMatch = _dedupStory(_thisMatch(_dedup([...vsCand, ...promoH, ...promoA]), matchTs)).slice(0, 6).map(map);
       const tmToks = thisMatch.map(_tokset); const tmKeys = thisMatch.map(_keyset);
       const inTm = it => { const a = _tokset(it), k = _keyset(it); return tmToks.some((t, i) => _jac(a, t) >= 0.5 || _sharedKeys(k, tmKeys[i]) >= 2); };
@@ -961,7 +984,7 @@ app.get('/api/footballnews', async (req, res) => {
       leagueItems = leagueItems.filter(x => { const tk = _tokset(x); if (_simTo(tk, seenToks, 0.5)) return false; seenToks.push(tk); return true; });
       let general = [];
       const total = thisMatch.length + home.length + away.length + leagueItems.length;
-      if (total < 6) {
+      if (total === 0) {   // 이번경기·팀·리그 한국 기사가 전혀 없을 때만 ESPN 보조(영문 혼입 방지).
         try { const gr = await fetch(NEWS_FEEDS.soccer, { headers: { 'User-Agent': 'Mozilla/5.0 (LiveUp News)' } }); const gi = parseRss(await gr.text()).slice(0, 8).map(it => ({ title: it.title, source: 'ESPN', link: it.link, ts: it.ts, date: it.ts ? new Date(it.ts).toISOString() : '', linkOk: true })); general = gi.filter(x => { const k = _fbNorm(x.title).slice(0, 48); if (!k || seenO.has(k)) return false; seenO.add(k); return true; }).slice(0, 5); } catch (e) { general = []; }
       }
       await Promise.all([_resolveList(thisMatch), _resolveList(home), _resolveList(away), _resolveList(leagueItems)]);
@@ -977,7 +1000,7 @@ app.get('/api/footballnews', async (req, res) => {
       const BLOCK = /족구|풋살|당구|e스?포츠|배구리그|농구리그/i;
       const leagueItems = _dedupStory(rawL.filter(it => { const tx = (it.title || '') + ' ' + (it.desc || ''); return _relevant(it, [lgTerms]) && !BLOCK.test(tx) && !_EXCL_RE.test(tx); })).slice(0, 10).map(map);
       let general = [];
-      if (leagueItems.length < 5) {
+      if (leagueItems.length === 0) {   // 한국 리그 기사가 전혀 없을 때만 ESPN '전체 축구'로 보조(영문 혼입 방지). 1건이라도 있으면 한국 뉴스만.
         try {
           const gr = await fetch(NEWS_FEEDS.soccer, { headers: { 'User-Agent': 'Mozilla/5.0 (LiveUp News)' } });
           const gi = parseRss(await gr.text()).slice(0, 10).map(it => ({ title: it.title, source: 'ESPN', link: it.link, ts: it.ts, date: it.ts ? new Date(it.ts).toISOString() : '' }));
