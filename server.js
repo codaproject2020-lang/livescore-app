@@ -29,7 +29,7 @@ const app = express();
 const server = http.createServer(app);
 
 const PORT = process.env.PORT || 3000;
-const APP_VERSION = 'v647';
+const APP_VERSION = 'v648';
 
 // ============================================================
 //  📏 성능 계측(instrumentation) — 엔드포인트 지연·캐시·공급사·WS·이벤트루프
@@ -3759,6 +3759,64 @@ app.get('/api/basketball/teamgames', async (req, res) => {
         hKo: (KL.team && KL.team[m.homeId]) || '', aKo: (KL.team && KL.team[m.awayId]) || '',
         hLogo: lg(m.homeId), aLogo: lg(m.awayId), hs: m.hs, as: m.as, win: m.win, isHome: m.isHome })) });
   } catch (e) { res.json({ found: false, error: String((e && e.message) || e) }); }
+});
+// 🏀 농구 선수 '최근 5경기' — 팀 최근 종료 경기들의 박스(lineup_live/스냅샷)에서 해당 선수 ID의 실제 기록만 모은다.
+//   추정 금지: 확인된 출전 기록만. 라이브 때 받은 박스가 남아있는 경기만 집계되므로 '확보한 경기만 최대 5건'.
+const _bskPlayerRecentCache = new Map();
+app.get('/api/basketball/playerrecent', async (req, res) => {
+  res.set('Cache-Control', 'no-store');
+  const pid = String(req.query.pid || '');
+  if (!pid) return res.json({ found: false, games: [] });
+  const nameQ = String(req.query.name || '').trim();   // 선수 소속팀명(팀 ID 복원용)
+  let tid = String(req.query.tid || '');
+  const baseDate = /^\d{4}-\d{2}-\d{2}$/.test(String(req.query.date || '')) ? req.query.date : new Date().toISOString().slice(0, 10);
+  const ck = 'bpr|' + pid + '|' + tid + '|' + baseDate;
+  const hit = _bskPlayerRecentCache.get(ck); if (hit && Date.now() - hit.t < 900e3) return res.json(hit.v);
+  const now = Date.now();
+  const sumSc = arr => (arr || []).reduce((a, b) => a + (+b || 0), 0);
+  try {
+    if ((!tid || /^\d+$/.test(tid)) && nameQ) { const rid = await tsResolveTeamIdByName('basketball', nameQ, baseDate).catch(() => null); if (rid) tid = rid; }
+    // 팀의 최근 종료 경기 수집(최근 70일, 최대 12경기 후보)
+    const ymdOf = i => new Date(Date.parse(baseDate + 'T12:00:00Z') - i * 864e5).toISOString().slice(0, 10).replace(/-/g, '');
+    const teamMap = {}; const cand = []; const seen = new Set();
+    for (let start = 0; start < 70 && cand.length < 12; start += 10) {
+      const days = []; for (let i = start; i < Math.min(start + 10, 70); i++) days.push(ymdOf(i));
+      const ds = await Promise.all(days.map(ymd => tsFetch('/basketball/match/diary', { date: ymd }, 3600000, 8000).catch(() => null)));
+      ds.forEach(d => {
+        if (!d) return;
+        ((d.results_extra || {}).team || []).forEach(t => { if (t && t.id) teamMap[t.id] = { name: t.name || '', logo: t.logo || '' }; });
+        (d.results || []).forEach(x => {
+          if (!x || (tid && x.home_team_id !== tid && x.away_team_id !== tid) || seen.has(x.id) || cand.length >= 12) return;
+          const t = x.match_time ? x.match_time * 1000 : 0;
+          const played = (x.status_id === 10 || x.status_id === 12 || x.status_id === 100) || (t && t < now - 3 * 3600e3);
+          const hs = sumSc(x.home_scores), as = sumSc(x.away_scores);
+          if (!played || (hs + as) === 0) return;
+          seen.add(x.id); cand.push({ id: x.id, date: t, homeId: x.home_team_id, awayId: x.away_team_id, compId: x.competition_id || '', hs, as });
+        });
+      });
+    }
+    cand.sort((a, b) => b.date - a.date);
+    const nm = id => (teamMap[id] && teamMap[id].name) || '';
+    const lg = id => (teamMap[id] && teamMap[id].logo) || '';
+    const games = [];
+    for (const m of cand) {
+      if (games.length >= 5) break;
+      let lu = await tsBasketballLineup(m.id).catch(() => null);
+      if (!lu) { const snap = await _snapGet('box|' + m.id).catch(() => null); if (snap && snap.v && (snap.v.home || snap.v.away)) lu = snap.v; }
+      if (!lu) continue;
+      const row = [].concat(lu.home || [], lu.away || []).find(p => p && String(p.id) === pid);
+      if (!row || (row.min === 0 && row.pts === 0 && row.reb === 0 && row.ast === 0 && row.starter !== true)) continue;   // 미출전/빈 기록 제외(실제 0 선발은 포함)
+      const isHome = String(m.homeId) === String(tid) || (lu.home || []).some(p => String(p.id) === pid);
+      const oppId = isHome ? m.awayId : m.homeId;
+      const myPts = isHome ? m.hs : m.as, opPts = isHome ? m.as : m.hs;
+      games.push({ id: m.id, mid: m.id, date: m.date, league: '', oppId, oppName: nm(oppId), oppLogo: lg(oppId),
+        homeId: m.homeId, awayId: m.awayId, hs: m.hs, as: m.as, isHome, win: myPts > opPts,
+        min: row.min, pts: row.pts, reb: row.reb, ast: row.ast });
+    }
+    const v = { found: games.length > 0, pid, tid, games };
+    _bskPlayerRecentCache.set(ck, { t: Date.now(), v });
+    res.json(v);
+  } catch (e) { res.json({ found: false, games: [], error: String((e && e.message) || e) }); }
 });
 // 🏀 농구 순위표 — TheSports 순위 엔드포인트 미인가 → diary(날짜별)에서 '해당 대회' 경기를 모아 승패 집계.
 //   대회 ID 기준이라 '엉뚱한 리그' 섞임 없음. 대회별 30분 캐시.
