@@ -3586,21 +3586,34 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
       box.querySelectorAll(".ovj").forEach(function(b){ b.onclick=function(){ _dt.tab=b.dataset.go; renderDetail(); }; });
     }).catch(function(){ if($("#ovEvents"))$("#ovEvents").innerHTML=''; });
   }
-  // 📰 개요 안 '뉴스' 요약(최근경기 다음) — 종목 뉴스 상위 몇 건.
+  // 📰 개요 안 '뉴스' — 축구는 경기 맞춤(이번 경기 직접 기사 → 팀 → 리그 → 전체 축구). 타 종목은 종목 피드.
   function loadOverviewNews(g){
     var box=$("#ovNews"); if(!box)return; var tk=_dtTok;
-    var cat=tmNewsCat("football");
-    fetch("/api/news?cat="+encodeURIComponent(cat)).then(function(r){return r.json()}).then(function(j){
+    var sp=(_dt&&_dt.sport)||"football";
+    if(sp!=="football"){ // 타 종목: 기존 종목 뉴스 피드
+      var cat=tmNewsCat(sp);
+      fetch("/api/news?cat="+encodeURIComponent(cat)).then(function(r){return r.json()}).then(function(j){
+        if(tk!==_dtTok||!$("#ovNews"))return;
+        var items=(j&&(j.items||j.news||j.articles))||(Array.isArray(j)?j:[]); if(!items.length){ box.innerHTML=''; return; }
+        var srcTxt=tl({en:"Read original",ko:"원문 보기",ja:"原文を見る",zh:"查看原文",es:"Ver original",hi:"मूल देखें",vi:"Xem gốc",th:"อ่านต้นฉบับ",ru:"Оригинал",de:"Original lesen",fr:"Lire l'original",it:"Leggi originale"});
+        box.innerHTML='<div class="dt-sec-t" style="margin-top:18px">📰 '+t("news")+'</div>'+items.slice(0,5).map(function(n){ var u=n.url||n.link||"#"; var ti=n.title||n.headline||""; var img=n.image||n.thumbnail||""; var when=n.pubDate||n.published||n.date||""; if(!ti)return ''; return '<a class="sv-save" href="'+esc(u)+'" target="_blank" rel="noopener">'+(img?'<img src="'+esc(img)+'" onerror="this.style.display=\'none\'">':'<div style="width:92px;flex:0 0 auto;background:var(--soft);display:flex;align-items:center;justify-content:center;font-size:24px">📰</div>')+'<div class="sc"><div class="tt">'+esc(ti)+'</div><div class="mt">'+srcTxt+' <span style="font-size:11px">↗</span> <span style="color:var(--muted);font-weight:600">· ESPN'+(when?' · '+esc(String(when).slice(0,16)):'')+'</span></div></div></a>'; }).join("");
+      }).catch(function(){ if($("#ovNews"))$("#ovNews").innerHTML=''; });
+      return;
+    }
+    // 축구: 경기 맞춤 뉴스(overview 모드) — 섹션별 구분. 미해결 링크는 fbNewsCard가 비클릭 처리.
+    var hEn=g.home||"",aEn=g.away||"",hKo=tnTeam(g.home||""),aKo=tnTeam(g.away||"");
+    var lg=g.league||"",lgKo=(g.league?tnLeague(g.league):""),mdate=(g.date?String(g.date).slice(0,10):"");
+    var qs="mode=overview&date="+encodeURIComponent(mdate)+"&team="+encodeURIComponent(hEn)+"&teamKo="+encodeURIComponent(hKo)+"&opp="+encodeURIComponent(aEn)+"&oppKo="+encodeURIComponent(aKo)+"&league="+encodeURIComponent(lg)+"&leagueKo="+encodeURIComponent(lgKo);
+    fetch("/api/footballnews?"+qs).then(function(r){return r.json()}).then(function(j){
       if(tk!==_dtTok||!$("#ovNews"))return;
-      var items=(j&&(j.items||j.news||j.articles))||(Array.isArray(j)?j:[]);
-      if(!items.length){ box.innerHTML=''; return; }
-      var show=items.slice(0,5);
-      // AiScore처럼 썸네일 카드(이미지 + 제목 + 원문 보기) — 팀 뉴스 카드와 동일 스타일(.sv-save) 재사용.
-      var srcTxt=tl({en:"Read original",ko:"원문 보기",ja:"原文を見る",zh:"查看原文",es:"Ver original",hi:"मूल देखें",vi:"Xem gốc",th:"อ่านต้นฉบับ",ru:"Оригинал",de:"Original lesen",fr:"Lire l'original",it:"Leggi originale"});
-      var h='<div class="dt-sec-t" style="margin-top:18px">📰 '+t("news")+'</div>'+
-        show.map(function(n){ var u=n.url||n.link||"#"; var ti=n.title||n.headline||""; var img=n.image||n.thumbnail||""; var when=n.pubDate||n.published||n.date||""; if(!ti)return '';
-          return '<a class="sv-save" href="'+esc(u)+'" target="_blank" rel="noopener">'+(img?'<img src="'+esc(img)+'" onerror="this.style.display=\'none\'">':'<div style="width:92px;flex:0 0 auto;background:var(--soft);display:flex;align-items:center;justify-content:center;font-size:24px">📰</div>')+'<div class="sc"><div class="tt">'+esc(ti)+'</div><div class="mt">'+srcTxt+' <span style="font-size:11px">↗</span> <span style="color:var(--muted);font-weight:600">· ESPN'+(when?' · '+esc(String(when).slice(0,16)):'')+'</span></div></div></a>'; }).join("");
-      box.innerHTML=h;
+      if(!j||!j.ok){ box.innerHTML=''; return; }   // 조회 실패: 비움(정상 0건과 구분 — ok=false)
+      var h='';
+      if(j.thisMatch&&j.thisMatch.length){ h+=fbNewsSecT("📰",tl({en:"This match",ko:"이번 경기 직접 기사",ja:"この試合の記事",zh:"本场比赛报道",es:"Este partido",hi:"यह मैच",vi:"Trận này",th:"นัดนี้",ru:"Этот матч",de:"Dieses Spiel",fr:"Ce match",it:"Questa partita"}))+j.thisMatch.map(fbNewsCard).join(""); }
+      if(j.home&&j.home.length){ h+=fbNewsSecT("🏠",esc(hKo||hEn)+" "+t("news"))+j.home.map(fbNewsCard).join(""); }
+      if(j.away&&j.away.length){ h+=fbNewsSecT("🚌",esc(aKo||aEn)+" "+t("news"))+j.away.map(fbNewsCard).join(""); }
+      if(j.league&&j.league.length){ h+=fbNewsSecT("🗞️",(j.leagueName?esc(j.leagueName)+" ":"")+tl({en:"league news",ko:"리그 뉴스",ja:"リーグニュース",zh:"联赛新闻",es:"noticias de liga",hi:"लीग समाचार",vi:"tin giải đấu",th:"ข่าวลีก",ru:"новости лиги",de:"Liga-News",fr:"actus de la ligue",it:"notizie lega"}))+j.league.map(fbNewsCard).join(""); }
+      if(j.general&&j.general.length){ h+=fbNewsSecT("🌐",tl({en:"All football news",ko:"전체 축구 뉴스",ja:"サッカー全般ニュース",zh:"足球综合新闻",es:"Noticias de fútbol",hi:"संपूर्ण फुटबॉल समाचार",vi:"Tin bóng đá chung",th:"ข่าวฟุตบอลทั่วไป",ru:"Футбольные новости",de:"Fußball-News",fr:"Actus football",it:"Notizie calcio"}))+j.general.map(fbNewsCard).join(""); }
+      box.innerHTML=h;   // 전부 0건이면 빈 상태(안내 없음)
     }).catch(function(){ if($("#ovNews"))$("#ovNews").innerHTML=''; });
   }
   function renderOverview(g,sport){
@@ -3658,7 +3671,7 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
     }
     // 최근 전적 / 상대전적 (축구=API-Sports 팀ID 기반) → 뉴스 → 순위 링크
     h+='<div id="ovForm"></div>';
-    if(sport==="football"&&stateOf(g)!=="scheduled") h+='<div id="ovNews"></div>';   // 📰 뉴스(최근경기 다음)
+    if(sport==="football") h+='<div id="ovNews"></div>';   // 📰 경기 맞춤 뉴스(예정 경기=프리뷰 포함, 최근경기 다음)
     h+='<div id="ovRankSec"><div class="dt-sec-t" style="margin-top:20px">🏆 '+t("leagueRank")+'</div><div id="ovRankTbl"><p style="color:#8a93a3;font-size:13px">'+t("loading")+'</p></div></div>';
     dtBody(h);
     try{ renderHlCard(); }catch(_){}   // 🎬 개요 최상단 하이라이트 렌더(있을 때만)
@@ -5251,9 +5264,13 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
   function fbNewsCard(it){
     var d=it.date?esc(String(it.date).slice(0,10)):"";
     var meta=[it.source?esc(it.source):"",d].filter(Boolean).join(" · ");
-    return '<a href="'+esc(it.link||"#")+'" target="_blank" rel="noopener noreferrer" style="display:block;padding:10px 2px;border-bottom:1px solid var(--line,#eee);text-decoration:none;color:inherit">'+
-      '<div style="font-size:13px;font-weight:600;line-height:1.35">'+esc(it.title||"")+'</div>'+
-      (meta?'<div style="font-size:11px;color:var(--muted,#8a93a3);margin-top:3px">'+meta+'</div>':"")+'</a>';
+    // 원문 URL 미해결(linkOk===false)이면 클릭 링크로 표시하지 않음(작동하는 '원문 보기'처럼 보이지 않게).
+    var okLink=(it.linkOk!==false)&&it.link&&/^https?:/.test(it.link);
+    var ind=okLink?' <span style="font-size:11px">↗</span>':' <span style="color:#b00;font-weight:600">· '+tl({en:"link unavailable",ko:"원문 링크 확인 불가",ja:"リンク未確認",zh:"链接不可用",es:"enlace no disponible",hi:"लिंक अनुपलब्ध",vi:"không có liên kết",th:"ไม่มีลิงก์",ru:"ссылка недоступна",de:"Link nicht verfügbar",fr:"lien indisponible",it:"link non disponibile"})+'</span>';
+    var inner='<div style="font-size:13px;font-weight:600;line-height:1.35">'+esc(it.title||"")+'</div>'+
+      '<div style="font-size:11px;color:var(--muted,#8a93a3);margin-top:3px">'+(meta||"")+ind+'</div>';
+    if(okLink) return '<a href="'+esc(it.link)+'" target="_blank" rel="noopener noreferrer" style="display:block;padding:10px 2px;border-bottom:1px solid var(--line,#eee);text-decoration:none;color:inherit">'+inner+'</a>';
+    return '<div style="display:block;padding:10px 2px;border-bottom:1px solid var(--line,#eee);color:inherit">'+inner+'</div>';
   }
   function fbNewsSecT(emoji,label){ return '<div class="dt-sec-t" style="margin-top:16px">'+emoji+' '+label+'</div>'; }
   // 팀 화면 뉴스: 직접 기사 → 부족하면 '리그 뉴스'. 없으면 섹션 자체를 만들지 않음(빈 안내 없음).
@@ -5272,7 +5289,8 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
     if(!container||!g)return;
     var hEn=g.home||"", aEn=g.away||"", hKo=tnTeam(g.home||""), aKo=tnTeam(g.away||"");
     var lg=g.league||"", lgKo=(g.league?tnLeague(g.league):"");
-    var qs="mode=match&team="+encodeURIComponent(hEn)+"&teamKo="+encodeURIComponent(hKo)+"&opp="+encodeURIComponent(aEn)+"&oppKo="+encodeURIComponent(aKo)+"&league="+encodeURIComponent(lg)+"&leagueKo="+encodeURIComponent(lgKo);
+    var mdate=(g.date?String(g.date).slice(0,10):"");
+    var qs="mode=match&date="+encodeURIComponent(mdate)+"&team="+encodeURIComponent(hEn)+"&teamKo="+encodeURIComponent(hKo)+"&opp="+encodeURIComponent(aEn)+"&oppKo="+encodeURIComponent(aKo)+"&league="+encodeURIComponent(lg)+"&leagueKo="+encodeURIComponent(lgKo);
     fetch("/api/footballnews?"+qs).then(function(r){return r.json();}).then(function(j){
       if(!j||!j.ok)return; var h="";
       if(j.h2h&&j.h2h.length){ h+=fbNewsSecT("📰",tl({en:"Match news",ko:"맞대결 뉴스",ja:"対戦ニュース",zh:"对阵新闻",es:"Noticias del duelo",hi:"मुकाबला समाचार",vi:"Tin trận đấu",th:"ข่าวการพบกัน",ru:"Новости матча",de:"Spiel-News",fr:"Actus du match",it:"Notizie match"}))+j.h2h.map(fbNewsCard).join(""); }

@@ -29,7 +29,7 @@ const app = express();
 const server = http.createServer(app);
 
 const PORT = process.env.PORT || 3000;
-const APP_VERSION = 'v656';
+const APP_VERSION = 'v657';
 
 // ============================================================
 //  📏 성능 계측(instrumentation) — 엔드포인트 지연·캐시·공급사·WS·이벤트루프
@@ -826,9 +826,46 @@ function _relevant(it, termSets) {
   return termSets.every(set => set.some(term => { const re = _termRe(term); return re ? re.test(text) : _fbNorm(text).includes(_fbNorm(term)); }));
 }
 function _dedup(list) { const seen = new Set(); const out = []; for (const it of list) { const k = _fbNorm(it.title).slice(0, 48); if (!k || seen.has(k)) continue; seen.add(k); out.push(it); } return out; }
+// 이번 경기 직접 기사 판정: 유스·하위 기사 제외 + 게시일이 경기일 창(−8일~+3일) 안.
+//   프리뷰(경기 전)·리뷰(경기 후) 포괄. 경기일 모르면 날짜필터 생략(유스 제외만).
+const _YOUTH_RE = /유스|유소년|청소년|\bU-?1[0-9]\b|\bU-?2[0-3]\b|고교|고등부|학원축구|챌린지리그|주니어|리저브|reserve|youth/i;
+function _thisMatch(items, matchTs) {
+  const DAY = 86400000;
+  return items.filter(it => {
+    const txt = (it.title || '') + ' ' + (it.desc || '');
+    if (_YOUTH_RE.test(txt)) return false;
+    if (matchTs && it.ts) { const d = (it.ts - matchTs) / DAY; if (d < -8 || d > 3) return false; }
+    return true;
+  });
+}
+// Google News RSS 링크 → 실제 언론사 URL 해결(리다이렉트 추적 + HTML 폴백). 1일 캐시. 해결 실패 시 ok=false.
+const _glResolveCache = new Map();
+async function _resolveGNews(link) {
+  if (!link) return { url: '', ok: false };
+  if (!/news\.google\.com\/rss\/articles/.test(link)) return { url: link, ok: true };
+  const c = _glResolveCache.get(link); if (c && Date.now() - c.t < 86400000) return c.v;
+  let out = { url: link, ok: false };
+  try {
+    const ctrl = new AbortController(); const to = setTimeout(() => ctrl.abort(), 4000);
+    const r = await fetch(link, { redirect: 'follow', headers: { 'User-Agent': 'Mozilla/5.0 (LiveUp News)' }, signal: ctrl.signal });
+    clearTimeout(to);
+    const fin = r.url || '';
+    if (fin && /^https?:/.test(fin) && !/news\.google\.com/.test(fin)) out = { url: fin, ok: true };
+    else {
+      const html = (await r.text()).slice(0, 30000);
+      const m = html.match(/data-n-au=["']([^"']+)["']/i) || html.match(/rel=["']canonical["']\s+href=["']([^"']+)["']/i)
+        || html.match(/<meta[^>]+http-equiv=["']refresh["'][^>]*url=([^"'>\s]+)/i) || html.match(/https?:\/\/(?!news\.google\.com)[A-Za-z0-9._~:\/?#\[\]@!$&'()*+,;=%-]{10,}/);
+      if (m) { const u = decodeEnt((m[1] || m[0]).replace(/&amp;/g, '&')); if (/^https?:/.test(u) && !/news\.google\.com/.test(u)) out = { url: u, ok: true }; }
+    }
+  } catch (e) { out = { url: link, ok: false }; }
+  _glResolveCache.set(link, { t: Date.now(), v: out });
+  return out;
+}
+async function _resolveList(items) { await Promise.all((items || []).map(async it => { const r = await _resolveGNews(it.link); it.link = r.url; it.linkOk = r.ok; })); return items; }
 app.get('/api/footballnews', async (req, res) => {
   res.set('Cache-Control', 'public, max-age=300');
-  const _m = String(req.query.mode || 'team'); const mode = (_m === 'match' || _m === 'league') ? _m : 'team';
+  const _m = String(req.query.mode || 'team'); const mode = (_m === 'match' || _m === 'league' || _m === 'overview') ? _m : 'team';
+  const matchTs = Date.parse(String(req.query.date || '')) || 0;   // 경기일(이번 경기 직접 기사 판정)
   const team = String(req.query.team || '').trim(), teamKo = String(req.query.teamKo || '').trim();
   const league = String(req.query.league || '').trim(), leagueKo = String(req.query.leagueKo || '').trim();
   const opp = String(req.query.opp || '').trim(), oppKo = String(req.query.oppKo || '').trim();
@@ -841,16 +878,32 @@ app.get('/api/footballnews', async (req, res) => {
   const leagueTerms = [leagueKo, league].filter(Boolean);
   const map = it => ({ title: it.title, source: it.source, link: it.link, ts: it.ts, date: it.ts ? new Date(it.ts).toISOString() : '' });
   try {
-    if (mode === 'match') {
-      if (!teamTerms.length || !oppTerms.length) return res.json({ ok: false, mode, reason: 'need both teams', h2h: [], home: [], away: [] });
-      // 맞대결: 양 팀 용어 모두 포함. 부족하면 홈·원정 분리.
+    if (mode === 'match' || mode === 'overview') {
+      if (!teamTerms.length || !oppTerms.length) return res.json({ ok: false, mode, reason: 'need both teams', h2h: [], thisMatch: [], home: [], away: [], league: [], general: [] });
+      // 맞대결 후보(양 팀 언급) → 이번 경기 직접 기사만(유스·과거 경기 제외, 경기일 창).
       const rawVs = await _gnewsSearch('(' + _orPhrase(teamTerms) + ') (' + _orPhrase(oppTerms) + ')');
-      // 구글이 이미 양 팀 AND로 검색하므로, 과필터 방지 위해 '적어도 한 팀' 언급이면 맞대결로 인정(노이즈만 제거).
-      const h2h = _dedup(rawVs.filter(it => _relevant(it, [teamTerms]) || _relevant(it, [oppTerms]))).slice(0, 6).map(map);
+      const vsRel = _dedup(rawVs.filter(it => _relevant(it, [teamTerms]) || _relevant(it, [oppTerms])));
+      const thisMatch = _thisMatch(vsRel, matchTs).slice(0, 6).map(map);
       const [rawH, rawA] = await Promise.all([_gnewsSearch(_orPhrase(teamTerms)), _gnewsSearch(_orPhrase(oppTerms))]);
       const home = _dedup(rawH.filter(it => _relevant(it, [teamTerms]))).slice(0, 5).map(map);
       const away = _dedup(rawA.filter(it => _relevant(it, [oppTerms]))).slice(0, 5).map(map);
-      return res.json({ ok: true, mode, homeName: teamKo || team, awayName: oppKo || opp, h2h, home, away });
+      if (mode === 'match') {
+        await Promise.all([_resolveList(thisMatch), _resolveList(home), _resolveList(away)]);
+        return res.json({ ok: true, mode, homeName: teamKo || team, awayName: oppKo || opp, h2h: thisMatch, thisMatch, home, away });
+      }
+      // overview: 이번 경기 → 팀 → 리그 → 전체 축구(보조). 중복은 뒤 섹션에서 제거.
+      const lgTermsO = Array.from(new Set([...leagueTerms, FBNEWS_LEAGUE_KO[_fbNorm(league)] || '', FBNEWS_LEAGUE_KO[_fbNorm(leagueKo)] || ''].filter(Boolean)));
+      let leagueItems = [];
+      if (lgTermsO.length) { const rawL = await _gnewsSearch(_orPhrase(lgTermsO)); const BLK = /족구|풋살|당구/i; leagueItems = _dedup(rawL.filter(it => _relevant(it, [lgTermsO]) && !BLK.test((it.title || '') + ' ' + (it.desc || '')))).slice(0, 6).map(map); }
+      const seenO = new Set([...thisMatch, ...home, ...away].map(x => _fbNorm(x.title).slice(0, 48)));
+      leagueItems = leagueItems.filter(x => { const k = _fbNorm(x.title).slice(0, 48); if (seenO.has(k)) return false; seenO.add(k); return true; });
+      let general = [];
+      const total = thisMatch.length + home.length + away.length + leagueItems.length;
+      if (total < 6) {
+        try { const gr = await fetch(NEWS_FEEDS.soccer, { headers: { 'User-Agent': 'Mozilla/5.0 (LiveUp News)' } }); const gi = parseRss(await gr.text()).slice(0, 8).map(it => ({ title: it.title, source: 'ESPN', link: it.link, ts: it.ts, date: it.ts ? new Date(it.ts).toISOString() : '', linkOk: true })); general = gi.filter(x => { const k = _fbNorm(x.title).slice(0, 48); if (!k || seenO.has(k)) return false; seenO.add(k); return true; }).slice(0, 5); } catch (e) { general = []; }
+      }
+      await Promise.all([_resolveList(thisMatch), _resolveList(home), _resolveList(away), _resolveList(leagueItems)]);
+      return res.json({ ok: true, mode, homeName: teamKo || team, awayName: oppKo || opp, leagueName: leagueKo || league, thisMatch, home, away, league: leagueItems, general });
     }
     if (mode === 'league') {
       // 리그 화면: 대회 직접 기사(+그 리그를 직접 다룬 구단 기사 — 리그명 언급으로 함께 수집됨) 우선.
@@ -867,9 +920,10 @@ app.get('/api/footballnews', async (req, res) => {
           const gr = await fetch(NEWS_FEEDS.soccer, { headers: { 'User-Agent': 'Mozilla/5.0 (LiveUp News)' } });
           const gi = parseRss(await gr.text()).slice(0, 10).map(it => ({ title: it.title, source: 'ESPN', link: it.link, ts: it.ts, date: it.ts ? new Date(it.ts).toISOString() : '' }));
           const seen = new Set(leagueItems.map(x => _fbNorm(x.title).slice(0, 48)));
-          general = gi.filter(x => { const k = _fbNorm(x.title).slice(0, 48); if (!k || seen.has(k)) return false; seen.add(k); return true; }).slice(0, 6);
+          general = gi.filter(x => { const k = _fbNorm(x.title).slice(0, 48); if (!k || seen.has(k)) return false; seen.add(k); return true; }).map(x => ({ ...x, linkOk: true })).slice(0, 6);
         } catch (e) { general = []; }
       }
+      await _resolveList(leagueItems);
       return res.json({ ok: true, mode, leagueName: leagueKo || league, league: leagueItems, general });
     }
     // team 모드: 직접 기사 우선 → 부족(<3)하면 리그 뉴스 별도.
@@ -881,6 +935,7 @@ app.get('/api/footballnews', async (req, res) => {
       const rawL = await _gnewsSearch(_orPhrase(leagueTerms));
       leagueNews = _dedup(rawL.filter(it => _relevant(it, [leagueTerms]))).slice(0, 6).map(map);
     }
+    await Promise.all([_resolveList(direct), _resolveList(leagueNews)]);
     res.json({ ok: true, mode, teamName: teamKo || team, leagueName: leagueKo || league, direct, league: leagueNews });
   } catch (e) { res.json({ ok: false, mode, error: String((e && e.message) || e), direct: [], league: [], h2h: [], home: [], away: [] }); }
 });
