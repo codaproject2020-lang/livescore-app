@@ -29,7 +29,7 @@ const app = express();
 const server = http.createServer(app);
 
 const PORT = process.env.PORT || 3000;
-const APP_VERSION = 'v652';
+const APP_VERSION = 'v653';
 
 // ============================================================
 //  📏 성능 계측(instrumentation) — 엔드포인트 지연·캐시·공급사·WS·이벤트루프
@@ -5978,6 +5978,7 @@ app.get('/api/debug/bskstats', async (req, res) => {
   const compIdQ = String(req.query.compId || '').trim();
   const seasonIdQ = String(req.query.seasonId || '').trim();
   const matchIdQ = String(req.query.matchId || '').trim();               // 확정 경기 지정(예: 부커 피닉스-댈러스 109-113)
+  const playerIdQ = String(req.query.playerId || '').trim();             // (b) 확정 player_id 직접 지정 → 최근경기 전수 대조(recentScan)
   const compFilter = compIdQ || BSK_LEAGUE_COMP[leagueQ] || null;        // 리그→대회 ID 필터
   const today = new Date().toISOString().slice(0, 10);
   const norm = s => String(s || '').toLowerCase().replace(/[^a-z0-9]/g, '');
@@ -6014,7 +6015,8 @@ app.get('/api/debug/bskstats', async (req, res) => {
     // 2) compId·seasonId·경기: 직접 지정 우선 → 아니면 팀의 '최근 종료경기'들을 수집(리그 필터로 엉뚱한 대회 배제).
     //    종료판정은 운영 최근경기 경로와 동일: status_id 10/12/100 또는 3시간 경과 + 점수>0.
     let compId = compIdQ || null, seasonId = seasonIdQ || null, matchId = matchIdQ || null, matchSide = null, playerId = null, playerName = null;
-    let recentMatches = [];   // [{id, compId, seasonId, homeId, awayId, date}] 최신순
+    let recentMatches = [];   // [{id, compId, seasonId, homeId, awayId, date, hs, as}] 최신순
+    const teamMap = {};       // id→{name,logo} (recentScan 상대팀명 표시용)
     if (teamId) {
       const nowMs = Date.now();
       const ymdOf = i => new Date(Date.parse(today + 'T12:00:00Z') - i * 864e5).toISOString().slice(0, 10).replace(/-/g, '');
@@ -6024,6 +6026,7 @@ app.get('/api/debug/bskstats', async (req, res) => {
         const ds = await Promise.all(days.map(ymd => tsFetch('/basketball/match/diary', { date: ymd }, 3600000, 8000).catch(() => null)));
         ds.forEach(d => {
           if (!d) return;
+          (((d.results_extra || {}).team) || []).forEach(t => { if (t && t.id) teamMap[t.id] = { name: t.name || '', logo: t.logo || '' }; });
           (d.results || []).forEach(x => {
             if (!x || seenM.has(x.id)) return;
             const mine = x.home_team_id === teamId || x.away_team_id === teamId;
@@ -6034,7 +6037,7 @@ app.get('/api/debug/bskstats', async (req, res) => {
             const hs = (x.home_scores || []).reduce((a, b) => a + (+b || 0), 0), as = (x.away_scores || []).reduce((a, b) => a + (+b || 0), 0);
             if (!played || (hs + as) === 0) return;
             seenM.add(x.id);
-            recentMatches.push({ id: x.id, compId: x.competition_id || '', seasonId: x.season_id || '', homeId: x.home_team_id, awayId: x.away_team_id, date: t });
+            recentMatches.push({ id: x.id, compId: x.competition_id || '', seasonId: x.season_id || '', homeId: x.home_team_id, awayId: x.away_team_id, date: t, hs, as });
           });
         });
       }
@@ -6080,6 +6083,55 @@ app.get('/api/debug/bskstats', async (req, res) => {
       // 리그 필터가 있는데 team/list의 대회가 다르면 경고
       if (compFilter && t && t.competition_id && t.competition_id !== compFilter) teamCheck.warn = `team/list 대회(${t.competition_id}) ≠ 요청 리그 대회(${compFilter}) — 팀 매칭 재확인 필요`;
     }
+    // 4.5) (b) recentScan: 확정 player_id 로 최근 종료경기 전수 대조.
+    //   운영 /api/basketball/playerrecent 와 동일 박스 판독(lineup_live → box|<id> 스냅샷 폴백, 동일 출전 기준).
+    //   경기별: 박스소스·선수로우·출전시간/득점/리바운드/어시스트·매치링크 + 누락원인 분류(수집/저장/ID연결).
+    //   displayCount(운영 표시=참여로우 상위5) vs verifiedCount(참여로우 전체, 미캡) 비교. 미수신을 0으로 채우지 않음.
+    let recentScan = null;
+    const scanPid = playerIdQ || playerId;
+    if (scanPid && recentMatches.length) {
+      const games = [];
+      for (const m of recentMatches) {   // 최신순, 최대 12경기(운영 후보 창과 동일)
+        let lu = await tsBasketballLineup(m.id).catch(() => null);
+        let src = (lu && ((lu.home || []).length || (lu.away || []).length)) ? 'lineup_live' : null;
+        if (!src) { const snap = await _snapGet('box|' + m.id).catch(() => null); if (snap && snap.v && ((snap.v.home || []).length || (snap.v.away || []).length)) { lu = snap.v; src = 'snapshot'; } }
+        const box = src ? [].concat(lu.home || [], lu.away || []) : [];
+        const row = box.find(p => p && String(p.id) === String(scanPid)) || null;
+        const zero = !!row && (row.min === 0 && row.pts === 0 && row.reb === 0 && row.ast === 0 && row.starter !== true);
+        const participated = !!row && !zero;   // 운영 표시 기준(실제 0분 '선발'은 포함, 빈 비선발은 제외)
+        let cls, cause;
+        if (!src) { cls = '원본없음'; cause = '수집·저장: 라이브 중 앱 미기동으로 박스 스냅샷 없음(lineup_live 종료 후 공란 + box|<id> 스냅샷 부재)'; }
+        else if (!row) { cls = '박스에선수없음'; cause = 'ID연결/미출전: 박스는 있으나 해당 player_id 로우 없음(결장 또는 ID 불일치)'; }
+        else if (zero) { cls = '기록0'; cause = '운영 표시 제외 규칙: 비선발 0분·0기록(실제 0은 보존, 미출전 아님)'; }
+        else { cls = '출전확인'; cause = null; }
+        const isHome = row ? (lu.home || []).some(p => String(p.id) === String(scanPid)) : (String(m.homeId) === String(teamId));
+        const oppId = isHome ? m.awayId : m.homeId;
+        const myPts = isHome ? m.hs : m.as, opPts = isHome ? m.as : m.hs;
+        games.push({
+          matchId: m.id, matchLink: '/#match=' + m.id, date: new Date(m.date).toISOString(),
+          oppId, oppName: (teamMap[oppId] && teamMap[oppId].name) || '', score: m.hs + '-' + m.as, isHome,
+          win: (participated || row) ? (myPts > opPts) : null,
+          boxSource: src || 'none', boxCount: box.length,
+          playerRow: row ? { min: row.min, pts: row.pts, reb: row.reb, ast: row.ast, starter: row.starter === true } : null,
+          participation: cls, missingCause: cause
+        });
+      }
+      const verifiedCount = games.filter(g => g.participation === '출전확인').length;   // 실제 참여 로우(미캡)
+      const displayCount = Math.min(verifiedCount, 5);                                   // 운영 playerrecent 표시(상위 5)
+      recentScan = {
+        playerId: scanPid, source: playerIdQ ? 'playerId(직접지정)' : 'playerScan(복원)',
+        scanned: games.length,
+        verifiedCount, displayCount,
+        note: verifiedCount < 5 ? `확인된 출전 ${verifiedCount}건 — 5건 미만이라 확보된 건수만 표시(미수신 0 채움 없음).` : '확인된 출전 5건 이상 — 운영은 상위 5건 표시.',
+        counts: {
+          출전확인: verifiedCount,
+          기록0: games.filter(g => g.participation === '기록0').length,
+          박스에선수없음_ID연결또는미출전: games.filter(g => g.participation === '박스에선수없음').length,
+          원본없음_수집저장갭: games.filter(g => g.participation === '원본없음').length
+        },
+        games
+      };
+    }
     out.resolved = {
       league: leagueQ || null, compFilter: compFilter || null,
       teamId: teamId || null, teamName: teamName || null, teamCheck,
@@ -6088,6 +6140,7 @@ app.get('/api/debug/bskstats', async (req, res) => {
       playerId: playerId || null, playerName: playerName || null,
       playerScan: playerScan.length ? playerScan : undefined,
       playerAmbiguous: playerAmbiguous || undefined,
+      recentScan: recentScan || undefined,
       teamCandidates: teamCandidates.length ? teamCandidates : undefined
     };
     // 5) 원본 덤프 + 상태 분류(각각 code/msg/시각 보존)
@@ -6116,6 +6169,9 @@ app.get('/api/debug/bskstats', async (req, res) => {
         : (anyBox
           ? '선수 ID 미매칭 — 스캔한 경기 박스에 해당 이름 없음(미출전/표기차이). playerScan의 hits 확인, &matchId=로 확정경기 지정 가능.'
           : '박스 소스 전부 none — lineup_live 비어있고 box|<id> 스냅샷도 없음. 운영 최근경기 화면을 먼저 열어 박스 스냅샷을 생성한 뒤 재시도(진단은 그 스냅샷을 폴백으로 읽음).');
+    } else if (out.resolved.recentScan) {
+      const rs = out.resolved.recentScan;
+      out.hint = `recentScan: 확인출전 ${rs.verifiedCount}건(운영표시 ${rs.displayCount}) · 원본없음(수집·저장) ${rs.counts.원본없음_수집저장갭}건 · 박스에선수없음(ID연결/미출전) ${rs.counts.박스에선수없음_ID연결또는미출전}건. games[]의 boxSource·playerRow·missingCause 확인. 전체 복사해 전달.`;
     } else {
       out.hint = '완료. raw/statusSummary 전체를 복사해 전달. 권한확인대기가 있으면 TheSports 권한 문의 필요.';
     }
