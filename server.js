@@ -29,7 +29,7 @@ const app = express();
 const server = http.createServer(app);
 
 const PORT = process.env.PORT || 3000;
-const APP_VERSION = 'v649';
+const APP_VERSION = 'v650';
 
 // ============================================================
 //  📏 성능 계측(instrumentation) — 엔드포인트 지연·캐시·공급사·WS·이벤트루프
@@ -5960,51 +5960,127 @@ app.get('/api/debug/bskmatch', async (req, res) => {
   res.send(JSON.stringify(out, null, 2));
 });
 // 🔧 디버그: 농구 선수/팀의 '시즌 통계 + 공식 선수단' 원본 덤프(운영에서만 TheSports 접속 가능).
-//   사용법: /api/debug/bskstats?team=Phoenix&player=Booker   (전체 복사해서 전달)
-//   - 팀명으로 TheSports 팀 ID를 복원하고, 그 팀의 최근 경기에서 대회·시즌 ID를 얻어 시즌통계/선수단/선수상세 원본을 그대로 담는다.
-//   - 값이 비거나 권한 거부면 그 응답(code/msg)도 그대로 남긴다. 공식 선수단(team/squad)과 직전 경기 엔트리는 구분해 표기. 비밀키 미노출.
+//   사용법(리그 지정 권장):
+//     /api/debug/bskstats?league=nba&team=Phoenix%20Suns&player=Booker
+//     /api/debug/bskstats?league=nba&team=Philadelphia&player=Maxey
+//     /api/debug/bskstats?league=kbl&team=Suwon%20KT&player=Bass
+//   ID를 알면 직접 지정(이름 복원 생략): &teamId=... &compId=... &seasonId=...
+//   정책: ① 팀은 '실제 경기 home/away ID'에서 복원하고 team/list로 대조. 이름만으로 단일 확정/오매칭 금지(후보 여럿이면 미매칭으로 남기고 후보 목록 제공).
+//         ② player 입력에 URL 조각이 섞이면 이름으로 처리하지 않고 입력 오류로 남긴다.
+//         ③ 각 원본은 상태를 분류: ok / 권한확인대기(접근거부) / 해당대상미제공(정상 응답·대상 없음) / 조회실패(타임아웃·오류). 비밀키 미노출.
 app.get('/api/debug/bskstats', async (req, res) => {
-  res.set('Cache-Control', 'no-store');
+  res.set('Cache-Control', 'no-store'); res.set('Content-Type', 'application/json; charset=utf-8');
+  const nowIso = () => new Date().toISOString();
   const teamQ = String(req.query.team || '').trim();
-  const playerQ = String(req.query.player || '').trim().toLowerCase();
+  const playerRaw = String(req.query.player || '').trim();
+  const leagueQ = String(req.query.league || '').trim().toLowerCase();   // nba | kbl (선택)
+  const teamIdQ = String(req.query.teamId || '').trim();
+  const compIdQ = String(req.query.compId || '').trim();
+  const seasonIdQ = String(req.query.seasonId || '').trim();
+  const compFilter = compIdQ || BSK_LEAGUE_COMP[leagueQ] || null;        // 리그→대회 ID 필터
   const today = new Date().toISOString().slice(0, 10);
-  const out = { note: 'TheSports basketball season-stats + squad raw dump. Copy ALL and send back. (키/토큰 미포함)', query: { team: teamQ, player: playerQ || null }, resolved: {}, raw: {} };
   const norm = s => String(s || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+  const out = {
+    note: 'TheSports basketball season-stats + squad raw dump. Copy ALL and send back. (키/토큰 미포함)',
+    at: nowIso(), query: { league: leagueQ || null, team: teamQ || null, player: playerRaw || null, teamId: teamIdQ || null, compId: compIdQ || null, seasonId: seasonIdQ || null },
+    inputCheck: {}, resolved: {}, raw: {}
+  };
+  // §2.2 선수 입력 검증: URL/쿼리 조각이 섞인 값은 이름으로 처리하지 않는다.
+  const playerBad = /(https?:|:\/\/|\/api\/|[?&=])/i.test(playerRaw) || /\s/.test(playerRaw) && /[\/?&=]/.test(playerRaw);
+  const playerQ = playerBad ? '' : playerRaw.toLowerCase();
+  out.inputCheck.player = playerBad ? { ok: false, reason: 'URL/쿼리 조각이 섞인 입력 — 정상 이름이 아님(입력 오류로 처리, 이름 복원 안 함).', given: playerRaw } : { ok: true };
+  // 응답 상태 분류기
+  const classify = r => {
+    if (!r || typeof r !== 'object') return '조회실패';
+    const msg = String(r.err || r.msg || (r.response && (r.response.err || r.response.msg)) || '').toLowerCase();
+    if (/not authorized|contact our business|permission|unauthorized/.test(msg)) return '권한확인대기';
+    const body = r.response || r;
+    const hasResults = Array.isArray(body.results) ? body.results.length > 0 : (body.result != null && (!Array.isArray(body.result) || body.result.length > 0));
+    if (body && body.code === 0 && !hasResults) return '해당대상미제공';
+    if (r.err && !body.code) return '조회실패';
+    return 'ok';
+  };
   try {
-    // 1) 팀 TheSports ID 복원(diary 실제 team 목록에서 단일 후보)
-    const teamId = teamQ ? await tsResolveTeamIdByName('basketball', teamQ, today).catch(() => null) : null;
-    out.resolved.teamId = teamId || null;
-    // 2) 그 팀의 최근 경기에서 compId·seasonId·playerId(박스에서 이름 매칭) 확보
-    let compId = null, seasonId = null, playerId = null, playerName = null, matchId = null, squadSrc = null;
-    if (teamId) {
+    // 1) 팀 복원: ID 직접 지정 우선 → 아니면 (리그 필터 적용) 후보 전체에서 '단일'일 때만 확정
+    let teamId = teamIdQ || null, teamName = null, teamCandidates = [];
+    if (!teamId && teamQ) {
+      teamCandidates = await tsResolveTeamCandidates('basketball', teamQ, today, compFilter).catch(() => []);
+      // 리그 필터가 있으면 그 안에서, 없으면 전체에서 — 정확일치 1건이면 확정, 아니면 미매칭
+      const exacts = teamCandidates.filter(c => c.exact);
+      if (exacts.length === 1) { teamId = exacts[0].id; teamName = exacts[0].name; }
+      else if (exacts.length === 0 && teamCandidates.length === 1) { teamId = teamCandidates[0].id; teamName = teamCandidates[0].name; }
+    }
+    // 2) compId·seasonId: 직접 지정 우선 → 아니면 팀의 실제 경기에서 확보(리그 필터로 엉뚱한 대회 배제)
+    let compId = compIdQ || null, seasonId = seasonIdQ || null, matchId = null, matchSide = null, playerId = null, playerName = null;
+    if (teamId && (!compId || !seasonId)) {
       const ymdOf = i => new Date(Date.parse(today + 'T12:00:00Z') - i * 864e5).toISOString().slice(0, 10).replace(/-/g, '');
       let found = null;
       for (let s = 0; s < 40 && !found; s += 10) {
         const days = []; for (let i = s; i < Math.min(s + 10, 40); i++) days.push(ymdOf(i));
         const ds = await Promise.all(days.map(ymd => tsFetch('/basketball/match/diary', { date: ymd }, 3600000, 8000).catch(() => null)));
-        ds.forEach(d => { if (found || !d) return; (d.results || []).forEach(x => { if (found) return; if (x && (x.home_team_id === teamId || x.away_team_id === teamId)) found = x; }); });
+        ds.forEach(d => {
+          if (found || !d) return;
+          (d.results || []).forEach(x => {
+            if (found) return;
+            const mine = x && (x.home_team_id === teamId || x.away_team_id === teamId);
+            if (!mine) return;
+            if (compFilter && x.competition_id !== compFilter) return;   // 리그 필터: 엉뚱한 대회의 동명 경기 배제
+            found = x;
+          });
+        });
       }
-      if (found) { matchId = found.id; compId = found.competition_id || null; seasonId = found.season_id || null; }
-      // 박스에서 선수 ID 매칭(원본 lineup_live)
-      if (matchId && playerQ) {
-        const lu = await tsBasketballLineup(matchId).catch(() => null);
-        const all = lu ? [].concat(lu.home || [], lu.away || []) : [];
-        const hit = all.find(p => p && norm(p.name).includes(norm(playerQ)));
-        if (hit) { playerId = hit.id; playerName = hit.name; }
-      }
+      if (found) { matchId = found.id; matchSide = (found.home_team_id === teamId ? 'home' : 'away'); compId = compId || found.competition_id || null; seasonId = seasonId || found.season_id || null; }
     }
-    out.resolved = { teamId: teamId || null, compId, seasonId, matchId, playerId: playerId || null, playerName: playerName || null };
-    // 3) 원본 덤프(각각 code/msg까지 그대로)
-    const dump = (name, path, params) => tsFetch(path, params, 5e3, 9000).then(r => { out.raw[name] = { path, params, response: r }; }).catch(e => { out.raw[name] = { path, params, err: String((e && e.message) || e) }; });
+    // 3) 선수 ID: 실제 출전 경기 박스(lineup_live)에서만 추출. 입력이 유효할 때만.
+    if (matchId && playerQ) {
+      const lu = await tsBasketballLineup(matchId).catch(() => null);
+      const all = lu ? [].concat(lu.home || [], lu.away || []) : [];
+      const hits = all.filter(p => p && norm(p.name).includes(norm(playerQ)));
+      if (hits.length === 1) { playerId = hits[0].id; playerName = hits[0].name; }
+      else if (hits.length > 1) out.resolved.playerAmbiguous = hits.map(h => ({ id: h.id, name: h.name }));
+    }
+    // 4) team/list로 팀 교차검증(이름·대회·국가)
+    let teamCheck = null;
+    if (teamId) {
+      const tl = await tsFetch('/basketball/team/list', { uuid: teamId }, 5e3, 9000).catch(e => ({ err: String((e && e.message) || e) }));
+      const t = tl && Array.isArray(tl.results) ? tl.results[0] : null;
+      teamCheck = t ? { name: t.name, competition_id: t.competition_id, country_id: t.country_id, logo: t.logo } : { raw: tl };
+      if (!teamName && t) teamName = t.name;
+      // 리그 필터가 있는데 team/list의 대회가 다르면 경고
+      if (compFilter && t && t.competition_id && t.competition_id !== compFilter) teamCheck.warn = `team/list 대회(${t.competition_id}) ≠ 요청 리그 대회(${compFilter}) — 팀 매칭 재확인 필요`;
+    }
+    out.resolved = {
+      league: leagueQ || null, compFilter: compFilter || null,
+      teamId: teamId || null, teamName: teamName || null, teamCheck,
+      compId: compId || null, seasonId: seasonId || null,
+      matchId: matchId || null, matchSide: matchSide || null,
+      playerId: playerId || null, playerName: playerName || null,
+      teamCandidates: teamCandidates.length ? teamCandidates : undefined
+    };
+    // 5) 원본 덤프 + 상태 분류(각각 code/msg/시각 보존)
+    const dump = (name, path, params) => tsFetch(path, params, 5e3, 9000)
+      .then(r => { const rec = { path, params, at: nowIso(), response: r }; rec.status = classify(rec); out.raw[name] = rec; })
+      .catch(e => { out.raw[name] = { path, params, at: nowIso(), err: String((e && e.message) || e), status: '조회실패' }; });
     const jobs = [];
     if (seasonId) { jobs.push(dump('season.player_stats', '/basketball/season/player_stats/list', { uuid: seasonId })); jobs.push(dump('season.team_stats', '/basketball/season/team_stats/list', { uuid: seasonId })); jobs.push(dump('standing.detail', '/basketball/standing/detail', { uuid: seasonId })); }
-    if (teamId) { jobs.push(dump('team.squad(공식)', '/basketball/team/squad/list', { uuid: teamId })); jobs.push(dump('team.additional', '/basketball/team/additional/list', { uuid: teamId })); jobs.push(dump('team.list', '/basketball/team/list', { uuid: teamId })); }
+    if (teamId) { jobs.push(dump('team.squad(공식)', '/basketball/team/squad/list', { uuid: teamId })); jobs.push(dump('team.additional', '/basketball/team/additional/list', { uuid: teamId })); }
     if (teamId && seasonId) jobs.push(dump('player.list(byteam+season)', '/basketball/player/list', { team_id: teamId, season_id: seasonId }));
     if (playerId) { jobs.push(dump('player.detail(uuid)', '/basketball/player/list', { uuid: playerId })); jobs.push(dump('player.additional', '/basketball/player/additional/list', { uuid: playerId })); }
     await Promise.all(jobs);
-    out.hint = (!teamId) ? '팀명을 화면에 보이는 이름으로. 예: Phoenix / Philadelphia / Suwon KT.' : (!playerId && playerQ ? '선수 ID 미매칭 — 최근 경기 박스에 해당 선수가 없거나 이름 표기가 다름.' : '완료. raw 전체를 복사해 전달.');
+    // 6) 상태 요약 + 다음 행동 힌트
+    out.statusSummary = Object.fromEntries(Object.entries(out.raw).map(([k, v]) => [k, v.status || '?']));
+    if (teamQ && !teamId) {
+      out.hint = teamCandidates.length
+        ? `팀 미매칭(동명/후보 여럿) — teamCandidates에서 맞는 id를 골라 &teamId=로 재요청. 리그 지정(&league=nba|kbl)으로 좁히세요.`
+        : `팀 미복원 — 리그를 지정(&league=nba|kbl)하고 정확한 팀명으로. 예: league=nba&team=Phoenix Suns.`;
+    } else if (playerBad) {
+      out.hint = 'player 입력이 URL 조각입니다. 선수 이름만 넣으세요(예: Booker). 팀 원본은 그대로 덤프됨.';
+    } else if (playerQ && !playerId) {
+      out.hint = '선수 ID 미매칭 — 그 경기 박스에 미출전이거나 이름 표기 차이. 다른 출전 경기로 재시도 가능.';
+    } else {
+      out.hint = '완료. raw/statusSummary 전체를 복사해 전달. 권한확인대기가 있으면 TheSports 권한 문의 필요.';
+    }
   } catch (e) { out.error = String((e && e.message) || e); }
-  res.set('Content-Type', 'application/json; charset=utf-8');
   res.send(JSON.stringify(out, null, 2));
 });
 // 🏟️ TheSports 전용: 팀의 최근(종료)·다음(예정) 경기 + 팀명/로고 — 종목별 diary 스캔(API-Sports 미사용).
@@ -6076,6 +6152,55 @@ async function tsResolveTeamIdByName(sport, wantName, baseDate) {
   for (const id in names) { const n = norm(names[id]); if (!n) continue; if (n === want) { best = id; bestExact = true; break; } if (!best && (n.indexOf(want) >= 0 || want.indexOf(n) >= 0)) best = id; }
   _tsTeamIdByNameCache.set(key, { t: Date.now(), v: best });
   return best;
+}
+// 🔑 ID-QA: 농구 리그별 대회(TheSports competition_id) — 실제 운영 응답에서 확인된 값(이름으로 추정 금지).
+//   NBA = Philadelphia 76ers 응답의 competition_id, KBL = Suwon KT 응답의 competition_id.
+const BSK_LEAGUE_COMP = { nba: '49vjxm8xt4q6odg', kbl: '9d23xmv1t4mg8ny' };
+// 🔑 ID-QA: 팀명 → TheSports 팀 '후보 전체'를 실제 경기(diary results)의 home/away ID에서 복원.
+//   이름만으로 단일 확정하지 않는다. 각 후보에 등장한 competition_id 집합과 '그 팀이 실제 출전한 경기 ID(side)'를 함께 반환.
+//   compFilter(대회 ID)를 주면 그 리그에서 실제로 뛴 팀만 남긴다 → 'Phoenix'가 NBA 필터에서 San-en NeoPhoenix로 오매칭되지 않음.
+async function tsResolveTeamCandidates(sport, wantName, baseDate, compFilter) {
+  const norm = s => String(s || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+  const want = norm(wantName); if (!want) return [];
+  const path = '/' + sport + '/match/diary';
+  const base = Date.parse(baseDate + 'T12:00:00Z');
+  const ymdOf = off => new Date(base - off * 864e5).toISOString().slice(0, 10).replace(/-/g, '');
+  const offsets = []; for (let o = -14; o <= 7; o++) offsets.push(o);
+  const names = {}, teamComps = {}, teamMatch = {};
+  try {
+    const BATCH = 11;
+    for (let s = 0; s < offsets.length; s += BATCH) {
+      const chunk = offsets.slice(s, s + BATCH);
+      const ds = await Promise.all(chunk.map(o => tsFetch(path, { date: ymdOf(o) }, 3600e3, 8000).catch(() => null)));
+      ds.forEach(d => {
+        if (!d) return;
+        const ex = d.results_extra || {};
+        (ex.team || []).forEach(t => { if (t && t.id && t.name) names[t.id] = t.name; });
+        (d.results || []).forEach(m => {
+          const cid = m.competition_id || '', sid = m.season_id || '';
+          [[m.home_team_id, 'home'], [m.away_team_id, 'away']].forEach(([tid, side]) => {
+            if (!tid) return;
+            (teamComps[tid] = teamComps[tid] || new Set()).add(cid);
+            // 가장 최근(=offset 작은, 먼저 만나는) 경기를 그 팀의 대표 경기로 보존
+            if (!teamMatch[tid]) teamMatch[tid] = { matchId: m.id, side, compId: cid, seasonId: sid };
+          });
+        });
+      });
+    }
+  } catch (e) { }
+  const cand = [];
+  for (const id in names) {
+    const n = norm(names[id]); if (!n) continue;
+    const exact = n === want;
+    const partial = exact || n.indexOf(want) >= 0 || want.indexOf(n) >= 0;
+    if (!partial) continue;
+    const comps = Array.from(teamComps[id] || []);
+    if (compFilter && !comps.includes(compFilter)) continue;   // 요청 리그에서 실제 출전한 팀만
+    const tm = teamMatch[id] || {};
+    cand.push({ id, name: names[id], exact, comps, matchId: tm.matchId || null, side: tm.side || null, compId: tm.compId || null, seasonId: tm.seasonId || null });
+  }
+  cand.sort((a, b) => (b.exact ? 1 : 0) - (a.exact ? 1 : 0));   // 정확 일치 우선
+  return cand;
 }
 // ⚽ TheSports 전용: 팀의 '직전 종료 경기 라인업(선발+벤치)' — diary로 최근 종료 경기 tsid를 찾아 tsFootLineup으로 라인업 추출.
 //    API-Sports 미사용. 선수단 패키지 권한이 없을 때 선수단 탭 폴백에 사용(실제 출전 선수).
