@@ -29,7 +29,7 @@ const app = express();
 const server = http.createServer(app);
 
 const PORT = process.env.PORT || 3000;
-const APP_VERSION = 'v646';
+const APP_VERSION = 'v647';
 
 // ============================================================
 //  📏 성능 계측(instrumentation) — 엔드포인트 지연·캐시·공급사·WS·이벤트루프
@@ -3754,7 +3754,7 @@ app.get('/api/basketball/teamgames', async (req, res) => {
     const n = Math.min(10, games.length) || 1;
     res.json({ found: games.length > 0, tid, resolvedId: (tid !== tid0) ? tid : undefined, name: nm(tid) || nameQ, nameKo: (KL.team && KL.team[tid]) || '', logo: lg(tid),
       summary: { w, l, n: Math.min(10, games.length), pf: +(pf / n).toFixed(1), pa: +(pa / n).toFixed(1) },
-      games: games.map(m => ({ date: m.date, league: cn(m.compId), leagueKo: (KL.comp && KL.comp[m.compId]) || '',
+      games: games.map(m => ({ id: m.id, mid: m.id, date: m.date, league: cn(m.compId), leagueKo: (KL.comp && KL.comp[m.compId]) || '',
         homeId: m.homeId, awayId: m.awayId, hName: nm(m.homeId), aName: nm(m.awayId),
         hKo: (KL.team && KL.team[m.homeId]) || '', aKo: (KL.team && KL.team[m.awayId]) || '',
         hLogo: lg(m.homeId), aLogo: lg(m.awayId), hs: m.hs, as: m.as, win: m.win, isHome: m.isHome })) });
@@ -3914,7 +3914,7 @@ app.get('/api/football/teamgames', async (req, res) => {
     const nn = Math.min(10, games.length) || 1;
     const v = { found: games.length > 0, tid, name: nm(tid), nameKo: (KL.team && KL.team[tid]) || '', logo: lgo(tid),
       summary: { w, d, l, n: Math.min(10, games.length), gf: +(gf / nn).toFixed(1), ga: +(ga / nn).toFixed(1) },
-      games: games.map(m => ({ date: m.date, league: cn(m.compId), leagueKo: (KL.comp && KL.comp[m.compId]) || '',
+      games: games.map(m => ({ id: m.id, mid: m.id, date: m.date, league: cn(m.compId), leagueKo: (KL.comp && KL.comp[m.compId]) || '',
         homeId: m.homeId, awayId: m.awayId, hName: nm(m.homeId), aName: nm(m.awayId),
         hKo: (KL.team && KL.team[m.homeId]) || '', aKo: (KL.team && KL.team[m.awayId]) || '',
         hLogo: lgo(m.homeId), aLogo: lgo(m.awayId), hs: m.hs, as: m.as, res: m.res, isHome: m.isHome })) };
