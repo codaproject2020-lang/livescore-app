@@ -29,7 +29,7 @@ const app = express();
 const server = http.createServer(app);
 
 const PORT = process.env.PORT || 3000;
-const APP_VERSION = 'v654';
+const APP_VERSION = 'v656';
 
 // ============================================================
 //  📏 성능 계측(instrumentation) — 엔드포인트 지연·캐시·공급사·WS·이벤트루프
@@ -702,6 +702,33 @@ async function fetchOgImage(url) {
     return img;
   } catch (e) { ogCache.set(url, { t: Date.now(), img: '' }); return ''; }
 }
+// 축구 메인 편중 완화: 제목으로 대회를 추정해 상단 N개에 여러 대회가 보이도록 재정렬(동일 대회 ≤cap).
+//   기사·출처·링크는 그대로 두고 순서만 조정. 다른 대회 기사가 부족하면 확보된 기사로 채움(중복 없음).
+const SOCCER_COMPS = [
+  ['WorldCup', /world cup|월드컵|uswnt|usmnt|wwc/i],
+  ['UCL', /champions league|europa league|\bucl\b|\buel\b|uefa|conference league/i],
+  ['EPL', /premier league|\bepl\b|arsenal|chelsea|liverpool|manchester|man utd|man city|tottenham|newcastle|everton|west ham|nottingham forest|aston villa/i],
+  ['LaLiga', /\blaliga\b|la liga|real madrid|barcelona|atletico|sevilla|valencia|betis/i],
+  ['SerieA', /serie a|juventus|inter milan|ac milan|napoli|roma|lazio/i],
+  ['Bundesliga', /bundesliga|bayern|dortmund|leverkusen|leipzig/i],
+  ['Ligue1', /ligue 1|\bpsg\b|paris saint|marseille|monaco/i],
+  ['MLS', /\bmls\b|inter miami|messi|lionel messi|galaxy|lafc/i],
+  ['Saudi', /saudi|al nassr|al hilal|al ittihad|ronaldo|cristiano/i],
+  ['KLeague', /k league|k리그|k-league/i],
+  ['JLeague', /j1 league|j\.league|j리그|j-league/i]
+];
+function _soccerComp(it) { const t = String((it.title || '') + ' ' + (it.desc || '')); for (const [name, re] of SOCCER_COMPS) { if (re.test(t)) return name; } return 'misc'; }
+function _diversifySoccer(items, topN, cap) {
+  topN = topN || 6; cap = cap || 2;
+  const head = [], deferred = [], cnt = {};
+  for (const it of items) {
+    const c = _soccerComp(it);
+    if (head.length < topN && (cnt[c] || 0) < cap) { head.push(it); cnt[c] = (cnt[c] || 0) + 1; }
+    else deferred.push(it);
+  }
+  for (const it of deferred.slice()) { if (head.length >= topN) break; head.push(it); deferred.splice(deferred.indexOf(it), 1); }
+  return head.concat(deferred);
+}
 app.get('/api/news', async (req, res) => {
   const cat = String(req.query.cat || 'all').toLowerCase();
   const url = NEWS_FEEDS[cat] || NEWS_FEEDS.all;
@@ -710,7 +737,10 @@ app.get('/api/news', async (req, res) => {
   try {
     const r = await fetch(url, { headers: { 'User-Agent': 'Mozilla/5.0 (LiveUp News)' } });
     const xml = await r.text();
-    const items = parseRss(xml).slice(0, 15);
+    let items = parseRss(xml).slice(0, 15);
+    // 중복 제목 제거 후, 축구/전체 피드는 대회 분산 정렬(상단 6개에 여러 대회).
+    { const seen = new Set(); items = items.filter(it => { const k = _fbNorm(it.title).slice(0, 48); if (!k || seen.has(k)) return false; seen.add(k); return true; }); }
+    if (cat === 'soccer' || cat === 'all') items = _diversifySoccer(items, 6, 2);
     // 이미지 없는 항목은 기사 og:image로 보강(상위 12개, 병렬·타임아웃·캐시)
     const need = items.slice(0, 12).filter(it => !it.image && it.link);
     await Promise.all(need.map(async it => { it.image = await fetchOgImage(it.link); }));
@@ -730,6 +760,17 @@ const FBNEWS_LOCAL = {
   'urawaredsdiamonds': '浦和レッズ', 'urawareddiamonds': '浦和レッズ', 'urawareds': '浦和レッズ',
   'kawasakifrontale': '川崎フロンターレ', 'kashimaantlers': '鹿島アントラーズ', 'yokohamafmarinos': '横浜F・マリノス',
   'viselkobe': 'ヴィッセル神戸', 'gambaosaka': 'ガンバ大阪', 'cerezoosaka': 'セレッソ大阪', 'fctokyo': 'FC東京'
+};
+// 한글 별칭(한글 출처 재현율↑). 공급사 영문명에 한국어 번역이 없을 때 검색어로 사용. key: 정규화 영문명.
+const FBNEWS_KO = {
+  'urawaredsdiamonds': '우라와 레즈', 'urawareddiamonds': '우라와 레즈', 'urawareds': '우라와 레즈',
+  'kawasakifrontale': '가와사키 프론탈레', 'kashimaantlers': '가시마 앤틀러스', 'yokohamafmarinos': '요코하마 마리노스',
+  'viselkobe': '비셀 고베', 'gambaosaka': '감바 오사카', 'cerezoosaka': '세레소 오사카', 'fctokyo': 'FC도쿄'
+};
+// 리그명 별칭(한/영 모두 검색어로). key: 정규화 영문/한글 리그명. 모호어(족구 'J1리그')는 영문 병기로 완화.
+const FBNEWS_LEAGUE_KO = {
+  'kleague1': 'K리그1', 'kleague': 'K리그', 'k리그1': 'K League 1', 'k리그': 'K League',
+  'japanesej1league': 'J리그', 'j1league': 'J리그', 'j1리그': 'J1 League', 'j리그': 'J1 League', 'jleague': 'J리그'
 };
 const fbNewsCache = new Map();
 function _fbNorm(s) { return String(s || '').toLowerCase().replace(/[\s.\-_''`,]/g, ''); }
@@ -761,19 +802,42 @@ async function _gnewsSearch(q) {
 }
 // 정확 구문 OR 쿼리(과매칭 방지). terms: 표시/검색용 문자열 배열.
 function _orPhrase(terms) { return terms.filter(Boolean).map(t => '"' + String(t).replace(/"/g, '') + '"').join(' OR '); }
-// 관련성: 제목이 주어진 용어군 중 하나라도 포함(직접 기사 보증, 오연결 제거).
-function _relevant(it, termSets) { const t = _fbNorm(it.title + ' ' + (it.desc || '')); return termSets.every(set => set.some(term => t.includes(_fbNorm(term)))); }
+// 관련성: 제목/요약에 팀 용어가 '경계 있는 토큰'으로 등장할 때만 직접 기사로 인정.
+//   단순 부분일치 금지(오매칭 방지): '우라와'가 '히우라와(야구)·우라와학원(학교)·오우라와(특허)'에 섞이는 사례 제거.
+//   한글은 앞경계(한글/영숫자 앞 글자 금지) + 뒤경계(조사 또는 비한글 허용)로 판정. 리그 명칭 등 짧은 모호어도 동일 적용.
+const _KPART = '은는이가을를와과의에도만로까서고나란라랑야여께';
+const _reCache = new Map();
+function _termRe(term) {
+  const key = 't|' + term; const c0 = _reCache.get(key); if (c0 !== undefined) return c0;
+  const t = String(term || '').toLowerCase().trim(); if (!t) { _reCache.set(key, null); return null; }
+  const scr = x => /[가-힣]/.test(x) ? 'k' : (/[a-z0-9]/.test(x) ? 'l' : (/[぀-ヿ一-鿿]/.test(x) ? 'j' : 'o'));
+  let core = '';
+  for (let i = 0; i < t.length; i++) {
+    const ch = t[i];
+    core += (ch === ' ') ? '\\s+' : ch.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    if (i < t.length - 1) { const a = scr(t[i]), b = scr(t[i + 1]); if (a !== b && a !== 'o' && b !== 'o') core += '\\s*'; }
+  }
+  let re = null;
+  try { re = new RegExp('(?<![0-9a-z가-힣])' + core + '(?=$|[^가-힣]|[' + _KPART + '])', 'i'); } catch (e) { re = null; }
+  _reCache.set(key, re); return re;
+}
+function _relevant(it, termSets) {
+  const text = String((it.title || '') + ' ' + (it.desc || '')).toLowerCase();
+  return termSets.every(set => set.some(term => { const re = _termRe(term); return re ? re.test(text) : _fbNorm(text).includes(_fbNorm(term)); }));
+}
 function _dedup(list) { const seen = new Set(); const out = []; for (const it of list) { const k = _fbNorm(it.title).slice(0, 48); if (!k || seen.has(k)) continue; seen.add(k); out.push(it); } return out; }
 app.get('/api/footballnews', async (req, res) => {
   res.set('Cache-Control', 'public, max-age=300');
-  const mode = String(req.query.mode || 'team') === 'match' ? 'match' : 'team';
+  const _m = String(req.query.mode || 'team'); const mode = (_m === 'match' || _m === 'league') ? _m : 'team';
   const team = String(req.query.team || '').trim(), teamKo = String(req.query.teamKo || '').trim();
   const league = String(req.query.league || '').trim(), leagueKo = String(req.query.leagueKo || '').trim();
   const opp = String(req.query.opp || '').trim(), oppKo = String(req.query.oppKo || '').trim();
   const local = FBNEWS_LOCAL[_fbNorm(team)] || '';
   const oppLocal = FBNEWS_LOCAL[_fbNorm(opp)] || '';
-  const teamTerms = [teamKo, team, local].filter(Boolean);
-  const oppTerms = [oppKo, opp, oppLocal].filter(Boolean);
+  const koAlias = FBNEWS_KO[_fbNorm(team)] || '';          // 한글 번역 미보유 구단의 한글 출처 재현율 보강
+  const oppKoAlias = FBNEWS_KO[_fbNorm(opp)] || '';
+  const teamTerms = Array.from(new Set([teamKo, team, local, koAlias].filter(Boolean)));
+  const oppTerms = Array.from(new Set([oppKo, opp, oppLocal, oppKoAlias].filter(Boolean)));
   const leagueTerms = [leagueKo, league].filter(Boolean);
   const map = it => ({ title: it.title, source: it.source, link: it.link, ts: it.ts, date: it.ts ? new Date(it.ts).toISOString() : '' });
   try {
@@ -787,6 +851,26 @@ app.get('/api/footballnews', async (req, res) => {
       const home = _dedup(rawH.filter(it => _relevant(it, [teamTerms]))).slice(0, 5).map(map);
       const away = _dedup(rawA.filter(it => _relevant(it, [oppTerms]))).slice(0, 5).map(map);
       return res.json({ ok: true, mode, homeName: teamKo || team, awayName: oppKo || opp, h2h, home, away });
+    }
+    if (mode === 'league') {
+      // 리그 화면: 대회 직접 기사(+그 리그를 직접 다룬 구단 기사 — 리그명 언급으로 함께 수집됨) 우선.
+      //   부족하면 '전체 축구 뉴스'(ESPN soccer, 출처·링크 유지)를 별도 구분으로 보조. 중복 제거. 0건과 조회실패는 ok로 구분.
+      const lgTerms = Array.from(new Set([...leagueTerms, FBNEWS_LEAGUE_KO[_fbNorm(league)] || '', FBNEWS_LEAGUE_KO[_fbNorm(leagueKo)] || ''].filter(Boolean)));
+      if (!lgTerms.length) return res.json({ ok: false, mode, reason: 'need league', league: [], general: [] });
+      const rawL = await _gnewsSearch(_orPhrase(lgTerms));
+      // 동일 문자열 타 종목 제거: 'J1리그'는 족구 리그와 문자열 충돌 → 명백한 비축구 도메인어 블록.
+      const BLOCK = /족구|풋살|당구|e스?포츠|배구리그|농구리그/i;
+      const leagueItems = _dedup(rawL.filter(it => _relevant(it, [lgTerms]) && !BLOCK.test((it.title || '') + ' ' + (it.desc || '')))).slice(0, 10).map(map);
+      let general = [];
+      if (leagueItems.length < 5) {
+        try {
+          const gr = await fetch(NEWS_FEEDS.soccer, { headers: { 'User-Agent': 'Mozilla/5.0 (LiveUp News)' } });
+          const gi = parseRss(await gr.text()).slice(0, 10).map(it => ({ title: it.title, source: 'ESPN', link: it.link, ts: it.ts, date: it.ts ? new Date(it.ts).toISOString() : '' }));
+          const seen = new Set(leagueItems.map(x => _fbNorm(x.title).slice(0, 48)));
+          general = gi.filter(x => { const k = _fbNorm(x.title).slice(0, 48); if (!k || seen.has(k)) return false; seen.add(k); return true; }).slice(0, 6);
+        } catch (e) { general = []; }
+      }
+      return res.json({ ok: true, mode, leagueName: leagueKo || league, league: leagueItems, general });
     }
     // team 모드: 직접 기사 우선 → 부족(<3)하면 리그 뉴스 별도.
     if (!teamTerms.length) return res.json({ ok: false, mode, reason: 'need team', direct: [], league: [] });
@@ -804,8 +888,8 @@ app.get('/api/footballnews', async (req, res) => {
 app.get('/api/debug/fbnews', async (req, res) => {
   res.set('Cache-Control', 'no-store');
   const team = String(req.query.team || '').trim(), teamKo = String(req.query.teamKo || '').trim(), league = String(req.query.league || '').trim(), leagueKo = String(req.query.leagueKo || '').trim();
-  const local = FBNEWS_LOCAL[_fbNorm(team)] || '';
-  const teamTerms = [teamKo, team, local].filter(Boolean), leagueTerms = [leagueKo, league].filter(Boolean);
+  const local = FBNEWS_LOCAL[_fbNorm(team)] || '', koAlias = FBNEWS_KO[_fbNorm(team)] || '';
+  const teamTerms = Array.from(new Set([teamKo, team, local, koAlias].filter(Boolean))), leagueTerms = [leagueKo, league].filter(Boolean);
   const out = { at: new Date().toISOString(), teamTerms, leagueTerms };
   try {
     const rawT = await _gnewsSearch(_orPhrase(teamTerms));

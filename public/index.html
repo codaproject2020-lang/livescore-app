@@ -2158,6 +2158,8 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
       var agb=el("button","allg-btn",'<span class="ab-ic">🗂️</span> '+t("allGamesOpen"));
       agb.onclick=function(){ openAllGames(); };
       v.appendChild(agb);
+      // 📰 리그 화면 뉴스(축구 + 특정 리그 선택 시): 리그가 바뀌면 renderHome 재실행으로 박스가 새로 생겨 이전 기사 남지 않음.
+      if(S.sport==="football"&&S.leagueF){ var _lgn=el("div",""); _lgn.id="lgNews"; _lgn.style.margin="4px 2px 0"; v.appendChild(_lgn); loadLeagueNews(S.leagueF,_lgn); }
     }
     // 섹션 헤더 — 진행중=실시간 경기 / 전체=전체 경기 / 관심=관심 경기
     var _effTab=(S.screen==="live")?"live":(S.screen==="fav")?"fav":S.filter;
@@ -5278,6 +5280,20 @@ function t(k){var a=STR[k];if(!a)return k;return a[LANGS.indexOf(LANG)]||a[0];}
       if(j.away&&j.away.length){ h+=fbNewsSecT("🚌",esc(j.awayName||aKo)+" "+tl({en:"news",ko:"뉴스",ja:"ニュース",zh:"新闻",es:"noticias",hi:"समाचार",vi:"tin",th:"ข่าว",ru:"новости",de:"News",fr:"actus",it:"notizie"}))+j.away.map(fbNewsCard).join(""); }
       if(h){ var sec=document.createElement("div"); sec.innerHTML=h; container.appendChild(sec); }
     }).catch(function(){});
+  }
+  // 📰 리그 화면 뉴스(축구): 특정 리그 선택 시 그 대회 뉴스 자동 표시. 리그명+대회 검색, 부족하면 '전체 축구 뉴스' 보조.
+  var _lgNewsTok=0;
+  function loadLeagueNews(lg, box){
+    if(!box||!lg)return;
+    var tok=++_lgNewsTok, lgKo=tnLeague(lg)||lg;
+    fetch("/api/footballnews?mode=league&league="+encodeURIComponent(lg)+"&leagueKo="+encodeURIComponent(lgKo)).then(function(r){return r.json();}).then(function(j){
+      if(tok!==_lgNewsTok||!box.parentNode)return;   // 늦은 응답/리그 전환 시 폐기(이전 리그 기사 잔류 방지)
+      if(!j||!j.ok){ box.innerHTML=""; return; }     // 조회 실패: 섹션 비움(정상 0건과 구분 — ok=false)
+      var h="";
+      if(j.league&&j.league.length){ h+=fbNewsSecT("📰",(j.leagueName?esc(j.leagueName)+" ":"")+tl({en:"league news",ko:"리그 뉴스",ja:"リーグニュース",zh:"联赛新闻",es:"noticias de liga",hi:"लीग समाचार",vi:"tin giải đấu",th:"ข่าวลีก",ru:"новости лиги",de:"Liga-News",fr:"actus de la ligue",it:"notizie lega"}))+j.league.map(fbNewsCard).join(""); }
+      if(j.general&&j.general.length){ h+=fbNewsSecT("🗞️",tl({en:"All football news",ko:"전체 축구 뉴스",ja:"サッカー全般ニュース",zh:"足球综合新闻",es:"Noticias de fútbol",hi:"संपूर्ण फुटबॉल समाचार",vi:"Tin bóng đá chung",th:"ข่าวฟุตบอลทั่วไป",ru:"Футбольные новости",de:"Fußball-News",fr:"Actus football",it:"Notizie calcio"}))+j.general.map(fbNewsCard).join(""); }
+      box.innerHTML=h;   // 정상 0건이면 빈 상태(안내 없음)
+    }).catch(function(){ if(tok===_lgNewsTok&&box&&box.parentNode)box.innerHTML=""; });
   }
   // ⚽ 축구 팀 상세 — 팀 정보 API가 비어도 diary 집계로 '그 전 기록'을 보여준다. H2H/순위표 팀 클릭 시.
   function fbTeamGameRow(m,refTid){
